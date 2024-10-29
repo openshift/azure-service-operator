@@ -1,0 +1,12 @@
+# This file exists to override the upstream v2/.dockerignore file without
+# actually modifying upstream files
+**
+
+# Ignore everything except below
+!/go.mod
+!/go.sum
+!/vendor/**
+!/cmd/**
+!/pkg/**
+!/internal/**
+!/api/**

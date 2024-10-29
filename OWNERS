@@ -16,4 +16,4 @@ reviewers:
 - sub-mod
 - theobarberbany
 component: Cloud Compute
-subcomponent: Cloud Controller Manager
+subcomponent: Cluster API Provider
