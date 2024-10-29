@@ -192,6 +192,11 @@ func (d decoder) unmarshalMessage(m protoreflect.Message, skipTypeURL bool) erro
 				fd = fieldDescs.ByTextName(name)
 			}
 		}
+		if flags.ProtoLegacy {
+			if fd != nil && fd.IsWeak() && fd.Message().IsPlaceholder() {
+				fd = nil // reset since the weak reference is not linked in
+			}
+		}
 
 		if fd == nil {
 			// Field is unknown.
@@ -346,7 +351,7 @@ func (d decoder) unmarshalScalar(fd protoreflect.FieldDescriptor) (protoreflect.
 		panic(fmt.Sprintf("unmarshalScalar: invalid scalar kind %v", kind))
 	}
 
-	return protoreflect.Value{}, d.newError(tok.Pos(), "invalid value for %v field %v: %v", kind, fd.JSONName(), tok.RawString())
+	return protoreflect.Value{}, d.newError(tok.Pos(), "invalid value for %v type: %v", kind, tok.RawString())
 }
 
 func unmarshalInt(tok json.Token, bitSize int) (protoreflect.Value, bool) {
@@ -363,10 +368,6 @@ func unmarshalInt(tok json.Token, bitSize int) (protoreflect.Value, bool) {
 		dec := json.NewDecoder([]byte(s))
 		tok, err := dec.Read()
 		if err != nil {
-			return protoreflect.Value{}, false
-		}
-		// Ensure there is no non-number content in this string.
-		if next, err := dec.Read(); err != nil || next.Kind() != json.EOF {
 			return protoreflect.Value{}, false
 		}
 		return getInt(tok, bitSize)
@@ -399,10 +400,6 @@ func unmarshalUint(tok json.Token, bitSize int) (protoreflect.Value, bool) {
 		dec := json.NewDecoder([]byte(s))
 		tok, err := dec.Read()
 		if err != nil {
-			return protoreflect.Value{}, false
-		}
-		// Ensure there is no non-number content in this string.
-		if next, err := dec.Read(); err != nil || next.Kind() != json.EOF {
 			return protoreflect.Value{}, false
 		}
 		return getUint(tok, bitSize)
@@ -453,10 +450,6 @@ func unmarshalFloat(tok json.Token, bitSize int) (protoreflect.Value, bool) {
 		dec := json.NewDecoder([]byte(s))
 		tok, err := dec.Read()
 		if err != nil {
-			return protoreflect.Value{}, false
-		}
-		// Ensure there is no non-number content in this string.
-		if next, err := dec.Read(); err != nil || next.Kind() != json.EOF {
 			return protoreflect.Value{}, false
 		}
 		return getFloat(tok, bitSize)

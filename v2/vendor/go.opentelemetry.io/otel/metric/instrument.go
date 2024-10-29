@@ -63,9 +63,7 @@ func (o descOpt) applyFloat64ObservableCounter(c Float64ObservableCounterConfig)
 	return c
 }
 
-func (o descOpt) applyFloat64ObservableUpDownCounter(
-	c Float64ObservableUpDownCounterConfig,
-) Float64ObservableUpDownCounterConfig {
+func (o descOpt) applyFloat64ObservableUpDownCounter(c Float64ObservableUpDownCounterConfig) Float64ObservableUpDownCounterConfig {
 	c.description = string(o)
 	return c
 }
@@ -100,9 +98,7 @@ func (o descOpt) applyInt64ObservableCounter(c Int64ObservableCounterConfig) Int
 	return c
 }
 
-func (o descOpt) applyInt64ObservableUpDownCounter(
-	c Int64ObservableUpDownCounterConfig,
-) Int64ObservableUpDownCounterConfig {
+func (o descOpt) applyInt64ObservableUpDownCounter(c Int64ObservableUpDownCounterConfig) Int64ObservableUpDownCounterConfig {
 	c.description = string(o)
 	return c
 }
@@ -142,9 +138,7 @@ func (o unitOpt) applyFloat64ObservableCounter(c Float64ObservableCounterConfig)
 	return c
 }
 
-func (o unitOpt) applyFloat64ObservableUpDownCounter(
-	c Float64ObservableUpDownCounterConfig,
-) Float64ObservableUpDownCounterConfig {
+func (o unitOpt) applyFloat64ObservableUpDownCounter(c Float64ObservableUpDownCounterConfig) Float64ObservableUpDownCounterConfig {
 	c.unit = string(o)
 	return c
 }
@@ -179,9 +173,7 @@ func (o unitOpt) applyInt64ObservableCounter(c Int64ObservableCounterConfig) Int
 	return c
 }
 
-func (o unitOpt) applyInt64ObservableUpDownCounter(
-	c Int64ObservableUpDownCounterConfig,
-) Int64ObservableUpDownCounterConfig {
+func (o unitOpt) applyInt64ObservableUpDownCounter(c Int64ObservableUpDownCounterConfig) Int64ObservableUpDownCounterConfig {
 	c.unit = string(o)
 	return c
 }
@@ -359,7 +351,7 @@ func WithAttributeSet(attributes attribute.Set) MeasurementOption {
 //
 //	cp := make([]attribute.KeyValue, len(attributes))
 //	copy(cp, attributes)
-//	WithAttributeSet(attribute.NewSet(cp...))
+//	WithAttributes(attribute.NewSet(cp...))
 //
 // [attribute.NewSet] may modify the passed attributes so this will make a copy
 // of attributes before creating a set in order to ensure this function is

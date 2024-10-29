@@ -52,10 +52,7 @@ func wellKnownTypeMarshaler(name protoreflect.FullName) marshalFunc {
 		case genid.FieldMask_message_name:
 			return encoder.marshalFieldMask
 		case genid.Empty_message_name:
-			// The spec explicitly specifies that the Empty message
-			// is not considered to have any special JSON mapping:
-			// https://protobuf.dev/programming-guides/json/#any
-			return nil
+			return encoder.marshalEmpty
 		}
 	}
 	return nil
@@ -351,11 +348,7 @@ func (d decoder) unmarshalAnyValue(unmarshal unmarshalFunc, m protoreflect.Messa
 		switch tok.Kind() {
 		case json.ObjectClose:
 			if !found {
-				// We tolerate an omitted `value` field with the google.protobuf.Empty Well-Known-Type,
-				// for compatibility with other proto runtimes that have interpreted the spec differently.
-				if m.Descriptor().FullName() != genid.Empty_message_fullname {
-					return d.newError(tok.Pos(), `missing "value" field`)
-				}
+				return d.newError(tok.Pos(), `missing "value" field`)
 			}
 			return nil
 
