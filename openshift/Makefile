@@ -1,56 +1,34 @@
 # Ensure Make is run with bash shell as some syntax below is bash-specific
 SHELL:=/usr/bin/env bash
 
-.DEFAULT_GOAL:=help
+ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
-GOPATH  := $(shell go env GOPATH)
-GOARCH  := $(shell go env GOARCH)
-GOOS    := $(shell go env GOOS)
-GOPROXY := $(shell go env GOPROXY)
-ifeq ($(GOPROXY),)
-GOPROXY := https://proxy.golang.org
+
+# Define Docker related variables. Releases should modify and double check these vars.
+ifeq (,$(shell command -v gcloud))
+    REGISTRY ?= gcr.io/$(shell gcloud config get-value project)
+else
+    REGISTRY ?= localhost:5000
 endif
-export GOPROXY
-
-# Active module mode, as we use go modules to manage dependencies
-export GO111MODULE=on
-
-# Kubebuilder.
-export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.29.0
-export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT ?= 60s
-export KUBEBUILDER_CONTROLPLANE_STOP_TIMEOUT ?= 60s
-
-# Directories
-ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-BIN_DIR := $(ROOT_DIR)/bin
-TOOLS_DIR := $(ROOT_DIR)/tools
-TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
+IMG_NAME ?= aso-controller
+CONTROLLER_IMG ?=$(REGISTRY)/$(IMG_NAME)
+ARCH := amd64
+TAG := latest
 
 
-# Envtest
-SETUP_ENVTEST_VER := v0.0.0-20231012212722-e25aeebc7846
-SETUP_ENVTEST_BIN := setup-envtest
-SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER))
-SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
+.PHONY: binaries
+binaries:
+	go build -C ${ROOT_DIR}/v2 -o aso-controller ./cmd/controller
 
-KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use --use-env -p path $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION))
+# Redefine this target since upstream uses make for v1 and task for v2.
+.PHONY: docker-build
+docker-build:
+	docker build -f openshift/Dockerfile --ignorefile openshift/Dockerfile.dockerignore -t $(CONTROLLER_IMG)-$(ARCH):$(TAG) ${ROOT_DIR}/v2
 
-# TODO(nrb): Where is this set?
-$(RELEASE_DIR):
-	mkdir -p $(RELEASE_DIR)/
+.PHONY: docker-push
+docker-push:
+	docker push $(CONTROLLER_IMG)-$(ARCH):$(TAG)
 
-.PHONY: go-test
-go-test: $(SETUP_ENVTEST) ## Run go tests.
-	# TODO(nrb): This prorbably isn't the right command
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" go test ./... $(TEST_ARGS)
-
-# TODO(nrb): Install envtest
- .PHONY: $(SETUP_ENVTEST_BIN)
-$(SETUP_ENVTEST_BIN): $(SETUP_ENVTEST) ## Build a local copy of setup-envtest.
-
-$(SETUP_ENVTEST): # Build setup-envtest from tools folder.
-	#TODO(nrb): The GO_INSTALL script probably needs to be brought in, too.
-	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(SETUP_ENVTEST_PKG) $(SETUP_ENVTEST_BIN) $(SETUP_ENVTEST_VER)
-
-# TODO(nrb): Document e2e variables needed
-# TODO(nrb): Write test wrapper
+.PHONY: test-unit
+test-unit:
+	${ROOT_DIR}/openshift/unit-tests.sh
