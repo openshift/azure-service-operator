@@ -3,10 +3,10 @@
 **
 
 # Ignore everything except below
-!/go.mod
-!/go.sum
-!/vendor/**
-!/cmd/**
-!/pkg/**
-!/internal/**
-!/api/**
+!/v2/go.mod
+!/v2/go.sum
+!/v2/vendor/**
+!/v2/cmd/**
+!/v2/pkg/**
+!/v2/internal/**
+!/v2/api/**

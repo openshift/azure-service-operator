@@ -21,9 +21,11 @@ binaries:
 	go build -C ${ROOT_DIR}/v2 -o aso-controller ./cmd/controller
 
 # Redefine this target since upstream uses make for v1 and task for v2.
+# NOTE: We use the repo root as the docker build context, but the Dockerfile itself
+# will pull in files from the v2 directory
 .PHONY: docker-build
 docker-build:
-	docker build -f openshift/Dockerfile --ignorefile openshift/Dockerfile.dockerignore -t $(CONTROLLER_IMG)-$(ARCH):$(TAG) ${ROOT_DIR}/v2
+	docker build -f openshift/Dockerfile --ignorefile openshift/Dockerfile.dockerignore -t $(CONTROLLER_IMG)-$(ARCH):$(TAG) ${ROOT_DIR}
 
 .PHONY: docker-push
 docker-push:
