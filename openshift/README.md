@@ -12,3 +12,6 @@ from this repository, because Openshift does not need the entire Azure API surfa
 
 CRDs are included in the CAPZ manifests, which already filters the installed CRDs
 down to only those relevant to cluster lifecycling.
+
+If you run into issues building the container image, double check the
+`openshift/Dockefile.dockerignore` file; it may be excluding something.
