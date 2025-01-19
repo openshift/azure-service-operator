@@ -75,3 +75,5 @@ hack/tools
 
 # goenv condiguration
 .go-version
+v2/controller
+v2/cmd/asoctl/asoctl
