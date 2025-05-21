@@ -4,18 +4,22 @@
 package v1api20220901
 
 import (
+	"context"
 	"fmt"
 	arm "github.com/Azure/azure-service-operator/v2/api/search/v1api20220901/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/search/v1api20220901/storage"
+	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/go-logr/logr"
 	"github.com/rotisserie/eris"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
@@ -51,22 +55,36 @@ var _ conversion.Convertible = &SearchService{}
 
 // ConvertFrom populates our SearchService from the provided hub SearchService
 func (service *SearchService) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.SearchService)
-	if !ok {
-		return fmt.Errorf("expected search/v1api20220901/storage/SearchService but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.SearchService
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return service.AssignProperties_From_SearchService(source)
+	err = service.AssignProperties_From_SearchService(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to service")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub SearchService from our SearchService
 func (service *SearchService) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.SearchService)
-	if !ok {
-		return fmt.Errorf("expected search/v1api20220901/storage/SearchService but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.SearchService
+	err := service.AssignProperties_To_SearchService(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from service")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return service.AssignProperties_To_SearchService(destination)
+	return nil
 }
 
 var _ configmaps.Exporter = &SearchService{}
@@ -89,15 +107,30 @@ func (service *SearchService) SecretDestinationExpressions() []*core.Destination
 	return service.Spec.OperatorSpec.SecretExpressions
 }
 
-var _ genruntime.ImportableResource = &SearchService{}
+var _ genruntime.KubernetesConfigExporter = &SearchService{}
 
-// InitializeSpec initializes the spec for this resource from the given status
-func (service *SearchService) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*SearchService_STATUS); ok {
-		return service.Spec.Initialize_From_SearchService_STATUS(s)
+// ExportKubernetesConfigMaps defines a resource which can create ConfigMaps in Kubernetes.
+func (service *SearchService) ExportKubernetesConfigMaps(_ context.Context, _ genruntime.MetaObject, _ *genericarmclient.GenericClient, _ logr.Logger) ([]client.Object, error) {
+	collector := configmaps.NewCollector(service.Namespace)
+	if service.Spec.OperatorSpec != nil && service.Spec.OperatorSpec.ConfigMaps != nil {
+		if service.Status.Identity != nil {
+			if service.Status.Identity.PrincipalId != nil {
+				collector.AddValue(service.Spec.OperatorSpec.ConfigMaps.IdentityPrincipalId, *service.Status.Identity.PrincipalId)
+			}
+		}
 	}
-
-	return fmt.Errorf("expected Status of type SearchService_STATUS but received %T instead", status)
+	if service.Spec.OperatorSpec != nil && service.Spec.OperatorSpec.ConfigMaps != nil {
+		if service.Status.Identity != nil {
+			if service.Status.Identity.TenantId != nil {
+				collector.AddValue(service.Spec.OperatorSpec.ConfigMaps.IdentityTenantId, *service.Status.Identity.TenantId)
+			}
+		}
+	}
+	result, err := collector.Values()
+	if err != nil {
+		return nil, err
+	}
+	return configmaps.SliceToClientObjectSlice(result), nil
 }
 
 var _ genruntime.KubernetesResource = &SearchService{}
@@ -892,109 +925,6 @@ func (service *SearchService_Spec) AssignProperties_To_SearchService_Spec(destin
 	} else {
 		destination.PropertyBag = nil
 	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_SearchService_STATUS populates our SearchService_Spec from the provided source SearchService_STATUS
-func (service *SearchService_Spec) Initialize_From_SearchService_STATUS(source *SearchService_STATUS) error {
-
-	// AuthOptions
-	if source.AuthOptions != nil {
-		var authOption DataPlaneAuthOptions
-		err := authOption.Initialize_From_DataPlaneAuthOptions_STATUS(source.AuthOptions)
-		if err != nil {
-			return eris.Wrap(err, "calling Initialize_From_DataPlaneAuthOptions_STATUS() to populate field AuthOptions")
-		}
-		service.AuthOptions = &authOption
-	} else {
-		service.AuthOptions = nil
-	}
-
-	// DisableLocalAuth
-	if source.DisableLocalAuth != nil {
-		disableLocalAuth := *source.DisableLocalAuth
-		service.DisableLocalAuth = &disableLocalAuth
-	} else {
-		service.DisableLocalAuth = nil
-	}
-
-	// EncryptionWithCmk
-	if source.EncryptionWithCmk != nil {
-		var encryptionWithCmk EncryptionWithCmk
-		err := encryptionWithCmk.Initialize_From_EncryptionWithCmk_STATUS(source.EncryptionWithCmk)
-		if err != nil {
-			return eris.Wrap(err, "calling Initialize_From_EncryptionWithCmk_STATUS() to populate field EncryptionWithCmk")
-		}
-		service.EncryptionWithCmk = &encryptionWithCmk
-	} else {
-		service.EncryptionWithCmk = nil
-	}
-
-	// HostingMode
-	if source.HostingMode != nil {
-		hostingMode := genruntime.ToEnum(string(*source.HostingMode), searchServiceProperties_HostingMode_Values)
-		service.HostingMode = &hostingMode
-	} else {
-		service.HostingMode = nil
-	}
-
-	// Identity
-	if source.Identity != nil {
-		var identity Identity
-		err := identity.Initialize_From_Identity_STATUS(source.Identity)
-		if err != nil {
-			return eris.Wrap(err, "calling Initialize_From_Identity_STATUS() to populate field Identity")
-		}
-		service.Identity = &identity
-	} else {
-		service.Identity = nil
-	}
-
-	// Location
-	service.Location = genruntime.ClonePointerToString(source.Location)
-
-	// NetworkRuleSet
-	if source.NetworkRuleSet != nil {
-		var networkRuleSet NetworkRuleSet
-		err := networkRuleSet.Initialize_From_NetworkRuleSet_STATUS(source.NetworkRuleSet)
-		if err != nil {
-			return eris.Wrap(err, "calling Initialize_From_NetworkRuleSet_STATUS() to populate field NetworkRuleSet")
-		}
-		service.NetworkRuleSet = &networkRuleSet
-	} else {
-		service.NetworkRuleSet = nil
-	}
-
-	// PartitionCount
-	service.PartitionCount = genruntime.ClonePointerToInt(source.PartitionCount)
-
-	// PublicNetworkAccess
-	if source.PublicNetworkAccess != nil {
-		publicNetworkAccess := genruntime.ToEnum(string(*source.PublicNetworkAccess), searchServiceProperties_PublicNetworkAccess_Values)
-		service.PublicNetworkAccess = &publicNetworkAccess
-	} else {
-		service.PublicNetworkAccess = nil
-	}
-
-	// ReplicaCount
-	service.ReplicaCount = genruntime.ClonePointerToInt(source.ReplicaCount)
-
-	// Sku
-	if source.Sku != nil {
-		var sku Sku
-		err := sku.Initialize_From_Sku_STATUS(source.Sku)
-		if err != nil {
-			return eris.Wrap(err, "calling Initialize_From_Sku_STATUS() to populate field Sku")
-		}
-		service.Sku = &sku
-	} else {
-		service.Sku = nil
-	}
-
-	// Tags
-	service.Tags = genruntime.CloneMapOfStringToString(source.Tags)
 
 	// No error
 	return nil
@@ -1826,25 +1756,6 @@ func (options *DataPlaneAuthOptions) AssignProperties_To_DataPlaneAuthOptions(de
 	return nil
 }
 
-// Initialize_From_DataPlaneAuthOptions_STATUS populates our DataPlaneAuthOptions from the provided source DataPlaneAuthOptions_STATUS
-func (options *DataPlaneAuthOptions) Initialize_From_DataPlaneAuthOptions_STATUS(source *DataPlaneAuthOptions_STATUS) error {
-
-	// AadOrApiKey
-	if source.AadOrApiKey != nil {
-		var aadOrApiKey DataPlaneAadOrApiKeyAuthOption
-		err := aadOrApiKey.Initialize_From_DataPlaneAadOrApiKeyAuthOption_STATUS(source.AadOrApiKey)
-		if err != nil {
-			return eris.Wrap(err, "calling Initialize_From_DataPlaneAadOrApiKeyAuthOption_STATUS() to populate field AadOrApiKey")
-		}
-		options.AadOrApiKey = &aadOrApiKey
-	} else {
-		options.AadOrApiKey = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Defines the options for how the data plane API of a Search service authenticates requests. This cannot be set if
 // 'disableLocalAuth' is set to true.
 type DataPlaneAuthOptions_STATUS struct {
@@ -2056,21 +1967,6 @@ func (withCmk *EncryptionWithCmk) AssignProperties_To_EncryptionWithCmk(destinat
 	return nil
 }
 
-// Initialize_From_EncryptionWithCmk_STATUS populates our EncryptionWithCmk from the provided source EncryptionWithCmk_STATUS
-func (withCmk *EncryptionWithCmk) Initialize_From_EncryptionWithCmk_STATUS(source *EncryptionWithCmk_STATUS) error {
-
-	// Enforcement
-	if source.Enforcement != nil {
-		enforcement := genruntime.ToEnum(string(*source.Enforcement), encryptionWithCmk_Enforcement_Values)
-		withCmk.Enforcement = &enforcement
-	} else {
-		withCmk.Enforcement = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Describes a policy that determines how resources within the search service are to be encrypted with Customer Managed
 // Keys.
 type EncryptionWithCmk_STATUS struct {
@@ -2258,21 +2154,6 @@ func (identity *Identity) AssignProperties_To_Identity(destination *storage.Iden
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_Identity_STATUS populates our Identity from the provided source Identity_STATUS
-func (identity *Identity) Initialize_From_Identity_STATUS(source *Identity_STATUS) error {
-
-	// Type
-	if source.Type != nil {
-		typeVar := genruntime.ToEnum(string(*source.Type), identity_Type_Values)
-		identity.Type = &typeVar
-	} else {
-		identity.Type = nil
 	}
 
 	// No error
@@ -2495,31 +2376,6 @@ func (ruleSet *NetworkRuleSet) AssignProperties_To_NetworkRuleSet(destination *s
 	return nil
 }
 
-// Initialize_From_NetworkRuleSet_STATUS populates our NetworkRuleSet from the provided source NetworkRuleSet_STATUS
-func (ruleSet *NetworkRuleSet) Initialize_From_NetworkRuleSet_STATUS(source *NetworkRuleSet_STATUS) error {
-
-	// IpRules
-	if source.IpRules != nil {
-		ipRuleList := make([]IpRule, len(source.IpRules))
-		for ipRuleIndex, ipRuleItem := range source.IpRules {
-			// Shadow the loop variable to avoid aliasing
-			ipRuleItem := ipRuleItem
-			var ipRule IpRule
-			err := ipRule.Initialize_From_IpRule_STATUS(&ipRuleItem)
-			if err != nil {
-				return eris.Wrap(err, "calling Initialize_From_IpRule_STATUS() to populate field IpRules")
-			}
-			ipRuleList[ipRuleIndex] = ipRule
-		}
-		ruleSet.IpRules = ipRuleList
-	} else {
-		ruleSet.IpRules = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Network specific rules that determine how the Azure Cognitive Search service may be reached.
 type NetworkRuleSet_STATUS struct {
 	// IpRules: A list of IP restriction rules that defines the inbound network(s) with allowing access to the search service
@@ -2681,6 +2537,9 @@ type SearchServiceOperatorSpec struct {
 	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
 	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
 
+	// ConfigMaps: configures where to place operator written ConfigMaps.
+	ConfigMaps *SearchServiceOperatorConfigMaps `json:"configMaps,omitempty"`
+
 	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
 	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
 
@@ -2707,6 +2566,18 @@ func (operator *SearchServiceOperatorSpec) AssignProperties_From_SearchServiceOp
 		operator.ConfigMapExpressions = configMapExpressionList
 	} else {
 		operator.ConfigMapExpressions = nil
+	}
+
+	// ConfigMaps
+	if source.ConfigMaps != nil {
+		var configMap SearchServiceOperatorConfigMaps
+		err := configMap.AssignProperties_From_SearchServiceOperatorConfigMaps(source.ConfigMaps)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SearchServiceOperatorConfigMaps() to populate field ConfigMaps")
+		}
+		operator.ConfigMaps = &configMap
+	} else {
+		operator.ConfigMaps = nil
 	}
 
 	// SecretExpressions
@@ -2764,6 +2635,18 @@ func (operator *SearchServiceOperatorSpec) AssignProperties_To_SearchServiceOper
 		destination.ConfigMapExpressions = configMapExpressionList
 	} else {
 		destination.ConfigMapExpressions = nil
+	}
+
+	// ConfigMaps
+	if operator.ConfigMaps != nil {
+		var configMap storage.SearchServiceOperatorConfigMaps
+		err := operator.ConfigMaps.AssignProperties_To_SearchServiceOperatorConfigMaps(&configMap)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SearchServiceOperatorConfigMaps() to populate field ConfigMaps")
+		}
+		destination.ConfigMaps = &configMap
+	} else {
+		destination.ConfigMaps = nil
 	}
 
 	// SecretExpressions
@@ -3051,21 +2934,6 @@ func (sku *Sku) AssignProperties_To_Sku(destination *storage.Sku) error {
 	return nil
 }
 
-// Initialize_From_Sku_STATUS populates our Sku from the provided source Sku_STATUS
-func (sku *Sku) Initialize_From_Sku_STATUS(source *Sku_STATUS) error {
-
-	// Name
-	if source.Name != nil {
-		name := genruntime.ToEnum(string(*source.Name), sku_Name_Values)
-		sku.Name = &name
-	} else {
-		sku.Name = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Defines the SKU of an Azure Cognitive Search Service, which determines price tier and capacity limits.
 type Sku_STATUS struct {
 	// Name: The SKU of the search service. Valid values include: 'free': Shared service. 'basic': Dedicated service with up to
@@ -3227,21 +3095,6 @@ func (option *DataPlaneAadOrApiKeyAuthOption) AssignProperties_To_DataPlaneAadOr
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_DataPlaneAadOrApiKeyAuthOption_STATUS populates our DataPlaneAadOrApiKeyAuthOption from the provided source DataPlaneAadOrApiKeyAuthOption_STATUS
-func (option *DataPlaneAadOrApiKeyAuthOption) Initialize_From_DataPlaneAadOrApiKeyAuthOption_STATUS(source *DataPlaneAadOrApiKeyAuthOption_STATUS) error {
-
-	// AadAuthFailureMode
-	if source.AadAuthFailureMode != nil {
-		aadAuthFailureMode := genruntime.ToEnum(string(*source.AadAuthFailureMode), dataPlaneAadOrApiKeyAuthOption_AadAuthFailureMode_Values)
-		option.AadAuthFailureMode = &aadAuthFailureMode
-	} else {
-		option.AadAuthFailureMode = nil
 	}
 
 	// No error
@@ -3467,16 +3320,6 @@ func (rule *IpRule) AssignProperties_To_IpRule(destination *storage.IpRule) erro
 	return nil
 }
 
-// Initialize_From_IpRule_STATUS populates our IpRule from the provided source IpRule_STATUS
-func (rule *IpRule) Initialize_From_IpRule_STATUS(source *IpRule_STATUS) error {
-
-	// Value
-	rule.Value = genruntime.ClonePointerToString(source.Value)
-
-	// No error
-	return nil
-}
-
 // The IP restriction rule of the Azure Cognitive Search service.
 type IpRule_STATUS struct {
 	// Value: Value corresponding to a single IPv4 address (eg., 123.1.2.3) or an IP range in CIDR format (eg., 123.1.2.3/24)
@@ -3525,6 +3368,71 @@ func (rule *IpRule_STATUS) AssignProperties_To_IpRule_STATUS(destination *storag
 
 	// Value
 	destination.Value = genruntime.ClonePointerToString(rule.Value)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+type SearchServiceOperatorConfigMaps struct {
+	// IdentityPrincipalId: indicates where the IdentityPrincipalId config map should be placed. If omitted, no config map will
+	// be created.
+	IdentityPrincipalId *genruntime.ConfigMapDestination `json:"identityPrincipalId,omitempty"`
+
+	// IdentityTenantId: indicates where the IdentityTenantId config map should be placed. If omitted, no config map will be
+	// created.
+	IdentityTenantId *genruntime.ConfigMapDestination `json:"identityTenantId,omitempty"`
+}
+
+// AssignProperties_From_SearchServiceOperatorConfigMaps populates our SearchServiceOperatorConfigMaps from the provided source SearchServiceOperatorConfigMaps
+func (maps *SearchServiceOperatorConfigMaps) AssignProperties_From_SearchServiceOperatorConfigMaps(source *storage.SearchServiceOperatorConfigMaps) error {
+
+	// IdentityPrincipalId
+	if source.IdentityPrincipalId != nil {
+		identityPrincipalId := source.IdentityPrincipalId.Copy()
+		maps.IdentityPrincipalId = &identityPrincipalId
+	} else {
+		maps.IdentityPrincipalId = nil
+	}
+
+	// IdentityTenantId
+	if source.IdentityTenantId != nil {
+		identityTenantId := source.IdentityTenantId.Copy()
+		maps.IdentityTenantId = &identityTenantId
+	} else {
+		maps.IdentityTenantId = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SearchServiceOperatorConfigMaps populates the provided destination SearchServiceOperatorConfigMaps from our SearchServiceOperatorConfigMaps
+func (maps *SearchServiceOperatorConfigMaps) AssignProperties_To_SearchServiceOperatorConfigMaps(destination *storage.SearchServiceOperatorConfigMaps) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// IdentityPrincipalId
+	if maps.IdentityPrincipalId != nil {
+		identityPrincipalId := maps.IdentityPrincipalId.Copy()
+		destination.IdentityPrincipalId = &identityPrincipalId
+	} else {
+		destination.IdentityPrincipalId = nil
+	}
+
+	// IdentityTenantId
+	if maps.IdentityTenantId != nil {
+		identityTenantId := maps.IdentityTenantId.Copy()
+		destination.IdentityTenantId = &identityTenantId
+	} else {
+		destination.IdentityTenantId = nil
+	}
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
