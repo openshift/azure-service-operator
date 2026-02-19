@@ -3711,6 +3711,7 @@ objectModelConfiguration:
           - ClientId
           - PrincipalId
           - TenantId
+          - SubscriptionId
         $generatedConfigs:
           ClientId: $.Status.ClientId
           PrincipalId: $.Status.PrincipalId
