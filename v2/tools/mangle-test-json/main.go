@@ -60,14 +60,6 @@ func main() {
 	log.Info("Complete")
 }
 
-func min(i, j int) int {
-	if i <= j {
-		return i
-	}
-
-	return j
-}
-
 func loadJSON(
 	testOutputFile string,
 	log logr.Logger,
