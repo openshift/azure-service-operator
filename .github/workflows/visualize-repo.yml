@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Create token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # pinned to v3.1.1
         id: app-token
         with:
           # required
@@ -45,7 +45,7 @@ jobs:
           ref: bot/update-diagrams
 
       - name: Update ASO v2 diagram
-        uses: githubocto/repo-visualizer@main
+        uses: githubocto/repo-visualizer@a999615bdab757559bf94bda1fe6eef232765f85
         with:
           # Paths are relative to root_path
           excluded_paths: "ignore,.github,tools,cmd"
@@ -55,7 +55,7 @@ jobs:
           should_push: false
 
       - name: Update asoctl diagram
-        uses: githubocto/repo-visualizer@main
+        uses: githubocto/repo-visualizer@a999615bdab757559bf94bda1fe6eef232765f85
         with:
           excluded_paths: "ignore,.github"
           output_file: "docs/hugo/content/contributing/asoctl-structure.svg"
@@ -64,7 +64,7 @@ jobs:
           should_push: false
 
       - name: Update ASO Code Generator diagram
-        uses: githubocto/repo-visualizer@main
+        uses: githubocto/repo-visualizer@a999615bdab757559bf94bda1fe6eef232765f85
         with:
           excluded_paths: "ignore,.github"
           output_file: "docs/hugo/content/contributing/aso-codegen-structure.svg"
