@@ -238,6 +238,9 @@ import (
 	documentdb_v20240815 "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20240815"
 	documentdb_v20240815s "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20240815/storage"
 	documentdb_v20240815w "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20240815/webhook"
+	documentdb_v20251015 "github.com/Azure/azure-service-operator/v2/api/documentdb/v20251015"
+	documentdb_v20251015s "github.com/Azure/azure-service-operator/v2/api/documentdb/v20251015/storage"
+	documentdb_v20251015w "github.com/Azure/azure-service-operator/v2/api/documentdb/v20251015/webhook"
 	eventgrid_customizations "github.com/Azure/azure-service-operator/v2/api/eventgrid/customizations"
 	eventgrid_v20200601 "github.com/Azure/azure-service-operator/v2/api/eventgrid/v1api20200601"
 	eventgrid_v20200601s "github.com/Azure/azure-service-operator/v2/api/eventgrid/v1api20200601/storage"
@@ -1429,6 +1432,93 @@ func getKnownStorageTypes() []*registration.StorageType {
 						".spec.principalIdFromConfig",
 					},
 					&documentdb_v20240815s.SqlRoleAssignmentList{}),
+			},
+		},
+	})
+	result = append(result, &registration.StorageType{
+		Obj: new(documentdb_v20251015s.CassandraCluster),
+		Indexes: []registration.Index{
+			{
+				Key:  ".spec.properties.clientCertificates.pem",
+				Func: indexDocumentdbCassandraClusterClientCertificatesPem,
+			},
+			{
+				Key:  ".spec.properties.externalGossipCertificates.pem",
+				Func: indexDocumentdbCassandraClusterExternalGossipCertificatesPem,
+			},
+			{
+				Key:  ".spec.properties.externalSeedNodes.ipAddressFromConfig",
+				Func: indexDocumentdbCassandraClusterExternalSeedNodesIpAddressFromConfig,
+			},
+			{
+				Key:  ".spec.properties.initialCassandraAdminPassword",
+				Func: indexDocumentdbCassandraClusterInitialCassandraAdminPassword,
+			},
+			{
+				Key:  ".spec.properties.prometheusEndpoint.ipAddressFromConfig",
+				Func: indexDocumentdbCassandraClusterPrometheusEndpointIpAddressFromConfig,
+			},
+		},
+		Watches: []registration.Watch{
+			{
+				Type: &v1.Secret{},
+				MakeEventHandler: watchSecretsFactory(
+					[]string{
+						".spec.properties.clientCertificates.pem",
+						".spec.properties.externalGossipCertificates.pem",
+						".spec.properties.initialCassandraAdminPassword",
+					},
+					&documentdb_v20251015s.CassandraClusterList{}),
+			},
+			{
+				Type: &v1.ConfigMap{},
+				MakeEventHandler: watchConfigMapsFactory(
+					[]string{
+						".spec.properties.externalSeedNodes.ipAddressFromConfig",
+						".spec.properties.prometheusEndpoint.ipAddressFromConfig",
+					},
+					&documentdb_v20251015s.CassandraClusterList{}),
+			},
+		},
+	})
+	result = append(result, &registration.StorageType{
+		Obj: new(documentdb_v20251015s.CassandraDataCenter),
+		Indexes: []registration.Index{
+			{
+				Key:  ".spec.properties.backupStorageCustomerKeyUriFromConfig",
+				Func: indexDocumentdbCassandraDataCenterBackupStorageCustomerKeyUriFromConfig,
+			},
+			{
+				Key:  ".spec.properties.authenticationMethodLdapProperties.serverCertificates.pem",
+				Func: indexDocumentdbCassandraDataCenterPem,
+			},
+			{
+				Key:  ".spec.properties.privateEndpointIpAddressFromConfig",
+				Func: indexDocumentdbCassandraDataCenterPrivateEndpointIpAddressFromConfig,
+			},
+			{
+				Key:  ".spec.properties.authenticationMethodLdapProperties.serviceUserPassword",
+				Func: indexDocumentdbCassandraDataCenterServiceUserPassword,
+			},
+		},
+		Watches: []registration.Watch{
+			{
+				Type: &v1.Secret{},
+				MakeEventHandler: watchSecretsFactory(
+					[]string{
+						".spec.properties.authenticationMethodLdapProperties.serverCertificates.pem",
+						".spec.properties.authenticationMethodLdapProperties.serviceUserPassword",
+					},
+					&documentdb_v20251015s.CassandraDataCenterList{}),
+			},
+			{
+				Type: &v1.ConfigMap{},
+				MakeEventHandler: watchConfigMapsFactory(
+					[]string{
+						".spec.properties.backupStorageCustomerKeyUriFromConfig",
+						".spec.properties.privateEndpointIpAddressFromConfig",
+					},
+					&documentdb_v20251015s.CassandraDataCenterList{}),
 			},
 		},
 	})
@@ -4963,6 +5053,16 @@ func getKnownTypes() []*registration.KnownType {
 		&registration.KnownType{Obj: new(documentdb_v20240815s.SqlDatabaseContainerUserDefinedFunction)},
 		&registration.KnownType{Obj: new(documentdb_v20240815s.SqlDatabaseThroughputSetting)},
 		&registration.KnownType{Obj: new(documentdb_v20240815s.SqlRoleAssignment)})
+	result = append(result, &registration.KnownType{
+		Obj:       new(documentdb_v20251015.CassandraCluster),
+		Defaulter: &documentdb_v20251015w.CassandraCluster{},
+		Validator: &documentdb_v20251015w.CassandraCluster{},
+	}, &registration.KnownType{
+		Obj:       new(documentdb_v20251015.CassandraDataCenter),
+		Defaulter: &documentdb_v20251015w.CassandraDataCenter{},
+		Validator: &documentdb_v20251015w.CassandraDataCenter{},
+	})
+	result = append(result, &registration.KnownType{Obj: new(documentdb_v20251015s.CassandraCluster)}, &registration.KnownType{Obj: new(documentdb_v20251015s.CassandraDataCenter)})
 	result = append(
 		result,
 		&registration.KnownType{
@@ -7010,6 +7110,8 @@ func createScheme() *runtime.Scheme {
 	_ = documentdb_v20240701s.AddToScheme(scheme)
 	_ = documentdb_v20240815.AddToScheme(scheme)
 	_ = documentdb_v20240815s.AddToScheme(scheme)
+	_ = documentdb_v20251015.AddToScheme(scheme)
+	_ = documentdb_v20251015s.AddToScheme(scheme)
 	_ = eventgrid_v20200601.AddToScheme(scheme)
 	_ = eventgrid_v20200601s.AddToScheme(scheme)
 	_ = eventhub_v20211101.AddToScheme(scheme)
@@ -7247,6 +7349,8 @@ func getResourceExtensions() []genruntime.ResourceExtension {
 	result = append(result, &dbforpostgresql_customizations.FlexibleServersFirewallRuleExtension{})
 	result = append(result, &dbforpostgresql_customizations.FlexibleServersVirtualEndpointExtension{})
 	result = append(result, &devices_customizations.IotHubExtension{})
+	result = append(result, &documentdb_customizations.CassandraClusterExtension{})
+	result = append(result, &documentdb_customizations.CassandraDataCenterExtension{})
 	result = append(result, &documentdb_customizations.DatabaseAccountExtension{})
 	result = append(result, &documentdb_customizations.FirewallRuleExtension{})
 	result = append(result, &documentdb_customizations.MongoClusterExtension{})
@@ -8679,6 +8783,166 @@ func indexDevicesIotHubStorageEndpointsConnectionString(rawObj client.Object) []
 		result = append(result, value.ConnectionString.Index()...)
 	}
 	return result
+}
+
+// indexDocumentdbCassandraClusterClientCertificatesPem an index function for documentdb_v20251015s.CassandraCluster .spec.properties.clientCertificates.pem
+func indexDocumentdbCassandraClusterClientCertificatesPem(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraCluster)
+	if !ok {
+		return nil
+	}
+	var result []string
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	for _, clientCertificateItem := range obj.Spec.Properties.ClientCertificates {
+		if clientCertificateItem.Pem == nil {
+			continue
+		}
+		result = append(result, clientCertificateItem.Pem.Index()...)
+	}
+	return result
+}
+
+// indexDocumentdbCassandraClusterExternalGossipCertificatesPem an index function for documentdb_v20251015s.CassandraCluster .spec.properties.externalGossipCertificates.pem
+func indexDocumentdbCassandraClusterExternalGossipCertificatesPem(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraCluster)
+	if !ok {
+		return nil
+	}
+	var result []string
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	for _, externalGossipCertificateItem := range obj.Spec.Properties.ExternalGossipCertificates {
+		if externalGossipCertificateItem.Pem == nil {
+			continue
+		}
+		result = append(result, externalGossipCertificateItem.Pem.Index()...)
+	}
+	return result
+}
+
+// indexDocumentdbCassandraClusterExternalSeedNodesIpAddressFromConfig an index function for documentdb_v20251015s.CassandraCluster .spec.properties.externalSeedNodes.ipAddressFromConfig
+func indexDocumentdbCassandraClusterExternalSeedNodesIpAddressFromConfig(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraCluster)
+	if !ok {
+		return nil
+	}
+	var result []string
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	for _, externalSeedNodeItem := range obj.Spec.Properties.ExternalSeedNodes {
+		if externalSeedNodeItem.IpAddressFromConfig == nil {
+			continue
+		}
+		result = append(result, externalSeedNodeItem.IpAddressFromConfig.Index()...)
+	}
+	return result
+}
+
+// indexDocumentdbCassandraClusterInitialCassandraAdminPassword an index function for documentdb_v20251015s.CassandraCluster .spec.properties.initialCassandraAdminPassword
+func indexDocumentdbCassandraClusterInitialCassandraAdminPassword(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraCluster)
+	if !ok {
+		return nil
+	}
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	if obj.Spec.Properties.InitialCassandraAdminPassword == nil {
+		return nil
+	}
+	return obj.Spec.Properties.InitialCassandraAdminPassword.Index()
+}
+
+// indexDocumentdbCassandraClusterPrometheusEndpointIpAddressFromConfig an index function for documentdb_v20251015s.CassandraCluster .spec.properties.prometheusEndpoint.ipAddressFromConfig
+func indexDocumentdbCassandraClusterPrometheusEndpointIpAddressFromConfig(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraCluster)
+	if !ok {
+		return nil
+	}
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	if obj.Spec.Properties.PrometheusEndpoint == nil {
+		return nil
+	}
+	if obj.Spec.Properties.PrometheusEndpoint.IpAddressFromConfig == nil {
+		return nil
+	}
+	return obj.Spec.Properties.PrometheusEndpoint.IpAddressFromConfig.Index()
+}
+
+// indexDocumentdbCassandraDataCenterBackupStorageCustomerKeyUriFromConfig an index function for documentdb_v20251015s.CassandraDataCenter .spec.properties.backupStorageCustomerKeyUriFromConfig
+func indexDocumentdbCassandraDataCenterBackupStorageCustomerKeyUriFromConfig(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraDataCenter)
+	if !ok {
+		return nil
+	}
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	if obj.Spec.Properties.BackupStorageCustomerKeyUriFromConfig == nil {
+		return nil
+	}
+	return obj.Spec.Properties.BackupStorageCustomerKeyUriFromConfig.Index()
+}
+
+// indexDocumentdbCassandraDataCenterPem an index function for documentdb_v20251015s.CassandraDataCenter .spec.properties.authenticationMethodLdapProperties.serverCertificates.pem
+func indexDocumentdbCassandraDataCenterPem(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraDataCenter)
+	if !ok {
+		return nil
+	}
+	var result []string
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	if obj.Spec.Properties.AuthenticationMethodLdapProperties == nil {
+		return nil
+	}
+	for _, serverCertificateItem := range obj.Spec.Properties.AuthenticationMethodLdapProperties.ServerCertificates {
+		if serverCertificateItem.Pem == nil {
+			continue
+		}
+		result = append(result, serverCertificateItem.Pem.Index()...)
+	}
+	return result
+}
+
+// indexDocumentdbCassandraDataCenterPrivateEndpointIpAddressFromConfig an index function for documentdb_v20251015s.CassandraDataCenter .spec.properties.privateEndpointIpAddressFromConfig
+func indexDocumentdbCassandraDataCenterPrivateEndpointIpAddressFromConfig(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraDataCenter)
+	if !ok {
+		return nil
+	}
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	if obj.Spec.Properties.PrivateEndpointIpAddressFromConfig == nil {
+		return nil
+	}
+	return obj.Spec.Properties.PrivateEndpointIpAddressFromConfig.Index()
+}
+
+// indexDocumentdbCassandraDataCenterServiceUserPassword an index function for documentdb_v20251015s.CassandraDataCenter .spec.properties.authenticationMethodLdapProperties.serviceUserPassword
+func indexDocumentdbCassandraDataCenterServiceUserPassword(rawObj client.Object) []string {
+	obj, ok := rawObj.(*documentdb_v20251015s.CassandraDataCenter)
+	if !ok {
+		return nil
+	}
+	if obj.Spec.Properties == nil {
+		return nil
+	}
+	if obj.Spec.Properties.AuthenticationMethodLdapProperties == nil {
+		return nil
+	}
+	if obj.Spec.Properties.AuthenticationMethodLdapProperties.ServiceUserPassword == nil {
+		return nil
+	}
+	return obj.Spec.Properties.AuthenticationMethodLdapProperties.ServiceUserPassword.Index()
 }
 
 // indexDocumentdbMongoClusterPassword an index function for documentdb_v20240701s.MongoCluster .spec.properties.administrator.password
