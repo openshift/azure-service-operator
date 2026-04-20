@@ -1384,6 +1384,17 @@ objectModelConfiguration:
       CertificateConfiguration:
         CertificatePassword:
           $isSecret: true
+      CertificateCreateOrUpdateProperties:
+        Data:
+          $isSecret: true
+        Password:
+          $isSecret: true
+      DiagnosticContractProperties:
+        LoggerId:
+          $referenceType: arm
+      GatewayHostnameConfigurationContractProperties:
+        CertificateId:
+          $referenceType: arm
       HostnameConfiguration:
         CertificatePassword:
           $isSecret: true
@@ -1392,6 +1403,17 @@ objectModelConfiguration:
       KeyVaultContractCreateProperties:
         IdentityClientId:
           $importConfigMapMode: optional
+      LoggerContractProperties:
+        Credentials:
+          $isSecret: true
+        ResourceId:
+          $referenceType: arm
+      UserCreateParameterProperties:
+        Password:
+          $isSecret: true
+      UserIdentityContract:
+        Id:
+          $referenceType: simple
       Service:
         $exportAs: Service
         $supportedFrom: v2.16.0
@@ -1401,6 +1423,12 @@ objectModelConfiguration:
       Service_ApiVersionSet:
         $exportAs: ApiVersionSet
         $supportedFrom: v2.16.0
+      Service_Apis_Diagnostic:
+        $exportAs: ApiDiagnostic
+        $supportedFrom: v2.19.0
+      Service_Apis_Policy:
+        $exportAs: ApiPolicy
+        $supportedFrom: v2.19.0
       Service_AuthorizationProvider:
         $exportAs: AuthorizationProvider
         $supportedFrom: v2.16.0
@@ -1413,6 +1441,30 @@ objectModelConfiguration:
       Service_Backend:
         $exportAs: Backend
         $supportedFrom: v2.16.0
+      Service_Certificate:
+        $exportAs: Certificate
+        $supportedFrom: v2.19.0
+      Service_Gateway:
+        $exportAs: ServiceGateway  # Has to be prefixed with service because a non-service Gateway exists too
+        $supportedFrom: v2.19.0
+        $azureGeneratedSecrets:
+          - PrimaryKey
+          - SecondaryKey
+      Service_Gateways_Api:
+        $exportAs: ServiceGatewayApi
+        $supportedFrom: v2.19.0
+      Service_Gateways_CertificateAuthority:
+        $exportAs: ServiceGatewayCertificateAuthority
+        $supportedFrom: v2.19.0
+      Service_Gateways_HostnameConfiguration:
+        $exportAs: ServiceGatewayHostnameConfiguration
+        $supportedFrom: v2.19.0
+      Service_Group:
+        $exportAs: Group
+        $supportedFrom: v2.19.0
+      Service_Logger:
+        $exportAs: Logger
+        $supportedFrom: v2.19.0
       Service_NamedValue:
         $exportAs: NamedValue
         $supportedFrom: v2.16.0
@@ -1437,6 +1489,9 @@ objectModelConfiguration:
         $azureGeneratedSecrets:
           - PrimaryKey
           - SecondaryKey
+      Service_User:
+        $exportAs: User
+        $supportedFrom: v2.19.0
       SubscriptionCreateParameterProperties:
         PrimaryKey:
           $isSecret: true

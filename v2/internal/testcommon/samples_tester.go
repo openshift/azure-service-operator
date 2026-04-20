@@ -93,6 +93,15 @@ var exclusions = []*regexp.Regexp{
 	regexp.MustCompile(`apimanagement/.*v1api20240501.*_productpolicy.yaml`),
 	regexp.MustCompile(`apimanagement/.*v1api20240501.*_productapi.yaml`),
 
+	// Excluding APIM certificate as it requires actual certificate data
+	regexp.MustCompile(`apimanagement/.*_certificate.yaml`),
+
+	// Excluding APIM self-hosted gateway samples as they require Developer/Standard/Premium tier (not supported on V2 tiers)
+	regexp.MustCompile(`apimanagement/.*_servicegateway.yaml`),
+	regexp.MustCompile(`apimanagement/.*_servicegatewayapi.yaml`),
+	regexp.MustCompile(`apimanagement/.*_servicegatewaycertificateauthority.yaml`),
+	regexp.MustCompile(`apimanagement/.*_servicegatewayhostnameconfiguration.yaml`),
+
 	// Excluding cdn secret as it requires KV secrets
 	regexp.MustCompile(`cdn/.*_secret.yaml`),
 
