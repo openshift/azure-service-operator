@@ -1044,13 +1044,18 @@ status:
 #               the existing property. The new property is called <propName>FromConfig.
 #     Required: The property must be specified from a config map, it cannot be given as a raw string.
 #
-# $isSecret: <bool>
-#     Specifies that the property references a secret
+# $importSecretMode: required | never | optional
+#     Specifies the secrecy classification of a property.
 #     Secrets are string values read from a secure storage by ASO when needed.
-#     Set to `true` to flag this property as a secret. This is an override for when the Swagger
-#     is incomplete. If you specify $isSecret: true, you should also open a PR to update the 
+#     Set to `required` to flag this property as a secret. This is an override for when the Swagger
+#     is incomplete. If you specify $importSecretMode: required, you should also open a PR to update the
 #     upstream Swagger repo spec with the x-ms-secret annotation.
 #     Here's a reference PR: https://github.com/Azure/azure-rest-api-specs/pull/19399
+#     Set to `optional` to allow the property to be specified as either a plain string value or
+#     as a reference to a Kubernetes Secret. This creates two fields: the original property
+#     (as a string) and a new <propName>FromSecret field (as a genruntime.SecretReference).
+#     Only one of the two fields may be set at a time. When creating the ARM payload, the
+#     secret reference is used if defined, otherwise the plain string value is used.
 #
 # $nameInNextVersion: <string>
 #     Gives the name this property has in the next version of the resource
@@ -1148,18 +1153,18 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       AuthorizationContractProperties:
         Parameters:
-          $isSecret: true
+          $importSecretMode: required
       AuthorizationProviderOAuth2GrantTypes:
         AuthorizationCode:
-          $isSecret: true
+          $importSecretMode: required
         ClientCredentials:
-          $isSecret: true
+          $importSecretMode: required
       BackendContractProperties:
         ResourceId:
           $referenceType: arm
       BackendProxyContract:
         Password:
-          $isSecret: true
+          $importSecretMode: required
       CertificateInformation:
         Expiry:
           $importConfigMapMode: optional
@@ -1169,10 +1174,10 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       CertificateConfiguration:
         CertificatePassword:
-          $isSecret: true
+          $importSecretMode: required
       HostnameConfiguration:
         CertificatePassword:
-          $isSecret: true
+          $importSecretMode: required
         IdentityClientId:
           $importConfigMapMode: optional
       KeyVaultContractCreateProperties:
@@ -1225,9 +1230,9 @@ objectModelConfiguration:
           - SecondaryKey
       SubscriptionCreateParameterProperties:
         PrimaryKey:
-          $isSecret: true
+          $importSecretMode: required
         SecondaryKey:
-          $isSecret: true
+          $importSecretMode: required
         OwnerId:
           $referenceType: arm
       VirtualNetworkConfiguration:
@@ -1255,18 +1260,18 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       AuthorizationContractProperties:
         Parameters:
-          $isSecret: true
+          $importSecretMode: required
       AuthorizationProviderOAuth2GrantTypes:
         AuthorizationCode:
-          $isSecret: true
+          $importSecretMode: required
         ClientCredentials:
-          $isSecret: true
+          $importSecretMode: required
       BackendContractProperties:
         ResourceId:
           $referenceType: arm
       BackendProxyContract:
         Password:
-          $isSecret: true
+          $importSecretMode: required
       CertificateInformation:
         Expiry:
           $importConfigMapMode: optional
@@ -1276,10 +1281,10 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       CertificateConfiguration:
         CertificatePassword:
-          $isSecret: true
+          $importSecretMode: required
       HostnameConfiguration:
         CertificatePassword:
-          $isSecret: true
+          $importSecretMode: required
         IdentityClientId:
           $importConfigMapMode: optional
       KeyVaultContractCreateProperties:
@@ -1332,9 +1337,9 @@ objectModelConfiguration:
           - SecondaryKey
       SubscriptionCreateParameterProperties:
         PrimaryKey:
-          $isSecret: true
+          $importSecretMode: required
         SecondaryKey:
-          $isSecret: true
+          $importSecretMode: required
         OwnerId:
           $referenceType: arm
       VirtualNetworkConfiguration:
@@ -1362,18 +1367,18 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       AuthorizationContractProperties:
         Parameters:
-          $isSecret: true
+          $importSecretMode: required
       AuthorizationProviderOAuth2GrantTypes:
         AuthorizationCode:
-          $isSecret: true
+          $importSecretMode: required
         ClientCredentials:
-          $isSecret: true
+          $importSecretMode: required
       BackendContractProperties:
         ResourceId:
           $referenceType: arm
       BackendProxyContract:
         Password:
-          $isSecret: true
+          $importSecretMode: required
       CertificateInformation:
         Expiry:
           $importConfigMapMode: optional
@@ -1383,12 +1388,12 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       CertificateConfiguration:
         CertificatePassword:
-          $isSecret: true
+          $importSecretMode: required
       CertificateCreateOrUpdateProperties:
         Data:
-          $isSecret: true
+          $importSecretMode: required
         Password:
-          $isSecret: true
+          $importSecretMode: required
       DiagnosticContractProperties:
         LoggerId:
           $referenceType: arm
@@ -1397,7 +1402,7 @@ objectModelConfiguration:
           $referenceType: arm
       HostnameConfiguration:
         CertificatePassword:
-          $isSecret: true
+          $importSecretMode: required
         IdentityClientId:
           $importConfigMapMode: optional
       KeyVaultContractCreateProperties:
@@ -1494,9 +1499,9 @@ objectModelConfiguration:
         $supportedFrom: v2.19.0
       SubscriptionCreateParameterProperties:
         PrimaryKey:
-          $isSecret: true
+          $importSecretMode: required
         SecondaryKey:
-          $isSecret: true
+          $importSecretMode: required
         OwnerId:
           $referenceType: arm
       VirtualNetworkConfiguration:
@@ -1515,7 +1520,7 @@ objectModelConfiguration:
         $supportedFrom: v2.15.0
       RegistryCredentials:
         passwordSecretRef:
-          $isSecret: false
+          $importSecretMode: never
         Identity:
           $referenceType: arm+wellknown # permits `system` to use a system-assigned identity
       ServiceBind:
@@ -1537,7 +1542,7 @@ objectModelConfiguration:
           $referenceType: arm
       OpenIdConnectConfig:
         TokenEndpoint:
-          $isSecret: false
+          $importSecretMode: never
       ManagedEnvironment:
         $exportAs: ManagedEnvironment
         $supportedFrom: v2.15.0
@@ -1583,7 +1588,7 @@ objectModelConfiguration:
         $supportedFrom: v2.12.0
       RegistryCredentials:
         passwordSecretRef:
-          $isSecret: false
+          $importSecretMode: never
         Identity:
           $referenceType: arm+wellknown # permits `system` to use a system-assigned identity
       ServiceBind:
@@ -1605,7 +1610,7 @@ objectModelConfiguration:
           $referenceType: arm
       OpenIdConnectConfig:
         TokenEndpoint:
-          $isSecret: false
+          $importSecretMode: never
       ManagedEnvironment:
         $exportAs: ManagedEnvironment
         $supportedFrom: v2.12.0
@@ -1941,7 +1946,7 @@ objectModelConfiguration:
         $isResource: false
       DomainValidationProperties:
         ValidationToken:
-          $isSecret: false # Not a conventional secret; this is the token someone must provide to prove they own the domain
+          $importSecretMode: never # Not a conventional secret; this is the token someone must provide to prove they own the domain
       Profile:
         $exportAs: Profile
         $supportedFrom: v2.6.0
@@ -2006,7 +2011,7 @@ objectModelConfiguration:
           - Key2
       AccountProperties:
         MigrationToken:
-          $isSecret: true
+          $importSecretMode: required
       Accounts_Deployment:
         $exportAs: Deployment
         $supportedFrom: v2.15.0
@@ -2016,15 +2021,15 @@ objectModelConfiguration:
         AadClientId:
           $importConfigMapMode: optional
         EventHubConnectionString:
-          $isSecret: true
+          $importSecretMode: required
         QnaAzureSearchEndpointId:
           $importConfigMapMode: optional
         QnaAzureSearchEndpointKey:
-          $isSecret: true
+          $importSecretMode: required
         QnaRuntimeEndpoint:
           $importConfigMapMode: optional
         StorageAccountConnectionString:
-          $isSecret: true
+          $importSecretMode: required
         SuperUser:
           $importConfigMapMode: optional
         WebsiteName:
@@ -2100,10 +2105,10 @@ objectModelConfiguration:
         $isResource: false
       SshPublicKeySpec:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       SshPublicKey_STATUS:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       VirtualMachine:
         $exportAs: VirtualMachine
         $supportedFrom: v2.0.0-alpha.1
@@ -2132,10 +2137,10 @@ objectModelConfiguration:
         $supportedFrom: v2.6.0
       VirtualMachineScaleSetExtensionProperties:
         ProtectedSettings:
-          $isSecret: true
+          $importSecretMode: required
       VirtualMachineExtensionProperties:
         ProtectedSettings:
-          $isSecret: true
+          $importSecretMode: required
     2021-07-01:
       Image:
         $exportAs: Image
@@ -2169,10 +2174,10 @@ objectModelConfiguration:
         $isResource: false
       SshPublicKeySpec:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       SshPublicKey_STATUS:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       VMGalleryApplication:
         PackageReferenceId:
           $referenceType: arm
@@ -2204,10 +2209,10 @@ objectModelConfiguration:
         $supportedFrom: v2.6.0
       VirtualMachineScaleSetExtensionProperties:
         ProtectedSettings:
-          $isSecret: true
+          $importSecretMode: required
       VirtualMachineExtensionProperties:
         ProtectedSettings:
-          $isSecret: true
+          $importSecretMode: required
     2022-07-02:
       DiskEncryptionSet:
         $exportAs: DiskEncryptionSet
@@ -2360,10 +2365,10 @@ objectModelConfiguration:
     2024-09-01:
       ContainerServiceSshPublicKey:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       ContainerServiceSshPublicKey_STATUS:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       DelegatedResource:
         ResourceId:
           $referenceType: arm
@@ -2398,10 +2403,10 @@ objectModelConfiguration:
         $supportedFrom: v2.11.0
       ManagedClusterServicePrincipalProfile:
         Secret:
-          $isSecret: true
+          $importSecretMode: required
       ManagedClusterWindowsProfile:
         AdminPassword:
-          $isSecret: true
+          $importSecretMode: required
       PrivateLinkResource:
         Id:
           $referenceType: arm
@@ -2419,10 +2424,10 @@ objectModelConfiguration:
     2025-08-01:
       ContainerServiceSshPublicKey:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       ContainerServiceSshPublicKey_STATUS:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       DelegatedResource:
         ResourceId:
           $referenceType: arm
@@ -2457,10 +2462,10 @@ objectModelConfiguration:
         $supportedFrom: v2.16.0
       ManagedClusterServicePrincipalProfile:
         Secret:
-          $isSecret: true
+          $importSecretMode: required
       ManagedClusterWindowsProfile:
         AdminPassword:
-          $isSecret: true
+          $importSecretMode: required
       PrivateLinkResource:
         Id:
           $referenceType: arm
@@ -2478,10 +2483,10 @@ objectModelConfiguration:
     2025-10-02-preview:
       ContainerServiceSshPublicKey:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       ContainerServiceSshPublicKey_STATUS:
         KeyData:
-          $isSecret: false
+          $importSecretMode: never
       DelegatedResource:
         ResourceId:
           $referenceType: arm
@@ -2535,10 +2540,10 @@ objectModelConfiguration:
         $supportedFrom: v2.18.0
       ManagedClusterServicePrincipalProfile:
         Secret:
-          $isSecret: true
+          $importSecretMode: required
       ManagedClusterWindowsProfile:
         AdminPassword:
-          $isSecret: true
+          $importSecretMode: required
       PrivateLinkResource:
         Id:
           $referenceType: arm
@@ -3053,25 +3058,25 @@ objectModelConfiguration:
         Id:
           $referenceType: arm
         ConnectionString:
-          $isSecret: true
+          $importSecretMode: required
       RoutingEventHubProperties:
         Id:
           $referenceType: arm
         ConnectionString:
-          $isSecret: true
+          $importSecretMode: required
       RoutingServiceBusTopicEndpointProperties:
         Id:
           $referenceType: arm
         ConnectionString:
-          $isSecret: true
+          $importSecretMode: required
       RoutingStorageContainerProperties:
         Id:
           $referenceType: arm
         ConnectionString:
-          $isSecret: true
+          $importSecretMode: required
       StorageEndpointProperties:
         ConnectionString:
-          $isSecret: true
+          $importSecretMode: required
   documentdb:
     2021-05-15:
       DatabaseAccount:
@@ -3310,11 +3315,11 @@ objectModelConfiguration:
           $referenceType: simple
       MongoUserDefinitionResource:
         password:
-          $isSecret: true
+          $importSecretMode: required
     2025-10-15:
       AuthenticationMethodLdapProperties:
         ServiceUserPassword:
-          $isSecret: true
+          $importSecretMode: required
       CassandraCluster:
         $exportAs: CassandraCluster
         $supportedFrom: v2.19.0
@@ -3322,7 +3327,7 @@ objectModelConfiguration:
         DelegatedManagementSubnetId:
           $referenceType: arm
         InitialCassandraAdminPassword:
-          $isSecret: true
+          $importSecretMode: required
         RestoreFromBackupId:
           $referenceType: arm
       CassandraClusters_DataCenter:
@@ -3339,7 +3344,7 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       Certificate:
         Pem:
-          $isSecret: true
+          $importSecretMode: required
       SeedNode:
         IpAddress:
           $importConfigMapMode: optional
@@ -3482,7 +3487,7 @@ objectModelConfiguration:
     2020-02-02:
       ApplicationInsightsComponentProperties:
         HockeyAppToken:
-          $isSecret: false
+          $importSecretMode: never
         WorkspaceResourceId:
           $referenceType: arm
       Component:
@@ -3540,6 +3545,9 @@ objectModelConfiguration:
       MetricTrigger:
         MetricResourceUri:
           $referenceType: arm
+      WebhookNotification:
+        ServiceUri:
+          $importSecretMode: optional
     2022-06-15:
       ScheduledQueryRule:
         $exportAs: ScheduledQueryRule
@@ -3564,6 +3572,8 @@ objectModelConfiguration:
         $exportAs: ActionGroup
         $supportedFrom: v2.4.0
       AutomationRunbookReceiver:
+        ServiceUri:
+          $importSecretMode: optional
         WebhookResourceId:
           $referenceType: arm
       AzureFunctionReceiver:
@@ -3572,6 +3582,9 @@ objectModelConfiguration:
       LogicAppReceiver:
         ResourceId:
           $referenceType: arm
+      WebhookReceiver:
+        ServiceUri:
+          $importSecretMode: optional
     2023-03-11:
       DataCollectionRule:
         $exportAs: DataCollectionRule
@@ -3723,10 +3736,10 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       BucketDefinition:
         AccessKey:
-          $isSecret: true
+          $importSecretMode: required
       GitRepositoryDefinition:
         HttpsCACert:
-          $isSecret: true
+          $importSecretMode: required
     2024-11-01:
       Extension:
         $exportAs: Extension
@@ -3743,10 +3756,10 @@ objectModelConfiguration:
           $importConfigMapMode: optional
       BucketDefinition:
         AccessKey:
-          $isSecret: true
+          $importSecretMode: required
       GitRepositoryDefinition:
         HttpsCACert:
-          $isSecret: true
+          $importSecretMode: required
 
   kusto:
     2024-04-13:
@@ -3982,7 +3995,7 @@ objectModelConfiguration:
           $referenceType: arm
       DatabricksProperties:
         DatabricksAccessToken:
-          $isSecret: true
+          $importSecretMode: required
       AKS:
         ResourceId:
           $referenceType: arm
@@ -4003,16 +4016,16 @@ objectModelConfiguration:
           $referenceType: arm
       UserAccountCredentials:
         AdminUserPassword:
-          $isSecret: true
+          $importSecretMode: required
         AdminUserSshPublicKey:
-          $isSecret: true
+          $importSecretMode: required
       VirtualMachineSshCredentials:
         Password:
-          $isSecret: true
+          $importSecretMode: required
         PrivateKeyData:
-          $isSecret: true
+          $importSecretMode: required
         PublicKeyData:
-          $isSecret: true
+          $importSecretMode: required
       Workspaces_Connection:
         $exportAs: WorkspacesConnection
         $supportedFrom: v2.0.0-beta.2
@@ -4024,9 +4037,9 @@ objectModelConfiguration:
         $nameInNextVersion: ManagedServiceIdentity_STATUS
       SslConfiguration:
         Key:
-          $isSecret: true
+          $importSecretMode: required
         Cert:
-          $isSecret: true
+          $importSecretMode: required
     2024-04-01:
       AksNetworkingConfiguration:
         SubnetId:
@@ -4050,10 +4063,10 @@ objectModelConfiguration:
           - UserStorageKey
       WorkspaceConnectionUsernamePassword:
         Password:
-          $isSecret: true
+          $importSecretMode: required
       WorkspaceConnectionPersonalAccessToken:
         Pat:
-          $isSecret: true
+          $importSecretMode: required
       WorkspaceProperties:
         HubResourceId:
           $referenceType: arm
@@ -4118,12 +4131,12 @@ objectModelConfiguration:
           $referenceType: arm
       UserAccountCredentials:
         AdminUserPassword:
-          $isSecret: true
+          $importSecretMode: required
       VirtualMachineSshCredentials:
         Password:
-          $isSecret: true
+          $importSecretMode: required
         PrivateKeyData:
-          $isSecret: true
+          $importSecretMode: required
       Workspaces_Connection:
         $exportAs: WorkspacesConnection
         $supportedFrom: v2.10.0
@@ -4143,19 +4156,19 @@ objectModelConfiguration:
           $referenceType: arm
       DatabricksProperties:
         DatabricksAccessToken:
-          $isSecret: true
+          $importSecretMode: required
       WorkspaceConnectionAccessKey:
         SecretAccessKey:
-          $isSecret: true
+          $importSecretMode: required
       WorkspaceConnectionApiKey:
         Key:
-          $isSecret: true
+          $importSecretMode: required
       CustomKeys:
         Keys:
-          $isSecret: true
+          $importSecretMode: required
       WorkspaceConnectionSharedAccessSignature:
         Sas:
-          $isSecret: true
+          $importSecretMode: required
       WorkspaceConnectionOAuth2:
         ClientId:
           $importConfigMapMode: optional
@@ -4377,10 +4390,10 @@ objectModelConfiguration:
         $supportedFrom: v2.0.0-alpha.1
       VpnClientConfiguration:
         RadiusServerSecret:
-          $isSecret: true
+          $importSecretMode: required
       RadiusServer:
         RadiusServerSecret:
-          $isSecret: true
+          $importSecretMode: required
     2022-04-01:
       # Note that this is versioned separately from other networking resources (https://github.com/Azure/azure-rest-api-specs/tree/main/specification/trafficmanager/resource-manager/Microsoft.Network/stable)
       TrafficManagerProfile:
@@ -4441,28 +4454,28 @@ objectModelConfiguration:
         $resourceEmbeddedInParent: ApplicationGateway
       ApplicationGatewaySslCertificatePropertiesFormat:
         Data:
-          $isSecret: true
+          $importSecretMode: required
         Password:
-          $isSecret: true    
+          $importSecretMode: required    
       ApplicationGatewaySslProfile:
         $resourceEmbeddedInParent: ApplicationGateway
       ApplicationGatewayTrustedClientCertificate:
         $resourceEmbeddedInParent: ApplicationGateway
       ApplicationGatewayTrustedClientCertificatePropertiesFormat:
         Data:
-          $isSecret: true
+          $importSecretMode: required
       ApplicationGatewayTrustedRootCertificate:
         $resourceEmbeddedInParent: ApplicationGateway
       ApplicationGatewayTrustedRootCertificatePropertiesFormat:
         Data:
-          $isSecret: true      
+          $importSecretMode: required      
       ApplicationGatewayUrlPathMap:
         $resourceEmbeddedInParent: ApplicationGateway
       ApplicationGatewayAuthenticationCertificate:
         $resourceEmbeddedInParent: ApplicationGateway
       ApplicationGatewayAuthenticationCertificatePropertiesFormat:
         Data:
-          $isSecret: true
+          $importSecretMode: required
       BastionHost:
         # This technically supports 2022-09-01 API version too, but it's identical to the 2022-07-01 version
         # so limiting proliferation of APIVersions and using 2022-07-01 for it
@@ -4717,10 +4730,10 @@ objectModelConfiguration:
         $supportedFrom: v2.11.0
       VpnClientConfiguration:
         RadiusServerSecret:
-          $isSecret: true
+          $importSecretMode: required
       RadiusServer:
         RadiusServerSecret:
-          $isSecret: true
+          $importSecretMode: required
     2024-06-01:
       # Private DNS Zone + related -- this is versioned separately than most of the rest of Microsoft.Network (https://github.com/Azure/azure-rest-api-specs/tree/main/specification/privatedns/resource-manager/Microsoft.Network/stable)
       PrivateDnsZone:
@@ -4990,7 +5003,7 @@ objectModelConfiguration:
         $supportedFrom: v2.12.0
       NotificationHubProperties:
         AuthorizationRules:
-          $isSecret: false
+          $importSecretMode: never
   operationalinsights:
     2021-06-01:
       Workspace:
@@ -5046,10 +5059,10 @@ objectModelConfiguration:
           $referenceType: arm
       ClusterProfile:
         PullSecret:
-          $isSecret: true
+          $importSecretMode: required
       ServicePrincipalProfile:
         ClientSecret:
-          $isSecret: true
+          $importSecretMode: required
         ClientId:
           $importConfigMapMode: optional
   search:
@@ -5652,7 +5665,7 @@ objectModelConfiguration:
         $supportedFrom: v2.0.0
       WorkspaceProperties:
         SqlAdministratorLoginPassword:
-          $isSecret: true
+          $importSecretMode: required
       Workspaces_BigDataPool:
         $exportAs: WorkspacesBigDataPool
         $supportedFrom: v2.0.0
