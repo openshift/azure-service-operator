@@ -5,7 +5,8 @@ package v1api20211001
 
 import (
 	"encoding/json"
-	storage "github.com/Azure/azure-service-operator/v2/api/subscription/v1api20211001/storage"
+	subscription_v1api20211001s "github.com/Azure/azure-service-operator/v2/api/subscription/v1api20211001/storage"
+	subscription_v20211001s "github.com/Azure/azure-service-operator/v2/api/subscription/v20211001/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -36,7 +37,7 @@ func RunResourceConversionTestForAlias(subject Alias) string {
 	copied := subject.DeepCopy()
 
 	// Convert to our hub version
-	var hub storage.Alias
+	var hub subscription_v20211001s.Alias
 	err := copied.ConvertTo(&hub)
 	if err != nil {
 		return err.Error()
@@ -78,7 +79,7 @@ func RunPropertyAssignmentTestForAlias(subject Alias) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Alias
+	var other subscription_v1api20211001s.Alias
 	err := copied.AssignProperties_To_Alias(&other)
 	if err != nil {
 		return err.Error()
@@ -181,7 +182,7 @@ func RunPropertyAssignmentTestForAliasOperatorSpec(subject AliasOperatorSpec) st
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.AliasOperatorSpec
+	var other subscription_v1api20211001s.AliasOperatorSpec
 	err := copied.AssignProperties_To_AliasOperatorSpec(&other)
 	if err != nil {
 		return err.Error()
@@ -277,7 +278,7 @@ func RunPropertyAssignmentTestForAlias_STATUS(subject Alias_STATUS) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Alias_STATUS
+	var other subscription_v1api20211001s.Alias_STATUS
 	err := copied.AssignProperties_To_Alias_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -396,7 +397,7 @@ func RunPropertyAssignmentTestForAlias_Spec(subject Alias_Spec) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Alias_Spec
+	var other subscription_v1api20211001s.Alias_Spec
 	err := copied.AssignProperties_To_Alias_Spec(&other)
 	if err != nil {
 		return err.Error()
@@ -513,7 +514,7 @@ func RunPropertyAssignmentTestForPutAliasRequestAdditionalProperties(subject Put
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PutAliasRequestAdditionalProperties
+	var other subscription_v1api20211001s.PutAliasRequestAdditionalProperties
 	err := copied.AssignProperties_To_PutAliasRequestAdditionalProperties(&other)
 	if err != nil {
 		return err.Error()
@@ -621,7 +622,7 @@ func RunPropertyAssignmentTestForPutAliasRequestProperties(subject PutAliasReque
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PutAliasRequestProperties
+	var other subscription_v1api20211001s.PutAliasRequestProperties
 	err := copied.AssignProperties_To_PutAliasRequestProperties(&other)
 	if err != nil {
 		return err.Error()
@@ -742,7 +743,7 @@ func RunPropertyAssignmentTestForSubscriptionAliasResponseProperties_STATUS(subj
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.SubscriptionAliasResponseProperties_STATUS
+	var other subscription_v1api20211001s.SubscriptionAliasResponseProperties_STATUS
 	err := copied.AssignProperties_To_SubscriptionAliasResponseProperties_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -858,7 +859,7 @@ func RunPropertyAssignmentTestForSystemData_STATUS(subject SystemData_STATUS) st
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.SystemData_STATUS
+	var other subscription_v1api20211001s.SystemData_STATUS
 	err := copied.AssignProperties_To_SystemData_STATUS(&other)
 	if err != nil {
 		return err.Error()
