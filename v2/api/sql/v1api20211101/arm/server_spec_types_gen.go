@@ -107,16 +107,16 @@ type ServerExternalAdministrator struct {
 	AzureADOnlyAuthentication *bool `json:"azureADOnlyAuthentication,omitempty"`
 
 	// Login: Login name of the server administrator.
-	Login *string `json:"login,omitempty"`
+	Login *string `json:"login,omitempty" optionalConfigMapPair:"Login"`
 
 	// PrincipalType: Principal Type of the sever administrator.
 	PrincipalType *ServerExternalAdministrator_PrincipalType `json:"principalType,omitempty"`
 
 	// Sid: SID (object ID) of the server administrator.
-	Sid *string `json:"sid,omitempty"`
+	Sid *string `json:"sid,omitempty" optionalConfigMapPair:"Sid"`
 
 	// TenantId: Tenant ID of the administrator.
-	TenantId *string `json:"tenantId,omitempty"`
+	TenantId *string `json:"tenantId,omitempty" optionalConfigMapPair:"TenantId"`
 }
 
 // +kubebuilder:validation:Enum={"Disabled","Enabled"}
