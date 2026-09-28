@@ -53,13 +53,45 @@ For this reason, we recommend if you expect to perform secret rotation to mount 
 ## How to retrieve secrets created by Azure
 
 Some Azure resources produce secrets themselves. ASO supports automatically querying these secrets 
-and storing them in the [SecretDestination](https://pkg.go.dev/github.com/Azure/azure-service-operator/v2/pkg/genruntime#SecretDestination) you specify.
+and storing them in the [SecretDestination](https://pkg.go.dev/github.com/Azure/azure-service-operator/v2/pkg/genruntime#SecretDestination) 
+you specify. This is done with the `.spec.operatorSpec.secrets` field, if you just need the secret itself,
+or the [`.spec.operatorSpec.secretExpressions`]( {{< relref "expressions" >}} ) field, if you want the secret formatted in some way.
 
 These secrets will be written to the destination(s) you specify once the resource has successfully been provisioned in Azure.
 The resource will not move to [Condition]( {{< relref "conditions" >}} ) `Ready=True` 
 until the secrets have been written.
 
-**Example:**
+**Example `.spec.operatorSpec.secretExpressions`:**
+```yaml
+apiVersion: documentdb.azure.com/v1alpha1api20210515
+kind: DatabaseAccount
+metadata:
+  name: sample-db-account
+  namespace: default
+spec:
+  location: westcentralus
+  owner:
+    name: aso-sample-rg
+  kind: MongoDB
+  databaseAccountOfferType: Standard
+  locations:
+    - locationName: westcentralus
+  operatorSpec:
+    secretExpressions:
+      - name: mysecret
+        key: primarymasterkey
+        value: secret.primaryMasterKey
+      - name: mysecret
+        key: secondarymasterkey
+        value: secret.secondaryMasterKey
+      - name: myendpoint  # Can put different values into different Kubernetes secrets, if desired
+        key: endpoint
+        value: self.status.documentEndpoint
+```
+
+More complex expressions can be exported as well, see [Expressions]( {{< relref "expressions" >}} ) for more details.
+
+**Example `.spec.operatorSpec.secrets`:**
 ```yaml
 apiVersion: documentdb.azure.com/v1alpha1api20210515
 kind: DatabaseAccount
@@ -138,3 +170,47 @@ operatorSpec:
           key: key
     ```
 6. Refresh workload (via `reloader`).
+
+## Custom annotations and labels on secrets
+
+You can add custom annotations and labels to the Kubernetes secrets created by ASO using the `annotations` and `labels`
+fields on `SecretDestination` or `DestinationExpression`. This is useful for integrating with tools like
+[kubernetes-reflector](https://github.com/emberstack/kubernetes-reflector), which can mirror secrets to other namespaces
+based on annotations.
+
+For `SecretDestination`, annotation and label values are plain strings.
+For `DestinationExpression`, annotation and label values are [CEL expressions]( {{< relref "expressions" >}} ) 
+that must return a string. Use `'"value"'` for static strings.
+
+{{% alert title="Note" %}}
+Multiple entries cannot write the same annotation or label key.
+{{% /alert %}}
+
+**Example with `operatorSpec.secrets`:**
+```yaml
+operatorSpec:
+  secrets:
+    primaryMasterKey:
+      name: mysecret
+      key: primarymasterkey
+      annotations:
+        my-annotation: foo
+      labels:
+        app: myapp
+```
+
+**Example with `operatorSpec.secretExpressions`:**
+```yaml
+operatorSpec:
+  secretExpressions:
+    - name: mysecret
+      key: primarymasterkey
+      value: secret.primaryMasterKey
+      annotations:
+        my-annotation: '"foo"' # Static string value (CEL expression)
+      labels:
+        account-name: self.status.name  # Dynamic value from resource status
+```
+
+When multiple secret destinations target the same Kubernetes secret, annotations and labels are merged.
+If two destinations specify the same annotation or label key with different values, an error is returned.

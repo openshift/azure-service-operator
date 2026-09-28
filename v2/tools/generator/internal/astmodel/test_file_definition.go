@@ -10,7 +10,7 @@ import (
 	"go/token"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/slices"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
@@ -28,6 +28,9 @@ type TestFileDefinition struct {
 var _ GoSourceFile = &TestFileDefinition{}
 
 // NewTestFileDefinition creates a file definition containing test cases from the specified definitions
+// packageRef is the package to which this file belongs.
+// definitions are the type definitions to include in this specific file.
+// generatedPackages is a map of all other packages being generated (to allow for cross-package references).
 func NewTestFileDefinition(
 	packageRef InternalPackageReference,
 	definitions []TypeDefinition,
@@ -41,7 +44,8 @@ func NewTestFileDefinition(
 		defs,
 		func(left TypeDefinition, right TypeDefinition) int {
 			return cmp.Compare(left.Name().Name(), right.Name().Name())
-		})
+		},
+	)
 
 	// TODO: check that all definitions are from same package
 	return &TestFileDefinition{
@@ -77,7 +81,7 @@ func (file *TestFileDefinition) AsAst() (*dst.File, error) {
 	}
 
 	if len(errs) > 0 {
-		return nil, errors.Wrap(
+		return nil, eris.Wrap(
 			kerrors.NewAggregate(errs),
 			"failed to generate test cases",
 		)
@@ -93,7 +97,7 @@ func (file *TestFileDefinition) AsAst() (*dst.File, error) {
 
 	decls = append(decls, testcases...)
 
-	var header []string
+	header := make([]string, 0, len(CodeGenerationComments)+2)
 	header = append(header, CodeGenerationComments...)
 	header = append(header,
 		"// Copyright (c) Microsoft Corporation.",

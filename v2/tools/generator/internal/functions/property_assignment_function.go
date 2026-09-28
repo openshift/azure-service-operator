@@ -10,9 +10,8 @@ import (
 	"go/token"
 	"sort"
 
-	"github.com/pkg/errors"
-
 	"github.com/dave/dst"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/maps"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
@@ -133,18 +132,19 @@ func (fn *PropertyAssignmentFunction) AsFunc(
 ) (*dst.FuncDecl, error) {
 	description := fn.direction.SelectString(
 		fmt.Sprintf("populates our %s from the provided source %s", receiver.Name(), fn.ParameterType().Name()),
-		fmt.Sprintf("populates the provided destination %s from our %s", fn.ParameterType().Name(), receiver.Name()))
+		fmt.Sprintf("populates the provided destination %s from our %s", fn.ParameterType().Name(), receiver.Name()),
+	)
 
 	// We always use a pointer receiver, so we can modify it
 	receiverType := astmodel.NewOptionalType(receiver)
 	receiverTypeExpr, err := receiverType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating receiver type expression")
+		return nil, eris.Wrap(err, "creating receiver type expression")
 	}
 
 	body, err := fn.generateBody(fn.receiverName, fn.parameterName, codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to generate body for %s", fn.Name())
+		return nil, eris.Wrapf(err, "unable to generate body for %s", fn.Name())
 	}
 
 	funcDetails := &astbuilder.FuncDetails{
@@ -157,7 +157,7 @@ func (fn *PropertyAssignmentFunction) AsFunc(
 	parameterTypeExpr, err := astmodel.NewOptionalType(fn.ParameterType()).
 		AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating parameter type expression")
+		return nil, eris.Wrap(err, "creating parameter type expression")
 	}
 
 	funcDetails.AddParameter(fn.parameterName, parameterTypeExpr)
@@ -192,13 +192,13 @@ func (fn *PropertyAssignmentFunction) generateBody(
 	bagPrologue := fn.createPropertyBagPrologue(source, generationContext)
 	assignments, err := fn.generateAssignments(knownLocals, dst.NewIdent(source), dst.NewIdent(destination), generationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to generate assignments for %s", fn.Name())
+		return nil, eris.Wrapf(err, "unable to generate assignments for %s", fn.Name())
 	}
 
 	bagEpilogue := fn.propertyBagEpilogue(destination)
 	handleOverrideInterface, err := fn.handleAugmentationInterface(receiver, parameter, knownLocals, generationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "generating augmentation interface handling for %s", fn.Name())
+		return nil, eris.Wrapf(err, "generating augmentation interface handling for %s", fn.Name())
 	}
 
 	return astbuilder.Statements(
@@ -206,7 +206,8 @@ func (fn *PropertyAssignmentFunction) generateBody(
 		assignments,
 		bagEpilogue,
 		handleOverrideInterface,
-		astbuilder.ReturnNoError()), nil
+		astbuilder.ReturnNoError(),
+	), nil
 }
 
 // createPropertyBagPrologue creates any introductory statements needed to set up our property bag before we start doing
@@ -241,18 +242,21 @@ func (fn *PropertyAssignmentFunction) createPropertyBagPrologue(
 		createBag = astbuilder.CallQualifiedFunc(
 			genruntimePkg,
 			"NewPropertyBag",
-			astbuilder.Selector(dst.NewIdent(source), string(fn.sourcePropertyBag.PropertyName())))
+			astbuilder.Selector(dst.NewIdent(source), string(fn.sourcePropertyBag.PropertyName())),
+		)
 		comment = "// Clone the existing property bag"
 	} else {
 		createBag = astbuilder.CallQualifiedFunc(
 			genruntimePkg,
-			"NewPropertyBag")
+			"NewPropertyBag",
+		)
 		comment = "// Create a new property bag"
 	}
 
 	initializeBag := astbuilder.ShortDeclaration(
 		fn.conversionContext.PropertyBagName(),
-		createBag)
+		createBag,
+	)
 	initializeBag.Decs.Before = dst.NewLine
 	astbuilder.AddComment(&initializeBag.Decorations().Start, comment)
 
@@ -272,18 +276,19 @@ func (fn *PropertyAssignmentFunction) propertyBagEpilogue(
 	prop := fn.destinationPropertyBag
 	found := prop != nil
 	if found {
-		bagId := dst.NewIdent(fn.conversionContext.PropertyBagName())
+		bagID := dst.NewIdent(fn.conversionContext.PropertyBagName())
 		bagProperty := astbuilder.Selector(dst.NewIdent(destination), string(prop.PropertyName()))
 
-		condition := astbuilder.BinaryExpr(astbuilder.CallFunc("len", bagId), token.GTR, astbuilder.IntLiteral(0))
+		condition := astbuilder.BinaryExpr(astbuilder.CallFunc("len", bagID), token.GTR, astbuilder.IntLiteral(0))
 
-		storeBag := astbuilder.SimpleAssignment(bagProperty, bagId)
+		storeBag := astbuilder.SimpleAssignment(bagProperty, bagID)
 		storeNil := astbuilder.SimpleAssignment(bagProperty, astbuilder.Nil())
 
 		store := astbuilder.SimpleIfElse(
 			condition,
 			astbuilder.Statements(storeBag),
-			astbuilder.Statements(storeNil))
+			astbuilder.Statements(storeNil),
+		)
 		store.Decs.Before = dst.EmptyLine
 		astbuilder.AddComment(&store.Decorations().Start, "// Update the property bag")
 
@@ -317,7 +322,7 @@ func (fn *PropertyAssignmentFunction) handleAugmentationInterface(
 
 	augmentationInterfaceExpr, err := fn.augmentationInterface.AsTypeExpr(generationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating augmentation interface type expression")
+		return nil, eris.Wrap(err, "creating augmentation interface type expression")
 	}
 
 	receiverAsAnyIdent := knownLocals.CreateLocal(receiver + "AsAny")
@@ -331,25 +336,30 @@ func (fn *PropertyAssignmentFunction) handleAugmentationInterface(
 	conversionFuncName := fn.Direction().SelectString("AssignPropertiesFrom", "AssignPropertiesTo")
 	callAssignOverride := astbuilder.ShortDeclaration(
 		"err",
-		astbuilder.CallQualifiedFunc(augmentedReceiverIdent, conversionFuncName, dst.NewIdent(parameter)))
+		astbuilder.CallQualifiedFunc(augmentedReceiverIdent, conversionFuncName, dst.NewIdent(parameter)),
+	)
 	returnIfNotNil := astbuilder.ReturnIfNotNil(
 		dst.NewIdent("err"),
 		astbuilder.WrappedError(
-			generationContext.MustGetImportedPackageName(astmodel.GitHubErrorsReference),
-			fmt.Sprintf("calling augmented %s() for conversion", conversionFuncName)))
+			generationContext.MustGetImportedPackageName(astmodel.ErisReference),
+			fmt.Sprintf("calling augmented %s() for conversion", conversionFuncName),
+		),
+	)
 
 	ifStmt := astbuilder.IfType(
 		dst.NewIdent(receiverAsAnyIdent),
 		augmentationInterfaceExpr,
 		augmentedReceiverIdent,
 		callAssignOverride,
-		returnIfNotNil)
+		returnIfNotNil,
+	)
 	sourceAsAny.Decorations().Before = dst.EmptyLine
 	sourceAsAny.Decorations().Start.Prepend(fmt.Sprintf("// Invoke the %s interface (if implemented) to customize the conversion", fn.augmentationInterface.Name()))
 
 	return astbuilder.Statements(
 		sourceAsAny,
-		ifStmt), nil
+		ifStmt,
+	), nil
 }
 
 // generateAssignments generates a sequence of statements to copy information between the two types
@@ -372,7 +382,7 @@ func (fn *PropertyAssignmentFunction) generateAssignments(
 		conversion := fn.conversions[prop]
 		block, err := conversion(source, destination, knownLocals, generationContext)
 		if err != nil {
-			return nil, errors.Wrapf(err, "property %s", prop)
+			return nil, eris.Wrapf(err, "property %s", prop)
 		}
 
 		if len(block) > 0 {
@@ -384,20 +394,4 @@ func (fn *PropertyAssignmentFunction) generateAssignments(
 	}
 
 	return result, nil
-}
-
-// sourceType returns the type we are reading information from
-// When converting FROM, otherDefinition.Type() is our source
-// When converting TO, receiverDefinition.Type() is our source
-// Our inverse is destinationType()
-func (fn *PropertyAssignmentFunction) sourceType() astmodel.Type {
-	return fn.direction.SelectType(fn.otherDefinition.Type(), fn.receiverDefinition.Type())
-}
-
-// destinationType returns the type we are writing information from
-// When converting FROM, receiverDefinition.Type() is our source
-// When converting TO, otherDefinition.Type() is our source
-// Our inverse is sourceType()
-func (fn *PropertyAssignmentFunction) destinationType() astmodel.Type {
-	return fn.direction.SelectType(fn.receiverDefinition.Type(), fn.otherDefinition.Type())
 }

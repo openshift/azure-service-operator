@@ -8,11 +8,12 @@ package embeddedresources
 import (
 	"testing"
 
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
+	. "github.com/onsi/gomega"
+
 	"github.com/go-logr/logr"
 
-	. "github.com/onsi/gomega"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
 )
 
 var (
@@ -44,7 +45,8 @@ func typesWithSubresourceTypeNoOriginalNameUsage() (astmodel.TypeDefinitionSet, 
 	prop := astmodel.NewPropertyDefinition(
 		"prop1",
 		"prop1",
-		modifiedTypeName)
+		modifiedTypeName,
+	)
 	resource := newTestObject(resourceTypeName, prop)
 	result.Add(resource)
 
@@ -69,11 +71,13 @@ func typesWithSubresourceTypeOriginalNameUsage() (astmodel.TypeDefinitionSet, ma
 	prop1 := astmodel.NewPropertyDefinition(
 		"prop1",
 		"prop1",
-		modifiedTypeName)
+		modifiedTypeName,
+	)
 	prop2 := astmodel.NewPropertyDefinition(
 		"prop2",
 		"prop2",
-		originalTypeName)
+		originalTypeName,
+	)
 
 	resource := newTestObject(resourceTypeName, prop1, prop2)
 	result.Add(resource)
@@ -105,11 +109,13 @@ func typesWithSubresourceTypeMultipleUsageContextsOneResource() (astmodel.TypeDe
 	prop1 := astmodel.NewPropertyDefinition(
 		"prop1",
 		"prop1",
-		modifiedTypeName1)
+		modifiedTypeName1,
+	)
 	prop2 := astmodel.NewPropertyDefinition(
 		"prop2",
 		"prop2",
-		modifiedTypeName2)
+		modifiedTypeName2,
+	)
 
 	resource := newTestObject(resourceTypeName, prop1, prop2)
 	result.Add(resource)
@@ -140,11 +146,13 @@ func typesWithSubresourceTypeMultipleResourcesOneUsageContextEach() (astmodel.Ty
 	prop1 := astmodel.NewPropertyDefinition(
 		"prop1",
 		"prop1",
-		modifiedTypeName1)
+		modifiedTypeName1,
+	)
 	prop2 := astmodel.NewPropertyDefinition(
 		"prop2",
 		"prop2",
-		modifiedTypeName2)
+		modifiedTypeName2,
+	)
 
 	resource := newTestObject(resourceTypeName, prop1, prop2)
 	result.Add(resource)

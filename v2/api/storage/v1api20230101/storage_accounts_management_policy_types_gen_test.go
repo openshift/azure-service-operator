@@ -5,7 +5,8 @@ package v1api20230101
 
 import (
 	"encoding/json"
-	storage "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101/storage"
+	v20230101s "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101/storage"
+	v20250601s "github.com/Azure/azure-service-operator/v2/api/storage/v20250601/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -20,6 +21,11 @@ import (
 
 func Test_DateAfterCreation_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -35,7 +41,7 @@ func RunPropertyAssignmentTestForDateAfterCreation(subject DateAfterCreation) st
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DateAfterCreation
+	var other v20230101s.DateAfterCreation
 	err := copied.AssignProperties_To_DateAfterCreation(&other)
 	if err != nil {
 		return err.Error()
@@ -62,6 +68,11 @@ func RunPropertyAssignmentTestForDateAfterCreation(subject DateAfterCreation) st
 
 func Test_DateAfterCreation_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -123,6 +134,11 @@ func AddIndependentPropertyGeneratorsForDateAfterCreation(gens map[string]gopter
 
 func Test_DateAfterCreation_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -138,7 +154,7 @@ func RunPropertyAssignmentTestForDateAfterCreation_STATUS(subject DateAfterCreat
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DateAfterCreation_STATUS
+	var other v20230101s.DateAfterCreation_STATUS
 	err := copied.AssignProperties_To_DateAfterCreation_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -165,6 +181,11 @@ func RunPropertyAssignmentTestForDateAfterCreation_STATUS(subject DateAfterCreat
 
 func Test_DateAfterCreation_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -227,6 +248,11 @@ func AddIndependentPropertyGeneratorsForDateAfterCreation_STATUS(gens map[string
 
 func Test_DateAfterModification_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -242,7 +268,7 @@ func RunPropertyAssignmentTestForDateAfterModification(subject DateAfterModifica
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DateAfterModification
+	var other v20230101s.DateAfterModification
 	err := copied.AssignProperties_To_DateAfterModification(&other)
 	if err != nil {
 		return err.Error()
@@ -269,6 +295,11 @@ func RunPropertyAssignmentTestForDateAfterModification(subject DateAfterModifica
 
 func Test_DateAfterModification_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -333,6 +364,11 @@ func AddIndependentPropertyGeneratorsForDateAfterModification(gens map[string]go
 
 func Test_DateAfterModification_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -348,7 +384,7 @@ func RunPropertyAssignmentTestForDateAfterModification_STATUS(subject DateAfterM
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DateAfterModification_STATUS
+	var other v20230101s.DateAfterModification_STATUS
 	err := copied.AssignProperties_To_DateAfterModification_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -375,6 +411,11 @@ func RunPropertyAssignmentTestForDateAfterModification_STATUS(subject DateAfterM
 
 func Test_DateAfterModification_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -439,6 +480,11 @@ func AddIndependentPropertyGeneratorsForDateAfterModification_STATUS(gens map[st
 
 func Test_ManagementPolicyAction_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -454,7 +500,7 @@ func RunPropertyAssignmentTestForManagementPolicyAction(subject ManagementPolicy
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyAction
+	var other v20230101s.ManagementPolicyAction
 	err := copied.AssignProperties_To_ManagementPolicyAction(&other)
 	if err != nil {
 		return err.Error()
@@ -481,6 +527,11 @@ func RunPropertyAssignmentTestForManagementPolicyAction(subject ManagementPolicy
 
 func Test_ManagementPolicyAction_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -544,6 +595,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyAction(gens map[string]gopte
 
 func Test_ManagementPolicyAction_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -559,7 +615,7 @@ func RunPropertyAssignmentTestForManagementPolicyAction_STATUS(subject Managemen
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyAction_STATUS
+	var other v20230101s.ManagementPolicyAction_STATUS
 	err := copied.AssignProperties_To_ManagementPolicyAction_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -586,6 +642,11 @@ func RunPropertyAssignmentTestForManagementPolicyAction_STATUS(subject Managemen
 
 func Test_ManagementPolicyAction_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -649,6 +710,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyAction_STATUS(gens map[strin
 
 func Test_ManagementPolicyBaseBlob_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -664,7 +730,7 @@ func RunPropertyAssignmentTestForManagementPolicyBaseBlob(subject ManagementPoli
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyBaseBlob
+	var other v20230101s.ManagementPolicyBaseBlob
 	err := copied.AssignProperties_To_ManagementPolicyBaseBlob(&other)
 	if err != nil {
 		return err.Error()
@@ -691,6 +757,11 @@ func RunPropertyAssignmentTestForManagementPolicyBaseBlob(subject ManagementPoli
 
 func Test_ManagementPolicyBaseBlob_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -770,6 +841,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyBaseBlob(gens map[string]gop
 
 func Test_ManagementPolicyBaseBlob_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -785,7 +861,7 @@ func RunPropertyAssignmentTestForManagementPolicyBaseBlob_STATUS(subject Managem
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyBaseBlob_STATUS
+	var other v20230101s.ManagementPolicyBaseBlob_STATUS
 	err := copied.AssignProperties_To_ManagementPolicyBaseBlob_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -812,6 +888,11 @@ func RunPropertyAssignmentTestForManagementPolicyBaseBlob_STATUS(subject Managem
 
 func Test_ManagementPolicyBaseBlob_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -891,6 +972,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyBaseBlob_STATUS(gens map[str
 
 func Test_ManagementPolicyDefinition_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -906,7 +992,7 @@ func RunPropertyAssignmentTestForManagementPolicyDefinition(subject ManagementPo
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyDefinition
+	var other v20230101s.ManagementPolicyDefinition
 	err := copied.AssignProperties_To_ManagementPolicyDefinition(&other)
 	if err != nil {
 		return err.Error()
@@ -933,6 +1019,11 @@ func RunPropertyAssignmentTestForManagementPolicyDefinition(subject ManagementPo
 
 func Test_ManagementPolicyDefinition_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -995,6 +1086,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyDefinition(gens map[string]g
 
 func Test_ManagementPolicyDefinition_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1010,7 +1106,7 @@ func RunPropertyAssignmentTestForManagementPolicyDefinition_STATUS(subject Manag
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyDefinition_STATUS
+	var other v20230101s.ManagementPolicyDefinition_STATUS
 	err := copied.AssignProperties_To_ManagementPolicyDefinition_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1037,6 +1133,11 @@ func RunPropertyAssignmentTestForManagementPolicyDefinition_STATUS(subject Manag
 
 func Test_ManagementPolicyDefinition_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1099,6 +1200,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyDefinition_STATUS(gens map[s
 
 func Test_ManagementPolicyFilter_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1114,7 +1220,7 @@ func RunPropertyAssignmentTestForManagementPolicyFilter(subject ManagementPolicy
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyFilter
+	var other v20230101s.ManagementPolicyFilter
 	err := copied.AssignProperties_To_ManagementPolicyFilter(&other)
 	if err != nil {
 		return err.Error()
@@ -1141,6 +1247,11 @@ func RunPropertyAssignmentTestForManagementPolicyFilter(subject ManagementPolicy
 
 func Test_ManagementPolicyFilter_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1217,6 +1328,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyFilter(gens map[string]gopte
 
 func Test_ManagementPolicyFilter_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1232,7 +1348,7 @@ func RunPropertyAssignmentTestForManagementPolicyFilter_STATUS(subject Managemen
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyFilter_STATUS
+	var other v20230101s.ManagementPolicyFilter_STATUS
 	err := copied.AssignProperties_To_ManagementPolicyFilter_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1259,6 +1375,11 @@ func RunPropertyAssignmentTestForManagementPolicyFilter_STATUS(subject Managemen
 
 func Test_ManagementPolicyFilter_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1335,6 +1456,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyFilter_STATUS(gens map[strin
 
 func Test_ManagementPolicyRule_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1350,7 +1476,7 @@ func RunPropertyAssignmentTestForManagementPolicyRule(subject ManagementPolicyRu
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyRule
+	var other v20230101s.ManagementPolicyRule
 	err := copied.AssignProperties_To_ManagementPolicyRule(&other)
 	if err != nil {
 		return err.Error()
@@ -1377,6 +1503,11 @@ func RunPropertyAssignmentTestForManagementPolicyRule(subject ManagementPolicyRu
 
 func Test_ManagementPolicyRule_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1454,6 +1585,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyRule(gens map[string]gopter.
 
 func Test_ManagementPolicyRule_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1469,7 +1605,7 @@ func RunPropertyAssignmentTestForManagementPolicyRule_STATUS(subject ManagementP
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyRule_STATUS
+	var other v20230101s.ManagementPolicyRule_STATUS
 	err := copied.AssignProperties_To_ManagementPolicyRule_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1496,6 +1632,11 @@ func RunPropertyAssignmentTestForManagementPolicyRule_STATUS(subject ManagementP
 
 func Test_ManagementPolicyRule_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1573,6 +1714,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyRule_STATUS(gens map[string]
 
 func Test_ManagementPolicySchema_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1588,7 +1734,7 @@ func RunPropertyAssignmentTestForManagementPolicySchema(subject ManagementPolicy
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicySchema
+	var other v20230101s.ManagementPolicySchema
 	err := copied.AssignProperties_To_ManagementPolicySchema(&other)
 	if err != nil {
 		return err.Error()
@@ -1615,6 +1761,11 @@ func RunPropertyAssignmentTestForManagementPolicySchema(subject ManagementPolicy
 
 func Test_ManagementPolicySchema_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1676,6 +1827,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicySchema(gens map[string]gopte
 
 func Test_ManagementPolicySchema_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1691,7 +1847,7 @@ func RunPropertyAssignmentTestForManagementPolicySchema_STATUS(subject Managemen
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicySchema_STATUS
+	var other v20230101s.ManagementPolicySchema_STATUS
 	err := copied.AssignProperties_To_ManagementPolicySchema_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1718,6 +1874,11 @@ func RunPropertyAssignmentTestForManagementPolicySchema_STATUS(subject Managemen
 
 func Test_ManagementPolicySchema_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1779,6 +1940,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicySchema_STATUS(gens map[strin
 
 func Test_ManagementPolicySnapShot_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1794,7 +1960,7 @@ func RunPropertyAssignmentTestForManagementPolicySnapShot(subject ManagementPoli
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicySnapShot
+	var other v20230101s.ManagementPolicySnapShot
 	err := copied.AssignProperties_To_ManagementPolicySnapShot(&other)
 	if err != nil {
 		return err.Error()
@@ -1821,6 +1987,11 @@ func RunPropertyAssignmentTestForManagementPolicySnapShot(subject ManagementPoli
 
 func Test_ManagementPolicySnapShot_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1886,6 +2057,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicySnapShot(gens map[string]gop
 
 func Test_ManagementPolicySnapShot_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1901,7 +2077,7 @@ func RunPropertyAssignmentTestForManagementPolicySnapShot_STATUS(subject Managem
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicySnapShot_STATUS
+	var other v20230101s.ManagementPolicySnapShot_STATUS
 	err := copied.AssignProperties_To_ManagementPolicySnapShot_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1928,6 +2104,11 @@ func RunPropertyAssignmentTestForManagementPolicySnapShot_STATUS(subject Managem
 
 func Test_ManagementPolicySnapShot_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1993,6 +2174,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicySnapShot_STATUS(gens map[str
 
 func Test_ManagementPolicyVersion_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2008,7 +2194,7 @@ func RunPropertyAssignmentTestForManagementPolicyVersion(subject ManagementPolic
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyVersion
+	var other v20230101s.ManagementPolicyVersion
 	err := copied.AssignProperties_To_ManagementPolicyVersion(&other)
 	if err != nil {
 		return err.Error()
@@ -2035,6 +2221,11 @@ func RunPropertyAssignmentTestForManagementPolicyVersion(subject ManagementPolic
 
 func Test_ManagementPolicyVersion_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -2100,6 +2291,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyVersion(gens map[string]gopt
 
 func Test_ManagementPolicyVersion_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2115,7 +2311,7 @@ func RunPropertyAssignmentTestForManagementPolicyVersion_STATUS(subject Manageme
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagementPolicyVersion_STATUS
+	var other v20230101s.ManagementPolicyVersion_STATUS
 	err := copied.AssignProperties_To_ManagementPolicyVersion_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -2142,6 +2338,11 @@ func RunPropertyAssignmentTestForManagementPolicyVersion_STATUS(subject Manageme
 
 func Test_ManagementPolicyVersion_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -2207,6 +2408,11 @@ func AddRelatedPropertyGeneratorsForManagementPolicyVersion_STATUS(gens map[stri
 
 func Test_StorageAccountsManagementPolicy_WhenConvertedToHub_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	parameters.MinSuccessfulTests = 10
@@ -2223,7 +2429,7 @@ func RunResourceConversionTestForStorageAccountsManagementPolicy(subject Storage
 	copied := subject.DeepCopy()
 
 	// Convert to our hub version
-	var hub storage.StorageAccountsManagementPolicy
+	var hub v20250601s.StorageAccountsManagementPolicy
 	err := copied.ConvertTo(&hub)
 	if err != nil {
 		return err.Error()
@@ -2250,6 +2456,11 @@ func RunResourceConversionTestForStorageAccountsManagementPolicy(subject Storage
 
 func Test_StorageAccountsManagementPolicy_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2265,7 +2476,7 @@ func RunPropertyAssignmentTestForStorageAccountsManagementPolicy(subject Storage
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.StorageAccountsManagementPolicy
+	var other v20230101s.StorageAccountsManagementPolicy
 	err := copied.AssignProperties_To_StorageAccountsManagementPolicy(&other)
 	if err != nil {
 		return err.Error()
@@ -2292,6 +2503,11 @@ func RunPropertyAssignmentTestForStorageAccountsManagementPolicy(subject Storage
 
 func Test_StorageAccountsManagementPolicy_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -2348,36 +2564,41 @@ func StorageAccountsManagementPolicyGenerator() gopter.Gen {
 
 // AddRelatedPropertyGeneratorsForStorageAccountsManagementPolicy is a factory method for creating gopter generators
 func AddRelatedPropertyGeneratorsForStorageAccountsManagementPolicy(gens map[string]gopter.Gen) {
-	gens["Spec"] = StorageAccounts_ManagementPolicy_SpecGenerator()
-	gens["Status"] = StorageAccounts_ManagementPolicy_STATUSGenerator()
+	gens["Spec"] = StorageAccountsManagementPolicy_SpecGenerator()
+	gens["Status"] = StorageAccountsManagementPolicy_STATUSGenerator()
 }
 
-func Test_StorageAccounts_ManagementPolicy_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+func Test_StorageAccountsManagementPolicyOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip from StorageAccounts_ManagementPolicy_STATUS to StorageAccounts_ManagementPolicy_STATUS via AssignProperties_To_StorageAccounts_ManagementPolicy_STATUS & AssignProperties_From_StorageAccounts_ManagementPolicy_STATUS returns original",
-		prop.ForAll(RunPropertyAssignmentTestForStorageAccounts_ManagementPolicy_STATUS, StorageAccounts_ManagementPolicy_STATUSGenerator()))
+		"Round trip from StorageAccountsManagementPolicyOperatorSpec to StorageAccountsManagementPolicyOperatorSpec via AssignProperties_To_StorageAccountsManagementPolicyOperatorSpec & AssignProperties_From_StorageAccountsManagementPolicyOperatorSpec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForStorageAccountsManagementPolicyOperatorSpec, StorageAccountsManagementPolicyOperatorSpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
 }
 
-// RunPropertyAssignmentTestForStorageAccounts_ManagementPolicy_STATUS tests if a specific instance of StorageAccounts_ManagementPolicy_STATUS can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForStorageAccounts_ManagementPolicy_STATUS(subject StorageAccounts_ManagementPolicy_STATUS) string {
+// RunPropertyAssignmentTestForStorageAccountsManagementPolicyOperatorSpec tests if a specific instance of StorageAccountsManagementPolicyOperatorSpec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForStorageAccountsManagementPolicyOperatorSpec(subject StorageAccountsManagementPolicyOperatorSpec) string {
 	// Copy subject to make sure assignment doesn't modify it
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.StorageAccounts_ManagementPolicy_STATUS
-	err := copied.AssignProperties_To_StorageAccounts_ManagementPolicy_STATUS(&other)
+	var other v20230101s.StorageAccountsManagementPolicyOperatorSpec
+	err := copied.AssignProperties_To_StorageAccountsManagementPolicyOperatorSpec(&other)
 	if err != nil {
 		return err.Error()
 	}
 
 	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual StorageAccounts_ManagementPolicy_STATUS
-	err = actual.AssignProperties_From_StorageAccounts_ManagementPolicy_STATUS(&other)
+	var actual StorageAccountsManagementPolicyOperatorSpec
+	err = actual.AssignProperties_From_StorageAccountsManagementPolicyOperatorSpec(&other)
 	if err != nil {
 		return err.Error()
 	}
@@ -2394,20 +2615,25 @@ func RunPropertyAssignmentTestForStorageAccounts_ManagementPolicy_STATUS(subject
 	return ""
 }
 
-func Test_StorageAccounts_ManagementPolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_StorageAccountsManagementPolicyOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 80
+	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip of StorageAccounts_ManagementPolicy_STATUS via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForStorageAccounts_ManagementPolicy_STATUS, StorageAccounts_ManagementPolicy_STATUSGenerator()))
+		"Round trip of StorageAccountsManagementPolicyOperatorSpec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForStorageAccountsManagementPolicyOperatorSpec, StorageAccountsManagementPolicyOperatorSpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
 }
 
-// RunJSONSerializationTestForStorageAccounts_ManagementPolicy_STATUS runs a test to see if a specific instance of StorageAccounts_ManagementPolicy_STATUS round trips to JSON and back losslessly
-func RunJSONSerializationTestForStorageAccounts_ManagementPolicy_STATUS(subject StorageAccounts_ManagementPolicy_STATUS) string {
+// RunJSONSerializationTestForStorageAccountsManagementPolicyOperatorSpec runs a test to see if a specific instance of StorageAccountsManagementPolicyOperatorSpec round trips to JSON and back losslessly
+func RunJSONSerializationTestForStorageAccountsManagementPolicyOperatorSpec(subject StorageAccountsManagementPolicyOperatorSpec) string {
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
@@ -2415,7 +2641,7 @@ func RunJSONSerializationTestForStorageAccounts_ManagementPolicy_STATUS(subject 
 	}
 
 	// Deserialize back into memory
-	var actual StorageAccounts_ManagementPolicy_STATUS
+	var actual StorageAccountsManagementPolicyOperatorSpec
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
 		return err.Error()
@@ -2433,71 +2659,183 @@ func RunJSONSerializationTestForStorageAccounts_ManagementPolicy_STATUS(subject 
 	return ""
 }
 
-// Generator of StorageAccounts_ManagementPolicy_STATUS instances for property testing - lazily instantiated by
-// StorageAccounts_ManagementPolicy_STATUSGenerator()
-var storageAccounts_ManagementPolicy_STATUSGenerator gopter.Gen
+// Generator of StorageAccountsManagementPolicyOperatorSpec instances for property testing - lazily instantiated by
+// StorageAccountsManagementPolicyOperatorSpecGenerator()
+var storageAccountsManagementPolicyOperatorSpecGenerator gopter.Gen
 
-// StorageAccounts_ManagementPolicy_STATUSGenerator returns a generator of StorageAccounts_ManagementPolicy_STATUS instances for property testing.
-// We first initialize storageAccounts_ManagementPolicy_STATUSGenerator with a simplified generator based on the
-// fields with primitive types then replacing it with a more complex one that also handles complex fields
-// to ensure any cycles in the object graph properly terminate.
-func StorageAccounts_ManagementPolicy_STATUSGenerator() gopter.Gen {
-	if storageAccounts_ManagementPolicy_STATUSGenerator != nil {
-		return storageAccounts_ManagementPolicy_STATUSGenerator
+// StorageAccountsManagementPolicyOperatorSpecGenerator returns a generator of StorageAccountsManagementPolicyOperatorSpec instances for property testing.
+func StorageAccountsManagementPolicyOperatorSpecGenerator() gopter.Gen {
+	if storageAccountsManagementPolicyOperatorSpecGenerator != nil {
+		return storageAccountsManagementPolicyOperatorSpecGenerator
 	}
 
 	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForStorageAccounts_ManagementPolicy_STATUS(generators)
-	storageAccounts_ManagementPolicy_STATUSGenerator = gen.Struct(reflect.TypeOf(StorageAccounts_ManagementPolicy_STATUS{}), generators)
+	storageAccountsManagementPolicyOperatorSpecGenerator = gen.Struct(reflect.TypeOf(StorageAccountsManagementPolicyOperatorSpec{}), generators)
+
+	return storageAccountsManagementPolicyOperatorSpecGenerator
+}
+
+func Test_StorageAccountsManagementPolicy_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from StorageAccountsManagementPolicy_STATUS to StorageAccountsManagementPolicy_STATUS via AssignProperties_To_StorageAccountsManagementPolicy_STATUS & AssignProperties_From_StorageAccountsManagementPolicy_STATUS returns original",
+		prop.ForAll(RunPropertyAssignmentTestForStorageAccountsManagementPolicy_STATUS, StorageAccountsManagementPolicy_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForStorageAccountsManagementPolicy_STATUS tests if a specific instance of StorageAccountsManagementPolicy_STATUS can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForStorageAccountsManagementPolicy_STATUS(subject StorageAccountsManagementPolicy_STATUS) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20230101s.StorageAccountsManagementPolicy_STATUS
+	err := copied.AssignProperties_To_StorageAccountsManagementPolicy_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual StorageAccountsManagementPolicy_STATUS
+	err = actual.AssignProperties_From_StorageAccountsManagementPolicy_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_StorageAccountsManagementPolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 80
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of StorageAccountsManagementPolicy_STATUS via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForStorageAccountsManagementPolicy_STATUS, StorageAccountsManagementPolicy_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForStorageAccountsManagementPolicy_STATUS runs a test to see if a specific instance of StorageAccountsManagementPolicy_STATUS round trips to JSON and back losslessly
+func RunJSONSerializationTestForStorageAccountsManagementPolicy_STATUS(subject StorageAccountsManagementPolicy_STATUS) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual StorageAccountsManagementPolicy_STATUS
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of StorageAccountsManagementPolicy_STATUS instances for property testing - lazily instantiated by
+// StorageAccountsManagementPolicy_STATUSGenerator()
+var storageAccountsManagementPolicy_STATUSGenerator gopter.Gen
+
+// StorageAccountsManagementPolicy_STATUSGenerator returns a generator of StorageAccountsManagementPolicy_STATUS instances for property testing.
+// We first initialize storageAccountsManagementPolicy_STATUSGenerator with a simplified generator based on the
+// fields with primitive types then replacing it with a more complex one that also handles complex fields
+// to ensure any cycles in the object graph properly terminate.
+func StorageAccountsManagementPolicy_STATUSGenerator() gopter.Gen {
+	if storageAccountsManagementPolicy_STATUSGenerator != nil {
+		return storageAccountsManagementPolicy_STATUSGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForStorageAccountsManagementPolicy_STATUS(generators)
+	storageAccountsManagementPolicy_STATUSGenerator = gen.Struct(reflect.TypeOf(StorageAccountsManagementPolicy_STATUS{}), generators)
 
 	// The above call to gen.Struct() captures the map, so create a new one
 	generators = make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForStorageAccounts_ManagementPolicy_STATUS(generators)
-	AddRelatedPropertyGeneratorsForStorageAccounts_ManagementPolicy_STATUS(generators)
-	storageAccounts_ManagementPolicy_STATUSGenerator = gen.Struct(reflect.TypeOf(StorageAccounts_ManagementPolicy_STATUS{}), generators)
+	AddIndependentPropertyGeneratorsForStorageAccountsManagementPolicy_STATUS(generators)
+	AddRelatedPropertyGeneratorsForStorageAccountsManagementPolicy_STATUS(generators)
+	storageAccountsManagementPolicy_STATUSGenerator = gen.Struct(reflect.TypeOf(StorageAccountsManagementPolicy_STATUS{}), generators)
 
-	return storageAccounts_ManagementPolicy_STATUSGenerator
+	return storageAccountsManagementPolicy_STATUSGenerator
 }
 
-// AddIndependentPropertyGeneratorsForStorageAccounts_ManagementPolicy_STATUS is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForStorageAccounts_ManagementPolicy_STATUS(gens map[string]gopter.Gen) {
+// AddIndependentPropertyGeneratorsForStorageAccountsManagementPolicy_STATUS is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForStorageAccountsManagementPolicy_STATUS(gens map[string]gopter.Gen) {
 	gens["Id"] = gen.PtrOf(gen.AlphaString())
 	gens["LastModifiedTime"] = gen.PtrOf(gen.AlphaString())
 	gens["Name"] = gen.PtrOf(gen.AlphaString())
 	gens["Type"] = gen.PtrOf(gen.AlphaString())
 }
 
-// AddRelatedPropertyGeneratorsForStorageAccounts_ManagementPolicy_STATUS is a factory method for creating gopter generators
-func AddRelatedPropertyGeneratorsForStorageAccounts_ManagementPolicy_STATUS(gens map[string]gopter.Gen) {
+// AddRelatedPropertyGeneratorsForStorageAccountsManagementPolicy_STATUS is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForStorageAccountsManagementPolicy_STATUS(gens map[string]gopter.Gen) {
 	gens["Policy"] = gen.PtrOf(ManagementPolicySchema_STATUSGenerator())
 }
 
-func Test_StorageAccounts_ManagementPolicy_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+func Test_StorageAccountsManagementPolicy_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip from StorageAccounts_ManagementPolicy_Spec to StorageAccounts_ManagementPolicy_Spec via AssignProperties_To_StorageAccounts_ManagementPolicy_Spec & AssignProperties_From_StorageAccounts_ManagementPolicy_Spec returns original",
-		prop.ForAll(RunPropertyAssignmentTestForStorageAccounts_ManagementPolicy_Spec, StorageAccounts_ManagementPolicy_SpecGenerator()))
+		"Round trip from StorageAccountsManagementPolicy_Spec to StorageAccountsManagementPolicy_Spec via AssignProperties_To_StorageAccountsManagementPolicy_Spec & AssignProperties_From_StorageAccountsManagementPolicy_Spec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForStorageAccountsManagementPolicy_Spec, StorageAccountsManagementPolicy_SpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
 }
 
-// RunPropertyAssignmentTestForStorageAccounts_ManagementPolicy_Spec tests if a specific instance of StorageAccounts_ManagementPolicy_Spec can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForStorageAccounts_ManagementPolicy_Spec(subject StorageAccounts_ManagementPolicy_Spec) string {
+// RunPropertyAssignmentTestForStorageAccountsManagementPolicy_Spec tests if a specific instance of StorageAccountsManagementPolicy_Spec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForStorageAccountsManagementPolicy_Spec(subject StorageAccountsManagementPolicy_Spec) string {
 	// Copy subject to make sure assignment doesn't modify it
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.StorageAccounts_ManagementPolicy_Spec
-	err := copied.AssignProperties_To_StorageAccounts_ManagementPolicy_Spec(&other)
+	var other v20230101s.StorageAccountsManagementPolicy_Spec
+	err := copied.AssignProperties_To_StorageAccountsManagementPolicy_Spec(&other)
 	if err != nil {
 		return err.Error()
 	}
 
 	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual StorageAccounts_ManagementPolicy_Spec
-	err = actual.AssignProperties_From_StorageAccounts_ManagementPolicy_Spec(&other)
+	var actual StorageAccountsManagementPolicy_Spec
+	err = actual.AssignProperties_From_StorageAccountsManagementPolicy_Spec(&other)
 	if err != nil {
 		return err.Error()
 	}
@@ -2514,20 +2852,25 @@ func RunPropertyAssignmentTestForStorageAccounts_ManagementPolicy_Spec(subject S
 	return ""
 }
 
-func Test_StorageAccounts_ManagementPolicy_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_StorageAccountsManagementPolicy_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip of StorageAccounts_ManagementPolicy_Spec via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForStorageAccounts_ManagementPolicy_Spec, StorageAccounts_ManagementPolicy_SpecGenerator()))
+		"Round trip of StorageAccountsManagementPolicy_Spec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForStorageAccountsManagementPolicy_Spec, StorageAccountsManagementPolicy_SpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
 }
 
-// RunJSONSerializationTestForStorageAccounts_ManagementPolicy_Spec runs a test to see if a specific instance of StorageAccounts_ManagementPolicy_Spec round trips to JSON and back losslessly
-func RunJSONSerializationTestForStorageAccounts_ManagementPolicy_Spec(subject StorageAccounts_ManagementPolicy_Spec) string {
+// RunJSONSerializationTestForStorageAccountsManagementPolicy_Spec runs a test to see if a specific instance of StorageAccountsManagementPolicy_Spec round trips to JSON and back losslessly
+func RunJSONSerializationTestForStorageAccountsManagementPolicy_Spec(subject StorageAccountsManagementPolicy_Spec) string {
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
@@ -2535,7 +2878,7 @@ func RunJSONSerializationTestForStorageAccounts_ManagementPolicy_Spec(subject St
 	}
 
 	// Deserialize back into memory
-	var actual StorageAccounts_ManagementPolicy_Spec
+	var actual StorageAccountsManagementPolicy_Spec
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
 		return err.Error()
@@ -2553,30 +2896,36 @@ func RunJSONSerializationTestForStorageAccounts_ManagementPolicy_Spec(subject St
 	return ""
 }
 
-// Generator of StorageAccounts_ManagementPolicy_Spec instances for property testing - lazily instantiated by
-// StorageAccounts_ManagementPolicy_SpecGenerator()
-var storageAccounts_ManagementPolicy_SpecGenerator gopter.Gen
+// Generator of StorageAccountsManagementPolicy_Spec instances for property testing - lazily instantiated by
+// StorageAccountsManagementPolicy_SpecGenerator()
+var storageAccountsManagementPolicy_SpecGenerator gopter.Gen
 
-// StorageAccounts_ManagementPolicy_SpecGenerator returns a generator of StorageAccounts_ManagementPolicy_Spec instances for property testing.
-func StorageAccounts_ManagementPolicy_SpecGenerator() gopter.Gen {
-	if storageAccounts_ManagementPolicy_SpecGenerator != nil {
-		return storageAccounts_ManagementPolicy_SpecGenerator
+// StorageAccountsManagementPolicy_SpecGenerator returns a generator of StorageAccountsManagementPolicy_Spec instances for property testing.
+func StorageAccountsManagementPolicy_SpecGenerator() gopter.Gen {
+	if storageAccountsManagementPolicy_SpecGenerator != nil {
+		return storageAccountsManagementPolicy_SpecGenerator
 	}
 
 	generators := make(map[string]gopter.Gen)
-	AddRelatedPropertyGeneratorsForStorageAccounts_ManagementPolicy_Spec(generators)
-	storageAccounts_ManagementPolicy_SpecGenerator = gen.Struct(reflect.TypeOf(StorageAccounts_ManagementPolicy_Spec{}), generators)
+	AddRelatedPropertyGeneratorsForStorageAccountsManagementPolicy_Spec(generators)
+	storageAccountsManagementPolicy_SpecGenerator = gen.Struct(reflect.TypeOf(StorageAccountsManagementPolicy_Spec{}), generators)
 
-	return storageAccounts_ManagementPolicy_SpecGenerator
+	return storageAccountsManagementPolicy_SpecGenerator
 }
 
-// AddRelatedPropertyGeneratorsForStorageAccounts_ManagementPolicy_Spec is a factory method for creating gopter generators
-func AddRelatedPropertyGeneratorsForStorageAccounts_ManagementPolicy_Spec(gens map[string]gopter.Gen) {
+// AddRelatedPropertyGeneratorsForStorageAccountsManagementPolicy_Spec is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForStorageAccountsManagementPolicy_Spec(gens map[string]gopter.Gen) {
+	gens["OperatorSpec"] = gen.PtrOf(StorageAccountsManagementPolicyOperatorSpecGenerator())
 	gens["Policy"] = gen.PtrOf(ManagementPolicySchemaGenerator())
 }
 
 func Test_TagFilter_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2592,7 +2941,7 @@ func RunPropertyAssignmentTestForTagFilter(subject TagFilter) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.TagFilter
+	var other v20230101s.TagFilter
 	err := copied.AssignProperties_To_TagFilter(&other)
 	if err != nil {
 		return err.Error()
@@ -2619,6 +2968,11 @@ func RunPropertyAssignmentTestForTagFilter(subject TagFilter) string {
 
 func Test_TagFilter_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -2681,6 +3035,11 @@ func AddIndependentPropertyGeneratorsForTagFilter(gens map[string]gopter.Gen) {
 
 func Test_TagFilter_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2696,7 +3055,7 @@ func RunPropertyAssignmentTestForTagFilter_STATUS(subject TagFilter_STATUS) stri
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.TagFilter_STATUS
+	var other v20230101s.TagFilter_STATUS
 	err := copied.AssignProperties_To_TagFilter_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -2723,6 +3082,11 @@ func RunPropertyAssignmentTestForTagFilter_STATUS(subject TagFilter_STATUS) stri
 
 func Test_TagFilter_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3

@@ -78,6 +78,13 @@ func TestEnsureIndexPropertyPathsUnique_ResolvesConflicts(t *testing.T) {
 				{"obj.Spec.Properties.VirtualMachine.Properties.AdministratorAccount.Password", "VirtualMachinePassword"},
 			},
 		},
+		{
+			"Root level property conflicts with nested property of the same name",
+			[]tc{
+				{"Destination", "Destination"},
+				{"DeliveryWithResourceIdentity.Destination", "DeliveryWithResourceIdentityDestination"},
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -86,7 +93,7 @@ func TestEnsureIndexPropertyPathsUnique_ResolvesConflicts(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 			factory := make(testChainFactory)
-			var chains []*propertyChain
+			chains := make([]*propertyChain, 0, len(c.chains))
 			for _, tc := range c.chains {
 				chains = append(chains, factory.createTestChain(tc.chain))
 			}

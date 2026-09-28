@@ -7,7 +7,7 @@ package functions
 
 import (
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -16,34 +16,42 @@ import (
 // NewNewEmptyARMValueFunc returns a function that creates an empty value suitable for using with PopulateFromARM.
 // It should be equivalent to ConvertToARM("") on a default struct value.
 func NewNewEmptyARMValueFunc(
-	armType astmodel.TypeName,
+	armType astmodel.InternalTypeName,
 	idFactory astmodel.IdentifierFactory,
 ) astmodel.Function {
 	result := NewObjectFunction(
 		"NewEmptyARMValue",
 		idFactory,
-		newEmptyARMValueBody(armType))
+		newEmptyARMValueBody(armType),
+		armType.InternalPackageReference(),
+	)
 
 	return result
 }
 
-func newEmptyARMValueBody(instanceType astmodel.TypeName) ObjectFunctionHandler {
+func newEmptyARMValueBody(instanceType astmodel.InternalTypeName) ObjectFunctionHandler {
 	return func(
 		fn *ObjectFunction,
 		genContext *astmodel.CodeGenerationContext,
 		receiver astmodel.TypeName,
 		methodName string,
 	) (*dst.FuncDecl, error) {
-		receiverName := fn.IdFactory().CreateReceiver(receiver.Name())
-		receiverType, err := receiver.AsTypeExpr(genContext)
+		receiverName := fn.IDFactory().CreateReceiver(receiver.Name())
+		receiverTypeExpr, err := receiver.AsTypeExpr(genContext)
 		if err != nil {
-			return nil, errors.Wrapf(err, "creating type expression for %s", receiver)
+			return nil, eris.Wrapf(err, "creating type expression for %s", receiver)
+		}
+		receiverTypeExpr = astbuilder.PointerTo(receiverTypeExpr)
+
+		// return &<pkg.instanceType>{}
+		instanceTypeExpr, err := instanceType.AsTypeExpr(genContext)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating type expression for %s", instanceType)
 		}
 
-		receiverTypeExpr := astbuilder.PointerTo(receiverType)
-
-		instance := astbuilder.NewCompositeLiteralBuilder(dst.NewIdent(instanceType.Name()))
+		instance := astbuilder.NewCompositeLiteralBuilder(instanceTypeExpr)
 		returnInstance := astbuilder.Returns(astbuilder.AddrOf(instance.Build()))
+
 		details := &astbuilder.FuncDetails{
 			Name:          "NewEmptyARMValue",
 			ReceiverIdent: receiverName,
@@ -53,7 +61,7 @@ func newEmptyARMValueBody(instanceType astmodel.TypeName) ObjectFunctionHandler 
 
 		armResourceStatusTypeExpr, err := astmodel.ARMResourceStatusType.AsTypeExpr(genContext)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating ARM resource status type expression")
+			return nil, eris.Wrap(err, "creating ARM resource status type expression")
 		}
 
 		details.AddReturn(armResourceStatusTypeExpr)

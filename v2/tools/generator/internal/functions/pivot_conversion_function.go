@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -122,16 +122,18 @@ func (fn *PivotConversionFunction) Name() string {
 
 func (fn *PivotConversionFunction) RequiredPackageReferences() *astmodel.PackageReferenceSet {
 	return astmodel.NewPackageReferenceSet(
-		astmodel.GitHubErrorsReference,
+		astmodel.ErisReference,
 		astmodel.ControllerRuntimeConversion,
 		astmodel.FmtReference,
 		astmodel.GenRuntimeReference,
-		fn.parameterType.PackageReference())
+		fn.parameterType.PackageReference(),
+	)
 }
 
 func (fn *PivotConversionFunction) References() astmodel.TypeNameSet {
 	return astmodel.NewTypeNameSet(
-		fn.parameterType)
+		fn.parameterType,
+	)
 }
 
 func (fn *PivotConversionFunction) AsFunc(
@@ -145,7 +147,7 @@ func (fn *PivotConversionFunction) AsFunc(
 	receiverType := astmodel.NewOptionalType(receiver)
 	receiverTypeExpr, err := receiverType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating receiver type expression")
+		return nil, eris.Wrap(err, "creating receiver type expression")
 	}
 
 	funcDetails := &astbuilder.FuncDetails{
@@ -157,7 +159,7 @@ func (fn *PivotConversionFunction) AsFunc(
 	parameterName := fn.direction.SelectString("source", "destination")
 	parameterTypeExpr, err := fn.parameterType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating parameter type expression")
+		return nil, eris.Wrap(err, "creating parameter type expression")
 	}
 
 	funcDetails.AddParameter(parameterName, parameterTypeExpr)
@@ -180,7 +182,7 @@ func (fn *PivotConversionFunction) bodyForPivot(
 	parameterName string,
 	generationContext *astmodel.CodeGenerationContext,
 ) []dst.Stmt {
-	errorsPkg := generationContext.MustGetImportedPackageName(astmodel.GitHubErrorsReference)
+	errorsPkg := generationContext.MustGetImportedPackageName(astmodel.ErisReference)
 
 	fnNameForOtherDirection := fn.direction.SelectString(fn.nameTo, fn.nameFrom)
 	parameter := dst.NewIdent(parameterName)
@@ -188,10 +190,12 @@ func (fn *PivotConversionFunction) bodyForPivot(
 
 	errorMessage := astbuilder.StringLiteralf(
 		"attempted conversion between unrelated implementations of %s",
-		fn.parameterType)
+		fn.parameterType,
+	)
 	recursionCheck := astbuilder.ReturnIfExpr(
 		astbuilder.AreEqual(parameter, receiver),
-		astbuilder.CallQualifiedFunc(errorsPkg, "New", errorMessage))
+		astbuilder.CallQualifiedFunc(errorsPkg, "New", errorMessage),
+	)
 	recursionCheck.Decorations().After = dst.EmptyLine
 
 	callAndReturn := astbuilder.Returns(astbuilder.CallExpr(parameter, fnNameForOtherDirection, receiver))
@@ -202,7 +206,8 @@ func (fn *PivotConversionFunction) bodyForPivot(
 func (fn *PivotConversionFunction) declarationDocComment(receiver astmodel.TypeName, parameter string) string {
 	return fn.direction.SelectString(
 		fmt.Sprintf("populates our %s from the provided %s", receiver.Name(), parameter),
-		fmt.Sprintf("populates the provided %s from our %s", parameter, receiver.Name()))
+		fmt.Sprintf("populates the provided %s from our %s", parameter, receiver.Name()),
+	)
 }
 
 func (fn *PivotConversionFunction) Equals(otherFn astmodel.Function, _ astmodel.EqualityOverrides) bool {

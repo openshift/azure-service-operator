@@ -11,7 +11,7 @@ import (
 
 	gomegaformat "github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
 )
@@ -27,7 +27,7 @@ var _ types.GomegaMatcher = &AzureBeProvisionedMatcher{}
 func (m *AzureBeProvisionedMatcher) typedActual(actual interface{}) (*genericarmclient.PollerResponse[genericarmclient.GenericResource], error) {
 	poller, ok := actual.(*genericarmclient.PollerResponse[genericarmclient.GenericResource])
 	if !ok {
-		return nil, errors.Errorf("Expected actual of type *genericarmclient.PollerResponse, instead %T", actual)
+		return nil, eris.Errorf("Expected actual of type *genericarmclient.PollerResponse, instead %T", actual)
 	}
 
 	return poller, nil
@@ -45,7 +45,7 @@ func (m *AzureBeProvisionedMatcher) Match(actual interface{}) (bool, error) {
 
 	// The linter doesn't realize that we don't need to close the resp body because it's already done by the poller.
 	// Suppressing it as it is a false positive.
-	// nolint:bodyclose
+	//nolint:bodyclose
 	_, err = poller.Poller.Poll(m.ctx)
 	if err != nil {
 		m.err = err
@@ -72,7 +72,8 @@ func (m *AzureBeProvisionedMatcher) message(actual interface{}, expectedMatch bo
 
 	return gomegaformat.Message(
 		m.err,
-		fmt.Sprintf("long running operation %sbe successful.", notStr))
+		fmt.Sprintf("long running operation %sbe successful.", notStr),
+	)
 }
 
 func (m *AzureBeProvisionedMatcher) FailureMessage(actual interface{}) string {

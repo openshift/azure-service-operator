@@ -45,13 +45,36 @@ consult its [documentation](../../reference/authorization/v1api20200801preview/#
 
 ## How to export ConfigMap data from ASO
 
-Some resources support saving data into a `ConfigMap`. The individual properties can be exported to a `ConfigMap` of your choosing by
-configuring the `.spec.operatorSpec.configMaps` field. The data will be written to the destination(s) you specify once the resource has 
-successfully been provisioned in Azure.
-The resource will not move to [Condition]( {{< relref "conditions" >}} ) `Ready=True` 
-until the data has been written.
+Data can be exported to a `ConfigMap` of your choosing by
+configuring the `.spec.operatorSpec.configMaps` field, or the `.spec.operatorSpec.configMapExpressions` field.
+The data will be written to the destination(s) you specify once the resource has successfully been provisioned in Azure.
 
-**Example (from [the UserAssignedIdentity sample](https://github.com/Azure/azure-service-operator/blob/main/v2/samples/managedidentity/v1api20181130/v1api20181130_userassignedidentity.yaml)):**
+The resource will not move to [Condition]( {{< relref "conditions" >}} ) `Ready=True` until the data has been written.
+
+**Example `.spec.operatorSpec.configMapExpressions`:**
+```yaml
+apiVersion: managedidentity.azure.com/v1api20181130
+kind: UserAssignedIdentity
+metadata:
+  name: sampleuserassignedidentity
+  namespace: default
+spec:
+  location: westcentralus
+  owner:
+    name: aso-sample-rg
+  operatorSpec:
+    configMapExpressions:
+      - name: identity-settings
+        key: principalId
+        value: self.status.principalId
+      - name: identity-settings
+        key: principalId
+        value: self.status.clientId
+```
+
+More complex expressions can be exported as well, see [Expressions]( {{< relref "expressions" >}} ) for more details.
+
+**Example `.spec.operatorSpec.configMaps` (from [the UserAssignedIdentity sample](https://github.com/Azure/azure-service-operator/blob/main/v2/samples/managedidentity/v1api20181130/v1api20181130_userassignedidentity.yaml)):**
 ```yaml
 apiVersion: managedidentity.azure.com/v1api20181130
 kind: UserAssignedIdentity
@@ -74,3 +97,46 @@ spec:
         key: clientId
 ```
 
+### Custom annotations and labels on ConfigMaps
+
+You can add custom annotations and labels to the Kubernetes ConfigMaps created by ASO using the `annotations` and `labels`
+fields on `ConfigMapDestination` or `DestinationExpression`. This is useful for integrating with tools like
+[kubernetes-reflector](https://github.com/emberstack/kubernetes-reflector), which can mirror ConfigMaps to other namespaces
+based on annotations.
+
+For `ConfigMapDestination`, annotation and label values are plain strings.
+For `DestinationExpression`, annotation and label values are [CEL expressions]( {{< relref "expressions" >}} ) 
+that must return a string. Use `'"value"'` for static strings.
+
+{{% alert title="Note" %}}
+Multiple entries cannot write the same annotation or label key.
+{{% /alert %}}
+
+**Example with `operatorSpec.configMaps`:**
+```yaml
+operatorSpec:
+  configMaps:
+    principalId:
+      name: identity-settings
+      key: principalId
+      annotations:
+        my-annotation: foo
+      labels:
+        app: myapp
+```
+
+**Example with `operatorSpec.configMapExpressions`:**
+```yaml
+operatorSpec:
+  configMapExpressions:
+    - name: identity-settings
+      key: principalId
+      value: self.status.principalId
+      annotations:
+        my-annotation: '"foo"' # Static string value (CEL expression)
+      labels:
+        principal-id: self.status.principalId  # Dynamic value from resource status
+```
+
+When multiple destinations target the same Kubernetes ConfigMap, annotations and labels are merged.
+If two destinations specify the same annotation or label key with different values, an error is returned.

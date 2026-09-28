@@ -17,6 +17,7 @@ description: "How to contribute new resources to Azure Service Operator v2"
 * [Developer Setup]( {{< relref "developer-setup" >}} ).
 * [Adding a new code-generator resource]( {{< relref "add-a-new-code-generated-resource" >}} ).
 * [Example walkthrough of adding a new resource version]( {{< relref "upgrade-resource-version" >}}).
+* [Extension Points]( {{< relref "extension-points" >}} ) - Customize resource behavior with extension interfaces.
 * [Generator code overview]( {{< relref "generator-overview" >}} ).
 * [Running a development version of ASO]( {{< relref "running-a-development-version" >}} ).
 * [Testing]( {{< relref "testing" >}} ).
@@ -38,13 +39,3 @@ Pull requests opened from forks of the azure-service-operator repository will in
 will prevent merging even if all other checks pass. Once a maintainer has looked at your PR and determined it is ready they will comment `/ok-to-test sha=<sha>`
 to kick off an integration test pass. If this check passes along with the other checks the PR can be merged.
 
-## Common problems and their solutions
-
-### Error loading schema from root
-
-Full error:
-> error loading schema from root ... open /azure-service-operator/v2/specs/azure-resource-manager-schemas/schemas/2019-04-01/deploymentTemplate.json no such file or directory
-
-This git repo contains submodules. This error occurs when the submodules are missing, possibly because the repo was not cloned with `--recurse-submodules`.
-
-To resolve this problem, run `git submodule init` and `git submodule update` and then try building again.

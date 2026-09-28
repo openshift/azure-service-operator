@@ -3,6 +3,10 @@ version: '3.7'
 run: when_changed
 output: prefixed
 
+includes:
+  ci: ./ci/Taskfile.yml
+  mangle-test: ./v2/tools/mangle-test-json/Taskfile.yml
+
 vars:
   PACKAGE: github.com/Azure/azure-service-operator/v2
 
@@ -25,15 +29,14 @@ vars:
   HEADER_FILE:
     sh: 'realpath v2/boilerplate.go.txt'
 
-  TEST_OUT:
-    sh: 'realpath reports'
+  TEST_OUT: '{{joinPath .ROOT_DIR "reports"}}'
 
   VERSION:
     # Version tags for the v2 controller must start with "v2", e.g. "v2.0.0-alpha.0".
-    sh: "{{.SCRIPTS_ROOT}}/build_version.py v2"
+    sh: 'if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then {{.SCRIPTS_ROOT}}/build_version.py v2; else echo dev; fi'
 
   LATEST_VERSION_TAG:
-    sh: git describe --tags $(git rev-list --tags='v2*' --max-count=1) --match 'v2*'
+    sh: 'if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git describe --tags $(git rev-list --tags=''v2*'' --max-count=1) --match ''v2*''; else echo dev; fi'
 
   VERSION_FLAGS: '"-X {{.PACKAGE}}/internal/version.BuildVersion={{.VERSION}}"'
   LDFLAGS: -ldflags {{.VERSION_FLAGS}}
@@ -59,9 +62,18 @@ vars:
   AKS_WORKLOAD_IDENTITY_PATH: "v2/out/aks-identity"
 
 tasks:
+
+  debug:
+    silent: true
+    cmds:
+    - 'echo "ROOT_DIR: {{.ROOT_DIR}}"'
+    - 'echo "TASKFILE_DIR: {{.TASKFILE_DIR}}"'
+    - 'echo "TASK_DIR: {{.TASK_DIR}}"'
+
   default:
-    deps:
-      - quick-checks
+    cmds:
+      - task: format-code # Run before quick-checks to avoid racing with generated file creation
+      - task: quick-checks
 
   quick-checks:
     desc: Perform all fast local pre-commit tasks.
@@ -70,8 +82,13 @@ tasks:
       - controller:quick-checks
       - asoctl:quick-checks
       - crossplane:quick-checks
+      - mangle-test:quick-checks
+
+  setup:
+    desc: Perform setup tasks
     cmds:
-      - task: format-code # Run after the deps to avoid racing with generated file creation
+      - echo "Tests output to {{.TEST_OUT}}"
+      - mkdir -p {{.TEST_OUT}}
 
   ci:
     desc: Run all CI checks.
@@ -82,6 +99,7 @@ tasks:
       - task: controller:ci
       - task: crossplane:ci
       - task: asoctl:ci
+      - task: format-code
       - task: verify-no-changes
 
   ci-live:
@@ -94,7 +112,28 @@ tasks:
     desc: Ensure all code is formatted
     dir: v2
     cmds:
-      - gofumpt -l -w .
+      - task: asoctl:format-code
+      - task: generator:format-code
+      - task: controller:format-code
+      - task: mangle-test:format-code
+
+  go-mod-tidy:
+    desc: Tidy the go.mod files
+    dir : v2
+    cmds:
+      - task: controller:go-mod-tidy
+      - task: asoctl:go-mod-tidy
+      - task: generator:go-mod-tidy
+      - task: mangle-test:go-mod-tidy
+
+  lint:
+    desc: Run lint checks.
+    dir: v2
+    cmds:
+      - task: asoctl:lint
+      - task: generator:lint
+      - task: controller:lint
+      - task: mangle-test:lint
 
   build-docs-site:
     cmds:
@@ -124,12 +163,16 @@ tasks:
     cmds:
       - task: asoctl:unit-tests
       - task: basic-checks
+        vars:
+          DIR: '{{.ASOCTL_ROOT}}'
       - task: asoctl:lint
 
   asoctl:ci:
     cmds:
       - task: asoctl:unit-tests-cover
       - task: basic-checks
+        vars:
+          DIR: '{{.ASOCTL_ROOT}}'
       - task: asoctl:lint
 
   asoctl:unit-tests:
@@ -144,20 +187,34 @@ tasks:
     desc: Run {{.ASOCTL_APP}} unit tests and output coverage.
     dir: '{{.ASOCTL_ROOT}}'
     deps:
+      - setup
       - controller:generate-crds
     cmds:
       - defer: # want to run even on failure
-          task: produce-markdown-summary
+          task: mangle-test:produce-markdown-summary
           vars:
             INPUT_FILE: '{{.TEST_OUT}}/asoctl-unit-tests.json'
             OUTPUT_FILE: '{{.TEST_OUT}}/asoctl-unit-tests.md'
-      - go test ./... -tags=noexit -race -covermode atomic -coverprofile=asoctl-coverage.out -json -coverpkg=./... -run '{{default ".*" .TEST_FILTER}}' > '{{.TEST_OUT}}/asoctl-unit-tests.json'
+      - go test ./... -tags=noexit -race -covermode atomic -coverprofile='{{.TEST_OUT}}/asoctl-coverage.out' -json -coverpkg=./... -run '{{default ".*" .TEST_FILTER}}' > '{{.TEST_OUT}}/asoctl-unit-tests.json'
 
+  asoctl:format-code:
+    desc: Ensure all code for asoctl is formatted
+    dir: v2/cmd/asoctl/
+    cmds:
+      - cmd: gofumpt -l -w .
+        ignore_error: true # Just in case the code doesn't build
+
+  asoctl:go-mod-tidy:
+    desc: Tidy the go.mod file
+    dir : v2/cmd/asoctl/
+    cmds:
+      - go mod tidy
+      
   asoctl:lint:
     desc: Run {{.ASOCTL_APP}} fast lint checks.
     dir: '{{.ASOCTL_ROOT}}'
     cmds:
-      - golangci-lint run --verbose --fast=false --timeout 5m ./...
+      - golangci-lint run --verbose --fix --timeout 10m ./...
 
   asoctl:build:
     desc: Generate the {{.ASOCTL_APP}} binary.
@@ -203,12 +260,16 @@ tasks:
     cmds:
       - task: generator:unit-tests
       - task: basic-checks
+        vars:
+          DIR: '{{.GENERATOR_ROOT}}'
       - task: generator:lint
 
   generator:ci:
     cmds:
       - task: generator:unit-tests-cover
       - task: basic-checks
+        vars:
+          DIR: '{{.GENERATOR_ROOT}}'
       - task: generator:lint
 
   generator:unit-tests:
@@ -220,31 +281,50 @@ tasks:
   generator:unit-tests-cover:
     desc: Run {{.GENERATOR_APP}} unit tests and output coverage.
     dir: '{{.GENERATOR_ROOT}}'
+    deps:
+      - setup
     cmds:
       - defer: # want to run even on failure
-          task: produce-markdown-summary
+          task: mangle-test:produce-markdown-summary
           vars:
             INPUT_FILE: '{{.TEST_OUT}}/generator-unit-tests.json'
             OUTPUT_FILE: '{{.TEST_OUT}}/generator-unit-tests.md'
-      - go test ./... -tags=noexit -race -covermode atomic -coverprofile=generator-coverage.out -json -coverpkg=./... -run '{{default ".*" .TEST_FILTER}}' > '{{.TEST_OUT}}/generator-unit-tests.json'
+      - go test ./... -tags=noexit -race -covermode atomic -coverprofile='{{.TEST_OUT}}/generator-coverage.out' -json -coverpkg=./... -run '{{default ".*" .TEST_FILTER}}' > '{{.TEST_OUT}}/generator-unit-tests.json'
 
   generator:update-golden-tests:
     desc: Update {{.GENERATOR_APP}} golden test outputs.
     dir: '{{.GENERATOR_ROOT}}'
     cmds:
-      - go test ./... -run ^TestGolden -update
+      - go test ./...
+    env:
+      GOLDIE_UPDATE: 1
+
+  generator:format-code:
+    desc: Ensure all code for the code generator is formatted
+    dir: v2/tools/generator
+    cmds:
+      - cmd: gofumpt -l -w .
+        ignore_error: true # Just in case the code doesn't build
+
+  generator:go-mod-tidy:
+    desc: Tidy the go.mod file
+    dir : v2/tools/generator
+    cmds:
+      - go mod tidy
 
   generator:lint:
-    desc: Run {{.GENERATOR_APP}} fast lint checks.
+    desc: Run {{.GENERATOR_APP}} lint checks.
     dir: '{{.GENERATOR_ROOT}}'
     cmds:
-      - golangci-lint run --verbose --fast=false
+      - golangci-lint run --verbose --fix
 
   generator:build:
     desc: Generate the {{.GENERATOR_APP}} binary.
     dir: '{{.GENERATOR_ROOT}}'
     cmds:
-      - go build {{.LDFLAGS}} -o ../../bin/{{.GENERATOR_APP}} .
+      # Not passing LDFLAGS here as embedding the version in the generator causes frequent rebuilds during local development
+      # that are unnecessary
+      - go build -o ../../bin/{{.GENERATOR_APP}} .
 
   # Stub retained until migration of workflows complete
   generator:diagrams:
@@ -252,11 +332,13 @@ tasks:
       - task: doc:render-diagrams
 
   ############### Controller targets ###############
+
   controller:quick-checks:
     cmds:
       - task: controller:test
       # checks must be after test as that will generate code
       - task: basic-checks
+      - task: controller:check-crd-size
       - task: controller:verify-samples
       # Lint is forced to the end because it expects the code is formatted
       - task: controller:lint
@@ -268,6 +350,7 @@ tasks:
       - task: controller:test-integration-ci
       # checks must be after test as that will generate code
       - task: basic-checks
+      - task: controller:check-crd-size
       # lint must be at end after code is formatted
       - task: controller:lint
 
@@ -282,16 +365,30 @@ tasks:
     cmds:
       - task: controller:test-integration-ci-live
       - task: basic-checks
+      - task: controller:check-crd-size
       - task: controller:lint
 
+  controller:format-code:
+    desc: Ensure all code for the controller is formatted
+    dir: v2
+    cmds:
+      - cmd: gofumpt -l -w .
+        ignore_error: true # Just in case the code doesn't build
+
+  controller:go-mod-tidy:
+    desc: Tidy the go.mod file
+    dir : v2
+    cmds:
+      - go mod tidy
+
   controller:lint:
-    desc: Run fast lint checks.
+    desc: Run lint checks.
     deps: 
       - controller:generate-crds
     dir: "{{.CONTROLLER_ROOT}}"
     cmds:
       # Setting GOGC to increase how much debris is tolerated before running GC
-      - GOGC=200 golangci-lint run --verbose --fast=false --timeout 20m ./...
+      - GOGC=200 golangci-lint run --verbose --fix --timeout 20m ./...
 
   controller:verify-samples:
     desc: Verify that a sample exists for each supported resource
@@ -316,16 +413,17 @@ tasks:
     desc: Run {{.CONTROLLER_APP}} unit tests and output coverage.
     dir: "{{.CONTROLLER_ROOT}}"
     deps:
+    - setup
     - controller:generate-crds
     - controller:bundle-crds # bundle-crds is here because some tests assert on generated CRD shape
     cmds:
       - defer: # want to run even on failure
-          task: produce-markdown-summary
+          task: mangle-test:produce-markdown-summary
           vars:
             INPUT_FILE: '{{.TEST_OUT}}/controller-unit-tests.json'
             OUTPUT_FILE: '{{.TEST_OUT}}/controller-unit-tests.md'
       # -race fails at the moment in gopter - possibly due to our shared generator variable?
-      - go test -short -tags=noexit -timeout 10m -covermode atomic -coverprofile=controller-coverage.out -json -coverpkg="./..." -run '{{default ".*" .TEST_FILTER}}' ./... > '{{.TEST_OUT}}/controller-unit-tests.json'
+      - go test -short -tags=noexit -timeout 10m -covermode atomic -coverprofile='{{.TEST_OUT}}/controller-coverage.out' -json -coverpkg="./..." -run '{{default ".*" .TEST_FILTER}}' ./... > '{{.TEST_OUT}}/controller-unit-tests.json'
 
   controller:test-upgrade-setup:
     desc: Setup for upgrade test
@@ -354,8 +452,9 @@ tasks:
         --set crdPattern=*"
       - task: controller:wait-for-operator-ready
     vars:
+      DIR: "{{.DIR | default .KIND_WORKLOAD_IDENTITY_PATH}}"
       AZURE_MI_CLIENT_ID:
-        sh: "cat {{.KIND_WORKLOAD_IDENTITY_PATH}}/azure/miclientid.txt"
+        sh: "cat {{.DIR}}/azure/miclientid.txt"
 
   controller:test-upgrade-pre:
     desc: Test upgrading {{.CONTROLLER_APP}} and helm chart for new release
@@ -366,11 +465,12 @@ tasks:
       - "kubectl create namespace pre-release"
       - "go test -timeout 15m -count=1 -v -run Test_Pre_Release_ResourceCanBeCreated_BeforeUpgrade ./test/pre-release"
     vars:
+      DIR: "{{.DIR | default .KIND_WORKLOAD_IDENTITY_PATH}}"
       AZURE_MI_CLIENT_ID:
-        sh: "cat {{.KIND_WORKLOAD_IDENTITY_PATH}}/azure/miclientid.txt"
+        sh: "cat {{.DIR}}/azure/miclientid.txt"
 
   controller:test-upgrade-apply-prerelease-chart:
-    desc: Apply the {{.CONTROLLER_APP}} prelease chart for new release
+    desc: Apply the {{.CONTROLLER_APP}} prerelease chart for new release
     dir: "{{.CONTROLLER_ROOT}}"
     cmds:
       - task: controller:docker-push-local
@@ -378,7 +478,9 @@ tasks:
       - task: controller:install-helm-wi
         vars:
           AZURE_MI_CLIENT_ID:
-            sh: "cat {{.KIND_WORKLOAD_IDENTITY_PATH}}/azure/miclientid.txt"
+            sh: "cat {{.DIR}}/azure/miclientid.txt"
+    vars:
+      DIR: "{{.DIR  | default .KIND_WORKLOAD_IDENTITY_PATH}}"
 
   controller:test-upgrade-post:
     desc: Test upgrading {{.CONTROLLER_APP}} and helm chart for new release
@@ -386,7 +488,7 @@ tasks:
     cmds:
       - task: controller:test-upgrade-apply-prerelease-chart
       - "go test -timeout 15m -count=1 -v -run Test_Pre_Release_ResourceCanBeCreated_AfterUpgrade ./test/pre-release"
-      - task controller:kind-delete
+      - task: controller:kind-delete
 
   controller:test-upgrade:
     desc: Test upgrading {{.CONTROLLER_APP}} and helm chart for new release
@@ -499,6 +601,71 @@ tasks:
             echo "{{.DOCKER_PUSH_TARGET}}" | sed -e "s|^.*.azurecr.io/||"
           fi
 
+  controller:test-controllers:
+    desc: Run CRUD tests of controller with envtest using record/replay.
+    dir: "{{.CONTROLLER_ROOT}}"
+    deps: 
+      - setup
+      - controller:run-kustomize-for-envtest
+    cmds:
+      - go test -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' {{.VERBOSE}} ./internal/controllers | tee '{{.TEST_OUT}}/test-controllers.log'
+    vars:
+      VERBOSE:
+        sh: if [ $TEST_FILTER ]; then echo "-v"; fi
+      TIMEOUT: '{{default "25m" .TIMEOUT}}'  # Should be kept in sync with the tests below
+
+  controller:test-samples:
+    desc: Run tests of samples with envtest using record/replay.
+    dir: "{{.CONTROLLER_ROOT}}"
+    deps: 
+      - setup
+      - controller:run-kustomize-for-envtest
+    cmds:
+      - go test -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' {{.VERBOSE}} ./internal/testsamples | tee '{{.TEST_OUT}}/test-samples.log'
+    vars:
+      VERBOSE:
+        sh: if [ $TEST_FILTER ]; then echo "-v"; fi
+      TIMEOUT: '{{default "25m" .TIMEOUT}}'  # Should be kept in sync with the tests below
+
+  # Once we've finished integrating go-vcr-tidy into our test framework, we won't need these tasks anymore as the
+  # tidying will be automatic.
+  controller:tidy-recordings:
+    deps:
+      - controller:tidy-samples-recordings
+      - controller:tidy-integration-recordings
+
+  # Once we've finished integrating go-vcr-tidy into our test framework, we won't need these tasks anymore as the
+  # tidying will be automatic.
+  controller:tidy-samples-recordings:
+    desc: Tidy the go-vcr recordings for the sample tests. This may be run after updating recordings of samples.
+    dir: "{{.CONTROLLER_ROOT}}"
+    cmds:
+      - "go-vcr-tidy --clean-all ./internal/testsamples/recordings/Test_Samples_CreationAndDeletion/*.yaml"
+
+  controller:test-genruntime:
+    desc: Run integration tests with envtest using record/replay.
+    dir: "{{.CONTROLLER_ROOT}}"
+    deps: 
+      - controller:run-kustomize-for-envtest
+    cmds:
+      - go test -count=1 -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' {{.VERBOSE}} ./pkg/genruntime/test
+    vars:
+      VERBOSE:
+        sh: if [ $TEST_FILTER ];  then echo "-v"; fi
+      TIMEOUT: '{{default "25m" .TIMEOUT}}'  # Should be kept in sync with the -cover variant below
+
+  controller:test-genericarmclient:
+    desc: Run integration tests with envtest using record/replay.
+    dir: "{{.CONTROLLER_ROOT}}"
+    deps: 
+      - controller:run-kustomize-for-envtest
+    cmds:
+      - go test -count=1 -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' {{.VERBOSE}} ./internal/genericarmclient
+    vars:
+      VERBOSE:
+        sh: if [ $TEST_FILTER ];  then echo "-v"; fi
+      TIMEOUT: '{{default "25m" .TIMEOUT}}'  # Should be kept in sync with the -cover variant below
+
   controller:test-integration-envtest:
     desc: Run integration tests with envtest using record/replay.
     dir: "{{.CONTROLLER_ROOT}}"
@@ -507,13 +674,22 @@ tasks:
     cmds:
       # -race fails at the moment in controller-runtime
       # We run these in sequence right now because it doesn't gain us much speed to go in parallel
-      - go test -count=1 -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' {{.VERBOSE}} ./internal/controllers
-      - go test -count=1 -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' {{.VERBOSE}} ./pkg/genruntime/test
-      - go test -count=1 -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' {{.VERBOSE}} ./internal/genericarmclient
+      - task: controller:test-genruntime
+      - task: controller:test-genericarmclient
+      - task: controller:test-controllers
+      - task: controller:test-samples
     vars:
       VERBOSE:
         sh: if [ $TEST_FILTER ];  then echo "-v"; fi
-      TIMEOUT: '{{default "15m" .TIMEOUT}}'
+      TIMEOUT: '{{default "25m" .TIMEOUT}}'  # Should be kept in sync with the -cover variant below
+
+  # Once we've finished integrating go-vcr-tidy into our test framework, we won't need these tasks anymore as the
+  # tidying will be automatic.
+  controller:tidy-integration-recordings:
+    desc: Tidy the go-vcr recordings for the integration tests. This may be run after updating recordings of integration tests.
+    dir: "{{.CONTROLLER_ROOT}}"
+    cmds:
+      - "go-vcr-tidy --clean-all ./internal/controllers/recordings/*.yaml"
 
   # This target is intended for local use only
   controller:test-integration-envtest-record:
@@ -531,28 +707,31 @@ tasks:
   controller:test-integration-envtest-cover:
     desc: Run integration tests with envtest using record/replay and output coverage.
     dir: "{{.CONTROLLER_ROOT}}"
-    deps: 
+    deps:
+      - setup
       - controller:run-kustomize-for-envtest
     cmds:
       - defer: # want to run even on failure
-          task: produce-markdown-summary
+          task: mangle-test:produce-markdown-summary
           vars:
             INPUT_FILE: '{{.TEST_OUT}}/controller-integration-tests.json'
             OUTPUT_FILE: '{{.TEST_OUT}}/controller-integration-tests.md'
       - defer: # want to run even on failure
-          task: produce-markdown-summary
+          task: mangle-test:produce-markdown-summary
           vars:
             INPUT_FILE: '{{.TEST_OUT}}/controller-integration-genruntime-tests.json'
             OUTPUT_FILE: '{{.TEST_OUT}}/controller-integration-genruntime-tests.md'
       - defer: # want to run even on failure
-          task: produce-markdown-summary
+          task: mangle-test:produce-markdown-summary
           vars:
             INPUT_FILE: '{{.TEST_OUT}}/controller-integration-genericarmclient-tests.json'
             OUTPUT_FILE: '{{.TEST_OUT}}/controller-integration-genericarmclient-tests.md'
       # -race fails at the moment in controller-runtime
-      - go test -covermode atomic -coverprofile=coverage-integration-envtest.out -coverpkg="./..." -json -timeout 15m -run '{{default ".*" .TEST_FILTER}}' ./internal/controllers > '{{.TEST_OUT}}/controller-integration-tests.json'
-      - go test -covermode atomic -coverprofile=coverage-integration-genruntime-envtest.out -coverpkg="./..." -json -timeout 15m -run '{{default ".*" .TEST_FILTER}}' ./pkg/genruntime/test > '{{.TEST_OUT}}/controller-integration-genruntime-tests.json'
-      - go test -covermode atomic -coverprofile=coverage-integration-genericarmclient-envtest.out -coverpkg="./..." -json -timeout 15m -run '{{default ".*" .TEST_FILTER}}' ./internal/genericarmclient > '{{.TEST_OUT}}/controller-integration-genericarmclient-tests.json'
+      - go test -covermode atomic -coverprofile='{{.TEST_OUT}}/coverage-integration-envtest.out' -coverpkg="./..." -json -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' ./internal/controllers > '{{.TEST_OUT}}/controller-integration-tests.json'
+      - go test -covermode atomic -coverprofile='{{.TEST_OUT}}/coverage-integration-genruntime-envtest.out' -coverpkg="./..." -json -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' ./pkg/genruntime/test > '{{.TEST_OUT}}/controller-integration-genruntime-tests.json'
+      - go test -covermode atomic -coverprofile='{{.TEST_OUT}}/coverage-integration-genericarmclient-envtest.out' -coverpkg="./..." -json -timeout {{.TIMEOUT}} -run '{{default ".*" .TEST_FILTER}}' ./internal/genericarmclient > '{{.TEST_OUT}}/controller-integration-genericarmclient-tests.json'
+    vars:
+      TIMEOUT: '25m'  # Should be kept in sync with the non-cover variant above
 
   controller:test-integration-envtest-live:
     desc: Run integration tests with envtest against live data and output coverage.
@@ -562,9 +741,19 @@ tasks:
       - cleanup-azure-resources
     cmds:
       # -race fails at the moment in controller-runtime
-      - go test -timeout {{.LIVE_TEST_TIMEOUT}} -covermode atomic -coverprofile=coverage-integration-envtest-live.out -coverpkg="./..." -run '{{default ".*" .TEST_FILTER}}' ./internal/controllers -args -live
+      - go test -timeout {{.LIVE_TEST_TIMEOUT}} -covermode atomic -coverprofile='{{.TEST_OUT}}/coverage-integration-envtest-live.out' -coverpkg="./..." -run '{{default ".*" .TEST_FILTER}}' ./internal/controllers -args -live
     env:
       RECORD_REPLAY: 0
+
+  controller:test-integration:
+    desc: Run live integration tests against the current cluster.
+    dir: "{{.CONTROLLER_ROOT}}"
+    deps:
+      - setup
+    cmds:
+      # This timeout is purposefully low - if we find that this job is taking a long time we may need to think of other ways
+      # to keep CI fast
+      - go test -timeout 40m -v -run '{{default ".*" .TEST_FILTER}}' ./test | tee '{{.TEST_OUT}}/test-integration.log'
 
   controller:test-integration-kind-ci:
     desc: Run live integration tests in kind and deletes the kind cluster afterwards.
@@ -572,10 +761,8 @@ tasks:
     deps:  
       - controller:kind-create-helm-workload-identity
     cmds:
-      # This timeout is purposefully low - if we find that this job is taking a long time we may need to think of other ways
-      # to keep CI fast
       - defer: { task: controller:kind-delete }
-      - go test -timeout 40m -run '{{default ".*" .TEST_FILTER}}' ./test
+      - task: controller:test-integration
 
   # Note that this target isn't used in CI and is intended for use when running locally on a kind cluster
   # that you don't want to delete (in contrast to test-integration-kind-ci which will delete the kind cluster
@@ -586,9 +773,35 @@ tasks:
     deps: 
       - controller:kind-create-helm-workload-identity
     cmds:
-      # This timeout is purposefully low - if we find that this job is taking a long time we may need to think of other ways
-      # to keep CI fast
-      - go test -timeout 40m -v -run '{{default ".*" .TEST_FILTER}}' ./test
+      - task: controller:test-integration
+
+  # To control as many variables as possible and get repeatable runs, it's recommended to 
+  # run this test against a real AKS cluster rather than a local kind cluster
+  controller:test-perf:
+    desc: Run perf tests against the current cluster
+    dir: "{{.CONTROLLER_ROOT}}"
+    cmds:
+      - go test -timeout 30m -v -run '{{default ".*" .TEST_FILTER}}' ./test/perf
+
+  controller:plot-perf-metrics:
+    desc: Plot CPU and memory charts for all unplotted perf metric CSVs.
+    dir: "{{.CONTROLLER_ROOT}}"
+    cmds:
+      - |
+        graph_dir="test/perf/reports/graphs"
+        mkdir -p "$graph_dir"
+        plotted=0
+        for csv in test/perf/reports/metrics_*.csv; do
+          [ -f "$csv" ] || continue
+          base=$(basename "${csv}" .csv)
+          if [ ! -f "${graph_dir}/${base}_cpu.png" ] || [ ! -f "${graph_dir}/${base}_memory.png" ]; then
+            gnuplot -c test/perf/plot-metrics.gp "$csv" "$graph_dir"
+            plotted=$((plotted + 1))
+          fi
+        done
+        if [ "$plotted" -eq 0 ]; then
+          echo "No unplotted CSVs found in test/perf/reports/"
+        fi
 
   controller:test-multitenant-integration-kind-ci:
     desc: Run live multitenant integration tests in kind.
@@ -621,7 +834,12 @@ tasks:
     desc: Run integration tests for CI
     dir: "{{.CONTROLLER_ROOT}}"
     deps: 
-      - controller:test-integration-envtest-cover
+      - controller:run-kustomize-for-envtest
+    cmds:
+      # -race fails at the moment in controller-runtime
+      # We run these in sequence right now because it doesn't gain us much speed to go in parallel
+      - task: controller:test-genruntime
+      - task: controller:test-genericarmclient
 
   controller:test-integration-ci-live:
     desc: Run integration tests for CI in live mode
@@ -637,6 +855,7 @@ tasks:
     sources:
       - ./bin/{{.GENERATOR_APP}}
       - azure-arm.yaml
+      - azure-arm/**/*
       - ../docs/hugo/content/reference
     cmds:
       - ./bin/{{.GENERATOR_APP}} gen-types azure-arm.yaml
@@ -646,6 +865,7 @@ tasks:
     deps: 
       - controller:generate-types
       - controller:generate-genruntime-deepcopy
+      - scripts:build-python-venv
     sources:
       - "v2/api/**/*.go" # depends on all API types
       - "v2/pkg/genruntime/**/*.go" # Also depends on the genruntime types as they're embedded into the CRDs
@@ -655,13 +875,24 @@ tasks:
       - if [ -d "{{.CONTROLLER_OUTPUT}}/crd/generated/bases" ]; then find "{{.CONTROLLER_OUTPUT}}/crd/generated/bases" -type f -delete; fi
       - if [ -d "{{.CONTROLLER_OUTPUT}}/crd/generated/patches" ]; then find "{{.CONTROLLER_OUTPUT}}/crd/generated/patches" -type f -delete; fi
       - cd v2/api && controller-gen {{.OBJECT_OPTIONS}} paths=./...
-      - cd v2/api && controller-gen {{.CRD_OPTIONS}} {{.WEBHOOK_OPTIONS}} {{.RBAC_OPTIONS}} paths=./...
-      - cd v2/api && gofumpt -l -w . # format all generated code
+      - cd v2/api && controller-gen {{.CRD_OPTIONS}} {{.RBAC_OPTIONS}} paths=./...
+      - "{{.SCRIPTS_ROOT}}/venv/bin/python3 {{.SCRIPTS_ROOT}}/generate-webhooks-per-group.py --api-dir v2/api --output-dir {{.CONTROLLER_OUTPUT}}/webhook/generated"
+      - cmd: cd v2/api && gofumpt -l -w . # format all generated code
+        ignore_error: true # Just in case the code doesn't build
     vars:
       OBJECT_OPTIONS: object:headerFile={{.HEADER_FILE}}
       CRD_OPTIONS: crd:crdVersions=v1,allowDangerousTypes=true output:crd:artifacts:config={{.CONTROLLER_OUTPUT}}/crd/generated/bases
-      WEBHOOK_OPTIONS: webhook output:webhook:artifacts:config={{.CONTROLLER_OUTPUT}}/webhook
       RBAC_OPTIONS: rbac:roleName=manager-role output:rbac:artifacts:config={{.CONTROLLER_OUTPUT}}/rbac
+
+  controller:check-crd-size:
+    desc: Check that generated CRDs are not too large for Kubernetes
+    deps:
+      - controller:generate-crds
+    dir: "{{.CONTROLLER_ROOT}}"
+    sources:
+      - "{{.CONTROLLER_OUTPUT}}/crd/generated/bases/*.yaml"
+    cmds:
+      - "{{.SCRIPTS_ROOT}}/check-crd-size.sh {{.CONTROLLER_OUTPUT}}/crd/generated/bases"
 
   controller:generate-genruntime-deepcopy:
     desc: Run controller-gen to generate {{.CONTROLLER_APP}} CRD files.
@@ -751,7 +982,7 @@ tasks:
     deps:
       - controller:generate-kustomize
     cmds:
-      - "{{.SCRIPTS_ROOT}}/package-helm-manifest.sh -i {{.LOCAL_REGISTRY_CONTROLLER_DOCKER_IMAGE}} -r {{.PUBLIC_REGISTRY}} -v {{.LATEST_VERSION_TAG}} -d `pwd`/"
+      - "{{.SCRIPTS_ROOT}}/package-helm-manifest.sh -v {{.LATEST_VERSION_TAG}} -d `pwd`/"
       - task: controller:validate-helm
 
   controller:install-helm-wi:
@@ -776,7 +1007,7 @@ tasks:
             echo "--set image.repository={{.IMAGE_REPOSITORY}}"
           else
             echo ""
-          fi 
+          fi
 
   controller:install-helm-single-tenant:
     desc: Generate and install helm chart on cluster using workload identity
@@ -825,14 +1056,21 @@ tasks:
     deps: 
       - az-login
     cmds:
+      - echo "Cleaning {{.KIND_WORKLOAD_IDENTITY_PATH}}"
       - "rm -rf {{.KIND_WORKLOAD_IDENTITY_PATH}}"
       - "mkdir -p {{.KIND_WORKLOAD_IDENTITY_PATH}}"
+      - echo "Calling create-kind-wi-storage.sh"
       - "{{.SCRIPTS_ROOT}}/create-kind-wi-storage.sh -d {{.KIND_WORKLOAD_IDENTITY_PATH}} -p {{.TEST_LIVE_RESOURCE_PREFIX}}"
+      - echo "Calling kind-with-registry.sh"
       - "export KIND_CLUSTER_NAME=asov2-wi && \
             export SERVICE_ACCOUNT_ISSUER=$(cat {{.KIND_WORKLOAD_IDENTITY_PATH}}/azure/saissuer.txt) && \
             {{.SCRIPTS_ROOT}}/kind-with-registry.sh"
     status:
       - "kind get clusters | grep \"^asov2-wi$\""
+    preconditions:
+      # If we're running in a container, we need HOSTROOT to be defined
+      - sh: '[ -f /.dockerenv ] || [ -n "${HOSTROOT-}" ]'
+        msg: "When running in a container (detected by presence of /.dockerenv) you must set HOSTROOT to the host's root path so that files can be mounted into kind clusters correctly."
     env:
       SERVICE_ACCOUNT_KEY_FILE:
         sh: "echo ${HOSTROOT:-$PWD}/{{.KIND_WORKLOAD_IDENTITY_PATH}}/sa.pub" # Have to use HOSTROOT here for mounting files when in docker-in-docker as paths are relative to host
@@ -945,7 +1183,7 @@ tasks:
     cmds:
       - "kubectl create namespace cert-manager"
       - "kubectl label namespace cert-manager cert-manager.io/disable-validation=true"
-      - "kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.14.4/cert-manager.yaml"
+      - "kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.18.2/cert-manager.yaml"
     status:
       - "kubectl get namespace cert-manager"
 
@@ -958,10 +1196,12 @@ tasks:
     desc: Creates a workload identity secret for testing purposes
     cmds:
       - "{{.SCRIPTS_ROOT}}/deploy-testing-secret.sh workloadidentity"
+    vars:
+      DIR: "{{.DIR | default .KIND_WORKLOAD_IDENTITY_PATH}}"
     env:
       # Override the AZURE_CLIENT_ID env variable here
       AZURE_MI_CLIENT_ID:  # TODO: Ideally would override AZURE_CLIENT_ID here but we can't because of https://github.com/go-task/task/issues/1038
-        sh: "cat {{.KIND_WORKLOAD_IDENTITY_PATH}}/azure/miclientid.txt"
+        sh: "cat {{.DIR}}/azure/miclientid.txt"
 
   controller:deploy-multitenant-testing-secret:
     desc: Deploy a multitenant testing secret
@@ -1053,7 +1293,7 @@ tasks:
       - "kubectl create namespace t1-items"
       - "kubectl create namespace t1-more"
       # Wait for the other operator to be ready - not using controller:wait-for-operator-ready because that also waits for CRDs, etc which this doesn't install
-      - "kubectl wait --for=condition=ready --timeout=2m pod -n tenant1-system -l control-plane=controller-manager"
+      - "kubectl wait --for=condition=ready --timeout=4m pod --namespace tenant1-system --selector control-plane=controller-manager -v=6"
 
   controller:kind-create-helm-workload-identity:
     desc: Creates a local kind cluster with Workload identity installed alongside ASO helm chart using UMI auth.
@@ -1089,9 +1329,13 @@ tasks:
       - task: doc:crd-api
 
   ############### Crossplane targets ###############
+
   crossplane:quick-checks:
     cmds:
+      - task: crossplane:generate-crds
       - task: basic-checks
+    vars:
+      DIR: '{{.CROSSPLANE_ROOT}}'
 
 # TODO: We currently have no tests
 #  crossplane:test:
@@ -1127,7 +1371,8 @@ tasks:
       - if [ -d "{{.CROSSPLANE_OUTPUT}}/crd/patches" ]; then find "{{.CROSSPLANE_OUTPUT}}/crd/patches" -type f -delete; fi
       - cd apis && controller-gen {{.OBJECT_OPTIONS}} paths=./...
       - cd apis && controller-gen {{.CRD_OPTIONS}} {{.WEBHOOK_OPTIONS}} {{.RBAC_OPTIONS}} paths=./...
-      - cd apis && gofumpt -l -w . # format all generated code
+      - cmd: cd apis && gofumpt -l -w . # format all generated code
+        ignore_error: true # Just in case the code doesn't build
     vars:
       OBJECT_OPTIONS: object:headerFile={{.HEADER_FILE}}
       CRD_OPTIONS: crd:crdVersions=v1,allowDangerousTypes=true output:crd:artifacts:config={{.CROSSPLANE_OUTPUT}}/crd/bases
@@ -1147,14 +1392,16 @@ tasks:
 
   crossplane:ci:
     deps: 
-      - basic-checks
+      - task: basic-checks
+        vars:
+          DIR: '{{.CROSSPLANE_ROOT}}'
       - crossplane:generate-crds
 
   ############### Documentation targets ###############
 
   doc:build-site:
     dir: docs/hugo
-    dep:
+    deps:
       - doc:frontmatter-check
     cmds:
       - hugo
@@ -1172,11 +1419,10 @@ tasks:
 
   doc:crd-api:
     desc: Generates API docs for CRDs
-    deps: 
-      - controller:generate-crds
     dir: "{{.CONTROLLER_ROOT}}"
     cmds:
       - "{{.SCRIPTS_ROOT}}/gen-api-docs.sh ./api ../docs/hugo/content/reference ../docs/v2/api/template"
+      - task controller:generate-types
 
   doc:frontmatter-check:
     desc: Ensure all Markdown documentation has frontmatter.
@@ -1231,8 +1477,11 @@ tasks:
 
   header-check:
     desc: Ensure all files have an appropriate license header.
+    dir: '{{.DIR}}'
     cmds:
       - "{{.SCRIPTS_ROOT}}/check_headers.py"
+    vars:
+      DIR: "{{default .CONTROLLER_ROOT .DIR}}"
 
   # Stub retained until migration of workflows complete
   frontmatter-check:
@@ -1241,34 +1490,38 @@ tasks:
 
   specifier-check:
     desc: Check that format specifiers %v and %+v are not used
+    dir: '{{.DIR}}'
     # Both %v and %+v result in all the values from structs being dumped into the string. If that
     # struct happens to contain a secret or sensitive information, it ends up dumped out in an
     # uncontrolled way, potentially leading to a security issue or a problem with PII disclosure.
     # The buried risk here is that while %v might be safe now, a future change to the struct might
     # introduce a disclosure later on.
     cmds:
-      - cmd: echo "==> Checking format specifiers <=="
+      - cmd: echo "==> Checking format specifiers for {{.DIR}} <=="
         silent: true
       - cmd: '! git grep -e "%+v" -e "%v" --break --heading --line-number -I "*.go"'
+    vars:
+      DIR: "{{default .CONTROLLER_ROOT .DIR}}"
 
   verify-no-changes:
     desc: Checks that there are no uncommitted modifications to files
     cmds:
-      - cmd: 'if [ -n "{{.CHANGED}}" ]; then echo "Error: files were modified during the build (did you forget to commit generated files?):"; echo "{{.CHANGED}}"; git diff; exit 1; fi'
+      - cmd: 'if [ -n "{{.CHANGED}}" ]; then echo "Error: files were modified during the build (ensure you have commited generated files, and run ''task format-code'' to tidy):"; echo "{{.CHANGED}}"; git diff; exit 1; fi'
         silent: true
     vars:
       CHANGED:
         sh: git status --porcelain
 
-  produce-markdown-summary:
-    desc: Builds a test output summary for Github
-    deps: 
-       - build-mangle-test
-    cmds:
-      - cmd: ./v2/tools/mangle-test-json/mangle-test-json "{{.INPUT_FILE}}" > "{{.OUTPUT_FILE}}"
 
-  build-mangle-test:
-    desc: Builds the tool we use for mangling test results
-    dir: v2/tools/mangle-test-json
+
+
+
+  provision-oidc-storage-acct:
+    desc: Creates a storage account for use in OIDC federation with a random name in resource group "aso-wi-storage"
+    dir: "v2/"
     cmds:
-      - go build
+      - '{{.SCRIPTS_ROOT}}/workloadidentitystorage/deploy.sh'
+    env:
+      KIND_OIDC_STORAGE_ACCOUNT_RG: aso-wi-storage
+      KIND_OIDC_STORAGE_ACCOUNT:
+          sh: echo "asowi$(openssl rand -hex 6)"

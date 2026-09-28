@@ -8,12 +8,11 @@ package config_test
 import (
 	"testing"
 
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
-
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
 )
 
 func Test_TransformByGroup_CorrectlySelectsTypes(t *testing.T) {
@@ -134,7 +133,30 @@ func Test_TransformTypeName_WhenConfiguredWithMap_ReturnsExpectedMapType(t *test
 
 	expected := astmodel.NewMapType(
 		astmodel.StringType,
-		astmodel.IntType)
+		astmodel.IntType,
+	)
+
+	g.Expect(transformer.TransformTypeName(tutor2019)).To(Equal(expected))
+}
+
+func Test_TransformTypeName_WhenConfiguredWithSlice_ReturnsExpectedSliceType(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	matcher := config.NewFieldMatcher("tutor")
+	matcher2 := config.NewFieldMatcher("string")
+	transformer := config.TypeTransformer{
+		Property: matcher,
+		Target: &config.TransformResult{
+			Slice: &config.SliceResult{
+				Element: config.TransformResult{
+					Name: matcher2,
+				},
+			},
+		},
+	}
+
+	expected := astmodel.NewArrayType(astmodel.StringType)
 
 	g.Expect(transformer.TransformTypeName(tutor2019)).To(Equal(expected))
 }
@@ -162,7 +184,8 @@ func Test_TransformTypeName_WhenConfiguredWithEnum_ReturnsExpectedEnumType(t *te
 		astmodel.StringType,
 		astmodel.MakeEnumValue("Alpha", "\"alpha\""),
 		astmodel.MakeEnumValue("Beta", "\"beta\""),
-		astmodel.MakeEnumValue("Preview", "\"preview\""))
+		astmodel.MakeEnumValue("Preview", "\"preview\""),
+	)
 
 	g.Expect(transformer.TransformTypeName(tutor2019)).To(Equal(expected))
 }
@@ -248,7 +271,9 @@ func Test_TransformCanTransform_ToNestedMapType(t *testing.T) {
 		astmodel.StringType,
 		astmodel.NewMapType(
 			astmodel.IntType,
-			astmodel.FloatType))
+			astmodel.FloatType,
+		),
+	)
 
 	g.Expect(transformer.TransformTypeName(tutor2019)).To(Equal(expected))
 }
@@ -366,7 +391,8 @@ func Test_TransformWithBothNameAndMapTargets_ReportsError(t *testing.T) {
 	g.Expect(err.Error()).To(SatisfyAll(
 		ContainSubstring("cannot specify both"),
 		ContainSubstring("Map transformation"),
-		ContainSubstring("Name transformation")))
+		ContainSubstring("Name transformation"),
+	))
 }
 
 func Test_TransformWithBothNameAndEnumTargets_ReportsError(t *testing.T) {
@@ -398,7 +424,8 @@ func Test_TransformWithBothNameAndEnumTargets_ReportsError(t *testing.T) {
 	g.Expect(err.Error()).To(SatisfyAll(
 		ContainSubstring("cannot specify both"),
 		ContainSubstring("Enum transformation"),
-		ContainSubstring("Name transformation")))
+		ContainSubstring("Name transformation"),
+	))
 }
 
 func Test_TransformWithBothMapAndEnumTargets_ReportsError(t *testing.T) {
@@ -438,7 +465,8 @@ func Test_TransformWithBothMapAndEnumTargets_ReportsError(t *testing.T) {
 	g.Expect(err.Error()).To(SatisfyAll(
 		ContainSubstring("cannot specify both"),
 		ContainSubstring("Enum transformation"),
-		ContainSubstring("Map transformation")))
+		ContainSubstring("Map transformation"),
+	))
 }
 
 func Test_TypeTransformer_WhenTransformingTypeName_ReturnsExpectedTypeName(t *testing.T) {
@@ -480,7 +508,8 @@ func Test_TypeTransformer_WhenTransformingTypeName_ReturnsExpectedTypeName(t *te
 				actual, err := transformer.TransformTypeName(c.original)
 				g.Expect(actual).To(Equal(c.expected))
 				g.Expect(err).To(Succeed())
-			})
+			},
+		)
 	}
 }
 
@@ -670,7 +699,8 @@ func TestTransformProperty_DoesTransformProperty_IfTypeDoesMatch(t *testing.T) {
 				prop, ok := result.NewType.Property(c.propertyToInspect)
 				g.Expect(ok).To(BeTrue())
 				g.Expect(prop.PropertyType()).To(Equal(c.expectedType))
-			})
+			},
+		)
 	}
 }
 
@@ -715,7 +745,8 @@ func TestTransformProperty_CanRemoveProperty(t *testing.T) {
 
 	resourceCopyType := astmodel.MakeInternalTypeName(
 		test.MakeLocalPackageReference("deploymenttemplate", "2019-04-01"),
-		"ResourceCopy")
+		"ResourceCopy",
+	)
 	copyProperty := astmodel.NewPropertyDefinition("Copy", "copy", astmodel.NewOptionalType(resourceCopyType))
 	objectWithCopyProperty := astmodel.NewObjectType().WithProperties(copyProperty)
 
@@ -754,7 +785,8 @@ func TestTransformProperty_CanRemoveProperty(t *testing.T) {
 
 				_, ok := result.NewType.Property(c.propertyToInspect)
 				g.Expect(ok).To(BeFalse())
-			})
+			},
+		)
 	}
 }
 
@@ -780,4 +812,136 @@ func Test_TransformResult_StringRemove(t *testing.T) {
 		Because:  "it's irrelevant",
 	}
 	g.Expect(result.String()).To(Equal(test.MakeLocalPackageReference("role", "2019-01-01").PackagePath() + "/student.HairColour removed because it's irrelevant"))
+}
+
+func Test_TypeTransformer_RequiredTypesWereMatched_ReturnsExpectedResults(t *testing.T) {
+	t.Parallel()
+
+	partyPkg_2024 := test.MakeLocalPackageReference("party", "v2024")
+	partyPkg_2025 := test.MakeLocalPackageReference("party", "v2025")
+	rolePkg_2025 := test.MakeLocalPackageReference("role", "v2025")
+
+	matches := astmodel.MakeInternalTypeName(partyPkg_2025, "person")
+	differentGroup := astmodel.MakeInternalTypeName(rolePkg_2025, "student")
+	differentVersion := astmodel.MakeInternalTypeName(partyPkg_2024, "person")
+	differentName := astmodel.MakeInternalTypeName(partyPkg_2025, "company")
+
+	cases := map[string]struct {
+		typeName      astmodel.InternalTypeName
+		expectedError string
+	}{
+		"Matches person v2025": {
+			typeName: matches,
+		},
+		"When no match on group": {
+			typeName:      differentGroup,
+			expectedError: "incomplete match for group",
+		},
+		"When no match on version": {
+			typeName:      differentVersion,
+			expectedError: "incomplete match for version",
+		},
+		"When no match on name": {
+			typeName:      differentName,
+			expectedError: "incomplete match for name",
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(
+			name,
+			func(t *testing.T) {
+				t.Parallel()
+				g := NewGomegaWithT(t)
+
+				transformer := config.TypeTransformer{
+					TypeMatcher: config.TypeMatcher{
+						Group:   config.NewFieldMatcher(partyPkg_2025.Group()),
+						Version: config.NewFieldMatcher(partyPkg_2025.Version()),
+						Name:    config.NewFieldMatcher(matches.Name()),
+					},
+					RenameTo: "changed",
+				}
+
+				transformer.AppliesToType(c.typeName)
+				err := transformer.RequiredTypesWereMatched()
+				if c.expectedError == "" {
+					g.Expect(err).To(BeNil())
+				} else {
+					g.Expect(err).To(MatchError(ContainSubstring(c.expectedError)))
+				}
+			},
+		)
+	}
+}
+
+func Test_TypeTransformer_RequirePropertiesWereMatched_ReturnsExpectedResults(t *testing.T) {
+	t.Parallel()
+
+	partyPkg_2024 := test.MakeLocalPackageReference("party", "v2024")
+	partyPkg_2025 := test.MakeLocalPackageReference("party", "v2025")
+	rolePkg_2025 := test.MakeLocalPackageReference("role", "v2025")
+
+	matches := test.CreateObjectDefinition(partyPkg_2025, "person", test.FullNameProperty)
+	differentGroup := test.CreateObjectDefinition(rolePkg_2025, "student", test.FullNameProperty)
+	differentVersion := test.CreateObjectDefinition(partyPkg_2024, "person", test.FullNameProperty)
+	differentName := test.CreateObjectDefinition(partyPkg_2025, "company", test.FullNameProperty)
+	differentProperty := test.CreateObjectDefinition(partyPkg_2025, "person", test.FullAddressProperty)
+
+	cases := map[string]struct {
+		definition    astmodel.TypeDefinition
+		expectedError string
+	}{
+		"Matches person v2025": {
+			definition: matches,
+		},
+		"When no match on group": {
+			definition:    differentGroup,
+			expectedError: "incomplete match for group: no match for \"party\"",
+		},
+		"When no match on version": {
+			definition:    differentVersion,
+			expectedError: "incomplete match for version: no match for \"v2025\"",
+		},
+		"When no match on name": {
+			definition:    differentName,
+			expectedError: "incomplete match for name: no match for \"person\"",
+		},
+		"When no match on property": {
+			definition:    differentProperty,
+			expectedError: "matched types but all properties were excluded",
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(
+			name,
+			func(t *testing.T) {
+				t.Parallel()
+				g := NewGomegaWithT(t)
+
+				transformer := config.TypeTransformer{
+					TypeMatcher: config.TypeMatcher{
+						Group:   config.NewFieldMatcher(partyPkg_2025.Group()),
+						Version: config.NewFieldMatcher(partyPkg_2025.Version()),
+						Name:    config.NewFieldMatcher(matches.Name().Name()),
+					},
+					Property: config.NewFieldMatcher(string(test.FullNameProperty.PropertyName())),
+					Remove:   true,
+				}
+
+				if transformer.AppliesToDefinition(c.definition) {
+					_, err := transformer.TransformDefinition(c.definition)
+					g.Expect(err).To(BeNil())
+				}
+
+				err := transformer.RequiredPropertiesWereMatched()
+				if c.expectedError == "" {
+					g.Expect(err).To(BeNil())
+				} else {
+					g.Expect(err).To(MatchError(ContainSubstring(c.expectedError)))
+				}
+			},
+		)
+	}
 }

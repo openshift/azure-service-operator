@@ -8,28 +8,30 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/slices"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
-// MarkLatestAPIVersionAsStorageVersionId is the unique identifier for this pipeline stage
-const MarkLatestAPIVersionAsStorageVersionId = "markStorageVersion"
+// MarkLatestAPIVersionAsStorageVersionID is the unique identifier for this pipeline stage
+const MarkLatestAPIVersionAsStorageVersionID = "markStorageVersion"
 
 // MarkLatestAPIVersionAsStorageVersion creates a Stage to mark a particular version as a storage version
 func MarkLatestAPIVersionAsStorageVersion() *Stage {
-	return NewLegacyStage(
-		MarkLatestAPIVersionAsStorageVersionId,
+	return NewStage(
+		MarkLatestAPIVersionAsStorageVersionID,
 		"Mark the latest API version of each resource as the storage version",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			definitions := state.Definitions()
 			updatedDefs, err := MarkLatestResourceVersionsForStorage(definitions)
 			if err != nil {
-				return nil, errors.Wrapf(err, "unable to mark latest resource version as storage version")
+				return nil, eris.Wrapf(err, "unable to mark latest resource version as storage version")
 			}
 
-			return updatedDefs, nil
-		})
+			return state.WithDefinitions(updatedDefs), nil
+		},
+	)
 }
 
 // MarkLatestResourceVersionsForStorage marks the latest version of each resource as the storage version
@@ -84,8 +86,10 @@ func groupResourcesByVersion(definitions astmodel.TypeDefinitionSet) map[unversi
 			func(left astmodel.TypeDefinition, right astmodel.TypeDefinition) int {
 				return astmodel.ComparePathAndVersion(
 					left.Name().PackageReference().ImportPath(),
-					right.Name().PackageReference().ImportPath())
-			})
+					right.Name().PackageReference().ImportPath(),
+				)
+			},
+		)
 	}
 
 	return result

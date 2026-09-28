@@ -13,9 +13,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/pkg/errors"
 )
 
 // PackageDefinition is the definition of a package
@@ -52,7 +51,7 @@ func (p *PackageDefinition) GetDefinition(typeName InternalTypeName) (TypeDefini
 		return def, nil
 	}
 
-	return TypeDefinition{}, errors.Errorf("no type with name %s found", typeName)
+	return TypeDefinition{}, eris.Errorf("no type with name %s found", typeName)
 }
 
 // AddDefinition adds a Definition to the PackageDefinition
@@ -119,7 +118,8 @@ func (p *PackageDefinition) emitFiles(
 	for fileName, defs := range filesToGenerate {
 		codeFilePath := filepath.Join(
 			outputDir,
-			fmt.Sprintf("%s_types%s.go", fileName, CodeGeneratedFileSuffix))
+			fmt.Sprintf("%s_types%s.go", fileName, CodeGeneratedFileSuffix),
+		)
 
 		err := p.writeCodeFile(codeFilePath, defs, generatedPackages)
 		if err != nil {
@@ -128,7 +128,8 @@ func (p *PackageDefinition) emitFiles(
 
 		testFilePath := filepath.Join(
 			outputDir,
-			fmt.Sprintf("%s_types%s_test.go", fileName, CodeGeneratedFileSuffix))
+			fmt.Sprintf("%s_types%s_test.go", fileName, CodeGeneratedFileSuffix),
+		)
 
 		err = p.writeTestFile(testFilePath, defs, generatedPackages)
 		if err != nil {
@@ -154,7 +155,7 @@ func (p *PackageDefinition) writeCodeFile(
 	fileWriter := NewGoSourceFileWriter(genFile)
 	err := fileWriter.SaveToFile(outputFile)
 	if err != nil {
-		return errors.Wrapf(err, "saving definitions to file %q", outputFile)
+		return eris.Wrapf(err, "saving definitions to file %q", outputFile)
 	}
 
 	return nil
@@ -185,7 +186,7 @@ func (p *PackageDefinition) writeTestFile(
 	fileWriter := NewGoSourceFileWriter(genFile)
 	err := fileWriter.SaveToFile(outputFile)
 	if err != nil {
-		return errors.Wrapf(err, "writing test cases to file %q", outputFile)
+		return eris.Wrapf(err, "writing test cases to file %q", outputFile)
 	}
 
 	return nil
@@ -204,8 +205,11 @@ func (p *PackageDefinition) createVersion(ref InternalPackageReference) string {
 
 // containsResources returns true if this package contains any resources
 func (p *PackageDefinition) containsResources() bool {
-	rsrcs := FindResourceDefinitions(p.definitions)
-	return len(rsrcs) > 0
+	for range p.definitions.AllResources() {
+		return true
+	}
+
+	return false
 }
 
 // emitGroupVersionFile writes a `groupversion_info.go` file for the package
@@ -234,7 +238,7 @@ func (pkgDef *PackageDefinition) emitTemplateFile(template *template.Template, f
 
 	err = os.WriteFile(fileRef, buf.Bytes(), 0o600)
 	if err != nil {
-		return errors.Wrapf(err, "error writing file %q", fileRef)
+		return eris.Wrapf(err, "error writing file %q", fileRef)
 	}
 
 	return nil

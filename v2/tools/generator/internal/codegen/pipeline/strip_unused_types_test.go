@@ -8,13 +8,11 @@ package pipeline
 import (
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
-
-	. "github.com/onsi/gomega"
 )
-
-const packagePath = "test.package/v1"
 
 func TestConnectionChecker_Avoids_Cycles(t *testing.T) {
 	t.Parallel()
@@ -22,11 +20,12 @@ func TestConnectionChecker_Avoids_Cycles(t *testing.T) {
 	makeName := func(name string) astmodel.TypeName {
 		return astmodel.MakeInternalTypeName(
 			test.MakeLocalPackageReference("demo", "v1"),
-			name)
+			name,
+		)
 	}
 
 	makeSet := func(names ...string) astmodel.TypeNameSet {
-		var typeNames []astmodel.TypeName
+		typeNames := make([]astmodel.TypeName, 0, len(names))
 		for _, n := range names {
 			typeNames = append(typeNames, makeName(n))
 		}

@@ -5,7 +5,8 @@ package v1api20230501
 
 import (
 	"encoding/json"
-	storage "github.com/Azure/azure-service-operator/v2/api/cdn/v1api20230501/storage"
+	cdn_v1api20230501s "github.com/Azure/azure-service-operator/v2/api/cdn/v1api20230501/storage"
+	cdn_v20230501s "github.com/Azure/azure-service-operator/v2/api/cdn/v20230501/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -20,6 +21,11 @@ import (
 
 func Test_AfdEndpoint_WhenConvertedToHub_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	parameters.MinSuccessfulTests = 10
@@ -36,7 +42,7 @@ func RunResourceConversionTestForAfdEndpoint(subject AfdEndpoint) string {
 	copied := subject.DeepCopy()
 
 	// Convert to our hub version
-	var hub storage.AfdEndpoint
+	var hub cdn_v20230501s.AfdEndpoint
 	err := copied.ConvertTo(&hub)
 	if err != nil {
 		return err.Error()
@@ -63,6 +69,11 @@ func RunResourceConversionTestForAfdEndpoint(subject AfdEndpoint) string {
 
 func Test_AfdEndpoint_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -78,7 +89,7 @@ func RunPropertyAssignmentTestForAfdEndpoint(subject AfdEndpoint) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.AfdEndpoint
+	var other cdn_v1api20230501s.AfdEndpoint
 	err := copied.AssignProperties_To_AfdEndpoint(&other)
 	if err != nil {
 		return err.Error()
@@ -105,6 +116,11 @@ func RunPropertyAssignmentTestForAfdEndpoint(subject AfdEndpoint) string {
 
 func Test_AfdEndpoint_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -160,36 +176,41 @@ func AfdEndpointGenerator() gopter.Gen {
 
 // AddRelatedPropertyGeneratorsForAfdEndpoint is a factory method for creating gopter generators
 func AddRelatedPropertyGeneratorsForAfdEndpoint(gens map[string]gopter.Gen) {
-	gens["Spec"] = Profiles_AfdEndpoint_SpecGenerator()
-	gens["Status"] = Profiles_AfdEndpoint_STATUSGenerator()
+	gens["Spec"] = AfdEndpoint_SpecGenerator()
+	gens["Status"] = AfdEndpoint_STATUSGenerator()
 }
 
-func Test_Profiles_AfdEndpoint_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+func Test_AfdEndpointOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip from Profiles_AfdEndpoint_STATUS to Profiles_AfdEndpoint_STATUS via AssignProperties_To_Profiles_AfdEndpoint_STATUS & AssignProperties_From_Profiles_AfdEndpoint_STATUS returns original",
-		prop.ForAll(RunPropertyAssignmentTestForProfiles_AfdEndpoint_STATUS, Profiles_AfdEndpoint_STATUSGenerator()))
+		"Round trip from AfdEndpointOperatorSpec to AfdEndpointOperatorSpec via AssignProperties_To_AfdEndpointOperatorSpec & AssignProperties_From_AfdEndpointOperatorSpec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForAfdEndpointOperatorSpec, AfdEndpointOperatorSpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
 }
 
-// RunPropertyAssignmentTestForProfiles_AfdEndpoint_STATUS tests if a specific instance of Profiles_AfdEndpoint_STATUS can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForProfiles_AfdEndpoint_STATUS(subject Profiles_AfdEndpoint_STATUS) string {
+// RunPropertyAssignmentTestForAfdEndpointOperatorSpec tests if a specific instance of AfdEndpointOperatorSpec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForAfdEndpointOperatorSpec(subject AfdEndpointOperatorSpec) string {
 	// Copy subject to make sure assignment doesn't modify it
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Profiles_AfdEndpoint_STATUS
-	err := copied.AssignProperties_To_Profiles_AfdEndpoint_STATUS(&other)
+	var other cdn_v1api20230501s.AfdEndpointOperatorSpec
+	err := copied.AssignProperties_To_AfdEndpointOperatorSpec(&other)
 	if err != nil {
 		return err.Error()
 	}
 
 	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual Profiles_AfdEndpoint_STATUS
-	err = actual.AssignProperties_From_Profiles_AfdEndpoint_STATUS(&other)
+	var actual AfdEndpointOperatorSpec
+	err = actual.AssignProperties_From_AfdEndpointOperatorSpec(&other)
 	if err != nil {
 		return err.Error()
 	}
@@ -206,20 +227,25 @@ func RunPropertyAssignmentTestForProfiles_AfdEndpoint_STATUS(subject Profiles_Af
 	return ""
 }
 
-func Test_Profiles_AfdEndpoint_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_AfdEndpointOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 80
+	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip of Profiles_AfdEndpoint_STATUS via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForProfiles_AfdEndpoint_STATUS, Profiles_AfdEndpoint_STATUSGenerator()))
+		"Round trip of AfdEndpointOperatorSpec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForAfdEndpointOperatorSpec, AfdEndpointOperatorSpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
 }
 
-// RunJSONSerializationTestForProfiles_AfdEndpoint_STATUS runs a test to see if a specific instance of Profiles_AfdEndpoint_STATUS round trips to JSON and back losslessly
-func RunJSONSerializationTestForProfiles_AfdEndpoint_STATUS(subject Profiles_AfdEndpoint_STATUS) string {
+// RunJSONSerializationTestForAfdEndpointOperatorSpec runs a test to see if a specific instance of AfdEndpointOperatorSpec round trips to JSON and back losslessly
+func RunJSONSerializationTestForAfdEndpointOperatorSpec(subject AfdEndpointOperatorSpec) string {
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
@@ -227,7 +253,7 @@ func RunJSONSerializationTestForProfiles_AfdEndpoint_STATUS(subject Profiles_Afd
 	}
 
 	// Deserialize back into memory
-	var actual Profiles_AfdEndpoint_STATUS
+	var actual AfdEndpointOperatorSpec
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
 		return err.Error()
@@ -245,34 +271,140 @@ func RunJSONSerializationTestForProfiles_AfdEndpoint_STATUS(subject Profiles_Afd
 	return ""
 }
 
-// Generator of Profiles_AfdEndpoint_STATUS instances for property testing - lazily instantiated by
-// Profiles_AfdEndpoint_STATUSGenerator()
-var profiles_AfdEndpoint_STATUSGenerator gopter.Gen
+// Generator of AfdEndpointOperatorSpec instances for property testing - lazily instantiated by
+// AfdEndpointOperatorSpecGenerator()
+var afdEndpointOperatorSpecGenerator gopter.Gen
 
-// Profiles_AfdEndpoint_STATUSGenerator returns a generator of Profiles_AfdEndpoint_STATUS instances for property testing.
-// We first initialize profiles_AfdEndpoint_STATUSGenerator with a simplified generator based on the
-// fields with primitive types then replacing it with a more complex one that also handles complex fields
-// to ensure any cycles in the object graph properly terminate.
-func Profiles_AfdEndpoint_STATUSGenerator() gopter.Gen {
-	if profiles_AfdEndpoint_STATUSGenerator != nil {
-		return profiles_AfdEndpoint_STATUSGenerator
+// AfdEndpointOperatorSpecGenerator returns a generator of AfdEndpointOperatorSpec instances for property testing.
+func AfdEndpointOperatorSpecGenerator() gopter.Gen {
+	if afdEndpointOperatorSpecGenerator != nil {
+		return afdEndpointOperatorSpecGenerator
 	}
 
 	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_STATUS(generators)
-	profiles_AfdEndpoint_STATUSGenerator = gen.Struct(reflect.TypeOf(Profiles_AfdEndpoint_STATUS{}), generators)
+	afdEndpointOperatorSpecGenerator = gen.Struct(reflect.TypeOf(AfdEndpointOperatorSpec{}), generators)
+
+	return afdEndpointOperatorSpecGenerator
+}
+
+func Test_AfdEndpoint_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from AfdEndpoint_STATUS to AfdEndpoint_STATUS via AssignProperties_To_AfdEndpoint_STATUS & AssignProperties_From_AfdEndpoint_STATUS returns original",
+		prop.ForAll(RunPropertyAssignmentTestForAfdEndpoint_STATUS, AfdEndpoint_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForAfdEndpoint_STATUS tests if a specific instance of AfdEndpoint_STATUS can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForAfdEndpoint_STATUS(subject AfdEndpoint_STATUS) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other cdn_v1api20230501s.AfdEndpoint_STATUS
+	err := copied.AssignProperties_To_AfdEndpoint_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual AfdEndpoint_STATUS
+	err = actual.AssignProperties_From_AfdEndpoint_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_AfdEndpoint_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 80
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of AfdEndpoint_STATUS via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForAfdEndpoint_STATUS, AfdEndpoint_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForAfdEndpoint_STATUS runs a test to see if a specific instance of AfdEndpoint_STATUS round trips to JSON and back losslessly
+func RunJSONSerializationTestForAfdEndpoint_STATUS(subject AfdEndpoint_STATUS) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual AfdEndpoint_STATUS
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of AfdEndpoint_STATUS instances for property testing - lazily instantiated by AfdEndpoint_STATUSGenerator()
+var afdEndpoint_STATUSGenerator gopter.Gen
+
+// AfdEndpoint_STATUSGenerator returns a generator of AfdEndpoint_STATUS instances for property testing.
+// We first initialize afdEndpoint_STATUSGenerator with a simplified generator based on the
+// fields with primitive types then replacing it with a more complex one that also handles complex fields
+// to ensure any cycles in the object graph properly terminate.
+func AfdEndpoint_STATUSGenerator() gopter.Gen {
+	if afdEndpoint_STATUSGenerator != nil {
+		return afdEndpoint_STATUSGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForAfdEndpoint_STATUS(generators)
+	afdEndpoint_STATUSGenerator = gen.Struct(reflect.TypeOf(AfdEndpoint_STATUS{}), generators)
 
 	// The above call to gen.Struct() captures the map, so create a new one
 	generators = make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_STATUS(generators)
-	AddRelatedPropertyGeneratorsForProfiles_AfdEndpoint_STATUS(generators)
-	profiles_AfdEndpoint_STATUSGenerator = gen.Struct(reflect.TypeOf(Profiles_AfdEndpoint_STATUS{}), generators)
+	AddIndependentPropertyGeneratorsForAfdEndpoint_STATUS(generators)
+	AddRelatedPropertyGeneratorsForAfdEndpoint_STATUS(generators)
+	afdEndpoint_STATUSGenerator = gen.Struct(reflect.TypeOf(AfdEndpoint_STATUS{}), generators)
 
-	return profiles_AfdEndpoint_STATUSGenerator
+	return afdEndpoint_STATUSGenerator
 }
 
-// AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_STATUS is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_STATUS(gens map[string]gopter.Gen) {
+// AddIndependentPropertyGeneratorsForAfdEndpoint_STATUS is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForAfdEndpoint_STATUS(gens map[string]gopter.Gen) {
 	gens["AutoGeneratedDomainNameLabelScope"] = gen.PtrOf(gen.OneConstOf(
 		AutoGeneratedDomainNameLabelScope_STATUS_NoReuse,
 		AutoGeneratedDomainNameLabelScope_STATUS_ResourceGroupReuse,
@@ -301,37 +433,42 @@ func AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_STATUS(gens map[str
 	gens["Type"] = gen.PtrOf(gen.AlphaString())
 }
 
-// AddRelatedPropertyGeneratorsForProfiles_AfdEndpoint_STATUS is a factory method for creating gopter generators
-func AddRelatedPropertyGeneratorsForProfiles_AfdEndpoint_STATUS(gens map[string]gopter.Gen) {
+// AddRelatedPropertyGeneratorsForAfdEndpoint_STATUS is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForAfdEndpoint_STATUS(gens map[string]gopter.Gen) {
 	gens["SystemData"] = gen.PtrOf(SystemData_STATUSGenerator())
 }
 
-func Test_Profiles_AfdEndpoint_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+func Test_AfdEndpoint_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip from Profiles_AfdEndpoint_Spec to Profiles_AfdEndpoint_Spec via AssignProperties_To_Profiles_AfdEndpoint_Spec & AssignProperties_From_Profiles_AfdEndpoint_Spec returns original",
-		prop.ForAll(RunPropertyAssignmentTestForProfiles_AfdEndpoint_Spec, Profiles_AfdEndpoint_SpecGenerator()))
+		"Round trip from AfdEndpoint_Spec to AfdEndpoint_Spec via AssignProperties_To_AfdEndpoint_Spec & AssignProperties_From_AfdEndpoint_Spec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForAfdEndpoint_Spec, AfdEndpoint_SpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
 }
 
-// RunPropertyAssignmentTestForProfiles_AfdEndpoint_Spec tests if a specific instance of Profiles_AfdEndpoint_Spec can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForProfiles_AfdEndpoint_Spec(subject Profiles_AfdEndpoint_Spec) string {
+// RunPropertyAssignmentTestForAfdEndpoint_Spec tests if a specific instance of AfdEndpoint_Spec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForAfdEndpoint_Spec(subject AfdEndpoint_Spec) string {
 	// Copy subject to make sure assignment doesn't modify it
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Profiles_AfdEndpoint_Spec
-	err := copied.AssignProperties_To_Profiles_AfdEndpoint_Spec(&other)
+	var other cdn_v1api20230501s.AfdEndpoint_Spec
+	err := copied.AssignProperties_To_AfdEndpoint_Spec(&other)
 	if err != nil {
 		return err.Error()
 	}
 
 	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual Profiles_AfdEndpoint_Spec
-	err = actual.AssignProperties_From_Profiles_AfdEndpoint_Spec(&other)
+	var actual AfdEndpoint_Spec
+	err = actual.AssignProperties_From_AfdEndpoint_Spec(&other)
 	if err != nil {
 		return err.Error()
 	}
@@ -348,20 +485,25 @@ func RunPropertyAssignmentTestForProfiles_AfdEndpoint_Spec(subject Profiles_AfdE
 	return ""
 }
 
-func Test_Profiles_AfdEndpoint_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_AfdEndpoint_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip of Profiles_AfdEndpoint_Spec via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForProfiles_AfdEndpoint_Spec, Profiles_AfdEndpoint_SpecGenerator()))
+		"Round trip of AfdEndpoint_Spec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForAfdEndpoint_Spec, AfdEndpoint_SpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
 }
 
-// RunJSONSerializationTestForProfiles_AfdEndpoint_Spec runs a test to see if a specific instance of Profiles_AfdEndpoint_Spec round trips to JSON and back losslessly
-func RunJSONSerializationTestForProfiles_AfdEndpoint_Spec(subject Profiles_AfdEndpoint_Spec) string {
+// RunJSONSerializationTestForAfdEndpoint_Spec runs a test to see if a specific instance of AfdEndpoint_Spec round trips to JSON and back losslessly
+func RunJSONSerializationTestForAfdEndpoint_Spec(subject AfdEndpoint_Spec) string {
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
@@ -369,7 +511,7 @@ func RunJSONSerializationTestForProfiles_AfdEndpoint_Spec(subject Profiles_AfdEn
 	}
 
 	// Deserialize back into memory
-	var actual Profiles_AfdEndpoint_Spec
+	var actual AfdEndpoint_Spec
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
 		return err.Error()
@@ -387,25 +529,33 @@ func RunJSONSerializationTestForProfiles_AfdEndpoint_Spec(subject Profiles_AfdEn
 	return ""
 }
 
-// Generator of Profiles_AfdEndpoint_Spec instances for property testing - lazily instantiated by
-// Profiles_AfdEndpoint_SpecGenerator()
-var profiles_AfdEndpoint_SpecGenerator gopter.Gen
+// Generator of AfdEndpoint_Spec instances for property testing - lazily instantiated by AfdEndpoint_SpecGenerator()
+var afdEndpoint_SpecGenerator gopter.Gen
 
-// Profiles_AfdEndpoint_SpecGenerator returns a generator of Profiles_AfdEndpoint_Spec instances for property testing.
-func Profiles_AfdEndpoint_SpecGenerator() gopter.Gen {
-	if profiles_AfdEndpoint_SpecGenerator != nil {
-		return profiles_AfdEndpoint_SpecGenerator
+// AfdEndpoint_SpecGenerator returns a generator of AfdEndpoint_Spec instances for property testing.
+// We first initialize afdEndpoint_SpecGenerator with a simplified generator based on the
+// fields with primitive types then replacing it with a more complex one that also handles complex fields
+// to ensure any cycles in the object graph properly terminate.
+func AfdEndpoint_SpecGenerator() gopter.Gen {
+	if afdEndpoint_SpecGenerator != nil {
+		return afdEndpoint_SpecGenerator
 	}
 
 	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_Spec(generators)
-	profiles_AfdEndpoint_SpecGenerator = gen.Struct(reflect.TypeOf(Profiles_AfdEndpoint_Spec{}), generators)
+	AddIndependentPropertyGeneratorsForAfdEndpoint_Spec(generators)
+	afdEndpoint_SpecGenerator = gen.Struct(reflect.TypeOf(AfdEndpoint_Spec{}), generators)
 
-	return profiles_AfdEndpoint_SpecGenerator
+	// The above call to gen.Struct() captures the map, so create a new one
+	generators = make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForAfdEndpoint_Spec(generators)
+	AddRelatedPropertyGeneratorsForAfdEndpoint_Spec(generators)
+	afdEndpoint_SpecGenerator = gen.Struct(reflect.TypeOf(AfdEndpoint_Spec{}), generators)
+
+	return afdEndpoint_SpecGenerator
 }
 
-// AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_Spec is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_Spec(gens map[string]gopter.Gen) {
+// AddIndependentPropertyGeneratorsForAfdEndpoint_Spec is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForAfdEndpoint_Spec(gens map[string]gopter.Gen) {
 	gens["AutoGeneratedDomainNameLabelScope"] = gen.PtrOf(gen.OneConstOf(
 		AutoGeneratedDomainNameLabelScope_NoReuse,
 		AutoGeneratedDomainNameLabelScope_ResourceGroupReuse,
@@ -417,4 +567,9 @@ func AddIndependentPropertyGeneratorsForProfiles_AfdEndpoint_Spec(gens map[strin
 	gens["Tags"] = gen.MapOf(
 		gen.AlphaString(),
 		gen.AlphaString())
+}
+
+// AddRelatedPropertyGeneratorsForAfdEndpoint_Spec is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForAfdEndpoint_Spec(gens map[string]gopter.Gen) {
+	gens["OperatorSpec"] = gen.PtrOf(AfdEndpointOperatorSpecGenerator())
 }

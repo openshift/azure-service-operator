@@ -11,7 +11,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	devices "github.com/Azure/azure-service-operator/v2/api/devices/v1api20210702"
-
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	"github.com/Azure/azure-service-operator/v2/internal/util/to"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
@@ -52,7 +51,8 @@ func Test_Devices_IotHub_CRUD(t *testing.T) {
 			Test: func(tc *testcommon.KubePerTestContext) {
 				IotHub_WriteSecrets(tc, iothub)
 			},
-		})
+		},
+	)
 
 	tc.DeleteResourceAndWait(iothub)
 
@@ -93,5 +93,6 @@ func IotHub_WriteSecrets(tc *testcommon.KubePerTestContext, iotHub *devices.IotH
 		"registryReadWritePrimaryKey",
 		"registryReadWriteSecondaryKey",
 		"servicePrimaryKey",
-		"serviceSecondaryKey")
+		"serviceSecondaryKey",
+	)
 }

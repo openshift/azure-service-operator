@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -46,10 +47,14 @@ func Test_MissingSecret_ReturnsError_ReconcilesSuccessfullyWhenSecretAdded(t *te
 	vm := newVirtualMachine20201201(tc, rg, networkInterface, secretRef)
 
 	tc.CreateResourceAndWaitForState(vm, metav1.ConditionFalse, conditions.ConditionSeverityWarning)
+
 	// We expect the ready condition to include details of the error
-	tc.Expect(vm.Status.Conditions[0].Reason).To(Equal(conditions.ReasonSecretNotFound.Name))
-	tc.Expect(vm.Status.Conditions[0].Message).To(
-		ContainSubstring("failed resolving secret references: %s/%s does not exist", tc.Namespace, secretRef.Name))
+	reason := vm.Status.Conditions[0].Reason
+	tc.Expect(reason).To(Equal(conditions.ReasonSecretNotFound.Name))
+
+	message := vm.Status.Conditions[0].Message
+	tc.Expect(message).To(ContainSubstring("failed resolving secret references"))
+	tc.Expect(message).To(ContainSubstring("%s/%s does not exist", tc.Namespace, secretRef.Name))
 
 	// Now create the secret
 	secret := &v1.Secret{
@@ -80,7 +85,7 @@ func Test_MissingSecretKey_ReturnsError(t *testing.T) {
 	// https://github.com/Azure/azure-service-operator/issues/1944
 	tc.CreateResourceAndWait(vnet)
 	tc.CreateResourcesAndWait(subnet, networkInterface)
-	secret := createVMPasswordSecretAndRef(tc)
+	secret := createPasswordSecret("vmsecret", "password", tc)
 	secret.Key = "doesnotexist" // Change the key to a key that doesn't actually exist
 	vm := newVirtualMachine20201201(tc, rg, networkInterface, secret)
 
@@ -88,7 +93,8 @@ func Test_MissingSecretKey_ReturnsError(t *testing.T) {
 	// We expect the ready condition to include details of the error
 	tc.Expect(vm.Status.Conditions[0].Reason).To(Equal(conditions.ReasonSecretNotFound.Name))
 	tc.Expect(vm.Status.Conditions[0].Message).To(
-		ContainSubstring("Secret \"%s/%s\" does not contain key \"%s\"", tc.Namespace, secret.Name, secret.Key))
+		ContainSubstring("Secret \"%s/%s\" does not contain key \"%s\"", tc.Namespace, secret.Name, secret.Key),
+	)
 
 	// Delete VM and resources.
 	tc.DeleteResourceAndWait(rg)
@@ -117,10 +123,14 @@ func Test_UserSecretInDifferentNamespace_SecretNotFound(t *testing.T) {
 	vm := newVirtualMachine20201201(tc, rg, networkInterface, secretInDiffNamespace)
 
 	tc.CreateResourceAndWaitForState(vm, metav1.ConditionFalse, conditions.ConditionSeverityWarning)
+
 	// We expect the ready condition to include details of the error
-	tc.Expect(vm.Status.Conditions[0].Reason).To(Equal(conditions.ReasonSecretNotFound.Name))
-	tc.Expect(vm.Status.Conditions[0].Message).To(
-		ContainSubstring("failed resolving secret references: %s/%s does not exist", tc.Namespace, secretInDiffNamespace.Name))
+	reason := vm.Status.Conditions[0].Reason
+	tc.Expect(reason).To(Equal(conditions.ReasonSecretNotFound.Name))
+
+	message := vm.Status.Conditions[0].Message
+	tc.Expect(message).To(ContainSubstring("failed resolving secret references"))
+	tc.Expect(message).To(ContainSubstring("%s/%s does not exist", tc.Namespace, secretInDiffNamespace.Name))
 
 	// Delete VM and resources.
 	tc.DeleteResourcesAndWait(vm, networkInterface, subnet, vnet, rg)

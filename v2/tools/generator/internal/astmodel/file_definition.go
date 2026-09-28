@@ -10,10 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 )
@@ -25,13 +24,16 @@ type FileDefinition struct {
 	// definitions to include in this file
 	definitions []TypeDefinition
 
-	// other packages whose references may be needed for code generation
+	// other generated packages whose references may be needed for code generation
 	generatedPackages map[InternalPackageReference]*PackageDefinition
 }
 
 var _ GoSourceFile = &FileDefinition{}
 
-// NewFileDefinition creates a file definition containing specified definitions
+// NewFileDefinition creates a file definition containing specified definitions.
+// packageRef is the package to which this file belongs.
+// definitions are the type definitions to include in this specific file.
+// generatedPackages is a map of all other packages being generated (to allow for cross-package references).
 func NewFileDefinition(
 	packageRef InternalPackageReference,
 	definitions []TypeDefinition,
@@ -149,11 +151,12 @@ func (file *FileDefinition) generateImports() *PackageImportSet {
 
 	// Create the set of imports
 	requiredImports := NewPackageImportSet()
-	requiredImports.AddImportsOfReferences(allReferences.AsSlice()...)
+	requiredImports.AddImportsForPackageReferenceSet(allReferences)
 
 	// TODO: Make this configurable
 	requiredImports.ApplyName(MetaV1Reference, "metav1")
 	requiredImports.ApplyName(APIMachineryErrorsReference, "kerrors")
+	requiredImports.ApplyName(MakeSubPackageReference(ARMPackageName, file.packageReference), "arm")
 
 	return requiredImports
 }
@@ -164,7 +167,8 @@ func (file *FileDefinition) AsAst() (result *dst.File, err error) {
 	codeGenContext := NewCodeGenerationContext(
 		file.packageReference,
 		file.generateImports(),
-		file.generatedPackages)
+		file.generatedPackages,
+	)
 
 	// Create all definitions:
 	var declarations []dst.Decl
@@ -210,7 +214,7 @@ func (file *FileDefinition) AsAst() (result *dst.File, err error) {
 			for _, t := range resource.SchemeTypes(defn.Name()) {
 				tExpr, err := t.AsTypeExpr(codeGenContext)
 				if err != nil {
-					return nil, errors.Wrapf(err, "creating type expression for %s", t.Name())
+					return nil, eris.Wrapf(err, "creating type expression for %s", t.Name())
 				}
 
 				literal := astbuilder.NewCompositeLiteralBuilder(tExpr)
@@ -224,25 +228,23 @@ func (file *FileDefinition) AsAst() (result *dst.File, err error) {
 			&dst.FuncDecl{
 				Type: &dst.FuncType{Params: &dst.FieldList{}},
 				Name: dst.NewIdent("init"),
-				Body: &dst.BlockStmt{
-					List: []dst.Stmt{
-						&dst.ExprStmt{
-							Decs: dst.ExprStmtDecorations{
-								NodeDecs: dst.NodeDecs{
-									Before: dst.NewLine,
-								},
-							},
-							X: &dst.CallExpr{
-								Fun:  dst.NewIdent("SchemeBuilder.Register"), // HACK
-								Args: exprs,
+				Body: astbuilder.StatementBlock(
+					&dst.ExprStmt{
+						Decs: dst.ExprStmtDecorations{
+							NodeDecs: dst.NodeDecs{
+								Before: dst.NewLine,
 							},
 						},
+						X: &dst.CallExpr{
+							Fun:  dst.NewIdent("SchemeBuilder.Register"), // HACK
+							Args: exprs,
+						},
 					},
-				},
+				),
 			})
 	}
 
-	var header []string
+	header := make([]string, 0, len(CodeGenerationComments)+2)
 	header = append(header, CodeGenerationComments...)
 	header = append(header,
 		"// Copyright (c) Microsoft Corporation.",
@@ -261,5 +263,5 @@ func (file *FileDefinition) AsAst() (result *dst.File, err error) {
 		Decls: decls,
 	}
 
-	return
+	return result, err
 }

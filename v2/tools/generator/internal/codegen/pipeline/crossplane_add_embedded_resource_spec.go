@@ -8,7 +8,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
@@ -17,13 +17,15 @@ var CrossplaneRuntimeV1Package = astmodel.MakeExternalPackageReference("github.c
 
 // AddCrossplaneEmbeddedResourceSpec puts an embedded runtimev1alpha1.ResourceSpec on every spec type
 func AddCrossplaneEmbeddedResourceSpec(idFactory astmodel.IdentifierFactory) *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		"addCrossplaneEmbeddedResourceSpec",
 		"Add an embedded runtimev1alpha1.ResourceSpec to every spec type",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			definitions := state.Definitions()
 			specTypeName := astmodel.MakeExternalTypeName(
 				CrossplaneRuntimeV1Package,
-				idFactory.CreateIdentifier("ResourceSpec", astmodel.Exported))
+				idFactory.CreateIdentifier("ResourceSpec", astmodel.Exported),
+			)
 			embeddedSpec := astmodel.NewPropertyDefinition("", ",inline", specTypeName)
 
 			result := make(astmodel.TypeDefinitionSet)
@@ -32,7 +34,7 @@ func AddCrossplaneEmbeddedResourceSpec(idFactory astmodel.IdentifierFactory) *St
 
 					specDef, err := definitions.ResolveResourceSpecDefinition(resource)
 					if err != nil {
-						return nil, errors.Wrapf(err, "getting resource spec definition")
+						return nil, eris.Wrapf(err, "getting resource spec definition")
 					}
 
 					// The assumption here is that specs are all Objects
@@ -40,7 +42,7 @@ func AddCrossplaneEmbeddedResourceSpec(idFactory astmodel.IdentifierFactory) *St
 						return o.WithEmbeddedProperty(embeddedSpec)
 					})
 					if err != nil {
-						return nil, errors.Wrapf(err, "adding embedded crossplane spec")
+						return nil, eris.Wrapf(err, "adding embedded crossplane spec")
 					}
 
 					result.Add(typeDef)
@@ -54,6 +56,7 @@ func AddCrossplaneEmbeddedResourceSpec(idFactory astmodel.IdentifierFactory) *St
 				}
 			}
 
-			return result, nil
-		})
+			return state.WithDefinitions(result), nil
+		},
+	)
 }

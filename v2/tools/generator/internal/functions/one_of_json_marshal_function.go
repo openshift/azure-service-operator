@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -25,8 +25,14 @@ type OneOfJSONMarshalFunction struct {
 }
 
 // NewOneOfJSONMarshalFunction creates a new OneOfJSONMarshalFunction struct
-func NewOneOfJSONMarshalFunction(oneOfObject *astmodel.ObjectType, idFactory astmodel.IdentifierFactory) *OneOfJSONMarshalFunction {
-	return &OneOfJSONMarshalFunction{oneOfObject, idFactory}
+func NewOneOfJSONMarshalFunction(
+	oneOfObject *astmodel.ObjectType,
+	idFactory astmodel.IdentifierFactory,
+) *OneOfJSONMarshalFunction {
+	return &OneOfJSONMarshalFunction{
+		oneOfObject,
+		idFactory,
+	}
 }
 
 // Ensure OneOfJSONMarshalFunction implements Function interface correctly
@@ -57,50 +63,71 @@ func (f *OneOfJSONMarshalFunction) AsFunc(
 	codeGenerationContext *astmodel.CodeGenerationContext,
 	receiver astmodel.InternalTypeName,
 ) (*dst.FuncDecl, error) {
-	jsonPackage := codeGenerationContext.MustGetImportedPackageName(astmodel.JsonReference)
+	jsonPackage := codeGenerationContext.MustGetImportedPackageName(astmodel.JSONReference)
 
 	receiverName := f.idFactory.CreateReceiver(receiver.Name())
 	receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", receiver)
+		return nil, eris.Wrapf(err, "creating type expression for %s", receiver)
 	}
 
+	// Find any root properties that need special handling
 	props := f.oneOfObject.Properties().AsSlice()
+	rootProperties := astmodel.NewPropertySet()
+	defs := codeGenerationContext.GetDefinitionsInCurrentPackage()
+	for _, prop := range props {
+		if !astmodel.IsOneOfLeafProperty(prop, defs) {
+			rootProperties.Add(prop)
+		}
+	}
+
+	// For each leaf property, create a check with a marshal call
 	statements := make([]dst.Stmt, 0, len(props))
 	for _, property := range props {
+		if rootProperties.ContainsProperty(property.PropertyName()) {
+			continue
+		}
+
+		receiverIdent := dst.NewIdent(receiverName)
+		propName := string(property.PropertyName())
+
 		ret := astbuilder.Returns(
 			astbuilder.CallQualifiedFunc(
 				jsonPackage,
 				"Marshal",
-				astbuilder.Selector(dst.NewIdent(receiverName), string(property.PropertyName()))))
+				astbuilder.Selector(receiverIdent, propName),
+			),
+		)
+
 		ifStatement := astbuilder.IfNotNil(
 			astbuilder.Selector(
-				dst.NewIdent(receiverName),
-				string(property.PropertyName())),
-			ret)
+				receiverIdent,
+				string(property.PropertyName()),
+			),
+			ret,
+		)
+		ifStatement.Decorations().After = dst.EmptyLine
 		statements = append(statements, ifStatement)
 	}
 
-	finalReturnStatement := &dst.ReturnStmt{
-		Results: []dst.Expr{astbuilder.Nil(), astbuilder.Nil()},
-	}
-	statements = append(statements, finalReturnStatement)
+	finalReturnStatement := astbuilder.Returns(astbuilder.Nil(), astbuilder.Nil())
 
 	fn := &astbuilder.FuncDetails{
 		Name:          f.Name(),
 		ReceiverIdent: receiverName,
 		ReceiverType:  receiverExpr,
-		Body:          statements,
+		Body:          astbuilder.Statements(statements, finalReturnStatement),
 	}
 
 	fn.AddComments(fmt.Sprintf(
 		"defers JSON marshaling to the first non-nil property, because %s represents a discriminated union (JSON OneOf)",
-		receiver.Name()))
+		receiver.Name(),
+	))
 	fn.AddReturns("[]byte", "error")
 	return fn.DefineFunc(), nil
 }
 
 // RequiredPackageReferences returns a set of references to packages required by this
 func (f *OneOfJSONMarshalFunction) RequiredPackageReferences() *astmodel.PackageReferenceSet {
-	return astmodel.NewPackageReferenceSet(astmodel.JsonReference)
+	return astmodel.NewPackageReferenceSet(astmodel.JSONReference)
 }

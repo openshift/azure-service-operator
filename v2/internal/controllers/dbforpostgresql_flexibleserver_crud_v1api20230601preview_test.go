@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -102,7 +103,7 @@ func Test_DBForPostgreSQL_FlexibleServer_20230601Preview_CRUD(t *testing.T) {
 		testcommon.Subtest{
 			Name: "ConfigMapValuesWrittenToSameConfigMap",
 			Test: func(tc *testcommon.KubePerTestContext) {
-				FlexibleServer_ConfigValuesWrittenToSameConfigMap(tc, flexibleServer)
+				FlexibleServer_20230601Preview_ConfigValuesWrittenToSameConfigMap(tc, flexibleServer)
 			},
 		},
 		testcommon.Subtest{
@@ -128,13 +129,21 @@ func Test_DBForPostgreSQL_FlexibleServer_20230601Preview_CRUD(t *testing.T) {
 	tc.DeleteResourceAndWait(flexibleServer)
 
 	// Ensure that the resource was really deleted in Azure
-	exists, retryAfter, err := tc.AzureClient.CheckExistenceWithGetByID(ctx, armId, string(postgresql.APIVersion_Value))
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(retryAfter).To(BeZero())
-	g.Expect(exists).To(BeFalse())
+	// During test replay, timing differences might result in there being a GET 200 pending in the cassette file, which
+	// would make this fail if we didn't wrap the check in Eventually to allow for some retries.
+	g.Eventually(
+		func(g Gomega) bool {
+			exists, retryAfter, err := tc.AzureClient.CheckExistenceWithGetByID(ctx, armId, string(postgresql.APIVersion_Value))
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(retryAfter).To(BeZero())
+			return exists
+		},
+		"10s",
+		"1s",
+	).Should(BeFalse())
 }
 
-func FlexibleServer_ConfigValuesWrittenToSameConfigMap(tc *testcommon.KubePerTestContext, flexibleServer *postgresql.FlexibleServer) {
+func FlexibleServer_20230601Preview_ConfigValuesWrittenToSameConfigMap(tc *testcommon.KubePerTestContext, flexibleServer *postgresql.FlexibleServer) {
 	old := flexibleServer.DeepCopy()
 	flexibleServerConfigMap := "serverconfig"
 	flexibleServerConfigMapKey := "fqdn"
@@ -158,13 +167,14 @@ func FlexibleServer_ConfigValuesWrittenToSameConfigMap(tc *testcommon.KubePerTes
 	tc.ExpectConfigMapHasKeysAndValues(
 		flexibleServerConfigMap,
 		flexibleServerConfigMapKey,
-		*flexibleServer.Status.FullyQualifiedDomainName)
+		*flexibleServer.Status.FullyQualifiedDomainName,
+	)
 }
 
 func FlexibleServer_Database_20230601Preview_CRUD(tc *testcommon.KubePerTestContext, flexibleServer *postgresql.FlexibleServer) {
 	database := &postgresql.FlexibleServersDatabase{
 		ObjectMeta: tc.MakeObjectMeta("db"),
-		Spec: postgresql.FlexibleServers_Database_Spec{
+		Spec: postgresql.FlexibleServersDatabase_Spec{
 			Owner:   testcommon.AsOwner(flexibleServer),
 			Charset: to.Ptr("utf8"),
 		},
@@ -178,7 +188,7 @@ func FlexibleServer_Database_20230601Preview_CRUD(tc *testcommon.KubePerTestCont
 func FlexibleServer_FirewallRule_20230601Preview_CRUD(tc *testcommon.KubePerTestContext, flexibleServer *postgresql.FlexibleServer) {
 	firewall := &postgresql.FlexibleServersFirewallRule{
 		ObjectMeta: tc.MakeObjectMeta("fwrule"),
-		Spec: postgresql.FlexibleServers_FirewallRule_Spec{
+		Spec: postgresql.FlexibleServersFirewallRule_Spec{
 			Owner: testcommon.AsOwner(flexibleServer),
 			// I think that these rules are allow rules - somebody with this IP can access the server.
 			StartIpAddress: to.Ptr("1.2.3.4"),
@@ -195,7 +205,7 @@ func FlexibleServer_FirewallRule_20230601Preview_CRUD(tc *testcommon.KubePerTest
 func FlexibleServer_Configuration_20230601Preview_CRUD(tc *testcommon.KubePerTestContext, flexibleServer *postgresql.FlexibleServer) {
 	configuration := &postgresql.FlexibleServersConfiguration{
 		ObjectMeta: tc.MakeObjectMeta("pgaudit"),
-		Spec: postgresql.FlexibleServers_Configuration_Spec{
+		Spec: postgresql.FlexibleServersConfiguration_Spec{
 			Owner:     testcommon.AsOwner(flexibleServer),
 			AzureName: "pgaudit.log",
 			Source:    to.Ptr("user-override"),
@@ -203,9 +213,11 @@ func FlexibleServer_Configuration_20230601Preview_CRUD(tc *testcommon.KubePerTes
 		},
 	}
 
+	// Don't try to delete directly, this is not a real resource - to delete it in Azure you must delete its parent.
+	// We can delete it from the cluster by applying this annotation, but this won't change anything in Azure.
+	tc.AddAnnotation(&configuration.ObjectMeta, "serviceoperator.azure.com/reconcile-policy", "detach-on-delete")
+
 	tc.CreateResourceAndWait(configuration)
-	// This isn't a "real" resource so it cannot be deleted directly
-	// defer tc.DeleteResourceAndWait(configuration)
 
 	tc.Expect(configuration.Status.Id).ToNot(BeNil())
 	tc.Expect(configuration.Status.Value).To(Equal(to.Ptr("READ")))

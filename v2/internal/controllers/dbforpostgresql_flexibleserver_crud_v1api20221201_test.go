@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 
 	postgresql "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v1api20221201"
@@ -29,8 +30,7 @@ func Test_DBForPostgreSQL_FlexibleServer_20221201_CRUD(t *testing.T) {
 	ctx := context.Background()
 	tc := globalTestContext.ForTest(t)
 
-	// location := tc.AzureRegion Capacity crunch in West US 2 makes this not work when live
-	location := "eastus"
+	tc.AzureRegion = to.Ptr("uksouth")
 
 	rg := tc.CreateTestResourceGroupAndWait()
 
@@ -54,7 +54,7 @@ func Test_DBForPostgreSQL_FlexibleServer_20221201_CRUD(t *testing.T) {
 	flexibleServer := &postgresql.FlexibleServer{
 		ObjectMeta: tc.MakeObjectMeta("postgresql"),
 		Spec: postgresql.FlexibleServer_Spec{
-			Location: &location,
+			Location: tc.AzureRegion,
 			Owner:    testcommon.AsOwner(rg),
 			Version:  &version,
 			Sku: &postgresql.Sku{
@@ -127,7 +127,7 @@ func Test_DBForPostgreSQL_FlexibleServer_20221201_CRUD(t *testing.T) {
 func FlexibleServer_Database_20221201_CRUD(tc *testcommon.KubePerTestContext, flexibleServer *postgresql.FlexibleServer) {
 	database := &postgresql.FlexibleServersDatabase{
 		ObjectMeta: tc.MakeObjectMeta("db"),
-		Spec: postgresql.FlexibleServers_Database_Spec{
+		Spec: postgresql.FlexibleServersDatabase_Spec{
 			Owner:   testcommon.AsOwner(flexibleServer),
 			Charset: to.Ptr("utf8"),
 		},
@@ -141,7 +141,7 @@ func FlexibleServer_Database_20221201_CRUD(tc *testcommon.KubePerTestContext, fl
 func FlexibleServer_FirewallRule_20221201_CRUD(tc *testcommon.KubePerTestContext, flexibleServer *postgresql.FlexibleServer) {
 	firewall := &postgresql.FlexibleServersFirewallRule{
 		ObjectMeta: tc.MakeObjectMeta("fwrule"),
-		Spec: postgresql.FlexibleServers_FirewallRule_Spec{
+		Spec: postgresql.FlexibleServersFirewallRule_Spec{
 			Owner: testcommon.AsOwner(flexibleServer),
 			// I think that these rules are allow rules - somebody with this IP can access the server.
 			StartIpAddress: to.Ptr("1.2.3.4"),
@@ -158,7 +158,7 @@ func FlexibleServer_FirewallRule_20221201_CRUD(tc *testcommon.KubePerTestContext
 func FlexibleServer_Configuration_20221201_CRUD(tc *testcommon.KubePerTestContext, flexibleServer *postgresql.FlexibleServer) {
 	configuration := &postgresql.FlexibleServersConfiguration{
 		ObjectMeta: tc.MakeObjectMeta("pgaudit"),
-		Spec: postgresql.FlexibleServers_Configuration_Spec{
+		Spec: postgresql.FlexibleServersConfiguration_Spec{
 			Owner:     testcommon.AsOwner(flexibleServer),
 			AzureName: "pgaudit.log",
 			Source:    to.Ptr("user-override"),
@@ -166,9 +166,11 @@ func FlexibleServer_Configuration_20221201_CRUD(tc *testcommon.KubePerTestContex
 		},
 	}
 
+	// Don't try to delete directly, this is not a real resource - to delete it in Azure you must delete its parent.
+	// We can delete it from the cluster by applying this annotation, but this won't change anything in Azure.
+	tc.AddAnnotation(&configuration.ObjectMeta, "serviceoperator.azure.com/reconcile-policy", "detach-on-delete")
+
 	tc.CreateResourceAndWait(configuration)
-	// This isn't a "real" resource so it cannot be deleted directly
-	// defer tc.DeleteResourceAndWait(configuration)
 
 	tc.Expect(configuration.Status.Id).ToNot(BeNil())
 	tc.Expect(configuration.Status.Value).To(Equal(to.Ptr("READ")))

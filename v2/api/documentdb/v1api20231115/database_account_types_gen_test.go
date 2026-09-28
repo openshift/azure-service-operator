@@ -5,7 +5,8 @@ package v1api20231115
 
 import (
 	"encoding/json"
-	storage "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20231115/storage"
+	v20231115s "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20231115/storage"
+	v20240815s "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20240815/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -20,6 +21,11 @@ import (
 
 func Test_AccountKeyMetadata_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -35,7 +41,7 @@ func RunPropertyAssignmentTestForAccountKeyMetadata_STATUS(subject AccountKeyMet
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.AccountKeyMetadata_STATUS
+	var other v20231115s.AccountKeyMetadata_STATUS
 	err := copied.AssignProperties_To_AccountKeyMetadata_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -62,6 +68,11 @@ func RunPropertyAssignmentTestForAccountKeyMetadata_STATUS(subject AccountKeyMet
 
 func Test_AccountKeyMetadata_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -123,6 +134,11 @@ func AddIndependentPropertyGeneratorsForAccountKeyMetadata_STATUS(gens map[strin
 
 func Test_AnalyticalStorageConfiguration_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -138,7 +154,7 @@ func RunPropertyAssignmentTestForAnalyticalStorageConfiguration(subject Analytic
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.AnalyticalStorageConfiguration
+	var other v20231115s.AnalyticalStorageConfiguration
 	err := copied.AssignProperties_To_AnalyticalStorageConfiguration(&other)
 	if err != nil {
 		return err.Error()
@@ -165,6 +181,11 @@ func RunPropertyAssignmentTestForAnalyticalStorageConfiguration(subject Analytic
 
 func Test_AnalyticalStorageConfiguration_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -226,6 +247,11 @@ func AddIndependentPropertyGeneratorsForAnalyticalStorageConfiguration(gens map[
 
 func Test_AnalyticalStorageConfiguration_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -241,7 +267,7 @@ func RunPropertyAssignmentTestForAnalyticalStorageConfiguration_STATUS(subject A
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.AnalyticalStorageConfiguration_STATUS
+	var other v20231115s.AnalyticalStorageConfiguration_STATUS
 	err := copied.AssignProperties_To_AnalyticalStorageConfiguration_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -268,6 +294,11 @@ func RunPropertyAssignmentTestForAnalyticalStorageConfiguration_STATUS(subject A
 
 func Test_AnalyticalStorageConfiguration_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -329,6 +360,11 @@ func AddIndependentPropertyGeneratorsForAnalyticalStorageConfiguration_STATUS(ge
 
 func Test_ApiProperties_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -344,7 +380,7 @@ func RunPropertyAssignmentTestForApiProperties(subject ApiProperties) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiProperties
+	var other v20231115s.ApiProperties
 	err := copied.AssignProperties_To_ApiProperties(&other)
 	if err != nil {
 		return err.Error()
@@ -371,6 +407,11 @@ func RunPropertyAssignmentTestForApiProperties(subject ApiProperties) string {
 
 func Test_ApiProperties_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -435,6 +476,11 @@ func AddIndependentPropertyGeneratorsForApiProperties(gens map[string]gopter.Gen
 
 func Test_ApiProperties_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -450,7 +496,7 @@ func RunPropertyAssignmentTestForApiProperties_STATUS(subject ApiProperties_STAT
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiProperties_STATUS
+	var other v20231115s.ApiProperties_STATUS
 	err := copied.AssignProperties_To_ApiProperties_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -477,6 +523,11 @@ func RunPropertyAssignmentTestForApiProperties_STATUS(subject ApiProperties_STAT
 
 func Test_ApiProperties_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -542,6 +593,11 @@ func AddIndependentPropertyGeneratorsForApiProperties_STATUS(gens map[string]gop
 
 func Test_BackupPolicy_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -557,7 +613,7 @@ func RunPropertyAssignmentTestForBackupPolicy(subject BackupPolicy) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.BackupPolicy
+	var other v20231115s.BackupPolicy
 	err := copied.AssignProperties_To_BackupPolicy(&other)
 	if err != nil {
 		return err.Error()
@@ -584,6 +640,11 @@ func RunPropertyAssignmentTestForBackupPolicy(subject BackupPolicy) string {
 
 func Test_BackupPolicy_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -636,7 +697,8 @@ func BackupPolicyGenerator() gopter.Gen {
 	// handle OneOf by choosing only one field to instantiate
 	var gens []gopter.Gen
 	for propName, propGen := range generators {
-		gens = append(gens, gen.Struct(reflect.TypeOf(BackupPolicy{}), map[string]gopter.Gen{propName: propGen}))
+		props := map[string]gopter.Gen{propName: propGen}
+		gens = append(gens, gen.Struct(reflect.TypeOf(BackupPolicy{}), props))
 	}
 	backupPolicyGenerator = gen.OneGenOf(gens...)
 
@@ -655,6 +717,11 @@ func AddRelatedPropertyGeneratorsForBackupPolicy(gens map[string]gopter.Gen) {
 
 func Test_BackupPolicyMigrationState_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -670,7 +737,7 @@ func RunPropertyAssignmentTestForBackupPolicyMigrationState(subject BackupPolicy
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.BackupPolicyMigrationState
+	var other v20231115s.BackupPolicyMigrationState
 	err := copied.AssignProperties_To_BackupPolicyMigrationState(&other)
 	if err != nil {
 		return err.Error()
@@ -697,6 +764,11 @@ func RunPropertyAssignmentTestForBackupPolicyMigrationState(subject BackupPolicy
 
 func Test_BackupPolicyMigrationState_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -764,6 +836,11 @@ func AddIndependentPropertyGeneratorsForBackupPolicyMigrationState(gens map[stri
 
 func Test_BackupPolicyMigrationState_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -779,7 +856,7 @@ func RunPropertyAssignmentTestForBackupPolicyMigrationState_STATUS(subject Backu
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.BackupPolicyMigrationState_STATUS
+	var other v20231115s.BackupPolicyMigrationState_STATUS
 	err := copied.AssignProperties_To_BackupPolicyMigrationState_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -806,6 +883,11 @@ func RunPropertyAssignmentTestForBackupPolicyMigrationState_STATUS(subject Backu
 
 func Test_BackupPolicyMigrationState_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -873,6 +955,11 @@ func AddIndependentPropertyGeneratorsForBackupPolicyMigrationState_STATUS(gens m
 
 func Test_BackupPolicy_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -888,7 +975,7 @@ func RunPropertyAssignmentTestForBackupPolicy_STATUS(subject BackupPolicy_STATUS
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.BackupPolicy_STATUS
+	var other v20231115s.BackupPolicy_STATUS
 	err := copied.AssignProperties_To_BackupPolicy_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -915,6 +1002,11 @@ func RunPropertyAssignmentTestForBackupPolicy_STATUS(subject BackupPolicy_STATUS
 
 func Test_BackupPolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -968,7 +1060,8 @@ func BackupPolicy_STATUSGenerator() gopter.Gen {
 	// handle OneOf by choosing only one field to instantiate
 	var gens []gopter.Gen
 	for propName, propGen := range generators {
-		gens = append(gens, gen.Struct(reflect.TypeOf(BackupPolicy_STATUS{}), map[string]gopter.Gen{propName: propGen}))
+		props := map[string]gopter.Gen{propName: propGen}
+		gens = append(gens, gen.Struct(reflect.TypeOf(BackupPolicy_STATUS{}), props))
 	}
 	backupPolicy_STATUSGenerator = gen.OneGenOf(gens...)
 
@@ -987,6 +1080,11 @@ func AddRelatedPropertyGeneratorsForBackupPolicy_STATUS(gens map[string]gopter.G
 
 func Test_Capability_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1002,7 +1100,7 @@ func RunPropertyAssignmentTestForCapability(subject Capability) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Capability
+	var other v20231115s.Capability
 	err := copied.AssignProperties_To_Capability(&other)
 	if err != nil {
 		return err.Error()
@@ -1029,6 +1127,11 @@ func RunPropertyAssignmentTestForCapability(subject Capability) string {
 
 func Test_Capability_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1089,6 +1192,11 @@ func AddIndependentPropertyGeneratorsForCapability(gens map[string]gopter.Gen) {
 
 func Test_Capability_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1104,7 +1212,7 @@ func RunPropertyAssignmentTestForCapability_STATUS(subject Capability_STATUS) st
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Capability_STATUS
+	var other v20231115s.Capability_STATUS
 	err := copied.AssignProperties_To_Capability_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1131,6 +1239,11 @@ func RunPropertyAssignmentTestForCapability_STATUS(subject Capability_STATUS) st
 
 func Test_Capability_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1191,6 +1304,11 @@ func AddIndependentPropertyGeneratorsForCapability_STATUS(gens map[string]gopter
 
 func Test_Capacity_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1206,7 +1324,7 @@ func RunPropertyAssignmentTestForCapacity(subject Capacity) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Capacity
+	var other v20231115s.Capacity
 	err := copied.AssignProperties_To_Capacity(&other)
 	if err != nil {
 		return err.Error()
@@ -1233,6 +1351,11 @@ func RunPropertyAssignmentTestForCapacity(subject Capacity) string {
 
 func Test_Capacity_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1293,6 +1416,11 @@ func AddIndependentPropertyGeneratorsForCapacity(gens map[string]gopter.Gen) {
 
 func Test_Capacity_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1308,7 +1436,7 @@ func RunPropertyAssignmentTestForCapacity_STATUS(subject Capacity_STATUS) string
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Capacity_STATUS
+	var other v20231115s.Capacity_STATUS
 	err := copied.AssignProperties_To_Capacity_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1335,6 +1463,11 @@ func RunPropertyAssignmentTestForCapacity_STATUS(subject Capacity_STATUS) string
 
 func Test_Capacity_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1395,6 +1528,11 @@ func AddIndependentPropertyGeneratorsForCapacity_STATUS(gens map[string]gopter.G
 
 func Test_ConsistencyPolicy_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1410,7 +1548,7 @@ func RunPropertyAssignmentTestForConsistencyPolicy(subject ConsistencyPolicy) st
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ConsistencyPolicy
+	var other v20231115s.ConsistencyPolicy
 	err := copied.AssignProperties_To_ConsistencyPolicy(&other)
 	if err != nil {
 		return err.Error()
@@ -1437,6 +1575,11 @@ func RunPropertyAssignmentTestForConsistencyPolicy(subject ConsistencyPolicy) st
 
 func Test_ConsistencyPolicy_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1504,6 +1647,11 @@ func AddIndependentPropertyGeneratorsForConsistencyPolicy(gens map[string]gopter
 
 func Test_ConsistencyPolicy_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1519,7 +1667,7 @@ func RunPropertyAssignmentTestForConsistencyPolicy_STATUS(subject ConsistencyPol
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ConsistencyPolicy_STATUS
+	var other v20231115s.ConsistencyPolicy_STATUS
 	err := copied.AssignProperties_To_ConsistencyPolicy_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1546,6 +1694,11 @@ func RunPropertyAssignmentTestForConsistencyPolicy_STATUS(subject ConsistencyPol
 
 func Test_ConsistencyPolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1614,6 +1767,11 @@ func AddIndependentPropertyGeneratorsForConsistencyPolicy_STATUS(gens map[string
 
 func Test_ContinuousModeBackupPolicy_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1629,7 +1787,7 @@ func RunPropertyAssignmentTestForContinuousModeBackupPolicy(subject ContinuousMo
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ContinuousModeBackupPolicy
+	var other v20231115s.ContinuousModeBackupPolicy
 	err := copied.AssignProperties_To_ContinuousModeBackupPolicy(&other)
 	if err != nil {
 		return err.Error()
@@ -1656,6 +1814,11 @@ func RunPropertyAssignmentTestForContinuousModeBackupPolicy(subject ContinuousMo
 
 func Test_ContinuousModeBackupPolicy_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1732,6 +1895,11 @@ func AddRelatedPropertyGeneratorsForContinuousModeBackupPolicy(gens map[string]g
 
 func Test_ContinuousModeBackupPolicy_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1747,7 +1915,7 @@ func RunPropertyAssignmentTestForContinuousModeBackupPolicy_STATUS(subject Conti
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ContinuousModeBackupPolicy_STATUS
+	var other v20231115s.ContinuousModeBackupPolicy_STATUS
 	err := copied.AssignProperties_To_ContinuousModeBackupPolicy_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1774,6 +1942,11 @@ func RunPropertyAssignmentTestForContinuousModeBackupPolicy_STATUS(subject Conti
 
 func Test_ContinuousModeBackupPolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1850,6 +2023,11 @@ func AddRelatedPropertyGeneratorsForContinuousModeBackupPolicy_STATUS(gens map[s
 
 func Test_ContinuousModeProperties_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1865,7 +2043,7 @@ func RunPropertyAssignmentTestForContinuousModeProperties(subject ContinuousMode
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ContinuousModeProperties
+	var other v20231115s.ContinuousModeProperties
 	err := copied.AssignProperties_To_ContinuousModeProperties(&other)
 	if err != nil {
 		return err.Error()
@@ -1892,6 +2070,11 @@ func RunPropertyAssignmentTestForContinuousModeProperties(subject ContinuousMode
 
 func Test_ContinuousModeProperties_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1953,6 +2136,11 @@ func AddIndependentPropertyGeneratorsForContinuousModeProperties(gens map[string
 
 func Test_ContinuousModeProperties_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1968,7 +2156,7 @@ func RunPropertyAssignmentTestForContinuousModeProperties_STATUS(subject Continu
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ContinuousModeProperties_STATUS
+	var other v20231115s.ContinuousModeProperties_STATUS
 	err := copied.AssignProperties_To_ContinuousModeProperties_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1995,6 +2183,11 @@ func RunPropertyAssignmentTestForContinuousModeProperties_STATUS(subject Continu
 
 func Test_ContinuousModeProperties_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -2056,6 +2249,11 @@ func AddIndependentPropertyGeneratorsForContinuousModeProperties_STATUS(gens map
 
 func Test_CorsPolicy_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2071,7 +2269,7 @@ func RunPropertyAssignmentTestForCorsPolicy(subject CorsPolicy) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.CorsPolicy
+	var other v20231115s.CorsPolicy
 	err := copied.AssignProperties_To_CorsPolicy(&other)
 	if err != nil {
 		return err.Error()
@@ -2098,6 +2296,11 @@ func RunPropertyAssignmentTestForCorsPolicy(subject CorsPolicy) string {
 
 func Test_CorsPolicy_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -2162,6 +2365,11 @@ func AddIndependentPropertyGeneratorsForCorsPolicy(gens map[string]gopter.Gen) {
 
 func Test_CorsPolicy_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2177,7 +2385,7 @@ func RunPropertyAssignmentTestForCorsPolicy_STATUS(subject CorsPolicy_STATUS) st
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.CorsPolicy_STATUS
+	var other v20231115s.CorsPolicy_STATUS
 	err := copied.AssignProperties_To_CorsPolicy_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -2204,6 +2412,11 @@ func RunPropertyAssignmentTestForCorsPolicy_STATUS(subject CorsPolicy_STATUS) st
 
 func Test_CorsPolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -2268,6 +2481,11 @@ func AddIndependentPropertyGeneratorsForCorsPolicy_STATUS(gens map[string]gopter
 
 func Test_DatabaseAccount_WhenConvertedToHub_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	parameters.MinSuccessfulTests = 10
@@ -2284,7 +2502,7 @@ func RunResourceConversionTestForDatabaseAccount(subject DatabaseAccount) string
 	copied := subject.DeepCopy()
 
 	// Convert to our hub version
-	var hub storage.DatabaseAccount
+	var hub v20240815s.DatabaseAccount
 	err := copied.ConvertTo(&hub)
 	if err != nil {
 		return err.Error()
@@ -2311,6 +2529,11 @@ func RunResourceConversionTestForDatabaseAccount(subject DatabaseAccount) string
 
 func Test_DatabaseAccount_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2326,7 +2549,7 @@ func RunPropertyAssignmentTestForDatabaseAccount(subject DatabaseAccount) string
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DatabaseAccount
+	var other v20231115s.DatabaseAccount
 	err := copied.AssignProperties_To_DatabaseAccount(&other)
 	if err != nil {
 		return err.Error()
@@ -2353,6 +2576,11 @@ func RunPropertyAssignmentTestForDatabaseAccount(subject DatabaseAccount) string
 
 func Test_DatabaseAccount_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -2414,6 +2642,11 @@ func AddRelatedPropertyGeneratorsForDatabaseAccount(gens map[string]gopter.Gen) 
 
 func Test_DatabaseAccountKeysMetadata_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2429,7 +2662,7 @@ func RunPropertyAssignmentTestForDatabaseAccountKeysMetadata_STATUS(subject Data
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DatabaseAccountKeysMetadata_STATUS
+	var other v20231115s.DatabaseAccountKeysMetadata_STATUS
 	err := copied.AssignProperties_To_DatabaseAccountKeysMetadata_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -2456,6 +2689,11 @@ func RunPropertyAssignmentTestForDatabaseAccountKeysMetadata_STATUS(subject Data
 
 func Test_DatabaseAccountKeysMetadata_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -2520,6 +2758,11 @@ func AddRelatedPropertyGeneratorsForDatabaseAccountKeysMetadata_STATUS(gens map[
 
 func Test_DatabaseAccountOperatorSecrets_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2535,7 +2778,7 @@ func RunPropertyAssignmentTestForDatabaseAccountOperatorSecrets(subject Database
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DatabaseAccountOperatorSecrets
+	var other v20231115s.DatabaseAccountOperatorSecrets
 	err := copied.AssignProperties_To_DatabaseAccountOperatorSecrets(&other)
 	if err != nil {
 		return err.Error()
@@ -2562,6 +2805,11 @@ func RunPropertyAssignmentTestForDatabaseAccountOperatorSecrets(subject Database
 
 func Test_DatabaseAccountOperatorSecrets_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -2617,6 +2865,11 @@ func DatabaseAccountOperatorSecretsGenerator() gopter.Gen {
 
 func Test_DatabaseAccountOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2632,7 +2885,7 @@ func RunPropertyAssignmentTestForDatabaseAccountOperatorSpec(subject DatabaseAcc
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DatabaseAccountOperatorSpec
+	var other v20231115s.DatabaseAccountOperatorSpec
 	err := copied.AssignProperties_To_DatabaseAccountOperatorSpec(&other)
 	if err != nil {
 		return err.Error()
@@ -2659,6 +2912,11 @@ func RunPropertyAssignmentTestForDatabaseAccountOperatorSpec(subject DatabaseAcc
 
 func Test_DatabaseAccountOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -2720,6 +2978,11 @@ func AddRelatedPropertyGeneratorsForDatabaseAccountOperatorSpec(gens map[string]
 
 func Test_DatabaseAccount_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2735,7 +2998,7 @@ func RunPropertyAssignmentTestForDatabaseAccount_STATUS(subject DatabaseAccount_
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DatabaseAccount_STATUS
+	var other v20231115s.DatabaseAccount_STATUS
 	err := copied.AssignProperties_To_DatabaseAccount_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -2762,6 +3025,11 @@ func RunPropertyAssignmentTestForDatabaseAccount_STATUS(subject DatabaseAccount_
 
 func Test_DatabaseAccount_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -2884,6 +3152,11 @@ func AddRelatedPropertyGeneratorsForDatabaseAccount_STATUS(gens map[string]gopte
 
 func Test_DatabaseAccount_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2899,7 +3172,7 @@ func RunPropertyAssignmentTestForDatabaseAccount_Spec(subject DatabaseAccount_Sp
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DatabaseAccount_Spec
+	var other v20231115s.DatabaseAccount_Spec
 	err := copied.AssignProperties_To_DatabaseAccount_Spec(&other)
 	if err != nil {
 		return err.Error()
@@ -2926,6 +3199,11 @@ func RunPropertyAssignmentTestForDatabaseAccount_Spec(subject DatabaseAccount_Sp
 
 func Test_DatabaseAccount_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -2994,7 +3272,6 @@ func AddIndependentPropertyGeneratorsForDatabaseAccount_Spec(gens map[string]gop
 	gens["AzureName"] = gen.AlphaString()
 	gens["ConnectorOffer"] = gen.PtrOf(gen.OneConstOf(ConnectorOffer_Small))
 	gens["CreateMode"] = gen.PtrOf(gen.OneConstOf(CreateMode_Default, CreateMode_Restore))
-	gens["CustomerManagedKeyStatus"] = gen.PtrOf(gen.AlphaString())
 	gens["DatabaseAccountOfferType"] = gen.PtrOf(gen.OneConstOf(DatabaseAccountOfferType_Standard))
 	gens["DefaultIdentity"] = gen.PtrOf(gen.AlphaString())
 	gens["DisableKeyBasedMetadataWriteAccess"] = gen.PtrOf(gen.Bool())
@@ -3037,6 +3314,11 @@ func AddRelatedPropertyGeneratorsForDatabaseAccount_Spec(gens map[string]gopter.
 
 func Test_DatabaseRestoreResource_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3052,7 +3334,7 @@ func RunPropertyAssignmentTestForDatabaseRestoreResource(subject DatabaseRestore
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DatabaseRestoreResource
+	var other v20231115s.DatabaseRestoreResource
 	err := copied.AssignProperties_To_DatabaseRestoreResource(&other)
 	if err != nil {
 		return err.Error()
@@ -3079,6 +3361,11 @@ func RunPropertyAssignmentTestForDatabaseRestoreResource(subject DatabaseRestore
 
 func Test_DatabaseRestoreResource_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -3141,6 +3428,11 @@ func AddIndependentPropertyGeneratorsForDatabaseRestoreResource(gens map[string]
 
 func Test_DatabaseRestoreResource_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3156,7 +3448,7 @@ func RunPropertyAssignmentTestForDatabaseRestoreResource_STATUS(subject Database
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.DatabaseRestoreResource_STATUS
+	var other v20231115s.DatabaseRestoreResource_STATUS
 	err := copied.AssignProperties_To_DatabaseRestoreResource_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -3183,6 +3475,11 @@ func RunPropertyAssignmentTestForDatabaseRestoreResource_STATUS(subject Database
 
 func Test_DatabaseRestoreResource_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -3245,6 +3542,11 @@ func AddIndependentPropertyGeneratorsForDatabaseRestoreResource_STATUS(gens map[
 
 func Test_FailoverPolicy_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3260,7 +3562,7 @@ func RunPropertyAssignmentTestForFailoverPolicy_STATUS(subject FailoverPolicy_ST
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.FailoverPolicy_STATUS
+	var other v20231115s.FailoverPolicy_STATUS
 	err := copied.AssignProperties_To_FailoverPolicy_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -3287,6 +3589,11 @@ func RunPropertyAssignmentTestForFailoverPolicy_STATUS(subject FailoverPolicy_ST
 
 func Test_FailoverPolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -3350,6 +3657,11 @@ func AddIndependentPropertyGeneratorsForFailoverPolicy_STATUS(gens map[string]go
 
 func Test_GremlinDatabaseRestoreResource_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3365,7 +3677,7 @@ func RunPropertyAssignmentTestForGremlinDatabaseRestoreResource(subject GremlinD
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.GremlinDatabaseRestoreResource
+	var other v20231115s.GremlinDatabaseRestoreResource
 	err := copied.AssignProperties_To_GremlinDatabaseRestoreResource(&other)
 	if err != nil {
 		return err.Error()
@@ -3392,6 +3704,11 @@ func RunPropertyAssignmentTestForGremlinDatabaseRestoreResource(subject GremlinD
 
 func Test_GremlinDatabaseRestoreResource_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -3454,6 +3771,11 @@ func AddIndependentPropertyGeneratorsForGremlinDatabaseRestoreResource(gens map[
 
 func Test_GremlinDatabaseRestoreResource_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3469,7 +3791,7 @@ func RunPropertyAssignmentTestForGremlinDatabaseRestoreResource_STATUS(subject G
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.GremlinDatabaseRestoreResource_STATUS
+	var other v20231115s.GremlinDatabaseRestoreResource_STATUS
 	err := copied.AssignProperties_To_GremlinDatabaseRestoreResource_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -3496,6 +3818,11 @@ func RunPropertyAssignmentTestForGremlinDatabaseRestoreResource_STATUS(subject G
 
 func Test_GremlinDatabaseRestoreResource_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -3558,6 +3885,11 @@ func AddIndependentPropertyGeneratorsForGremlinDatabaseRestoreResource_STATUS(ge
 
 func Test_IpAddressOrRange_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3573,7 +3905,7 @@ func RunPropertyAssignmentTestForIpAddressOrRange(subject IpAddressOrRange) stri
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.IpAddressOrRange
+	var other v20231115s.IpAddressOrRange
 	err := copied.AssignProperties_To_IpAddressOrRange(&other)
 	if err != nil {
 		return err.Error()
@@ -3600,6 +3932,11 @@ func RunPropertyAssignmentTestForIpAddressOrRange(subject IpAddressOrRange) stri
 
 func Test_IpAddressOrRange_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -3660,6 +3997,11 @@ func AddIndependentPropertyGeneratorsForIpAddressOrRange(gens map[string]gopter.
 
 func Test_IpAddressOrRange_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3675,7 +4017,7 @@ func RunPropertyAssignmentTestForIpAddressOrRange_STATUS(subject IpAddressOrRang
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.IpAddressOrRange_STATUS
+	var other v20231115s.IpAddressOrRange_STATUS
 	err := copied.AssignProperties_To_IpAddressOrRange_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -3702,6 +4044,11 @@ func RunPropertyAssignmentTestForIpAddressOrRange_STATUS(subject IpAddressOrRang
 
 func Test_IpAddressOrRange_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -3763,6 +4110,11 @@ func AddIndependentPropertyGeneratorsForIpAddressOrRange_STATUS(gens map[string]
 
 func Test_Location_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3778,7 +4130,7 @@ func RunPropertyAssignmentTestForLocation(subject Location) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Location
+	var other v20231115s.Location
 	err := copied.AssignProperties_To_Location(&other)
 	if err != nil {
 		return err.Error()
@@ -3805,6 +4157,11 @@ func RunPropertyAssignmentTestForLocation(subject Location) string {
 
 func Test_Location_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -3867,6 +4224,11 @@ func AddIndependentPropertyGeneratorsForLocation(gens map[string]gopter.Gen) {
 
 func Test_Location_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3882,7 +4244,7 @@ func RunPropertyAssignmentTestForLocation_STATUS(subject Location_STATUS) string
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Location_STATUS
+	var other v20231115s.Location_STATUS
 	err := copied.AssignProperties_To_Location_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -3909,6 +4271,11 @@ func RunPropertyAssignmentTestForLocation_STATUS(subject Location_STATUS) string
 
 func Test_Location_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -3974,6 +4341,11 @@ func AddIndependentPropertyGeneratorsForLocation_STATUS(gens map[string]gopter.G
 
 func Test_ManagedServiceIdentity_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -3989,7 +4361,7 @@ func RunPropertyAssignmentTestForManagedServiceIdentity(subject ManagedServiceId
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagedServiceIdentity
+	var other v20231115s.ManagedServiceIdentity
 	err := copied.AssignProperties_To_ManagedServiceIdentity(&other)
 	if err != nil {
 		return err.Error()
@@ -4016,6 +4388,11 @@ func RunPropertyAssignmentTestForManagedServiceIdentity(subject ManagedServiceId
 
 func Test_ManagedServiceIdentity_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -4095,6 +4472,11 @@ func AddRelatedPropertyGeneratorsForManagedServiceIdentity(gens map[string]gopte
 
 func Test_ManagedServiceIdentity_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -4110,7 +4492,7 @@ func RunPropertyAssignmentTestForManagedServiceIdentity_STATUS(subject ManagedSe
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagedServiceIdentity_STATUS
+	var other v20231115s.ManagedServiceIdentity_STATUS
 	err := copied.AssignProperties_To_ManagedServiceIdentity_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -4137,6 +4519,11 @@ func RunPropertyAssignmentTestForManagedServiceIdentity_STATUS(subject ManagedSe
 
 func Test_ManagedServiceIdentity_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -4220,6 +4607,11 @@ func AddRelatedPropertyGeneratorsForManagedServiceIdentity_STATUS(gens map[strin
 
 func Test_ManagedServiceIdentity_UserAssignedIdentities_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -4235,7 +4627,7 @@ func RunPropertyAssignmentTestForManagedServiceIdentity_UserAssignedIdentities_S
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ManagedServiceIdentity_UserAssignedIdentities_STATUS
+	var other v20231115s.ManagedServiceIdentity_UserAssignedIdentities_STATUS
 	err := copied.AssignProperties_To_ManagedServiceIdentity_UserAssignedIdentities_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -4262,6 +4654,11 @@ func RunPropertyAssignmentTestForManagedServiceIdentity_UserAssignedIdentities_S
 
 func Test_ManagedServiceIdentity_UserAssignedIdentities_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -4324,6 +4721,11 @@ func AddIndependentPropertyGeneratorsForManagedServiceIdentity_UserAssignedIdent
 
 func Test_PeriodicModeBackupPolicy_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -4339,7 +4741,7 @@ func RunPropertyAssignmentTestForPeriodicModeBackupPolicy(subject PeriodicModeBa
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PeriodicModeBackupPolicy
+	var other v20231115s.PeriodicModeBackupPolicy
 	err := copied.AssignProperties_To_PeriodicModeBackupPolicy(&other)
 	if err != nil {
 		return err.Error()
@@ -4366,6 +4768,11 @@ func RunPropertyAssignmentTestForPeriodicModeBackupPolicy(subject PeriodicModeBa
 
 func Test_PeriodicModeBackupPolicy_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -4442,6 +4849,11 @@ func AddRelatedPropertyGeneratorsForPeriodicModeBackupPolicy(gens map[string]gop
 
 func Test_PeriodicModeBackupPolicy_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -4457,7 +4869,7 @@ func RunPropertyAssignmentTestForPeriodicModeBackupPolicy_STATUS(subject Periodi
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PeriodicModeBackupPolicy_STATUS
+	var other v20231115s.PeriodicModeBackupPolicy_STATUS
 	err := copied.AssignProperties_To_PeriodicModeBackupPolicy_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -4484,6 +4896,11 @@ func RunPropertyAssignmentTestForPeriodicModeBackupPolicy_STATUS(subject Periodi
 
 func Test_PeriodicModeBackupPolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -4560,6 +4977,11 @@ func AddRelatedPropertyGeneratorsForPeriodicModeBackupPolicy_STATUS(gens map[str
 
 func Test_PeriodicModeProperties_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -4575,7 +4997,7 @@ func RunPropertyAssignmentTestForPeriodicModeProperties(subject PeriodicModeProp
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PeriodicModeProperties
+	var other v20231115s.PeriodicModeProperties
 	err := copied.AssignProperties_To_PeriodicModeProperties(&other)
 	if err != nil {
 		return err.Error()
@@ -4602,6 +5024,11 @@ func RunPropertyAssignmentTestForPeriodicModeProperties(subject PeriodicModeProp
 
 func Test_PeriodicModeProperties_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -4665,6 +5092,11 @@ func AddIndependentPropertyGeneratorsForPeriodicModeProperties(gens map[string]g
 
 func Test_PeriodicModeProperties_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -4680,7 +5112,7 @@ func RunPropertyAssignmentTestForPeriodicModeProperties_STATUS(subject PeriodicM
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PeriodicModeProperties_STATUS
+	var other v20231115s.PeriodicModeProperties_STATUS
 	err := copied.AssignProperties_To_PeriodicModeProperties_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -4707,6 +5139,11 @@ func RunPropertyAssignmentTestForPeriodicModeProperties_STATUS(subject PeriodicM
 
 func Test_PeriodicModeProperties_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -4770,6 +5207,11 @@ func AddIndependentPropertyGeneratorsForPeriodicModeProperties_STATUS(gens map[s
 
 func Test_PrivateEndpointConnection_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -4785,7 +5227,7 @@ func RunPropertyAssignmentTestForPrivateEndpointConnection_STATUS(subject Privat
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateEndpointConnection_STATUS
+	var other v20231115s.PrivateEndpointConnection_STATUS
 	err := copied.AssignProperties_To_PrivateEndpointConnection_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -4812,6 +5254,11 @@ func RunPropertyAssignmentTestForPrivateEndpointConnection_STATUS(subject Privat
 
 func Test_PrivateEndpointConnection_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -4873,6 +5320,11 @@ func AddIndependentPropertyGeneratorsForPrivateEndpointConnection_STATUS(gens ma
 
 func Test_RestoreParameters_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -4888,7 +5340,7 @@ func RunPropertyAssignmentTestForRestoreParameters(subject RestoreParameters) st
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.RestoreParameters
+	var other v20231115s.RestoreParameters
 	err := copied.AssignProperties_To_RestoreParameters(&other)
 	if err != nil {
 		return err.Error()
@@ -4915,6 +5367,11 @@ func RunPropertyAssignmentTestForRestoreParameters(subject RestoreParameters) st
 
 func Test_RestoreParameters_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -4993,6 +5450,11 @@ func AddRelatedPropertyGeneratorsForRestoreParameters(gens map[string]gopter.Gen
 
 func Test_RestoreParameters_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -5008,7 +5470,7 @@ func RunPropertyAssignmentTestForRestoreParameters_STATUS(subject RestoreParamet
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.RestoreParameters_STATUS
+	var other v20231115s.RestoreParameters_STATUS
 	err := copied.AssignProperties_To_RestoreParameters_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -5035,6 +5497,11 @@ func RunPropertyAssignmentTestForRestoreParameters_STATUS(subject RestoreParamet
 
 func Test_RestoreParameters_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -5114,6 +5581,11 @@ func AddRelatedPropertyGeneratorsForRestoreParameters_STATUS(gens map[string]gop
 
 func Test_SystemData_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -5129,7 +5601,7 @@ func RunPropertyAssignmentTestForSystemData_STATUS(subject SystemData_STATUS) st
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.SystemData_STATUS
+	var other v20231115s.SystemData_STATUS
 	err := copied.AssignProperties_To_SystemData_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -5156,6 +5628,11 @@ func RunPropertyAssignmentTestForSystemData_STATUS(subject SystemData_STATUS) st
 
 func Test_SystemData_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -5229,6 +5706,11 @@ func AddIndependentPropertyGeneratorsForSystemData_STATUS(gens map[string]gopter
 
 func Test_UserAssignedIdentityDetails_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -5244,7 +5726,7 @@ func RunPropertyAssignmentTestForUserAssignedIdentityDetails(subject UserAssigne
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.UserAssignedIdentityDetails
+	var other v20231115s.UserAssignedIdentityDetails
 	err := copied.AssignProperties_To_UserAssignedIdentityDetails(&other)
 	if err != nil {
 		return err.Error()
@@ -5271,6 +5753,11 @@ func RunPropertyAssignmentTestForUserAssignedIdentityDetails(subject UserAssigne
 
 func Test_UserAssignedIdentityDetails_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -5326,6 +5813,11 @@ func UserAssignedIdentityDetailsGenerator() gopter.Gen {
 
 func Test_VirtualNetworkRule_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -5341,7 +5833,7 @@ func RunPropertyAssignmentTestForVirtualNetworkRule(subject VirtualNetworkRule) 
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.VirtualNetworkRule
+	var other v20231115s.VirtualNetworkRule
 	err := copied.AssignProperties_To_VirtualNetworkRule(&other)
 	if err != nil {
 		return err.Error()
@@ -5368,6 +5860,11 @@ func RunPropertyAssignmentTestForVirtualNetworkRule(subject VirtualNetworkRule) 
 
 func Test_VirtualNetworkRule_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -5428,6 +5925,11 @@ func AddIndependentPropertyGeneratorsForVirtualNetworkRule(gens map[string]gopte
 
 func Test_VirtualNetworkRule_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -5443,7 +5945,7 @@ func RunPropertyAssignmentTestForVirtualNetworkRule_STATUS(subject VirtualNetwor
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.VirtualNetworkRule_STATUS
+	var other v20231115s.VirtualNetworkRule_STATUS
 	err := copied.AssignProperties_To_VirtualNetworkRule_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -5470,6 +5972,11 @@ func RunPropertyAssignmentTestForVirtualNetworkRule_STATUS(subject VirtualNetwor
 
 func Test_VirtualNetworkRule_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3

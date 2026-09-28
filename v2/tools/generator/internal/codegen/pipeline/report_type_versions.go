@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -26,15 +26,17 @@ const ReportOnTypesAndVersionsStageID = "reportTypesAndVersions"
 // ReportOnTypesAndVersions creates a pipeline stage that generates a report for each group showing a matrix of all
 // types and versions
 func ReportOnTypesAndVersions(configuration *config.Configuration) *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		ReportOnTypesAndVersionsStageID,
 		"Generate reports on types and versions in each package",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			definitions := state.Definitions()
 			report := NewPackagesMatrixReport()
 			report.Summarize(definitions)
 			err := report.WriteTo(configuration.FullTypesOutputPath())
-			return definitions, err
-		})
+			return state, err
+		},
+	)
 }
 
 type PackagesMatrixReport struct {
@@ -95,7 +97,7 @@ func (report *PackagesMatrixReport) WriteTableTo(table *reporting.SparseTable, p
 	if _, err := os.Stat(outputFolder); os.IsNotExist(err) {
 		err = os.MkdirAll(outputFolder, 0o700)
 		if err != nil {
-			return errors.Wrapf(err, "Unable to create directory %q", outputFolder)
+			return eris.Wrapf(err, "Unable to create directory %q", outputFolder)
 		}
 	}
 

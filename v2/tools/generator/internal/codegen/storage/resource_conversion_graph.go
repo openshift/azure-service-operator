@@ -9,12 +9,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Azure/azure-service-operator/v2/internal/set"
-
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
@@ -59,13 +58,13 @@ func (graph *ResourceConversionGraph) WriteTo(writer io.Writer) error {
 	// API versions can be identified because they are only ever the start of a link (never the end)
 	// This initial list will have too many items in it, but we'll reduce it down later
 	for from := range graph.links {
-		ver := from.InternalPackageReference().ImportAlias(astmodel.VersionOnly)
+		ver := from.InternalPackageReference().ImportAlias(astmodel.GroupAndFullVersion)
 		apiVersions.Add(ver)
 	}
 
 	// Everything else is a storage version
 	for _, to := range graph.links {
-		ver := to.InternalPackageReference().ImportAlias(astmodel.VersionOnly)
+		ver := to.InternalPackageReference().ImportAlias(astmodel.GroupAndFullVersion)
 		storageVersions.Add(ver)
 		apiVersions.Remove(ver)
 	}
@@ -83,12 +82,12 @@ func (graph *ResourceConversionGraph) WriteTo(writer io.Writer) error {
 		"        node [shape=ellipse, style=dashed, penwidth=1, rankType=min, group=storage];",
 	)
 	if err != nil {
-		return errors.Wrapf(err, "writing graph header")
+		return eris.Wrapf(err, "writing graph header")
 	}
 
 	err = graph.WriteVersions(writer, apiVersions)
 	if err != nil {
-		return errors.Wrapf(err, "writing graph apiversions")
+		return eris.Wrapf(err, "writing graph apiversions")
 	}
 
 	err = graph.WriteLines(
@@ -100,12 +99,12 @@ func (graph *ResourceConversionGraph) WriteTo(writer io.Writer) error {
 		"        node [shape=ellipse, style=dashed, penwidth=1, rankType=min, group=storage];",
 	)
 	if err != nil {
-		return errors.Wrapf(err, "writing graph midsection")
+		return eris.Wrapf(err, "writing graph midsection")
 	}
 
 	err = graph.WriteVersions(writer, storageVersions)
 	if err != nil {
-		return errors.Wrapf(err, "writing graph storageversions")
+		return eris.Wrapf(err, "writing graph storageversions")
 	}
 
 	err = graph.WriteLines(
@@ -115,12 +114,12 @@ func (graph *ResourceConversionGraph) WriteTo(writer io.Writer) error {
 		"    edge [arrowhead=vee, arrowtail=vee, dir=forward];",
 	)
 	if err != nil {
-		return errors.Wrapf(err, "writing graph endsection")
+		return eris.Wrapf(err, "writing graph endsection")
 	}
 
 	err = graph.writeLinks(writer, linkStarts)
 	if err != nil {
-		return errors.Wrapf(err, "writing graph links")
+		return eris.Wrapf(err, "writing graph links")
 	}
 
 	err = graph.WriteLines(
@@ -128,7 +127,7 @@ func (graph *ResourceConversionGraph) WriteTo(writer io.Writer) error {
 		"}",
 	)
 	if err != nil {
-		return errors.Wrapf(err, "writing graph end")
+		return eris.Wrapf(err, "writing graph end")
 	}
 
 	return nil
@@ -139,8 +138,8 @@ func (graph *ResourceConversionGraph) writeLinks(writer io.Writer, linkStarts []
 	for _, from := range linkStarts {
 		to := graph.links[from]
 
-		f := from.InternalPackageReference().ImportAlias(astmodel.VersionOnly)
-		t := to.InternalPackageReference().ImportAlias(astmodel.VersionOnly)
+		f := from.InternalPackageReference().ImportAlias(astmodel.GroupAndFullVersion)
+		t := to.InternalPackageReference().ImportAlias(astmodel.GroupAndFullVersion)
 
 		line := fmt.Sprintf("    %s -- %s", f, t)
 		lines = append(lines, line)
@@ -153,7 +152,7 @@ func (graph *ResourceConversionGraph) WriteLines(writer io.Writer, lines ...stri
 	for _, line := range lines {
 		_, err := io.WriteString(writer, line+"\n")
 		if err != nil {
-			return errors.Wrapf(err, "writing %q to writer", line)
+			return eris.Wrapf(err, "writing %q to writer", line)
 		}
 	}
 

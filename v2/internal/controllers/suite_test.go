@@ -15,6 +15,7 @@ import (
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 
+	authcustomizations "github.com/Azure/azure-service-operator/v2/api/authorization/customizations"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 )
 
@@ -42,24 +43,32 @@ func setup() error {
 
 	// If you need to debug envtest setup/teardown,
 	// set a global logger for controller-runtime:
+	//
 	// import (ctrl "sigs.k8s.io/controller-runtime")
-	// ctrl.SetLogger(klogr.New())
+	// cfg := textlogger.NewConfig(textlogger.Verbosity(Debug)) // Use verbose logging in tests
+	// log := textlogger.NewLogger(cfg)
+	// ctrl.SetLogger(log)
 
 	nameConfig := testcommon.NewResourceNameConfig(
 		testcommon.ResourcePrefix,
 		"-",
 		6,
-		testcommon.ResourceNamerModeRandomBasedOnTestName)
+		testcommon.ResourceNamerModeRandomBasedOnTestName,
+	)
 
 	// set global context var
 	newGlobalTestContext, err := testcommon.NewKubeContext(
 		options.useEnvTest,
 		options.recordReplay,
 		testcommon.DefaultTestRegion,
-		nameConfig)
+		nameConfig,
+	)
 	if err != nil {
 		return err
 	}
+
+	// Disable caching of built-in role definitions to ensure test isolation
+	authcustomizations.DisableBuiltInRoleDefinitionsCaching()
 
 	log.Print("Done with test setup")
 	globalTestContext = newGlobalTestContext

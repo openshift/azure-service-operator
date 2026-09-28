@@ -14,7 +14,7 @@ var (
 	// References to standard Go Libraries
 	ErrorsReference  = MakeExternalPackageReference("errors")
 	FmtReference     = MakeExternalPackageReference("fmt")
-	JsonReference    = MakeExternalPackageReference("encoding/json")
+	JSONReference    = MakeExternalPackageReference("encoding/json")
 	OSReference      = MakeExternalPackageReference("os")
 	ReflectReference = MakeExternalPackageReference("reflect")
 	StringsReference = MakeExternalPackageReference("strings")
@@ -23,10 +23,12 @@ var (
 
 	// References to our Libraries
 	GenRuntimeReference             = MakeExternalPackageReference(genRuntimePathPrefix)
+	GenRuntimeCoreReference         = MakeExternalPackageReference(genRuntimePathPrefix + "/core")
 	GenRuntimeConditionsReference   = MakeExternalPackageReference(genRuntimePathPrefix + "/conditions")
 	GenRuntimeRegistrationReference = MakeExternalPackageReference(genRuntimePathPrefix + "/registration")
 	ReflectHelpersReference         = MakeExternalPackageReference(reflectHelpersPath)
 	GenRuntimeConfigMapsReference   = MakeExternalPackageReference(genRuntimePathPrefix + "/configmaps")
+	GenRuntimeSecretsReference      = MakeExternalPackageReference(genRuntimePathPrefix + "/secrets")
 	GenericARMClientReference       = MakeExternalPackageReference(genericARMClientPath)
 
 	// References to other libraries
@@ -41,10 +43,11 @@ var (
 
 	ClientGoSchemeReference     = MakeExternalPackageReference("k8s.io/client-go/kubernetes/scheme")
 	ControllerRuntimeAdmission  = MakeExternalPackageReference("sigs.k8s.io/controller-runtime/pkg/webhook/admission")
+	ControllerRuntimeWebhook    = MakeExternalPackageReference("sigs.k8s.io/controller-runtime/pkg/webhook")
 	ControllerRuntimeConversion = MakeExternalPackageReference("sigs.k8s.io/controller-runtime/pkg/conversion")
 	ControllerSchemeReference   = MakeExternalPackageReference("sigs.k8s.io/controller-runtime/pkg/scheme")
 	ControllerRuntimeClient     = MakeExternalPackageReference("sigs.k8s.io/controller-runtime/pkg/client")
-	GitHubErrorsReference       = MakeExternalPackageReference("github.com/pkg/errors")
+	ErisReference               = MakeExternalPackageReference("github.com/rotisserie/eris")
 
 	// References to libraries used for testing
 	CmpReference        = MakeExternalPackageReference("github.com/google/go-cmp/cmp")
@@ -55,19 +58,21 @@ var (
 	GopterPropReference = MakeExternalPackageReference("github.com/leanovate/gopter/prop")
 	GomegaReference     = MakeExternalPackageReference("github.com/onsi/gomega")
 	PrettyReference     = MakeExternalPackageReference("github.com/kr/pretty")
+	RapidReference      = MakeExternalPackageReference("pgregory.net/rapid")
 
 	// Imports with specified names
 	GomegaImport = NewPackageImport(GomegaReference).WithName(".")
 
 	// Type names - GenRuntime
 	KubernetesResourceType           = MakeExternalTypeName(GenRuntimeReference, "KubernetesResource")
-	KubernetesExporterType           = MakeExternalTypeName(GenRuntimeReference, "KubernetesExporter")
+	KuberentesConfigExporterType     = MakeExternalTypeName(GenRuntimeReference, "KubernetesConfigExporter")
 	TenantResourceType               = MakeExternalTypeName(GenRuntimeReference, "TenantResource")
 	ConvertibleSpecInterfaceType     = MakeExternalTypeName(GenRuntimeReference, "ConvertibleSpec")
 	ConvertibleStatusInterfaceType   = MakeExternalTypeName(GenRuntimeReference, "ConvertibleStatus")
 	ResourceReferenceType            = MakeExternalTypeName(GenRuntimeReference, "ResourceReference")
 	ArbitraryOwnerReference          = MakeExternalTypeName(GenRuntimeReference, "ArbitraryOwnerReference")
 	KnownResourceReferenceType       = MakeExternalTypeName(GenRuntimeReference, "KnownResourceReference")
+	WellKnownResourceReferenceType   = MakeExternalTypeName(GenRuntimeReference, "WellKnownResourceReference")
 	PropertyBagType                  = MakeExternalTypeName(GenRuntimeReference, "PropertyBag")
 	ToARMConverterInterfaceType      = MakeExternalTypeName(GenRuntimeReference, "ToARMConverter")
 	ARMResourceSpecType              = MakeExternalTypeName(GenRuntimeReference, "ARMResourceSpec")
@@ -87,16 +92,23 @@ var (
 	ImportableResourceType           = MakeExternalTypeName(GenRuntimeReference, "ImportableResource")
 	ResourceOperationType            = MakeExternalTypeName(GenRuntimeReference, "ResourceOperation")
 	ResourceOperationTypeArray       = NewArrayType(ResourceOperationType)
+	DestinationExpressionType        = MakeExternalTypeName(GenRuntimeCoreReference, "DestinationExpression")
+	ConfigMapExporterType            = MakeExternalTypeName(GenRuntimeConfigMapsReference, "Exporter")
+	SecretExporterType               = MakeExternalTypeName(GenRuntimeSecretsReference, "Exporter")
 
 	// Optional types - GenRuntime
-	OptionalConfigMapReferenceType     = NewOptionalType(ConfigMapReferenceType)
-	OptionalKnownResourceReferenceType = NewOptionalType(KnownResourceReferenceType)
-	OptionalResourceReferenceType      = NewOptionalType(ResourceReferenceType)
-	OptionalSecretReferenceType        = NewOptionalType(SecretReferenceType)
-	OptionalSecretMapReferenceType     = NewOptionalType(SecretMapReferenceType)
+	OptionalConfigMapReferenceType         = NewOptionalType(ConfigMapReferenceType)
+	OptionalKnownResourceReferenceType     = NewOptionalType(KnownResourceReferenceType)
+	OptionalWellKnownResourceReferenceType = NewOptionalType(WellKnownResourceReferenceType)
+	OptionalResourceReferenceType          = NewOptionalType(ResourceReferenceType)
+	OptionalSecretReferenceType            = NewOptionalType(SecretReferenceType)
+	OptionalSecretMapReferenceType         = NewOptionalType(SecretMapReferenceType)
 
 	// Predeclared maps
 	MapOfStringStringType = NewMapType(StringType, StringType)
+
+	// Predeclared slices
+	DestinationExpressionCollectionType = NewArrayType(NewOptionalType(DestinationExpressionType))
 
 	// Type names - Generic ARM client
 	GenericClientType = MakeExternalTypeName(GenericARMClientReference, "GenericClient")
@@ -105,6 +117,7 @@ var (
 	StorageTypeRegistrationType = MakeExternalTypeName(GenRuntimeRegistrationReference, "StorageType")
 	IndexRegistrationType       = MakeExternalTypeName(GenRuntimeRegistrationReference, "Index")
 	WatchRegistrationType       = MakeExternalTypeName(GenRuntimeRegistrationReference, "Watch")
+	KnownTypeRegistrationType   = MakeExternalTypeName(GenRuntimeRegistrationReference, "KnownType")
 
 	ConditionType   = MakeExternalTypeName(GenRuntimeConditionsReference, "Condition")
 	ConditionsType  = MakeExternalTypeName(GenRuntimeConditionsReference, "Conditions")
@@ -113,6 +126,7 @@ var (
 	// Type names - API Machinery
 	GroupVersionKindType = MakeExternalTypeName(APIMachinerySchemaReference, "GroupVersionKind")
 	SchemeType           = MakeExternalTypeName(APIMachineryRuntimeReference, "Scheme")
+	APIMachineryObject   = MakeExternalTypeName(APIMachineryRuntimeReference, "Object")
 	JSONType             = MakeExternalTypeName(APIExtensionsReference, "JSON")
 	ObjectMetaType       = MakeExternalTypeName(MetaV1Reference, "ObjectMeta")
 
@@ -120,8 +134,8 @@ var (
 	ConvertibleInterface        = MakeExternalTypeName(ControllerRuntimeConversion, "Convertible")
 	HubInterface                = MakeExternalTypeName(ControllerRuntimeConversion, "Hub")
 	ControllerRuntimeObjectType = MakeExternalTypeName(ControllerRuntimeClient, "Object")
-	DefaulterInterfaceName      = MakeExternalTypeName(ControllerRuntimeAdmission, "Defaulter")
-	ValidatorInterfaceName      = MakeExternalTypeName(ControllerRuntimeAdmission, "Validator")
+	DefaulterInterfaceName      = MakeExternalTypeName(ControllerRuntimeWebhook, "CustomDefaulter")
+	ValidatorInterfaceName      = MakeExternalTypeName(ControllerRuntimeWebhook, "CustomValidator")
 
 	// Type names - Core types
 	SecretType    = MakeExternalTypeName(CoreV1Reference, "Secret")

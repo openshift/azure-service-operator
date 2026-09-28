@@ -5,7 +5,8 @@ package storage
 
 import (
 	"encoding/json"
-	storage "github.com/Azure/azure-service-operator/v2/api/apimanagement/v1api20220801/storage"
+	v20230501ps "github.com/Azure/azure-service-operator/v2/api/apimanagement/v20230501preview/storage"
+	v20240501s "github.com/Azure/azure-service-operator/v2/api/apimanagement/v20240501/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -20,6 +21,11 @@ import (
 
 func Test_Api_WhenConvertedToHub_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	parameters.MinSuccessfulTests = 10
@@ -36,7 +42,7 @@ func RunResourceConversionTestForApi(subject Api) string {
 	copied := subject.DeepCopy()
 
 	// Convert to our hub version
-	var hub storage.Api
+	var hub v20240501s.Api
 	err := copied.ConvertTo(&hub)
 	if err != nil {
 		return err.Error()
@@ -63,6 +69,11 @@ func RunResourceConversionTestForApi(subject Api) string {
 
 func Test_Api_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -78,7 +89,7 @@ func RunPropertyAssignmentTestForApi(subject Api) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Api
+	var other v20230501ps.Api
 	err := copied.AssignProperties_To_Api(&other)
 	if err != nil {
 		return err.Error()
@@ -105,6 +116,11 @@ func RunPropertyAssignmentTestForApi(subject Api) string {
 
 func Test_Api_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -160,12 +176,17 @@ func ApiGenerator() gopter.Gen {
 
 // AddRelatedPropertyGeneratorsForApi is a factory method for creating gopter generators
 func AddRelatedPropertyGeneratorsForApi(gens map[string]gopter.Gen) {
-	gens["Spec"] = Service_Api_SpecGenerator()
-	gens["Status"] = Service_Api_STATUSGenerator()
+	gens["Spec"] = Api_SpecGenerator()
+	gens["Status"] = Api_STATUSGenerator()
 }
 
 func Test_ApiContactInformation_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -181,7 +202,7 @@ func RunPropertyAssignmentTestForApiContactInformation(subject ApiContactInforma
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiContactInformation
+	var other v20230501ps.ApiContactInformation
 	err := copied.AssignProperties_To_ApiContactInformation(&other)
 	if err != nil {
 		return err.Error()
@@ -208,6 +229,11 @@ func RunPropertyAssignmentTestForApiContactInformation(subject ApiContactInforma
 
 func Test_ApiContactInformation_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -271,6 +297,11 @@ func AddIndependentPropertyGeneratorsForApiContactInformation(gens map[string]go
 
 func Test_ApiContactInformation_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -286,7 +317,7 @@ func RunPropertyAssignmentTestForApiContactInformation_STATUS(subject ApiContact
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiContactInformation_STATUS
+	var other v20230501ps.ApiContactInformation_STATUS
 	err := copied.AssignProperties_To_ApiContactInformation_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -313,6 +344,11 @@ func RunPropertyAssignmentTestForApiContactInformation_STATUS(subject ApiContact
 
 func Test_ApiContactInformation_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -376,6 +412,11 @@ func AddIndependentPropertyGeneratorsForApiContactInformation_STATUS(gens map[st
 
 func Test_ApiCreateOrUpdateProperties_WsdlSelector_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -391,7 +432,7 @@ func RunPropertyAssignmentTestForApiCreateOrUpdateProperties_WsdlSelector(subjec
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiCreateOrUpdateProperties_WsdlSelector
+	var other v20230501ps.ApiCreateOrUpdateProperties_WsdlSelector
 	err := copied.AssignProperties_To_ApiCreateOrUpdateProperties_WsdlSelector(&other)
 	if err != nil {
 		return err.Error()
@@ -418,6 +459,11 @@ func RunPropertyAssignmentTestForApiCreateOrUpdateProperties_WsdlSelector(subjec
 
 func Test_ApiCreateOrUpdateProperties_WsdlSelector_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -480,6 +526,11 @@ func AddIndependentPropertyGeneratorsForApiCreateOrUpdateProperties_WsdlSelector
 
 func Test_ApiLicenseInformation_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -495,7 +546,7 @@ func RunPropertyAssignmentTestForApiLicenseInformation(subject ApiLicenseInforma
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiLicenseInformation
+	var other v20230501ps.ApiLicenseInformation
 	err := copied.AssignProperties_To_ApiLicenseInformation(&other)
 	if err != nil {
 		return err.Error()
@@ -522,6 +573,11 @@ func RunPropertyAssignmentTestForApiLicenseInformation(subject ApiLicenseInforma
 
 func Test_ApiLicenseInformation_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -584,6 +640,11 @@ func AddIndependentPropertyGeneratorsForApiLicenseInformation(gens map[string]go
 
 func Test_ApiLicenseInformation_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -599,7 +660,7 @@ func RunPropertyAssignmentTestForApiLicenseInformation_STATUS(subject ApiLicense
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiLicenseInformation_STATUS
+	var other v20230501ps.ApiLicenseInformation_STATUS
 	err := copied.AssignProperties_To_ApiLicenseInformation_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -626,6 +687,11 @@ func RunPropertyAssignmentTestForApiLicenseInformation_STATUS(subject ApiLicense
 
 func Test_ApiLicenseInformation_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -686,8 +752,119 @@ func AddIndependentPropertyGeneratorsForApiLicenseInformation_STATUS(gens map[st
 	gens["Url"] = gen.PtrOf(gen.AlphaString())
 }
 
+func Test_ApiOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from ApiOperatorSpec to ApiOperatorSpec via AssignProperties_To_ApiOperatorSpec & AssignProperties_From_ApiOperatorSpec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForApiOperatorSpec, ApiOperatorSpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForApiOperatorSpec tests if a specific instance of ApiOperatorSpec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForApiOperatorSpec(subject ApiOperatorSpec) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20230501ps.ApiOperatorSpec
+	err := copied.AssignProperties_To_ApiOperatorSpec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual ApiOperatorSpec
+	err = actual.AssignProperties_From_ApiOperatorSpec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_ApiOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of ApiOperatorSpec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForApiOperatorSpec, ApiOperatorSpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForApiOperatorSpec runs a test to see if a specific instance of ApiOperatorSpec round trips to JSON and back losslessly
+func RunJSONSerializationTestForApiOperatorSpec(subject ApiOperatorSpec) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual ApiOperatorSpec
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of ApiOperatorSpec instances for property testing - lazily instantiated by ApiOperatorSpecGenerator()
+var apiOperatorSpecGenerator gopter.Gen
+
+// ApiOperatorSpecGenerator returns a generator of ApiOperatorSpec instances for property testing.
+func ApiOperatorSpecGenerator() gopter.Gen {
+	if apiOperatorSpecGenerator != nil {
+		return apiOperatorSpecGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	apiOperatorSpecGenerator = gen.Struct(reflect.TypeOf(ApiOperatorSpec{}), generators)
+
+	return apiOperatorSpecGenerator
+}
+
 func Test_ApiVersionSetContractDetails_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -703,7 +880,7 @@ func RunPropertyAssignmentTestForApiVersionSetContractDetails(subject ApiVersion
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiVersionSetContractDetails
+	var other v20230501ps.ApiVersionSetContractDetails
 	err := copied.AssignProperties_To_ApiVersionSetContractDetails(&other)
 	if err != nil {
 		return err.Error()
@@ -730,6 +907,11 @@ func RunPropertyAssignmentTestForApiVersionSetContractDetails(subject ApiVersion
 
 func Test_ApiVersionSetContractDetails_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -795,6 +977,11 @@ func AddIndependentPropertyGeneratorsForApiVersionSetContractDetails(gens map[st
 
 func Test_ApiVersionSetContractDetails_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -810,7 +997,7 @@ func RunPropertyAssignmentTestForApiVersionSetContractDetails_STATUS(subject Api
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApiVersionSetContractDetails_STATUS
+	var other v20230501ps.ApiVersionSetContractDetails_STATUS
 	err := copied.AssignProperties_To_ApiVersionSetContractDetails_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -837,6 +1024,11 @@ func RunPropertyAssignmentTestForApiVersionSetContractDetails_STATUS(subject Api
 
 func Test_ApiVersionSetContractDetails_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -901,8 +1093,312 @@ func AddIndependentPropertyGeneratorsForApiVersionSetContractDetails_STATUS(gens
 	gens["VersioningScheme"] = gen.PtrOf(gen.AlphaString())
 }
 
+func Test_Api_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from Api_STATUS to Api_STATUS via AssignProperties_To_Api_STATUS & AssignProperties_From_Api_STATUS returns original",
+		prop.ForAll(RunPropertyAssignmentTestForApi_STATUS, Api_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForApi_STATUS tests if a specific instance of Api_STATUS can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForApi_STATUS(subject Api_STATUS) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20230501ps.Api_STATUS
+	err := copied.AssignProperties_To_Api_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual Api_STATUS
+	err = actual.AssignProperties_From_Api_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_Api_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 80
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of Api_STATUS via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForApi_STATUS, Api_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForApi_STATUS runs a test to see if a specific instance of Api_STATUS round trips to JSON and back losslessly
+func RunJSONSerializationTestForApi_STATUS(subject Api_STATUS) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual Api_STATUS
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of Api_STATUS instances for property testing - lazily instantiated by Api_STATUSGenerator()
+var api_STATUSGenerator gopter.Gen
+
+// Api_STATUSGenerator returns a generator of Api_STATUS instances for property testing.
+// We first initialize api_STATUSGenerator with a simplified generator based on the
+// fields with primitive types then replacing it with a more complex one that also handles complex fields
+// to ensure any cycles in the object graph properly terminate.
+func Api_STATUSGenerator() gopter.Gen {
+	if api_STATUSGenerator != nil {
+		return api_STATUSGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForApi_STATUS(generators)
+	api_STATUSGenerator = gen.Struct(reflect.TypeOf(Api_STATUS{}), generators)
+
+	// The above call to gen.Struct() captures the map, so create a new one
+	generators = make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForApi_STATUS(generators)
+	AddRelatedPropertyGeneratorsForApi_STATUS(generators)
+	api_STATUSGenerator = gen.Struct(reflect.TypeOf(Api_STATUS{}), generators)
+
+	return api_STATUSGenerator
+}
+
+// AddIndependentPropertyGeneratorsForApi_STATUS is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForApi_STATUS(gens map[string]gopter.Gen) {
+	gens["APIVersion"] = gen.PtrOf(gen.AlphaString())
+	gens["ApiRevision"] = gen.PtrOf(gen.AlphaString())
+	gens["ApiRevisionDescription"] = gen.PtrOf(gen.AlphaString())
+	gens["ApiVersionDescription"] = gen.PtrOf(gen.AlphaString())
+	gens["ApiVersionSetId"] = gen.PtrOf(gen.AlphaString())
+	gens["Description"] = gen.PtrOf(gen.AlphaString())
+	gens["DisplayName"] = gen.PtrOf(gen.AlphaString())
+	gens["Id"] = gen.PtrOf(gen.AlphaString())
+	gens["IsCurrent"] = gen.PtrOf(gen.Bool())
+	gens["IsOnline"] = gen.PtrOf(gen.Bool())
+	gens["Name"] = gen.PtrOf(gen.AlphaString())
+	gens["Path"] = gen.PtrOf(gen.AlphaString())
+	gens["PropertiesType"] = gen.PtrOf(gen.AlphaString())
+	gens["Protocols"] = gen.SliceOf(gen.AlphaString())
+	gens["ProvisioningState"] = gen.PtrOf(gen.AlphaString())
+	gens["ServiceUrl"] = gen.PtrOf(gen.AlphaString())
+	gens["SourceApiId"] = gen.PtrOf(gen.AlphaString())
+	gens["SubscriptionRequired"] = gen.PtrOf(gen.Bool())
+	gens["TermsOfServiceUrl"] = gen.PtrOf(gen.AlphaString())
+	gens["Type"] = gen.PtrOf(gen.AlphaString())
+}
+
+// AddRelatedPropertyGeneratorsForApi_STATUS is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForApi_STATUS(gens map[string]gopter.Gen) {
+	gens["ApiVersionSet"] = gen.PtrOf(ApiVersionSetContractDetails_STATUSGenerator())
+	gens["AuthenticationSettings"] = gen.PtrOf(AuthenticationSettingsContract_STATUSGenerator())
+	gens["Contact"] = gen.PtrOf(ApiContactInformation_STATUSGenerator())
+	gens["License"] = gen.PtrOf(ApiLicenseInformation_STATUSGenerator())
+	gens["SubscriptionKeyParameterNames"] = gen.PtrOf(SubscriptionKeyParameterNamesContract_STATUSGenerator())
+}
+
+func Test_Api_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from Api_Spec to Api_Spec via AssignProperties_To_Api_Spec & AssignProperties_From_Api_Spec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForApi_Spec, Api_SpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForApi_Spec tests if a specific instance of Api_Spec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForApi_Spec(subject Api_Spec) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20230501ps.Api_Spec
+	err := copied.AssignProperties_To_Api_Spec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual Api_Spec
+	err = actual.AssignProperties_From_Api_Spec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_Api_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 80
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of Api_Spec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForApi_Spec, Api_SpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForApi_Spec runs a test to see if a specific instance of Api_Spec round trips to JSON and back losslessly
+func RunJSONSerializationTestForApi_Spec(subject Api_Spec) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual Api_Spec
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of Api_Spec instances for property testing - lazily instantiated by Api_SpecGenerator()
+var api_SpecGenerator gopter.Gen
+
+// Api_SpecGenerator returns a generator of Api_Spec instances for property testing.
+// We first initialize api_SpecGenerator with a simplified generator based on the
+// fields with primitive types then replacing it with a more complex one that also handles complex fields
+// to ensure any cycles in the object graph properly terminate.
+func Api_SpecGenerator() gopter.Gen {
+	if api_SpecGenerator != nil {
+		return api_SpecGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForApi_Spec(generators)
+	api_SpecGenerator = gen.Struct(reflect.TypeOf(Api_Spec{}), generators)
+
+	// The above call to gen.Struct() captures the map, so create a new one
+	generators = make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForApi_Spec(generators)
+	AddRelatedPropertyGeneratorsForApi_Spec(generators)
+	api_SpecGenerator = gen.Struct(reflect.TypeOf(Api_Spec{}), generators)
+
+	return api_SpecGenerator
+}
+
+// AddIndependentPropertyGeneratorsForApi_Spec is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForApi_Spec(gens map[string]gopter.Gen) {
+	gens["APIVersion"] = gen.PtrOf(gen.AlphaString())
+	gens["ApiRevision"] = gen.PtrOf(gen.AlphaString())
+	gens["ApiRevisionDescription"] = gen.PtrOf(gen.AlphaString())
+	gens["ApiType"] = gen.PtrOf(gen.AlphaString())
+	gens["ApiVersionDescription"] = gen.PtrOf(gen.AlphaString())
+	gens["AzureName"] = gen.AlphaString()
+	gens["Description"] = gen.PtrOf(gen.AlphaString())
+	gens["DisplayName"] = gen.PtrOf(gen.AlphaString())
+	gens["Format"] = gen.PtrOf(gen.AlphaString())
+	gens["IsCurrent"] = gen.PtrOf(gen.Bool())
+	gens["OriginalVersion"] = gen.AlphaString()
+	gens["Path"] = gen.PtrOf(gen.AlphaString())
+	gens["Protocols"] = gen.SliceOf(gen.AlphaString())
+	gens["ServiceUrl"] = gen.PtrOf(gen.AlphaString())
+	gens["SubscriptionRequired"] = gen.PtrOf(gen.Bool())
+	gens["TermsOfServiceUrl"] = gen.PtrOf(gen.AlphaString())
+	gens["TranslateRequiredQueryParameters"] = gen.PtrOf(gen.AlphaString())
+	gens["Type"] = gen.PtrOf(gen.AlphaString())
+	gens["Value"] = gen.PtrOf(gen.AlphaString())
+}
+
+// AddRelatedPropertyGeneratorsForApi_Spec is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForApi_Spec(gens map[string]gopter.Gen) {
+	gens["ApiVersionSet"] = gen.PtrOf(ApiVersionSetContractDetailsGenerator())
+	gens["AuthenticationSettings"] = gen.PtrOf(AuthenticationSettingsContractGenerator())
+	gens["Contact"] = gen.PtrOf(ApiContactInformationGenerator())
+	gens["License"] = gen.PtrOf(ApiLicenseInformationGenerator())
+	gens["OperatorSpec"] = gen.PtrOf(ApiOperatorSpecGenerator())
+	gens["SubscriptionKeyParameterNames"] = gen.PtrOf(SubscriptionKeyParameterNamesContractGenerator())
+	gens["WsdlSelector"] = gen.PtrOf(ApiCreateOrUpdateProperties_WsdlSelectorGenerator())
+}
+
 func Test_AuthenticationSettingsContract_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -918,7 +1414,7 @@ func RunPropertyAssignmentTestForAuthenticationSettingsContract(subject Authenti
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.AuthenticationSettingsContract
+	var other v20230501ps.AuthenticationSettingsContract
 	err := copied.AssignProperties_To_AuthenticationSettingsContract(&other)
 	if err != nil {
 		return err.Error()
@@ -945,6 +1441,11 @@ func RunPropertyAssignmentTestForAuthenticationSettingsContract(subject Authenti
 
 func Test_AuthenticationSettingsContract_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1009,6 +1510,11 @@ func AddRelatedPropertyGeneratorsForAuthenticationSettingsContract(gens map[stri
 
 func Test_AuthenticationSettingsContract_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1024,7 +1530,7 @@ func RunPropertyAssignmentTestForAuthenticationSettingsContract_STATUS(subject A
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.AuthenticationSettingsContract_STATUS
+	var other v20230501ps.AuthenticationSettingsContract_STATUS
 	err := copied.AssignProperties_To_AuthenticationSettingsContract_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1051,6 +1557,11 @@ func RunPropertyAssignmentTestForAuthenticationSettingsContract_STATUS(subject A
 
 func Test_AuthenticationSettingsContract_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1115,6 +1626,11 @@ func AddRelatedPropertyGeneratorsForAuthenticationSettingsContract_STATUS(gens m
 
 func Test_OAuth2AuthenticationSettingsContract_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1130,7 +1646,7 @@ func RunPropertyAssignmentTestForOAuth2AuthenticationSettingsContract(subject OA
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.OAuth2AuthenticationSettingsContract
+	var other v20230501ps.OAuth2AuthenticationSettingsContract
 	err := copied.AssignProperties_To_OAuth2AuthenticationSettingsContract(&other)
 	if err != nil {
 		return err.Error()
@@ -1157,6 +1673,11 @@ func RunPropertyAssignmentTestForOAuth2AuthenticationSettingsContract(subject OA
 
 func Test_OAuth2AuthenticationSettingsContract_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1219,6 +1740,11 @@ func AddIndependentPropertyGeneratorsForOAuth2AuthenticationSettingsContract(gen
 
 func Test_OAuth2AuthenticationSettingsContract_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1234,7 +1760,7 @@ func RunPropertyAssignmentTestForOAuth2AuthenticationSettingsContract_STATUS(sub
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.OAuth2AuthenticationSettingsContract_STATUS
+	var other v20230501ps.OAuth2AuthenticationSettingsContract_STATUS
 	err := copied.AssignProperties_To_OAuth2AuthenticationSettingsContract_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1261,6 +1787,11 @@ func RunPropertyAssignmentTestForOAuth2AuthenticationSettingsContract_STATUS(sub
 
 func Test_OAuth2AuthenticationSettingsContract_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1323,6 +1854,11 @@ func AddIndependentPropertyGeneratorsForOAuth2AuthenticationSettingsContract_STA
 
 func Test_OpenIdAuthenticationSettingsContract_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1338,7 +1874,7 @@ func RunPropertyAssignmentTestForOpenIdAuthenticationSettingsContract(subject Op
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.OpenIdAuthenticationSettingsContract
+	var other v20230501ps.OpenIdAuthenticationSettingsContract
 	err := copied.AssignProperties_To_OpenIdAuthenticationSettingsContract(&other)
 	if err != nil {
 		return err.Error()
@@ -1365,6 +1901,11 @@ func RunPropertyAssignmentTestForOpenIdAuthenticationSettingsContract(subject Op
 
 func Test_OpenIdAuthenticationSettingsContract_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1427,6 +1968,11 @@ func AddIndependentPropertyGeneratorsForOpenIdAuthenticationSettingsContract(gen
 
 func Test_OpenIdAuthenticationSettingsContract_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1442,7 +1988,7 @@ func RunPropertyAssignmentTestForOpenIdAuthenticationSettingsContract_STATUS(sub
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.OpenIdAuthenticationSettingsContract_STATUS
+	var other v20230501ps.OpenIdAuthenticationSettingsContract_STATUS
 	err := copied.AssignProperties_To_OpenIdAuthenticationSettingsContract_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1469,6 +2015,11 @@ func RunPropertyAssignmentTestForOpenIdAuthenticationSettingsContract_STATUS(sub
 
 func Test_OpenIdAuthenticationSettingsContract_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1529,286 +2080,13 @@ func AddIndependentPropertyGeneratorsForOpenIdAuthenticationSettingsContract_STA
 	gens["OpenidProviderId"] = gen.PtrOf(gen.AlphaString())
 }
 
-func Test_Service_Api_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
-	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MaxSize = 10
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip from Service_Api_STATUS to Service_Api_STATUS via AssignProperties_To_Service_Api_STATUS & AssignProperties_From_Service_Api_STATUS returns original",
-		prop.ForAll(RunPropertyAssignmentTestForService_Api_STATUS, Service_Api_STATUSGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
-}
-
-// RunPropertyAssignmentTestForService_Api_STATUS tests if a specific instance of Service_Api_STATUS can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForService_Api_STATUS(subject Service_Api_STATUS) string {
-	// Copy subject to make sure assignment doesn't modify it
-	copied := subject.DeepCopy()
-
-	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Service_Api_STATUS
-	err := copied.AssignProperties_To_Service_Api_STATUS(&other)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual Service_Api_STATUS
-	err = actual.AssignProperties_From_Service_Api_STATUS(&other)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Check for a match
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
-
-	return ""
-}
-
-func Test_Service_Api_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
-	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 80
-	parameters.MaxSize = 3
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip of Service_Api_STATUS via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForService_Api_STATUS, Service_Api_STATUSGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
-}
-
-// RunJSONSerializationTestForService_Api_STATUS runs a test to see if a specific instance of Service_Api_STATUS round trips to JSON and back losslessly
-func RunJSONSerializationTestForService_Api_STATUS(subject Service_Api_STATUS) string {
-	// Serialize to JSON
-	bin, err := json.Marshal(subject)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Deserialize back into memory
-	var actual Service_Api_STATUS
-	err = json.Unmarshal(bin, &actual)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Check for outcome
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
-
-	return ""
-}
-
-// Generator of Service_Api_STATUS instances for property testing - lazily instantiated by Service_Api_STATUSGenerator()
-var service_Api_STATUSGenerator gopter.Gen
-
-// Service_Api_STATUSGenerator returns a generator of Service_Api_STATUS instances for property testing.
-// We first initialize service_Api_STATUSGenerator with a simplified generator based on the
-// fields with primitive types then replacing it with a more complex one that also handles complex fields
-// to ensure any cycles in the object graph properly terminate.
-func Service_Api_STATUSGenerator() gopter.Gen {
-	if service_Api_STATUSGenerator != nil {
-		return service_Api_STATUSGenerator
-	}
-
-	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForService_Api_STATUS(generators)
-	service_Api_STATUSGenerator = gen.Struct(reflect.TypeOf(Service_Api_STATUS{}), generators)
-
-	// The above call to gen.Struct() captures the map, so create a new one
-	generators = make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForService_Api_STATUS(generators)
-	AddRelatedPropertyGeneratorsForService_Api_STATUS(generators)
-	service_Api_STATUSGenerator = gen.Struct(reflect.TypeOf(Service_Api_STATUS{}), generators)
-
-	return service_Api_STATUSGenerator
-}
-
-// AddIndependentPropertyGeneratorsForService_Api_STATUS is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForService_Api_STATUS(gens map[string]gopter.Gen) {
-	gens["APIVersion"] = gen.PtrOf(gen.AlphaString())
-	gens["ApiRevision"] = gen.PtrOf(gen.AlphaString())
-	gens["ApiRevisionDescription"] = gen.PtrOf(gen.AlphaString())
-	gens["ApiVersionDescription"] = gen.PtrOf(gen.AlphaString())
-	gens["ApiVersionSetId"] = gen.PtrOf(gen.AlphaString())
-	gens["Description"] = gen.PtrOf(gen.AlphaString())
-	gens["DisplayName"] = gen.PtrOf(gen.AlphaString())
-	gens["Id"] = gen.PtrOf(gen.AlphaString())
-	gens["IsCurrent"] = gen.PtrOf(gen.Bool())
-	gens["IsOnline"] = gen.PtrOf(gen.Bool())
-	gens["Name"] = gen.PtrOf(gen.AlphaString())
-	gens["Path"] = gen.PtrOf(gen.AlphaString())
-	gens["PropertiesType"] = gen.PtrOf(gen.AlphaString())
-	gens["Protocols"] = gen.SliceOf(gen.AlphaString())
-	gens["ProvisioningState"] = gen.PtrOf(gen.AlphaString())
-	gens["ServiceUrl"] = gen.PtrOf(gen.AlphaString())
-	gens["SourceApiId"] = gen.PtrOf(gen.AlphaString())
-	gens["SubscriptionRequired"] = gen.PtrOf(gen.Bool())
-	gens["TermsOfServiceUrl"] = gen.PtrOf(gen.AlphaString())
-	gens["Type"] = gen.PtrOf(gen.AlphaString())
-}
-
-// AddRelatedPropertyGeneratorsForService_Api_STATUS is a factory method for creating gopter generators
-func AddRelatedPropertyGeneratorsForService_Api_STATUS(gens map[string]gopter.Gen) {
-	gens["ApiVersionSet"] = gen.PtrOf(ApiVersionSetContractDetails_STATUSGenerator())
-	gens["AuthenticationSettings"] = gen.PtrOf(AuthenticationSettingsContract_STATUSGenerator())
-	gens["Contact"] = gen.PtrOf(ApiContactInformation_STATUSGenerator())
-	gens["License"] = gen.PtrOf(ApiLicenseInformation_STATUSGenerator())
-	gens["SubscriptionKeyParameterNames"] = gen.PtrOf(SubscriptionKeyParameterNamesContract_STATUSGenerator())
-}
-
-func Test_Service_Api_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
-	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MaxSize = 10
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip from Service_Api_Spec to Service_Api_Spec via AssignProperties_To_Service_Api_Spec & AssignProperties_From_Service_Api_Spec returns original",
-		prop.ForAll(RunPropertyAssignmentTestForService_Api_Spec, Service_Api_SpecGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
-}
-
-// RunPropertyAssignmentTestForService_Api_Spec tests if a specific instance of Service_Api_Spec can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForService_Api_Spec(subject Service_Api_Spec) string {
-	// Copy subject to make sure assignment doesn't modify it
-	copied := subject.DeepCopy()
-
-	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Service_Api_Spec
-	err := copied.AssignProperties_To_Service_Api_Spec(&other)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual Service_Api_Spec
-	err = actual.AssignProperties_From_Service_Api_Spec(&other)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Check for a match
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
-
-	return ""
-}
-
-func Test_Service_Api_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
-	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 80
-	parameters.MaxSize = 3
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip of Service_Api_Spec via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForService_Api_Spec, Service_Api_SpecGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
-}
-
-// RunJSONSerializationTestForService_Api_Spec runs a test to see if a specific instance of Service_Api_Spec round trips to JSON and back losslessly
-func RunJSONSerializationTestForService_Api_Spec(subject Service_Api_Spec) string {
-	// Serialize to JSON
-	bin, err := json.Marshal(subject)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Deserialize back into memory
-	var actual Service_Api_Spec
-	err = json.Unmarshal(bin, &actual)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Check for outcome
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
-
-	return ""
-}
-
-// Generator of Service_Api_Spec instances for property testing - lazily instantiated by Service_Api_SpecGenerator()
-var service_Api_SpecGenerator gopter.Gen
-
-// Service_Api_SpecGenerator returns a generator of Service_Api_Spec instances for property testing.
-// We first initialize service_Api_SpecGenerator with a simplified generator based on the
-// fields with primitive types then replacing it with a more complex one that also handles complex fields
-// to ensure any cycles in the object graph properly terminate.
-func Service_Api_SpecGenerator() gopter.Gen {
-	if service_Api_SpecGenerator != nil {
-		return service_Api_SpecGenerator
-	}
-
-	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForService_Api_Spec(generators)
-	service_Api_SpecGenerator = gen.Struct(reflect.TypeOf(Service_Api_Spec{}), generators)
-
-	// The above call to gen.Struct() captures the map, so create a new one
-	generators = make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForService_Api_Spec(generators)
-	AddRelatedPropertyGeneratorsForService_Api_Spec(generators)
-	service_Api_SpecGenerator = gen.Struct(reflect.TypeOf(Service_Api_Spec{}), generators)
-
-	return service_Api_SpecGenerator
-}
-
-// AddIndependentPropertyGeneratorsForService_Api_Spec is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForService_Api_Spec(gens map[string]gopter.Gen) {
-	gens["APIVersion"] = gen.PtrOf(gen.AlphaString())
-	gens["ApiRevision"] = gen.PtrOf(gen.AlphaString())
-	gens["ApiRevisionDescription"] = gen.PtrOf(gen.AlphaString())
-	gens["ApiType"] = gen.PtrOf(gen.AlphaString())
-	gens["ApiVersionDescription"] = gen.PtrOf(gen.AlphaString())
-	gens["AzureName"] = gen.AlphaString()
-	gens["Description"] = gen.PtrOf(gen.AlphaString())
-	gens["DisplayName"] = gen.PtrOf(gen.AlphaString())
-	gens["Format"] = gen.PtrOf(gen.AlphaString())
-	gens["IsCurrent"] = gen.PtrOf(gen.Bool())
-	gens["OriginalVersion"] = gen.AlphaString()
-	gens["Path"] = gen.PtrOf(gen.AlphaString())
-	gens["Protocols"] = gen.SliceOf(gen.AlphaString())
-	gens["ServiceUrl"] = gen.PtrOf(gen.AlphaString())
-	gens["SubscriptionRequired"] = gen.PtrOf(gen.Bool())
-	gens["TermsOfServiceUrl"] = gen.PtrOf(gen.AlphaString())
-	gens["TranslateRequiredQueryParameters"] = gen.PtrOf(gen.AlphaString())
-	gens["Type"] = gen.PtrOf(gen.AlphaString())
-	gens["Value"] = gen.PtrOf(gen.AlphaString())
-}
-
-// AddRelatedPropertyGeneratorsForService_Api_Spec is a factory method for creating gopter generators
-func AddRelatedPropertyGeneratorsForService_Api_Spec(gens map[string]gopter.Gen) {
-	gens["ApiVersionSet"] = gen.PtrOf(ApiVersionSetContractDetailsGenerator())
-	gens["AuthenticationSettings"] = gen.PtrOf(AuthenticationSettingsContractGenerator())
-	gens["Contact"] = gen.PtrOf(ApiContactInformationGenerator())
-	gens["License"] = gen.PtrOf(ApiLicenseInformationGenerator())
-	gens["SubscriptionKeyParameterNames"] = gen.PtrOf(SubscriptionKeyParameterNamesContractGenerator())
-	gens["WsdlSelector"] = gen.PtrOf(ApiCreateOrUpdateProperties_WsdlSelectorGenerator())
-}
-
 func Test_SubscriptionKeyParameterNamesContract_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1824,7 +2102,7 @@ func RunPropertyAssignmentTestForSubscriptionKeyParameterNamesContract(subject S
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.SubscriptionKeyParameterNamesContract
+	var other v20230501ps.SubscriptionKeyParameterNamesContract
 	err := copied.AssignProperties_To_SubscriptionKeyParameterNamesContract(&other)
 	if err != nil {
 		return err.Error()
@@ -1851,6 +2129,11 @@ func RunPropertyAssignmentTestForSubscriptionKeyParameterNamesContract(subject S
 
 func Test_SubscriptionKeyParameterNamesContract_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1913,6 +2196,11 @@ func AddIndependentPropertyGeneratorsForSubscriptionKeyParameterNamesContract(ge
 
 func Test_SubscriptionKeyParameterNamesContract_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1928,7 +2216,7 @@ func RunPropertyAssignmentTestForSubscriptionKeyParameterNamesContract_STATUS(su
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.SubscriptionKeyParameterNamesContract_STATUS
+	var other v20230501ps.SubscriptionKeyParameterNamesContract_STATUS
 	err := copied.AssignProperties_To_SubscriptionKeyParameterNamesContract_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1955,6 +2243,11 @@ func RunPropertyAssignmentTestForSubscriptionKeyParameterNamesContract_STATUS(su
 
 func Test_SubscriptionKeyParameterNamesContract_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3

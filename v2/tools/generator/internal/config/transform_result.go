@@ -8,26 +8,32 @@ package config
 import (
 	"fmt"
 
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
 // TransformResult is used to specify the result of a transformation
 type TransformResult struct {
-	Group        FieldMatcher           `yaml:",omitempty"`
-	Version      FieldMatcher           `yaml:"version,omitempty"`
-	Name         FieldMatcher           `yaml:",omitempty"`
-	Optional     bool                   `yaml:",omitempty"`
-	Map          *MapResult             `yaml:",omitempty"`
-	Enum         *EnumResult            `yaml:",omitempty"`
-	appliesCache map[astmodel.Type]bool // cache for the results of AppliesToType()
+	Group    FieldMatcher `yaml:",omitempty"`
+	Version  FieldMatcher `yaml:"version,omitempty"`
+	Name     FieldMatcher `yaml:",omitempty"`
+	Optional bool         `yaml:",omitempty"`
+	Required bool         `yaml:",omitempty"`
+	Map      *MapResult   `yaml:",omitempty"`
+	Slice    *SliceResult `yaml:",omitempty"`
+	Enum     *EnumResult  `yaml:",omitempty"`
 }
 
 type MapResult struct {
 	Key   TransformResult `yaml:",omitempty"`
 	Value TransformResult `yaml:",omitempty"`
+}
+
+type SliceResult struct {
+	Element TransformResult `yaml:",omitempty"`
 }
 
 type EnumResult struct {
@@ -40,7 +46,7 @@ func (tr *TransformResult) produceTargetType(
 	original astmodel.Type,
 ) (astmodel.Type, error) {
 	if err := tr.validate(); err != nil {
-		return nil, errors.Wrapf(err, "invalid transformation in %s", descriptor)
+		return nil, eris.Wrapf(err, "invalid transformation in %s", descriptor)
 	}
 
 	if tr == nil {
@@ -68,6 +74,15 @@ func (tr *TransformResult) produceTargetType(
 		resultType = t
 	}
 
+	if tr.Slice != nil {
+		t, err := tr.produceTargetSliceType(descriptor, original)
+		if err != nil {
+			return nil, err
+		}
+
+		resultType = t
+	}
+
 	if tr.Enum != nil {
 		t, err := tr.produceTargetEnumType(descriptor)
 		if err != nil {
@@ -78,7 +93,7 @@ func (tr *TransformResult) produceTargetType(
 	}
 
 	if resultType == nil {
-		return nil, errors.Errorf("no target type found in %s", descriptor)
+		return nil, eris.Errorf("no target type found in %s", descriptor)
 	}
 
 	if tr.Optional {
@@ -91,11 +106,15 @@ func (tr *TransformResult) produceTargetType(
 func (tr *TransformResult) produceTargetNamedType(original astmodel.Type) (astmodel.Type, error) {
 	// Transform to name, ensure we have no other transformation
 	if tr.Map != nil {
-		return nil, errors.Errorf("cannot specify both Name transformation and Map transformation")
+		return nil, eris.Errorf("cannot specify both Name transformation and Map transformation")
+	}
+
+	if tr.Slice != nil {
+		return nil, eris.Errorf("cannot specify both Name transformation and Slice transformation")
 	}
 
 	if tr.Enum != nil {
-		return nil, errors.Errorf("cannot specify both Name transformation and Enum transformation")
+		return nil, eris.Errorf("cannot specify both Name transformation and Enum transformation")
 	}
 
 	// If we have *only* a name *and* that name represents a primitive type, we should use that
@@ -113,9 +132,10 @@ func (tr *TransformResult) produceTargetNamedType(original astmodel.Type) (astmo
 
 	tn, ok := astmodel.AsInternalTypeName(original)
 	if !ok {
-		return nil, errors.Errorf(
+		return nil, eris.Errorf(
 			"cannot apply type transformation; expected InternalTypeName, but have %s",
-			astmodel.DebugDescription(original))
+			astmodel.DebugDescription(original),
+		)
 	}
 
 	result := tn
@@ -133,11 +153,15 @@ func (tr *TransformResult) produceTargetMapType(
 ) (astmodel.Type, error) {
 	// Transform to map, ensure we have no other transformation
 	if tr.Name.IsRestrictive() {
-		return nil, errors.Errorf("cannot specify both Name transformation and Map transformation")
+		return nil, eris.Errorf("cannot specify both Name transformation and Map transformation")
+	}
+
+	if tr.Slice != nil {
+		return nil, eris.Errorf("cannot specify both Map transformation and Slice transformation")
 	}
 
 	if tr.Enum != nil {
-		return nil, errors.Errorf("cannot specify both Map transformation and Enum transformation")
+		return nil, eris.Errorf("cannot specify both Map transformation and Enum transformation")
 	}
 
 	keyType, err := tr.Map.Key.produceTargetType(descriptor+"/map/key", original)
@@ -153,20 +177,49 @@ func (tr *TransformResult) produceTargetMapType(
 	return astmodel.NewMapType(keyType, valueType), nil
 }
 
+func (tr *TransformResult) produceTargetSliceType(
+	descriptor string,
+	original astmodel.Type,
+) (astmodel.Type, error) {
+	// Transform to slice, ensure we have no other transformation
+	if tr.Name.IsRestrictive() {
+		return nil, eris.Errorf("cannot specify both Name transformation and Slice transformation")
+	}
+
+	if tr.Map != nil {
+		return nil, eris.Errorf("cannot specify both Map transformation and Slice transformation")
+	}
+
+	if tr.Enum != nil {
+		return nil, eris.Errorf("cannot specify both Slice transformation and Enum transformation")
+	}
+
+	elementType, err := tr.Slice.Element.produceTargetType(descriptor+"/slice/element", original)
+	if err != nil {
+		return nil, err
+	}
+
+	return astmodel.NewArrayType(elementType), nil
+}
+
 func (tr *TransformResult) produceTargetEnumType(
 	_ string,
 ) (astmodel.Type, error) {
 	// Transform to enum, ensure we have no other transformation
 	if tr.Name.IsRestrictive() {
-		return nil, errors.Errorf("cannot specify both Name transformation and Enum transformation")
+		return nil, eris.Errorf("cannot specify both Name transformation and Enum transformation")
 	}
 
 	if tr.Map != nil {
-		return nil, errors.Errorf("cannot specify both Map transformation and Enum transformation")
+		return nil, eris.Errorf("cannot specify both Map transformation and Enum transformation")
+	}
+
+	if tr.Slice != nil {
+		return nil, eris.Errorf("cannot specify both Slice transformation and Enum transformation")
 	}
 
 	if tr.Enum.Base == "" {
-		return nil, errors.Errorf("enum transformation requires a base type")
+		return nil, eris.Errorf("enum transformation requires a base type")
 	}
 
 	baseType, err := tr.asPrimitiveType(tr.Enum.Base)
@@ -200,8 +253,7 @@ func (tr *TransformResult) produceTargetPackageReference(ref astmodel.InternalPa
 		if tr.Group.IsRestrictive() || tr.Version.IsRestrictive() {
 			prefix := t.LocalPathPrefix()
 			group := t.Group()
-			versionPrefix := t.GeneratorVersion()
-			version := t.Version()
+			version := t.APIVersion()
 
 			if tr.Group.IsRestrictive() {
 				group = tr.Group.String()
@@ -211,7 +263,7 @@ func (tr *TransformResult) produceTargetPackageReference(ref astmodel.InternalPa
 				version = tr.Version.String()
 			}
 
-			return astmodel.MakeLocalPackageReference(prefix, group, versionPrefix, version)
+			return astmodel.MakeVersionedLocalPackageReference(prefix, group, version)
 		}
 
 		return ref
@@ -237,16 +289,18 @@ func (tr *TransformResult) asPrimitiveType(name string) (*astmodel.PrimitiveType
 	case "any":
 		return astmodel.AnyType, nil
 	default:
-		return nil, errors.Errorf("unknown primitive type transformation target: %s", name)
+		return nil, eris.Errorf("unknown primitive type transformation target: %s", name)
 	}
 }
 
 func (tr *TransformResult) validate() error {
 	if !tr.Name.IsRestrictive() &&
 		tr.Map == nil &&
+		tr.Slice == nil &&
 		tr.Enum == nil &&
-		tr.Optional == false {
-		return errors.Errorf("no result transformation specified")
+		!tr.Optional &&
+		!tr.Required {
+		return eris.Errorf("no result transformation specified")
 	}
 
 	return nil

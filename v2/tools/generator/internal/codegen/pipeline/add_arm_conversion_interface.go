@@ -9,9 +9,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
-	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/armconversion"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -24,29 +23,35 @@ const ApplyARMConversionInterfaceStageID = "applyArmConversionInterface"
 // to all Kubernetes types.
 // The genruntime.ARMTransformer interface is used to convert from the Kubernetes type to the corresponding ARM type and back.
 func ApplyARMConversionInterface(idFactory astmodel.IdentifierFactory, config *config.ObjectModelConfiguration) *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		ApplyARMConversionInterfaceStageID,
 		"Add ARM conversion interfaces to Kubernetes types",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
 			converter := &armConversionApplier{
-				definitions: definitions,
+				definitions: state.Definitions(),
 				idFactory:   idFactory,
 				config:      config,
 			}
 
-			return converter.transformTypes()
-		})
+			definitions, err := converter.transformTypes()
+			if err != nil {
+				return nil, err
+			}
+
+			return state.WithDefinitions(definitions), nil
+		},
+	)
 }
 
-// GetARMTypeDefinition gets the ARM type definition for a given Kubernetes type name.
-// If no matching definition can be found an error is returned.
-func GetARMTypeDefinition(defs astmodel.TypeDefinitionSet, name astmodel.InternalTypeName) (astmodel.TypeDefinition, error) {
-	armDefinition, ok := defs[astmodel.CreateARMTypeName(name)]
-	if !ok {
-		return astmodel.TypeDefinition{}, errors.Errorf("couldn't find ARM definition matching kube name %q", name)
-	}
-
-	return armDefinition, nil
+// LookupARMTypeDefinition gets the ARM type definition for a given Kubernetes type name.
+// Returns the definition and true if found; otherwise returns an empty definition and false.
+func LookupARMTypeDefinition(
+	name astmodel.InternalTypeName,
+	defs astmodel.TypeDefinitionSet,
+) (astmodel.TypeDefinition, bool) {
+	armName := astmodel.CreateARMTypeName(name)
+	armDefinition, ok := defs[armName]
+	return armDefinition, ok
 }
 
 type armConversionApplier struct {
@@ -68,7 +73,7 @@ func (c *armConversionApplier) transformResourceSpecs() (astmodel.TypeDefinition
 	for _, td := range resources {
 		resource, ok := astmodel.AsResourceType(td.Type())
 		if !ok {
-			return nil, errors.Errorf("%q was not a resource, instead %T", td.Name(), td.Type())
+			return nil, eris.Errorf("%q was not a resource, instead %T", td.Name(), td.Type())
 		}
 
 		specDefinition, err := c.transformSpec(resource)
@@ -76,9 +81,9 @@ func (c *armConversionApplier) transformResourceSpecs() (astmodel.TypeDefinition
 			return nil, err
 		}
 
-		armSpecDefinition, err := GetARMTypeDefinition(c.definitions, specDefinition.Name())
-		if err != nil {
-			return nil, err
+		armSpecDefinition, ok := LookupARMTypeDefinition(specDefinition.Name(), c.definitions)
+		if !ok {
+			return nil, eris.Errorf("couldn't find ARM definition for spec %s", specDefinition.Name())
 		}
 
 		specDefinition, err = c.addARMConversionInterface(specDefinition, armSpecDefinition, armconversion.TypeKindSpec)
@@ -109,9 +114,9 @@ func (c *armConversionApplier) transformResourceStatuses() (astmodel.TypeDefinit
 			continue
 		}
 
-		armStatusDefinition, err := GetARMTypeDefinition(c.definitions, td.Name())
-		if err != nil {
-			return nil, err
+		armStatusDefinition, ok := LookupARMTypeDefinition(td.Name(), c.definitions)
+		if !ok {
+			return nil, eris.Errorf("couldn't find ARM definition for status %s", td.Name())
 		}
 
 		statusDefinition, err := c.addARMConversionInterface(td, armStatusDefinition, armconversion.TypeKindStatus)
@@ -157,14 +162,14 @@ func (c *armConversionApplier) transformTypes() (astmodel.TypeDefinitionSet, err
 			continue
 		}
 
-		armDefinition, err := GetARMTypeDefinition(c.definitions, td.Name())
-		if err != nil {
-			return nil, err
+		armDefinition, ok := LookupARMTypeDefinition(td.Name(), c.definitions)
+		if !ok {
+			return nil, eris.Errorf("couldn't find ARM definition for %s", td.Name())
 		}
 
 		modifiedDef, err := c.addARMConversionInterface(td, armDefinition, armconversion.TypeKindOrdinary)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to add ARM conversion interface to %q", td.Name())
+			return nil, eris.Wrapf(err, "failed to add ARM conversion interface to %q", td.Name())
 		}
 
 		result.Add(modifiedDef)
@@ -215,15 +220,10 @@ func (c *armConversionApplier) transformSpec(resourceType *astmodel.ResourceType
 
 	kubernetesDef, err := resourceSpecDef.ApplyObjectTransformations(remapProperties, injectOwnerProperty)
 	if err != nil {
-		return astmodel.TypeDefinition{}, errors.Wrapf(err, "remapping properties of Kubernetes definition")
+		return astmodel.TypeDefinition{}, eris.Wrapf(err, "remapping properties of Kubernetes definition")
 	}
 
 	return kubernetesDef, nil
-}
-
-type PayloadTypeDetails struct {
-	payloadType                       config.PayloadType
-	explicitEmptyCollectionProperties set.Set[astmodel.PropertyReference]
 }
 
 func (c *armConversionApplier) addARMConversionInterface(
@@ -234,7 +234,7 @@ func (c *armConversionApplier) addARMConversionInterface(
 	objectType, ok := astmodel.AsObjectType(armDef.Type())
 	emptyDef := astmodel.TypeDefinition{}
 	if !ok {
-		return emptyDef, errors.Errorf("ARM definition %q did not define an object type", armDef.Name())
+		return emptyDef, eris.Errorf("ARM definition %q did not define an object type", armDef.Name())
 	}
 
 	addInterfaceHandler := func(t *astmodel.ObjectType) (astmodel.Type, error) {
@@ -243,7 +243,8 @@ func (c *armConversionApplier) addARMConversionInterface(
 			objectType,
 			kubeDef.Name(),
 			c.idFactory,
-			typeKind))
+			typeKind,
+		))
 		return result, nil
 	}
 
@@ -251,7 +252,7 @@ func (c *armConversionApplier) addARMConversionInterface(
 	if err != nil {
 		emptyDef := astmodel.TypeDefinition{}
 		return emptyDef,
-			errors.Errorf("failed to add ARM conversion interface to Kubenetes object definition %s", armDef.Name())
+			eris.Errorf("failed to add ARM conversion interface to Kubenetes object definition %s", armDef.Name())
 	}
 
 	return result, nil
@@ -265,12 +266,14 @@ func (c *armConversionApplier) createOwnerProperty(ownerTypeName astmodel.Intern
 	prop := astmodel.NewPropertyDefinition(
 		c.idFactory.CreatePropertyName(astmodel.OwnerProperty, astmodel.Exported),
 		c.idFactory.CreateStringIdentifier(astmodel.OwnerProperty, astmodel.NotExported),
-		astmodel.OptionalKnownResourceReferenceType)
+		astmodel.OptionalKnownResourceReferenceType,
+	)
 	prop = prop.WithDescription(
 		fmt.Sprintf("The owner of the resource. The owner controls where the resource goes when it is deployed. "+
 			"The owner also controls the resources lifecycle. "+
 			"When the owner is deleted the resource will also be deleted. Owner is expected to "+
-			"be a reference to a %s/%s resource", group, kind))
+			"be a reference to a %s/%s resource", group, kind),
+	)
 	prop = prop.WithTag("group", group)
 	prop = prop.WithTag("kind", kind)
 	prop = prop.MakeRequired() // Owner is always required
@@ -282,11 +285,13 @@ func (c *armConversionApplier) createExtensionResourceOwnerProperty() *astmodel.
 	prop := astmodel.NewPropertyDefinition(
 		c.idFactory.CreatePropertyName(astmodel.OwnerProperty, astmodel.Exported),
 		c.idFactory.CreateStringIdentifier(astmodel.OwnerProperty, astmodel.NotExported),
-		astmodel.NewOptionalType(astmodel.ArbitraryOwnerReference)).MakeRequired()
+		astmodel.NewOptionalType(astmodel.ArbitraryOwnerReference),
+	).MakeRequired()
 	prop = prop.WithDescription(
 		"The owner of the resource. The owner controls where the resource goes when it is deployed. " +
 			"The owner also controls the resources lifecycle. " +
 			"When the owner is deleted the resource will also be deleted. " +
-			"This resource is an extension resource, which means that any other Azure resource can be its owner.")
+			"This resource is an extension resource, which means that any other Azure resource can be its owner.",
+	)
 	return prop
 }

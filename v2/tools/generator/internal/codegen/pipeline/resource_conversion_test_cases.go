@@ -6,11 +6,13 @@
 package pipeline
 
 import (
+	"context"
+
+	"github.com/rotisserie/eris"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
+
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/testcases"
-	"github.com/pkg/errors"
-	"golang.org/x/net/context"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 // InjectResourceConversionTestsID is the unique identifier for this stage
@@ -22,16 +24,33 @@ func InjectResourceConversionTestCases(idFactory astmodel.IdentifierFactory) *St
 		InjectResourceConversionTestsID,
 		"Add test cases to verify Resource implementations of conversion.Convertible (funcs ConvertTo & ConvertFrom) behave as expected",
 		func(ctx context.Context, state *State) (*State, error) {
-			factory := makeResourceConversionTestCaseFactory(idFactory)
+			gopterFactory := makeResourceConversionTestCaseFactory(idFactory)
+			rapidFactory := makeRapidResourceConversionTestCaseFactory(idFactory)
 			modifiedDefs := make(astmodel.TypeDefinitionSet)
 			var errs []error
 			for _, d := range state.Definitions() {
-				if factory.NeedsTest(d) {
-					updated, err := factory.AddTestTo(d)
-					if err != nil {
-						errs = append(errs, err)
-					} else {
-						modifiedDefs[updated.Name()] = updated
+				useRapid := false
+				if ref, ok := d.Name().PackageReference().(astmodel.InternalPackageReference); ok {
+					useRapid = testcases.UseRapidForGroup(ref.Group())
+				}
+
+				if useRapid {
+					if rapidFactory.NeedsTest(d) {
+						updated, err := rapidFactory.AddTestTo(d)
+						if err != nil {
+							errs = append(errs, err)
+						} else {
+							modifiedDefs[updated.Name()] = updated
+						}
+					}
+				} else {
+					if gopterFactory.NeedsTest(d) {
+						updated, err := gopterFactory.AddTestTo(d)
+						if err != nil {
+							errs = append(errs, err)
+						} else {
+							modifiedDefs[updated.Name()] = updated
+						}
 					}
 				}
 			}
@@ -41,12 +60,15 @@ func InjectResourceConversionTestCases(idFactory astmodel.IdentifierFactory) *St
 			}
 
 			return state.WithOverlaidDefinitions(modifiedDefs), nil
-		})
+		},
+	)
 
 	stage.RequiresPrerequisiteStages(
 		InjectPropertyAssignmentFunctionsStageID, // Need PropertyAssignmentFunctions to test
-		ImplementConvertibleInterfaceStageId,     // Need the conversions.Convertible interface to be present
-		InjectJsonSerializationTestsID)           // We reuse the generators from the JSON tests
+		ImplementConvertibleInterfaceStageID,     // Need the conversions.Convertible interface to be present
+		InjectJSONSerializationTestsID,           // We reuse the generators from the JSON tests
+		InjectRapidSerializationTestsStageID,     // We reuse the generators from the rapid JSON tests
+	)
 
 	return stage
 }
@@ -66,7 +88,7 @@ func makeResourceConversionTestCaseFactory(idFactory astmodel.IdentifierFactory)
 }
 
 // NeedsTest will return true if the passed TypeDefinition is a resource implementing conversion.Convertible
-func (_ *resourceConversionTestCaseFactory) NeedsTest(def astmodel.TypeDefinition) bool {
+func (*resourceConversionTestCaseFactory) NeedsTest(def astmodel.TypeDefinition) bool {
 	resourceType, ok := astmodel.AsResourceType(def.Type())
 	if !ok {
 		return false
@@ -80,12 +102,49 @@ func (_ *resourceConversionTestCaseFactory) NeedsTest(def astmodel.TypeDefinitio
 func (factory *resourceConversionTestCaseFactory) AddTestTo(def astmodel.TypeDefinition) (astmodel.TypeDefinition, error) {
 	resource, ok := astmodel.AsResourceType(def.Type())
 	if !ok {
-		return astmodel.TypeDefinition{}, errors.Errorf("expected %s to be a resourceType", def.Name())
+		return astmodel.TypeDefinition{}, eris.Errorf("expected %s to be a resourceType", def.Name())
 	}
 
 	testCase, err := testcases.NewResourceConversionTestCase(def.Name(), resource, factory.idFactory)
 	if err != nil {
-		return astmodel.TypeDefinition{}, errors.Wrapf(err, "adding resource conversion test case to %s", def.Name())
+		return astmodel.TypeDefinition{}, eris.Wrapf(err, "adding resource conversion test case to %s", def.Name())
+	}
+
+	return factory.injector.Inject(def, testCase)
+}
+
+// rapidResourceConversionTestCaseFactory is a factory for injecting rapid-based resource conversion test cases
+type rapidResourceConversionTestCaseFactory struct {
+	injector  *astmodel.TestCaseInjector
+	idFactory astmodel.IdentifierFactory
+}
+
+func makeRapidResourceConversionTestCaseFactory(idFactory astmodel.IdentifierFactory) rapidResourceConversionTestCaseFactory {
+	return rapidResourceConversionTestCaseFactory{
+		injector:  astmodel.NewTestCaseInjector(),
+		idFactory: idFactory,
+	}
+}
+
+func (*rapidResourceConversionTestCaseFactory) NeedsTest(def astmodel.TypeDefinition) bool {
+	resourceType, ok := astmodel.AsResourceType(def.Type())
+	if !ok {
+		return false
+	}
+
+	_, found := resourceType.FindInterface(astmodel.ConvertibleInterface)
+	return found
+}
+
+func (factory *rapidResourceConversionTestCaseFactory) AddTestTo(def astmodel.TypeDefinition) (astmodel.TypeDefinition, error) {
+	resource, ok := astmodel.AsResourceType(def.Type())
+	if !ok {
+		return astmodel.TypeDefinition{}, eris.Errorf("expected %s to be a resourceType", def.Name())
+	}
+
+	testCase, err := testcases.NewRapidResourceConversionTestCase(def.Name(), resource, factory.idFactory)
+	if err != nil {
+		return astmodel.TypeDefinition{}, eris.Wrapf(err, "adding rapid resource conversion test case to %s", def.Name())
 	}
 
 	return factory.injector.Inject(def, testCase)

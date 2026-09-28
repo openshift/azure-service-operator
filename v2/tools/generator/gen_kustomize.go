@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"github.com/spf13/cobra"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -41,7 +41,8 @@ func NewGenKustomizeCommand() (*cobra.Command, error) {
 
 			log.Info(
 				"Scanning for resources",
-				"basePath", basesPath)
+				"basePath", basesPath,
+			)
 
 			files, err := os.ReadDir(basesPath)
 			if err != nil {
@@ -65,7 +66,8 @@ func NewGenKustomizeCommand() (*cobra.Command, error) {
 
 				log.V(1).Info(
 					"Found resource file",
-					"file", f.Name())
+					"file", f.Name(),
+				)
 
 				patchFile := "webhook-conversion-" + f.Name()
 				var def *kustomization.ResourceDefinition
@@ -77,7 +79,8 @@ func NewGenKustomizeCommand() (*cobra.Command, error) {
 
 				log.V(1).Info(
 					"Loaded Resource",
-					"name", def.Name())
+					"name", def.Name(),
+				)
 
 				patch := kustomization.NewConversionPatchFile(def.Name())
 				err = patch.Save(filepath.Join(patchesPath, patchFile))
@@ -94,15 +97,17 @@ func NewGenKustomizeCommand() (*cobra.Command, error) {
 				err = kerrors.NewAggregate(errs)
 				log.Error(
 					err,
-					"Error creating conversion patches")
+					"Error creating conversion patches",
+				)
 				return err
 			}
 
 			if len(result.Resources) == 0 {
-				err = errors.Errorf("no files found in %q", basesPath)
+				err = eris.Errorf("no files found in %q", basesPath)
 				log.Error(
 					err,
-					"No CRD files found")
+					"No CRD files found",
+				)
 				return err
 			}
 
@@ -111,7 +116,8 @@ func NewGenKustomizeCommand() (*cobra.Command, error) {
 				log.Error(
 					err,
 					"Error generating",
-					"destination", destination)
+					"destination", destination,
+				)
 				return err
 			}
 

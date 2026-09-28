@@ -15,16 +15,23 @@ import (
 const StripUnreferencedTypeDefinitionsStageID = "stripUnreferenced"
 
 func StripUnreferencedTypeDefinitions() *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		StripUnreferencedTypeDefinitionsStageID,
 		"Strip unreferenced types",
-		func(ctx context.Context, defs astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			defs := state.Definitions()
 			resources := astmodel.FindResourceDefinitions(defs)
 			armSpecAndStatus := astmodel.CollectARMSpecAndStatusDefinitions(defs)
 			roots := astmodel.SetUnion(resources.Names(), armSpecAndStatus)
 
-			return StripUnusedDefinitions(roots, defs)
-		})
+			result, err := StripUnusedDefinitions(roots, defs)
+			if err != nil {
+				return nil, err
+			}
+
+			return state.WithDefinitions(result), nil
+		},
+	)
 }
 
 // StripUnusedDefinitions removes all types that aren't in roots or

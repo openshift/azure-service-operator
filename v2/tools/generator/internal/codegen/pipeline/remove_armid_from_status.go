@@ -8,7 +8,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
@@ -32,7 +32,8 @@ func FixIDFields() *Stage {
 
 			state = state.WithOverlaidDefinitions(updatedDefs)
 			return state, nil
-		})
+		},
+	)
 
 	return stage
 }
@@ -53,7 +54,7 @@ func removeSpecIDField(defs astmodel.TypeDefinitionSet) (astmodel.TypeDefinition
 
 	updatedDefs, err := removeIDVisitor.VisitDefinitions(astmodel.FindSpecDefinitions(defs), nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to remove spec.Id")
+		return nil, eris.Wrapf(err, "failed to remove spec.Id")
 	}
 
 	return updatedDefs, nil
@@ -68,11 +69,15 @@ func replaceStatusARMIDWithString(defs astmodel.TypeDefinitionSet) (astmodel.Typ
 
 			return it, nil
 		},
+		VisitFlaggedType: func(this *astmodel.TypeVisitor[any], it *astmodel.FlaggedType, ctx interface{}) (astmodel.Type, error) {
+			// Remove WellKnown and Compatibility flags
+			return it.WithoutFlags(astmodel.WellKnownReferenceFlag, astmodel.CompatibleReferenceFlag), nil
+		},
 	}.Build()
 
 	updatedDefs, err := replaceARMIDWithStringVisitor.VisitDefinitions(astmodel.FindStatusDefinitions(defs), nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to replace ARM ID with String on status types")
+		return nil, eris.Wrapf(err, "failed to replace ARM ID with String on status types")
 	}
 
 	return updatedDefs, nil

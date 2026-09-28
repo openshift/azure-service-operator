@@ -1,0 +1,1158 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 93
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: '{"location":"westus2","name":"asotest-rg-blrhdt","tags":{"CreatedAt":"2001-02-03T04:05:06Z"}}'
+        form: {}
+        headers:
+            Accept:
+                - application/json
+            Content-Length:
+                - "93"
+            Content-Type:
+                - application/json
+            Test-Request-Hash:
+                - a907b6983412e804f7d1f545c21723bccce1084e450d1288dac642f4da6a9e5f
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt?api-version=2020-06-01
+        method: PUT
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 276
+        uncompressed: false
+        body: '{"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt","name":"asotest-rg-blrhdt","type":"Microsoft.Resources/resourceGroups","location":"westus2","tags":{"CreatedAt":"2001-02-03T04:05:06Z"},"properties":{"provisioningState":"Succeeded"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "276"
+            Content-Type:
+                - application/json; charset=utf-8
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Writes:
+                - "11999"
+            X-Msedge-Ref:
+                - 'Ref A: D9128D56205A4F608F081CA5505D9AA1 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:15:41Z'
+        status: 201 Created
+        code: 201
+        duration: 2.280403714s
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/json
+            Test-Request-Attempt:
+                - "0"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt?api-version=2020-06-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 276
+        uncompressed: false
+        body: '{"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt","name":"asotest-rg-blrhdt","type":"Microsoft.Resources/resourceGroups","location":"westus2","tags":{"CreatedAt":"2001-02-03T04:05:06Z"},"properties":{"provisioningState":"Succeeded"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "276"
+            Content-Type:
+                - application/json; charset=utf-8
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 118CC93C7B3E4197A81467B93E1837AE Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:15:46Z'
+        status: 200 OK
+        code: 200
+        duration: 287.483786ms
+    - id: 2
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 326
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: '{"identity":{"type":"SystemAssigned"},"location":"westus2","name":"asotesthfllya","properties":{"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"encryptionWithCmk":{"enforcement":"Disabled"},"hostingMode":"default","partitionCount":1,"publicNetworkAccess":"disabled","replicaCount":1},"sku":{"name":"standard"}}'
+        form: {}
+        headers:
+            Accept:
+                - application/json
+            Content-Length:
+                - "326"
+            Content-Type:
+                - application/json
+            Test-Request-Hash:
+                - be46036ee19207aeb87c5ce9fea31acf803a97863d29508e32e20b9013536201
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: PUT
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "11280"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Operation-Identifier:
+                - tenantId=00000000-0000-0000-0000-000000000000,objectId=1ae5915d-78fe-468d-affb-c275790fa149/westus3/46cc4264-1189-4a09-8f78-886c29d5f1f7
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Writes:
+                - "12000"
+            X-Msedge-Ref:
+                - 'Ref A: 38970A33695E4D40888A5AEA66B19E7D Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:15:51Z'
+        status: 201 Created
+        code: 201
+        duration: 12.534961157s
+    - id: 3
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "0"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "62"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: C1E7E53261A14C95AF2A6E24F02FA32C Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:16:20Z'
+        status: 200 OK
+        code: 200
+        duration: 334.621615ms
+    - id: 4
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "1"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "65"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 2702AC6FEC654C65BC1716C5CBFA73C8 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:16:25Z'
+        status: 200 OK
+        code: 200
+        duration: 363.121952ms
+    - id: 5
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "2"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "62"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 2BF56E9AED0445E99610B557C8B7FAF2 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:16:34Z'
+        status: 200 OK
+        code: 200
+        duration: 385.126199ms
+    - id: 6
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "3"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "65"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 1C1A94E4E18C40ADA689D36719EFBA04 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:16:52Z'
+        status: 200 OK
+        code: 200
+        duration: 326.108413ms
+    - id: 7
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "4"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "77"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 525DD2CE785A449BA686037EF55FD37B Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:17:26Z'
+        status: 200 OK
+        code: 200
+        duration: 340.255566ms
+    - id: 8
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "5"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "102"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 73D6C4AB1201475A8C510E50F8404B15 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:18:30Z'
+        status: 200 OK
+        code: 200
+        duration: 491.940803ms
+    - id: 9
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "6"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "62"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 05D356F7F16946A5BCA56C847631C582 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:19:35Z'
+        status: 200 OK
+        code: 200
+        duration: 469.989041ms
+    - id: 10
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "7"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 910
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"provisioning","statusDetails":"","provisioningState":"provisioning","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "910"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "68"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 05688F2CF75749C39CBBE2034762E51D Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:20:39Z'
+        status: 200 OK
+        code: 200
+        duration: 479.06712ms
+    - id: 11
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "8"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 902
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"running","statusDetails":"","provisioningState":"succeeded","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "902"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "74"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: AA5D230CCD1D4C2AA9A89EA158B80622 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:21:43Z'
+        status: 200 OK
+        code: 200
+        duration: 472.88841ms
+    - id: 12
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/json
+            Test-Request-Attempt:
+                - "9"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 902
+        uncompressed: false
+        body: '{"location":"West US 2","tags":{},"properties":{"replicaCount":1,"partitionCount":1,"status":"running","statusDetails":"","provisioningState":"succeeded","hostingMode":"default","publicNetworkAccess":"Disabled","networkRuleSet":{"ipRules":[],"bypass":"None"},"privateEndpointConnections":[],"sharedPrivateLinkResources":[],"encryptionWithCmk":{"enforcement":"Disabled","encryptionComplianceStatus":"Compliant"},"disableLocalAuth":false,"authOptions":{"aadOrApiKey":{"aadAuthFailureMode":"http403"}},"semanticSearch":"free"},"identity":{"type":"SystemAssigned","principalId":"1c7919cb-d0ae-4654-aec2-bb9aacf73471","tenantId":"00000000-0000-0000-0000-000000000000"},"id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya","name":"asotesthfllya","type":"Microsoft.Search/searchServices","sku":{"name":"standard"}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "902"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "64"
+            Etag:
+                - W/"datetime'2025-08-12T00%3A16%3A04.8408782Z'"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16498"
+            X-Msedge-Ref:
+                - 'Ref A: E9ABE2E5AFEB4CCAA139E837DAA8E501 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:21:44Z'
+        status: 200 OK
+        code: 200
+        duration: 366.335566ms
+    - id: 13
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/json
+            Test-Request-Attempt:
+                - "0"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya/listQueryKeys?api-version=2025-05-01
+        method: POST
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 102
+        uncompressed: false
+        body: '{"value":[{"name":null,"key":"{KEY}"}],"nextLink":null}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "102"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "41"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Operation-Identifier:
+                - tenantId=00000000-0000-0000-0000-000000000000,objectId=1ae5915d-78fe-468d-affb-c275790fa149/westus3/2e843bef-0be8-4c06-9993-dab7f4cb058f
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Writes:
+                - "11999"
+            X-Msedge-Ref:
+                - 'Ref A: 47F3C320DB0E4CC092A69536D05F5FC5 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:21:45Z'
+        status: 200 OK
+        code: 200
+        duration: 446.080858ms
+    - id: 14
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/json
+            Test-Request-Attempt:
+                - "0"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya/listAdminKeys?api-version=2025-05-01
+        method: POST
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 139
+        uncompressed: false
+        body: '{"primaryKey":"{KEY}","secondaryKey":"{KEY}"}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "139"
+            Content-Type:
+                - application/json; charset=utf-8
+            Elapsed-Time:
+                - "44"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Operation-Identifier:
+                - tenantId=00000000-0000-0000-0000-000000000000,objectId=1ae5915d-78fe-468d-affb-c275790fa149/westus3/b6823423-3c87-49ae-8fd8-95a2df479e07
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Writes:
+                - "11999"
+            X-Msedge-Ref:
+                - 'Ref A: 7246EF2310C942A6B08BDE81DBF197BC Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:21:47Z'
+        status: 200 OK
+        code: 200
+        duration: 420.678795ms
+    - id: 15
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/json
+            Test-Request-Attempt:
+                - "0"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt?api-version=2020-06-01
+        method: DELETE
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 0
+        uncompressed: false
+        body: ""
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "0"
+            Expires:
+                - "-1"
+            Location:
+                - https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/operationresults/eyJqb2JJZCI6IlJFU09VUkNFR1JPVVBERUxFVElPTkpPQi1BU09URVNUOjJEUkc6MkRCTFJIRFQtV0VTVFVTMiIsImpvYkxvY2F0aW9uIjoid2VzdHVzMiJ9?api-version=2020-06-01&t=638905549105026385&c=MIIHhzCCBm-gAwIBAgITfAiB12aB1ipq7osBgwAACIHXZjANBgkqhkiG9w0BAQsFADBEMRMwEQYKCZImiZPyLGQBGRYDR0JMMRMwEQYKCZImiZPyLGQBGRYDQU1FMRgwFgYDVQQDEw9BTUUgSW5mcmEgQ0EgMDUwHhcNMjUwNzE4MTE1MDE5WhcNMjYwMTE0MTE1MDE5WjBAMT4wPAYDVQQDEzVhc3luY29wZXJhdGlvbnNpZ25pbmdjZXJ0aWZpY2F0ZS5tYW5hZ2VtZW50LmF6dXJlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANjITqixdxz-rU5P-z7a6mpOd6k491MgcCRUm9ys-EyixX-B32eqjzjENsAsem-C6l0Q-TQCw6nI_D_0G9lNU0TR7Dcx5vrvWcik89LuCgpH70vU1OWqoD0gIfBgetWtaq-H1GIoltMNR3METGK7cV_ZZNfIcXVxJZnqV3T7m9U0McN6AongCXg9m6V1ECF_J8OSn_FWSbs6H9xejPwLex24T89mSDV7d9l7YABeSXF9qRsxSc2l8AooX0hLKXuH8S3_4tLogkpwkyG_lkqE-O2h26l1lDnO-n7Zb0Hc4g2TSp1w_nI9TTehBYQiX28GuRVHgPHnV3X1yRO6H9VgRBECAwEAAaOCBHQwggRwMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwEwCgYIKwYBBQUHAwIwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIhpDjDYTVtHiE8Ys-hZvdFs6dEoFghfmRS4WsmTQCAWQCAQcwggHLBggrBgEFBQcBAQSCAb0wggG5MGMGCCsGAQUFBzAChldodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpaW5mcmEvQ2VydHMvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmwxLmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MFMGCCsGAQUFBzAChkdodHRwOi8vY3JsMi5hbWUuZ2JsL2FpYS9DTzFQS0lJTlRDQTAxLkFNRS5HQkxfQU1FJTIwSW5mcmElMjBDQSUyMDA1LmNydDBTBggrBgEFBQcwAoZHaHR0cDovL2NybDMuYW1lLmdibC9haWEvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmw0LmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MB0GA1UdDgQWBBTWvZvg0z8fK-dZrNbIBkoZyNxnUzAOBgNVHQ8BAf8EBAMCBaAwggEmBgNVHR8EggEdMIIBGTCCARWgggERoIIBDYY_aHR0cDovL2NybC5taWNyb3NvZnQuY29tL3BraWluZnJhL0NSTC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMS5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMi5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMy5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsNC5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JsMIGdBgNVHSAEgZUwgZIwDAYKKwYBBAGCN3sBATBmBgorBgEEAYI3ewICMFgwVgYIKwYBBQUHAgIwSh5IADMAMwBlADAAMQA5ADIAMQAtADQAZAA2ADQALQA0AGYAOABjAC0AYQAwADUANQAtADUAYgBkAGEAZgBmAGQANQBlADMAMwBkMAwGCisGAQQBgjd7AwIwDAYKKwYBBAGCN3sEAjAfBgNVHSMEGDAWgBR61hmFKHlscXYeYPjzS--iBUIWHTAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBAEP6bJYYamn6vq8lLm55souuqiz6MFzQdCty1mzIsxJXPIfOhveBak_Jtq6NCgFibf5_I68OEQKyujqXCvCvdwdDo00WlfcZFOMOpvu7WxioV3G8zzNKtEBIXS8Bbk5Fp3NygEk7t8e0JsU10AXvs75VwQamfqivkdZosjJdJOG1rVSodqZFTJMjdyYlIqYMrcuVk8axykjXczvsAMkqLXdWExqOXIF7MrcuKRMI5TgjEAU85094Z9fVFl5pRZYKzkBlrIUoX1Fb_zfz4mTspPVo9cRpZfxMDmpFf9UcL8Vt9QKUmze-JwrPyVHyK6FSPpr0yJflk00YP-fClirvLUY&s=nQk3scG9Ybv-Nmy949LtlhhH29zlmJ798_J-PbckZSUGkh1Sz72gittrpXhKwjapBG6H4jP_Bmz1NmJ1HUO227nF1Jdl3BMrmJsZFdksy2E5CZgNPANDLdcXHJZe82UmAUBCw3WmvAi-gqdoGcn9CxrLMHKG_KVZJTYsORSlxWe5UxwOeCs90Wjb6KUqhoM1roRF6WA-r4KYSeVNSx4r84JoL3JRULp_0m5TyQ9yMQiBt8p6BvmcWS7T5suyEi1-9po_FFdQY6n3_Ve-M6Ga6GxnJEE_0YuYWaFDQzTR7Vt3zhO2zes7OdtO_DpWyR30jcGuELPqeOQcZvv26Bq1_w&h=MNOvY-gTiTSDtiH0r23Jfcxytyhs6AHzFWDNZvzEIC0
+            Pragma:
+                - no-cache
+            Retry-After:
+                - "15"
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Deletes:
+                - "11999"
+            X-Msedge-Ref:
+                - 'Ref A: B9C13FC4AB774D9589EADA11F3B59B0A Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:21:49Z'
+        status: 202 Accepted
+        code: 202
+        duration: 768.963603ms
+    - id: 16
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "0"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/operationresults/eyJqb2JJZCI6IlJFU09VUkNFR1JPVVBERUxFVElPTkpPQi1BU09URVNUOjJEUkc6MkRCTFJIRFQtV0VTVFVTMiIsImpvYkxvY2F0aW9uIjoid2VzdHVzMiJ9?api-version=2020-06-01&t=638905549105026385&c=MIIHhzCCBm-gAwIBAgITfAiB12aB1ipq7osBgwAACIHXZjANBgkqhkiG9w0BAQsFADBEMRMwEQYKCZImiZPyLGQBGRYDR0JMMRMwEQYKCZImiZPyLGQBGRYDQU1FMRgwFgYDVQQDEw9BTUUgSW5mcmEgQ0EgMDUwHhcNMjUwNzE4MTE1MDE5WhcNMjYwMTE0MTE1MDE5WjBAMT4wPAYDVQQDEzVhc3luY29wZXJhdGlvbnNpZ25pbmdjZXJ0aWZpY2F0ZS5tYW5hZ2VtZW50LmF6dXJlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANjITqixdxz-rU5P-z7a6mpOd6k491MgcCRUm9ys-EyixX-B32eqjzjENsAsem-C6l0Q-TQCw6nI_D_0G9lNU0TR7Dcx5vrvWcik89LuCgpH70vU1OWqoD0gIfBgetWtaq-H1GIoltMNR3METGK7cV_ZZNfIcXVxJZnqV3T7m9U0McN6AongCXg9m6V1ECF_J8OSn_FWSbs6H9xejPwLex24T89mSDV7d9l7YABeSXF9qRsxSc2l8AooX0hLKXuH8S3_4tLogkpwkyG_lkqE-O2h26l1lDnO-n7Zb0Hc4g2TSp1w_nI9TTehBYQiX28GuRVHgPHnV3X1yRO6H9VgRBECAwEAAaOCBHQwggRwMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwEwCgYIKwYBBQUHAwIwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIhpDjDYTVtHiE8Ys-hZvdFs6dEoFghfmRS4WsmTQCAWQCAQcwggHLBggrBgEFBQcBAQSCAb0wggG5MGMGCCsGAQUFBzAChldodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpaW5mcmEvQ2VydHMvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmwxLmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MFMGCCsGAQUFBzAChkdodHRwOi8vY3JsMi5hbWUuZ2JsL2FpYS9DTzFQS0lJTlRDQTAxLkFNRS5HQkxfQU1FJTIwSW5mcmElMjBDQSUyMDA1LmNydDBTBggrBgEFBQcwAoZHaHR0cDovL2NybDMuYW1lLmdibC9haWEvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmw0LmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MB0GA1UdDgQWBBTWvZvg0z8fK-dZrNbIBkoZyNxnUzAOBgNVHQ8BAf8EBAMCBaAwggEmBgNVHR8EggEdMIIBGTCCARWgggERoIIBDYY_aHR0cDovL2NybC5taWNyb3NvZnQuY29tL3BraWluZnJhL0NSTC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMS5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMi5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMy5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsNC5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JsMIGdBgNVHSAEgZUwgZIwDAYKKwYBBAGCN3sBATBmBgorBgEEAYI3ewICMFgwVgYIKwYBBQUHAgIwSh5IADMAMwBlADAAMQA5ADIAMQAtADQAZAA2ADQALQA0AGYAOABjAC0AYQAwADUANQAtADUAYgBkAGEAZgBmAGQANQBlADMAMwBkMAwGCisGAQQBgjd7AwIwDAYKKwYBBAGCN3sEAjAfBgNVHSMEGDAWgBR61hmFKHlscXYeYPjzS--iBUIWHTAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBAEP6bJYYamn6vq8lLm55souuqiz6MFzQdCty1mzIsxJXPIfOhveBak_Jtq6NCgFibf5_I68OEQKyujqXCvCvdwdDo00WlfcZFOMOpvu7WxioV3G8zzNKtEBIXS8Bbk5Fp3NygEk7t8e0JsU10AXvs75VwQamfqivkdZosjJdJOG1rVSodqZFTJMjdyYlIqYMrcuVk8axykjXczvsAMkqLXdWExqOXIF7MrcuKRMI5TgjEAU85094Z9fVFl5pRZYKzkBlrIUoX1Fb_zfz4mTspPVo9cRpZfxMDmpFf9UcL8Vt9QKUmze-JwrPyVHyK6FSPpr0yJflk00YP-fClirvLUY&s=nQk3scG9Ybv-Nmy949LtlhhH29zlmJ798_J-PbckZSUGkh1Sz72gittrpXhKwjapBG6H4jP_Bmz1NmJ1HUO227nF1Jdl3BMrmJsZFdksy2E5CZgNPANDLdcXHJZe82UmAUBCw3WmvAi-gqdoGcn9CxrLMHKG_KVZJTYsORSlxWe5UxwOeCs90Wjb6KUqhoM1roRF6WA-r4KYSeVNSx4r84JoL3JRULp_0m5TyQ9yMQiBt8p6BvmcWS7T5suyEi1-9po_FFdQY6n3_Ve-M6Ga6GxnJEE_0YuYWaFDQzTR7Vt3zhO2zes7OdtO_DpWyR30jcGuELPqeOQcZvv26Bq1_w&h=MNOvY-gTiTSDtiH0r23Jfcxytyhs6AHzFWDNZvzEIC0
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 0
+        uncompressed: false
+        body: ""
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "0"
+            Expires:
+                - "-1"
+            Location:
+                - https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/operationresults/eyJqb2JJZCI6IlJFU09VUkNFR1JPVVBERUxFVElPTkpPQi1BU09URVNUOjJEUkc6MkRCTFJIRFQtV0VTVFVTMiIsImpvYkxvY2F0aW9uIjoid2VzdHVzMiJ9?api-version=2020-06-01&t=638905549283223374&c=MIIHhzCCBm-gAwIBAgITfAiEqRZrgLhPwkUvfgAACISpFjANBgkqhkiG9w0BAQsFADBEMRMwEQYKCZImiZPyLGQBGRYDR0JMMRMwEQYKCZImiZPyLGQBGRYDQU1FMRgwFgYDVQQDEw9BTUUgSW5mcmEgQ0EgMDUwHhcNMjUwNzE5MTUxNTU3WhcNMjYwMTE1MTUxNTU3WjBAMT4wPAYDVQQDEzVhc3luY29wZXJhdGlvbnNpZ25pbmdjZXJ0aWZpY2F0ZS5tYW5hZ2VtZW50LmF6dXJlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANo8JkuCSyYzxbK-6GTWYze3gfPX3W0gGXDNABI0DpWEhe9om3se5tziu1JvncajCytpTguwrHlK0rcquzbDXXvHhbsY73edSvO92c2ADuvWEnNdsmm_eToLFsXFZjZMhgj9jD_wnJ6L9KtxBHW6hwaA6YgFKE3lyA5TXmiyo15CLkHFj02CX4NB1cTIN15yGoCxLyB-Zr3jEH0xfMCQPYlmSTwuQvC4UWEndUzZd_Y-HLo959DU-Ug61g41JksM4dzdEHw2_Yew_EDtac3ERKzqVKC1GxTNXLELU_LFkPdkKBi-JGTX5MxlXWEAVL1gSKy4C0lslOvMVICJ0D5ZPTECAwEAAaOCBHQwggRwMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwEwCgYIKwYBBQUHAwIwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIhpDjDYTVtHiE8Ys-hZvdFs6dEoFghfmRS4WsmTQCAWQCAQcwggHLBggrBgEFBQcBAQSCAb0wggG5MGMGCCsGAQUFBzAChldodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpaW5mcmEvQ2VydHMvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmwxLmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MFMGCCsGAQUFBzAChkdodHRwOi8vY3JsMi5hbWUuZ2JsL2FpYS9DTzFQS0lJTlRDQTAxLkFNRS5HQkxfQU1FJTIwSW5mcmElMjBDQSUyMDA1LmNydDBTBggrBgEFBQcwAoZHaHR0cDovL2NybDMuYW1lLmdibC9haWEvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmw0LmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MB0GA1UdDgQWBBTHBRf8ZL9wY__HzSsEXGXuVL8aEDAOBgNVHQ8BAf8EBAMCBaAwggEmBgNVHR8EggEdMIIBGTCCARWgggERoIIBDYY_aHR0cDovL2NybC5taWNyb3NvZnQuY29tL3BraWluZnJhL0NSTC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMS5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMi5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMy5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsNC5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JsMIGdBgNVHSAEgZUwgZIwDAYKKwYBBAGCN3sBATBmBgorBgEEAYI3ewICMFgwVgYIKwYBBQUHAgIwSh5IADMAMwBlADAAMQA5ADIAMQAtADQAZAA2ADQALQA0AGYAOABjAC0AYQAwADUANQAtADUAYgBkAGEAZgBmAGQANQBlADMAMwBkMAwGCisGAQQBgjd7AwIwDAYKKwYBBAGCN3sEAjAfBgNVHSMEGDAWgBR61hmFKHlscXYeYPjzS--iBUIWHTAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBAIsWwSMOlrjb5kZTgKGXSVnDyLsC7qm2NFBdhoNUtOxSB-TF88cKGPhwNx59_1_GhsNjXldjQVJ1seRL3Dxf55jqzfXeFBQAIHIRsR8-WJPTpZ3VtWewO_Qvh9h7Bd-gfA0pRXw3Hq4eRpBmAf7gfOki1W-7-m3cozATlPCkEWnBM4qRujLuiQX_Q3tfok25Wmnyq_KkG_0VC3JVUvJnkKpv1qRHWahwVo1wzWyJIoaxA7T0oOonf6ZN3j8AyT_VGFDRmvLuvakI8huZgSbjWvWFT6bx7NRTo6YHkHb5COr1PJTbhpDS-PSv5Ud3SFTnLAZyd3oRW-Lp3Fo6RFoNgBs&s=tJfTjSEqVTlZ3_8Ahj7ty5rxS6ngsh0geyAoH2hx0l4xzcRpXaLVKj-YfsRUwWVB9v1RXVInwsdQGvAHUMqWj2v-kW6EnpWtO8X53d5Nd0Q-VP-Imkzl4OD-GmVGZGKV0KAz0H47xyWVmeOGZekl1VhqaFgp0PN4m1kxetYSAVKxX-EDP4m2Mdz0UO-osk1uEczj-S09s173AUyngWT148x_f2lLKb_BhAznOr3hTespLA5WqJ7G4lm0UW_FdO0tvdTyPxJnlNt_FIZaOGeHtlQSZydHFcmRtFzW1JLFeXvapTnmOc4MamcVbmjSqdFjexwE0Ij7cSgumwMDMMYKbQ&h=0g5W5_YOGlG-kV_nfU9d9wxSPHoGN-8CDmxgHVcTdlE
+            Pragma:
+                - no-cache
+            Retry-After:
+                - "15"
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 5E1017E2493147A4A1A1C42A71EFB2AC Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:22:07Z'
+        status: 202 Accepted
+        code: 202
+        duration: 900.678985ms
+    - id: 17
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "1"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/operationresults/eyJqb2JJZCI6IlJFU09VUkNFR1JPVVBERUxFVElPTkpPQi1BU09URVNUOjJEUkc6MkRCTFJIRFQtV0VTVFVTMiIsImpvYkxvY2F0aW9uIjoid2VzdHVzMiJ9?api-version=2020-06-01&t=638905549105026385&c=MIIHhzCCBm-gAwIBAgITfAiB12aB1ipq7osBgwAACIHXZjANBgkqhkiG9w0BAQsFADBEMRMwEQYKCZImiZPyLGQBGRYDR0JMMRMwEQYKCZImiZPyLGQBGRYDQU1FMRgwFgYDVQQDEw9BTUUgSW5mcmEgQ0EgMDUwHhcNMjUwNzE4MTE1MDE5WhcNMjYwMTE0MTE1MDE5WjBAMT4wPAYDVQQDEzVhc3luY29wZXJhdGlvbnNpZ25pbmdjZXJ0aWZpY2F0ZS5tYW5hZ2VtZW50LmF6dXJlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANjITqixdxz-rU5P-z7a6mpOd6k491MgcCRUm9ys-EyixX-B32eqjzjENsAsem-C6l0Q-TQCw6nI_D_0G9lNU0TR7Dcx5vrvWcik89LuCgpH70vU1OWqoD0gIfBgetWtaq-H1GIoltMNR3METGK7cV_ZZNfIcXVxJZnqV3T7m9U0McN6AongCXg9m6V1ECF_J8OSn_FWSbs6H9xejPwLex24T89mSDV7d9l7YABeSXF9qRsxSc2l8AooX0hLKXuH8S3_4tLogkpwkyG_lkqE-O2h26l1lDnO-n7Zb0Hc4g2TSp1w_nI9TTehBYQiX28GuRVHgPHnV3X1yRO6H9VgRBECAwEAAaOCBHQwggRwMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwEwCgYIKwYBBQUHAwIwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIhpDjDYTVtHiE8Ys-hZvdFs6dEoFghfmRS4WsmTQCAWQCAQcwggHLBggrBgEFBQcBAQSCAb0wggG5MGMGCCsGAQUFBzAChldodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpaW5mcmEvQ2VydHMvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmwxLmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MFMGCCsGAQUFBzAChkdodHRwOi8vY3JsMi5hbWUuZ2JsL2FpYS9DTzFQS0lJTlRDQTAxLkFNRS5HQkxfQU1FJTIwSW5mcmElMjBDQSUyMDA1LmNydDBTBggrBgEFBQcwAoZHaHR0cDovL2NybDMuYW1lLmdibC9haWEvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmw0LmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MB0GA1UdDgQWBBTWvZvg0z8fK-dZrNbIBkoZyNxnUzAOBgNVHQ8BAf8EBAMCBaAwggEmBgNVHR8EggEdMIIBGTCCARWgggERoIIBDYY_aHR0cDovL2NybC5taWNyb3NvZnQuY29tL3BraWluZnJhL0NSTC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMS5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMi5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMy5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsNC5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JsMIGdBgNVHSAEgZUwgZIwDAYKKwYBBAGCN3sBATBmBgorBgEEAYI3ewICMFgwVgYIKwYBBQUHAgIwSh5IADMAMwBlADAAMQA5ADIAMQAtADQAZAA2ADQALQA0AGYAOABjAC0AYQAwADUANQAtADUAYgBkAGEAZgBmAGQANQBlADMAMwBkMAwGCisGAQQBgjd7AwIwDAYKKwYBBAGCN3sEAjAfBgNVHSMEGDAWgBR61hmFKHlscXYeYPjzS--iBUIWHTAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBAEP6bJYYamn6vq8lLm55souuqiz6MFzQdCty1mzIsxJXPIfOhveBak_Jtq6NCgFibf5_I68OEQKyujqXCvCvdwdDo00WlfcZFOMOpvu7WxioV3G8zzNKtEBIXS8Bbk5Fp3NygEk7t8e0JsU10AXvs75VwQamfqivkdZosjJdJOG1rVSodqZFTJMjdyYlIqYMrcuVk8axykjXczvsAMkqLXdWExqOXIF7MrcuKRMI5TgjEAU85094Z9fVFl5pRZYKzkBlrIUoX1Fb_zfz4mTspPVo9cRpZfxMDmpFf9UcL8Vt9QKUmze-JwrPyVHyK6FSPpr0yJflk00YP-fClirvLUY&s=nQk3scG9Ybv-Nmy949LtlhhH29zlmJ798_J-PbckZSUGkh1Sz72gittrpXhKwjapBG6H4jP_Bmz1NmJ1HUO227nF1Jdl3BMrmJsZFdksy2E5CZgNPANDLdcXHJZe82UmAUBCw3WmvAi-gqdoGcn9CxrLMHKG_KVZJTYsORSlxWe5UxwOeCs90Wjb6KUqhoM1roRF6WA-r4KYSeVNSx4r84JoL3JRULp_0m5TyQ9yMQiBt8p6BvmcWS7T5suyEi1-9po_FFdQY6n3_Ve-M6Ga6GxnJEE_0YuYWaFDQzTR7Vt3zhO2zes7OdtO_DpWyR30jcGuELPqeOQcZvv26Bq1_w&h=MNOvY-gTiTSDtiH0r23Jfcxytyhs6AHzFWDNZvzEIC0
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 0
+        uncompressed: false
+        body: ""
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "0"
+            Expires:
+                - "-1"
+            Location:
+                - https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/operationresults/eyJqb2JJZCI6IlJFU09VUkNFR1JPVVBERUxFVElPTkpPQi1BU09URVNUOjJEUkc6MkRCTFJIRFQtV0VTVFVTMiIsImpvYkxvY2F0aW9uIjoid2VzdHVzMiJ9?api-version=2020-06-01&t=638905549459079051&c=MIIHhzCCBm-gAwIBAgITfAiEqRZrgLhPwkUvfgAACISpFjANBgkqhkiG9w0BAQsFADBEMRMwEQYKCZImiZPyLGQBGRYDR0JMMRMwEQYKCZImiZPyLGQBGRYDQU1FMRgwFgYDVQQDEw9BTUUgSW5mcmEgQ0EgMDUwHhcNMjUwNzE5MTUxNTU3WhcNMjYwMTE1MTUxNTU3WjBAMT4wPAYDVQQDEzVhc3luY29wZXJhdGlvbnNpZ25pbmdjZXJ0aWZpY2F0ZS5tYW5hZ2VtZW50LmF6dXJlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANo8JkuCSyYzxbK-6GTWYze3gfPX3W0gGXDNABI0DpWEhe9om3se5tziu1JvncajCytpTguwrHlK0rcquzbDXXvHhbsY73edSvO92c2ADuvWEnNdsmm_eToLFsXFZjZMhgj9jD_wnJ6L9KtxBHW6hwaA6YgFKE3lyA5TXmiyo15CLkHFj02CX4NB1cTIN15yGoCxLyB-Zr3jEH0xfMCQPYlmSTwuQvC4UWEndUzZd_Y-HLo959DU-Ug61g41JksM4dzdEHw2_Yew_EDtac3ERKzqVKC1GxTNXLELU_LFkPdkKBi-JGTX5MxlXWEAVL1gSKy4C0lslOvMVICJ0D5ZPTECAwEAAaOCBHQwggRwMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwEwCgYIKwYBBQUHAwIwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIhpDjDYTVtHiE8Ys-hZvdFs6dEoFghfmRS4WsmTQCAWQCAQcwggHLBggrBgEFBQcBAQSCAb0wggG5MGMGCCsGAQUFBzAChldodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpaW5mcmEvQ2VydHMvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmwxLmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MFMGCCsGAQUFBzAChkdodHRwOi8vY3JsMi5hbWUuZ2JsL2FpYS9DTzFQS0lJTlRDQTAxLkFNRS5HQkxfQU1FJTIwSW5mcmElMjBDQSUyMDA1LmNydDBTBggrBgEFBQcwAoZHaHR0cDovL2NybDMuYW1lLmdibC9haWEvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmw0LmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MB0GA1UdDgQWBBTHBRf8ZL9wY__HzSsEXGXuVL8aEDAOBgNVHQ8BAf8EBAMCBaAwggEmBgNVHR8EggEdMIIBGTCCARWgggERoIIBDYY_aHR0cDovL2NybC5taWNyb3NvZnQuY29tL3BraWluZnJhL0NSTC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMS5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMi5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMy5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsNC5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JsMIGdBgNVHSAEgZUwgZIwDAYKKwYBBAGCN3sBATBmBgorBgEEAYI3ewICMFgwVgYIKwYBBQUHAgIwSh5IADMAMwBlADAAMQA5ADIAMQAtADQAZAA2ADQALQA0AGYAOABjAC0AYQAwADUANQAtADUAYgBkAGEAZgBmAGQANQBlADMAMwBkMAwGCisGAQQBgjd7AwIwDAYKKwYBBAGCN3sEAjAfBgNVHSMEGDAWgBR61hmFKHlscXYeYPjzS--iBUIWHTAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBAIsWwSMOlrjb5kZTgKGXSVnDyLsC7qm2NFBdhoNUtOxSB-TF88cKGPhwNx59_1_GhsNjXldjQVJ1seRL3Dxf55jqzfXeFBQAIHIRsR8-WJPTpZ3VtWewO_Qvh9h7Bd-gfA0pRXw3Hq4eRpBmAf7gfOki1W-7-m3cozATlPCkEWnBM4qRujLuiQX_Q3tfok25Wmnyq_KkG_0VC3JVUvJnkKpv1qRHWahwVo1wzWyJIoaxA7T0oOonf6ZN3j8AyT_VGFDRmvLuvakI8huZgSbjWvWFT6bx7NRTo6YHkHb5COr1PJTbhpDS-PSv5Ud3SFTnLAZyd3oRW-Lp3Fo6RFoNgBs&s=qLTLFMMKhr6foKlf2tyBJy6bg-HumxG3PDWputdC5YpYmNAZ2FMVYmwJL8iaFc7QMQ3WmDJQ01T12-M74ehPZE6K6r-BupP6CnAVjGNwD4oHiMv8F2ILI-W26TStSE8UX3-nqULDGUqfSZ3yaH6uH98u1Eq9Ix_8oG4S2oWIEDU21DnOIuXRzhTsJUUtbCbhj25mWpj5REvLifhwLVEdRpHPoXnO_Su-K4leodzIcd20RIGtMNjOp47sElnIVhKVf2kVvdI_S9EEREy7EyGXAQjPPEdHerYV4zAPDlFqyveAJlaRwov6fEL4FkkyfcLi8FoWVJ1rF-qL2MJoh5L32A&h=vyJT2q5D7gENa3fiUFbizlsWkYOpzh_odIQAlK8iLUg
+            Pragma:
+                - no-cache
+            Retry-After:
+                - "15"
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: F8B9E13DEA5D4970809B6EF06BAAB6FF Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:22:25Z'
+        status: 202 Accepted
+        code: 202
+        duration: 905.990996ms
+    - id: 18
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "2"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/operationresults/eyJqb2JJZCI6IlJFU09VUkNFR1JPVVBERUxFVElPTkpPQi1BU09URVNUOjJEUkc6MkRCTFJIRFQtV0VTVFVTMiIsImpvYkxvY2F0aW9uIjoid2VzdHVzMiJ9?api-version=2020-06-01&t=638905549105026385&c=MIIHhzCCBm-gAwIBAgITfAiB12aB1ipq7osBgwAACIHXZjANBgkqhkiG9w0BAQsFADBEMRMwEQYKCZImiZPyLGQBGRYDR0JMMRMwEQYKCZImiZPyLGQBGRYDQU1FMRgwFgYDVQQDEw9BTUUgSW5mcmEgQ0EgMDUwHhcNMjUwNzE4MTE1MDE5WhcNMjYwMTE0MTE1MDE5WjBAMT4wPAYDVQQDEzVhc3luY29wZXJhdGlvbnNpZ25pbmdjZXJ0aWZpY2F0ZS5tYW5hZ2VtZW50LmF6dXJlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANjITqixdxz-rU5P-z7a6mpOd6k491MgcCRUm9ys-EyixX-B32eqjzjENsAsem-C6l0Q-TQCw6nI_D_0G9lNU0TR7Dcx5vrvWcik89LuCgpH70vU1OWqoD0gIfBgetWtaq-H1GIoltMNR3METGK7cV_ZZNfIcXVxJZnqV3T7m9U0McN6AongCXg9m6V1ECF_J8OSn_FWSbs6H9xejPwLex24T89mSDV7d9l7YABeSXF9qRsxSc2l8AooX0hLKXuH8S3_4tLogkpwkyG_lkqE-O2h26l1lDnO-n7Zb0Hc4g2TSp1w_nI9TTehBYQiX28GuRVHgPHnV3X1yRO6H9VgRBECAwEAAaOCBHQwggRwMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwEwCgYIKwYBBQUHAwIwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIhpDjDYTVtHiE8Ys-hZvdFs6dEoFghfmRS4WsmTQCAWQCAQcwggHLBggrBgEFBQcBAQSCAb0wggG5MGMGCCsGAQUFBzAChldodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpaW5mcmEvQ2VydHMvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmwxLmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MFMGCCsGAQUFBzAChkdodHRwOi8vY3JsMi5hbWUuZ2JsL2FpYS9DTzFQS0lJTlRDQTAxLkFNRS5HQkxfQU1FJTIwSW5mcmElMjBDQSUyMDA1LmNydDBTBggrBgEFBQcwAoZHaHR0cDovL2NybDMuYW1lLmdibC9haWEvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmw0LmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MB0GA1UdDgQWBBTWvZvg0z8fK-dZrNbIBkoZyNxnUzAOBgNVHQ8BAf8EBAMCBaAwggEmBgNVHR8EggEdMIIBGTCCARWgggERoIIBDYY_aHR0cDovL2NybC5taWNyb3NvZnQuY29tL3BraWluZnJhL0NSTC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMS5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMi5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMy5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsNC5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JsMIGdBgNVHSAEgZUwgZIwDAYKKwYBBAGCN3sBATBmBgorBgEEAYI3ewICMFgwVgYIKwYBBQUHAgIwSh5IADMAMwBlADAAMQA5ADIAMQAtADQAZAA2ADQALQA0AGYAOABjAC0AYQAwADUANQAtADUAYgBkAGEAZgBmAGQANQBlADMAMwBkMAwGCisGAQQBgjd7AwIwDAYKKwYBBAGCN3sEAjAfBgNVHSMEGDAWgBR61hmFKHlscXYeYPjzS--iBUIWHTAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBAEP6bJYYamn6vq8lLm55souuqiz6MFzQdCty1mzIsxJXPIfOhveBak_Jtq6NCgFibf5_I68OEQKyujqXCvCvdwdDo00WlfcZFOMOpvu7WxioV3G8zzNKtEBIXS8Bbk5Fp3NygEk7t8e0JsU10AXvs75VwQamfqivkdZosjJdJOG1rVSodqZFTJMjdyYlIqYMrcuVk8axykjXczvsAMkqLXdWExqOXIF7MrcuKRMI5TgjEAU85094Z9fVFl5pRZYKzkBlrIUoX1Fb_zfz4mTspPVo9cRpZfxMDmpFf9UcL8Vt9QKUmze-JwrPyVHyK6FSPpr0yJflk00YP-fClirvLUY&s=nQk3scG9Ybv-Nmy949LtlhhH29zlmJ798_J-PbckZSUGkh1Sz72gittrpXhKwjapBG6H4jP_Bmz1NmJ1HUO227nF1Jdl3BMrmJsZFdksy2E5CZgNPANDLdcXHJZe82UmAUBCw3WmvAi-gqdoGcn9CxrLMHKG_KVZJTYsORSlxWe5UxwOeCs90Wjb6KUqhoM1roRF6WA-r4KYSeVNSx4r84JoL3JRULp_0m5TyQ9yMQiBt8p6BvmcWS7T5suyEi1-9po_FFdQY6n3_Ve-M6Ga6GxnJEE_0YuYWaFDQzTR7Vt3zhO2zes7OdtO_DpWyR30jcGuELPqeOQcZvv26Bq1_w&h=MNOvY-gTiTSDtiH0r23Jfcxytyhs6AHzFWDNZvzEIC0
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 0
+        uncompressed: false
+        body: ""
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "0"
+            Expires:
+                - "-1"
+            Location:
+                - https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/operationresults/eyJqb2JJZCI6IlJFU09VUkNFR1JPVVBERUxFVElPTkpPQi1BU09URVNUOjJEUkc6MkRCTFJIRFQtV0VTVFVTMiIsImpvYkxvY2F0aW9uIjoid2VzdHVzMiJ9?api-version=2020-06-01&t=638905549647200646&c=MIIHhzCCBm-gAwIBAgITHgcyEmWASoZ-YR1_UwAABzISZTANBgkqhkiG9w0BAQsFADBEMRMwEQYKCZImiZPyLGQBGRYDR0JMMRMwEQYKCZImiZPyLGQBGRYDQU1FMRgwFgYDVQQDEw9BTUUgSW5mcmEgQ0EgMDYwHhcNMjUwNzE5MTU1NTE0WhcNMjYwMTE1MTU1NTE0WjBAMT4wPAYDVQQDEzVhc3luY29wZXJhdGlvbnNpZ25pbmdjZXJ0aWZpY2F0ZS5tYW5hZ2VtZW50LmF6dXJlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALF2ifTmNbIQi3IM3paqUFf1-keeQwin8EJvlg5F4Ot9jNqTVJrYFWq9wMgCFaNiKJWmQPggYWGEHQgVlsAdBzq8LrYqplHHqqTBSkU2H2fO36i9ffSbxOSgyMBeVHZlNufbttCxAQOrKmIeCG8HDsF5ecUtptJB7lhTixgxU_pSOAVEc3fv4BMMrktjZhakXeTYz_73CJ_LtG3lEUpuaKqy1eUiFkzqCfldPdFpHPGzxzSATDtjaHS7G4nb7q_PrIFyPtOmHEKbNvlWF_o-HvTEb4TP7QFhux1_pCqyR-e6-K6TXib5Vf2H34mNYwWptskkPwpwDHH7bY7I7rzOgbkCAwEAAaOCBHQwggRwMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwEwCgYIKwYBBQUHAwIwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIhpDjDYTVtHiE8Ys-hZvdFs6dEoFghfmRS4WsmTQCAWQCAQcwggHLBggrBgEFBQcBAQSCAb0wggG5MGMGCCsGAQUFBzAChldodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpaW5mcmEvQ2VydHMvQkwyUEtJSU5UQ0EwMi5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNi5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmwxLmFtZS5nYmwvYWlhL0JMMlBLSUlOVENBMDIuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDYuY3J0MFMGCCsGAQUFBzAChkdodHRwOi8vY3JsMi5hbWUuZ2JsL2FpYS9CTDJQS0lJTlRDQTAyLkFNRS5HQkxfQU1FJTIwSW5mcmElMjBDQSUyMDA2LmNydDBTBggrBgEFBQcwAoZHaHR0cDovL2NybDMuYW1lLmdibC9haWEvQkwyUEtJSU5UQ0EwMi5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNi5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmw0LmFtZS5nYmwvYWlhL0JMMlBLSUlOVENBMDIuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDYuY3J0MB0GA1UdDgQWBBTppMdQc5AeSR8LREUF8LaEjKFBwDAOBgNVHQ8BAf8EBAMCBaAwggEmBgNVHR8EggEdMIIBGTCCARWgggERoIIBDYY_aHR0cDovL2NybC5taWNyb3NvZnQuY29tL3BraWluZnJhL0NSTC9BTUUlMjBJbmZyYSUyMENBJTIwMDYuY3JshjFodHRwOi8vY3JsMS5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDYuY3JshjFodHRwOi8vY3JsMi5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDYuY3JshjFodHRwOi8vY3JsMy5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDYuY3JshjFodHRwOi8vY3JsNC5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDYuY3JsMIGdBgNVHSAEgZUwgZIwDAYKKwYBBAGCN3sBATBmBgorBgEEAYI3ewICMFgwVgYIKwYBBQUHAgIwSh5IADMAMwBlADAAMQA5ADIAMQAtADQAZAA2ADQALQA0AGYAOABjAC0AYQAwADUANQAtADUAYgBkAGEAZgBmAGQANQBlADMAMwBkMAwGCisGAQQBgjd7AwIwDAYKKwYBBAGCN3sEAjAfBgNVHSMEGDAWgBTxRmjG8cPwKy19i2rhsvm-NfzRQTAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBAIoafeiiJ5ZmojT-3rX5mbFD1vU8L8hzitaLwvD0k3jEJ7BBQvOqhvlOtMF1xemMPHQHaZ_TuCiqywm0WvC71hEP__2VriuZaGXmxd0o0eTquAF8Y1moG0pxG9aGBIsm3dLzuv_enIf1HBHAIbX8keQf8PtzVHV6I9otzYECyTf8hJbCBsOhPeAmsn7Z2NkQKWGaJ5Ode_T1RXYNswccmjpqBdckoz_GGRsBgC5vkfrOyVZWKDZJj8xd0ETsZUcJQY2ADUso1wJYXOhlRb77BfM4z1pXh5vLvsVoFYglIABp1w2-br0HIvAKlfQXR1K-8PfD43MFm6IZfZN_a04Bmmo&s=TyxoWJ_SiOPQGFj1orRKkvXJ9Wg-ylbDGRhVva-oEBTXfRtWRq8UAc7Er86xS9Unq1X8MmYAHozDeEFgra3Q5FgiViSlU5npxpAsUi4PZYiwTnM2Um_JpdMpCfsZ3G9Qm0UKDnqskgRAbDwhZNG34tsR-H0xm89KAwgRf6IKiuCK-e9Pr4jfm5x_eDrmNFNAtnzQ1AuHy535M7MsOjSUsvidC7wC-9a8WJsvbg_erBiJ0Gf36eUeNN16BAv7s9eSHjeGR_W-2iHSwXVtBhEvvxZpQUdweOTeaxAAtkPoam9RSzg4Ta3r-Mo6EARmO1UZ5EehsFKRoydoLjEelhsZ1g&h=V8fGtLGshSv3Wl7iky5Y9rtnNgDOjTMahuauv_Jh_3E
+            Pragma:
+                - no-cache
+            Retry-After:
+                - "15"
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 08F4374CE00C4272AF6CA418293C13A4 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:22:42Z'
+        status: 202 Accepted
+        code: 202
+        duration: 1.689085428s
+    - id: 19
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Test-Request-Attempt:
+                - "3"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/operationresults/eyJqb2JJZCI6IlJFU09VUkNFR1JPVVBERUxFVElPTkpPQi1BU09URVNUOjJEUkc6MkRCTFJIRFQtV0VTVFVTMiIsImpvYkxvY2F0aW9uIjoid2VzdHVzMiJ9?api-version=2020-06-01&t=638905549105026385&c=MIIHhzCCBm-gAwIBAgITfAiB12aB1ipq7osBgwAACIHXZjANBgkqhkiG9w0BAQsFADBEMRMwEQYKCZImiZPyLGQBGRYDR0JMMRMwEQYKCZImiZPyLGQBGRYDQU1FMRgwFgYDVQQDEw9BTUUgSW5mcmEgQ0EgMDUwHhcNMjUwNzE4MTE1MDE5WhcNMjYwMTE0MTE1MDE5WjBAMT4wPAYDVQQDEzVhc3luY29wZXJhdGlvbnNpZ25pbmdjZXJ0aWZpY2F0ZS5tYW5hZ2VtZW50LmF6dXJlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANjITqixdxz-rU5P-z7a6mpOd6k491MgcCRUm9ys-EyixX-B32eqjzjENsAsem-C6l0Q-TQCw6nI_D_0G9lNU0TR7Dcx5vrvWcik89LuCgpH70vU1OWqoD0gIfBgetWtaq-H1GIoltMNR3METGK7cV_ZZNfIcXVxJZnqV3T7m9U0McN6AongCXg9m6V1ECF_J8OSn_FWSbs6H9xejPwLex24T89mSDV7d9l7YABeSXF9qRsxSc2l8AooX0hLKXuH8S3_4tLogkpwkyG_lkqE-O2h26l1lDnO-n7Zb0Hc4g2TSp1w_nI9TTehBYQiX28GuRVHgPHnV3X1yRO6H9VgRBECAwEAAaOCBHQwggRwMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwEwCgYIKwYBBQUHAwIwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIhpDjDYTVtHiE8Ys-hZvdFs6dEoFghfmRS4WsmTQCAWQCAQcwggHLBggrBgEFBQcBAQSCAb0wggG5MGMGCCsGAQUFBzAChldodHRwOi8vY3JsLm1pY3Jvc29mdC5jb20vcGtpaW5mcmEvQ2VydHMvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmwxLmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MFMGCCsGAQUFBzAChkdodHRwOi8vY3JsMi5hbWUuZ2JsL2FpYS9DTzFQS0lJTlRDQTAxLkFNRS5HQkxfQU1FJTIwSW5mcmElMjBDQSUyMDA1LmNydDBTBggrBgEFBQcwAoZHaHR0cDovL2NybDMuYW1lLmdibC9haWEvQ08xUEtJSU5UQ0EwMS5BTUUuR0JMX0FNRSUyMEluZnJhJTIwQ0ElMjAwNS5jcnQwUwYIKwYBBQUHMAKGR2h0dHA6Ly9jcmw0LmFtZS5nYmwvYWlhL0NPMVBLSUlOVENBMDEuQU1FLkdCTF9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3J0MB0GA1UdDgQWBBTWvZvg0z8fK-dZrNbIBkoZyNxnUzAOBgNVHQ8BAf8EBAMCBaAwggEmBgNVHR8EggEdMIIBGTCCARWgggERoIIBDYY_aHR0cDovL2NybC5taWNyb3NvZnQuY29tL3BraWluZnJhL0NSTC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMS5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMi5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsMy5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JshjFodHRwOi8vY3JsNC5hbWUuZ2JsL2NybC9BTUUlMjBJbmZyYSUyMENBJTIwMDUuY3JsMIGdBgNVHSAEgZUwgZIwDAYKKwYBBAGCN3sBATBmBgorBgEEAYI3ewICMFgwVgYIKwYBBQUHAgIwSh5IADMAMwBlADAAMQA5ADIAMQAtADQAZAA2ADQALQA0AGYAOABjAC0AYQAwADUANQAtADUAYgBkAGEAZgBmAGQANQBlADMAMwBkMAwGCisGAQQBgjd7AwIwDAYKKwYBBAGCN3sEAjAfBgNVHSMEGDAWgBR61hmFKHlscXYeYPjzS--iBUIWHTAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBAEP6bJYYamn6vq8lLm55souuqiz6MFzQdCty1mzIsxJXPIfOhveBak_Jtq6NCgFibf5_I68OEQKyujqXCvCvdwdDo00WlfcZFOMOpvu7WxioV3G8zzNKtEBIXS8Bbk5Fp3NygEk7t8e0JsU10AXvs75VwQamfqivkdZosjJdJOG1rVSodqZFTJMjdyYlIqYMrcuVk8axykjXczvsAMkqLXdWExqOXIF7MrcuKRMI5TgjEAU85094Z9fVFl5pRZYKzkBlrIUoX1Fb_zfz4mTspPVo9cRpZfxMDmpFf9UcL8Vt9QKUmze-JwrPyVHyK6FSPpr0yJflk00YP-fClirvLUY&s=nQk3scG9Ybv-Nmy949LtlhhH29zlmJ798_J-PbckZSUGkh1Sz72gittrpXhKwjapBG6H4jP_Bmz1NmJ1HUO227nF1Jdl3BMrmJsZFdksy2E5CZgNPANDLdcXHJZe82UmAUBCw3WmvAi-gqdoGcn9CxrLMHKG_KVZJTYsORSlxWe5UxwOeCs90Wjb6KUqhoM1roRF6WA-r4KYSeVNSx4r84JoL3JRULp_0m5TyQ9yMQiBt8p6BvmcWS7T5suyEi1-9po_FFdQY6n3_Ve-M6Ga6GxnJEE_0YuYWaFDQzTR7Vt3zhO2zes7OdtO_DpWyR30jcGuELPqeOQcZvv26Bq1_w&h=MNOvY-gTiTSDtiH0r23Jfcxytyhs6AHzFWDNZvzEIC0
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 0
+        uncompressed: false
+        body: ""
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "0"
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Ratelimit-Remaining-Subscription-Global-Reads:
+                - "16499"
+            X-Msedge-Ref:
+                - 'Ref A: 89F6DEA3D9D1425E87D6B714278CF9FB Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:23:02Z'
+        status: 200 OK
+        code: 200
+        duration: 1.672919445s
+    - id: 20
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: management.azure.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/json
+            Test-Request-Attempt:
+                - "0"
+        url: https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/asotest-rg-blrhdt/providers/Microsoft.Search/searchServices/asotesthfllya?api-version=2023-11-01
+        method: DELETE
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 109
+        uncompressed: false
+        body: '{"error":{"code":"ResourceGroupNotFound","message":"Resource group ''asotest-rg-blrhdt'' could not be found."}}'
+        headers:
+            Cache-Control:
+                - no-cache
+            Content-Length:
+                - "109"
+            Content-Type:
+                - application/json; charset=utf-8
+            Expires:
+                - "-1"
+            Pragma:
+                - no-cache
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubDomains
+            X-Cache:
+                - CONFIG_NOCACHE
+            X-Content-Type-Options:
+                - nosniff
+            X-Ms-Failure-Cause:
+                - gateway
+            X-Msedge-Ref:
+                - 'Ref A: BF34D42FA5D84DFB842BAC85DA76B230 Ref B: SYD03EDGE1311 Ref C: 2025-08-12T00:23:09Z'
+        status: 404 Not Found
+        code: 404
+        duration: 131.026586ms

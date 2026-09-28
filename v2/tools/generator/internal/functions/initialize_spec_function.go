@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -27,18 +27,13 @@ func NewInitializeSpecFunction(
 ) (astmodel.Function, error) {
 	rsrc, ok := astmodel.AsResourceType(def.Type())
 	if !ok {
-		return nil, errors.Errorf("expected %q to be a resource", def.Name())
+		return nil, eris.Errorf("expected %q to be a resource", def.Name())
 	}
 
 	statusType, ok := astmodel.AsTypeName(rsrc.StatusType())
 	if !ok {
-		return nil, errors.Errorf("expected %q to be a TypeName", rsrc.StatusType())
+		return nil, eris.Errorf("expected %q to be a TypeName", rsrc.StatusType())
 	}
-
-	requiredPackages := astmodel.NewPackageReferenceSet(
-		astmodel.GenRuntimeReference,
-		astmodel.FmtReference,
-	)
 
 	createFn := func(
 		fn *ResourceFunction,
@@ -50,7 +45,7 @@ func NewInitializeSpecFunction(
 
 		receiverType, err := receiver.AsTypeExpr(codeGenerationContext)
 		if err != nil {
-			return nil, errors.Wrapf(err, "creating type expression for %s", receiver)
+			return nil, eris.Wrapf(err, "creating type expression for %s", receiver)
 		}
 
 		receiverName := idFactory.CreateReceiver(receiver.Name())
@@ -66,28 +61,33 @@ func NewInitializeSpecFunction(
 			astbuilder.CallExpr(
 				astbuilder.Selector(dst.NewIdent(receiverName), "Spec"),
 				specInitializeFunction,
-				dst.NewIdent(statusLocal)))
+				dst.NewIdent(statusLocal),
+			),
+		)
 
 		// if s, ok := fromStatus.(<type of status>); ok {
 		//   return receiver.Spec.InitializeFromStatus(s)
 		// }
 		statusTypeExpr, err := statusType.AsTypeExpr(codeGenerationContext)
 		if err != nil {
-			return nil, errors.Wrapf(err, "creating type expression for status %s", statusType)
+			return nil, eris.Wrapf(err, "creating type expression for status %s", statusType)
 		}
 
 		initialize := astbuilder.IfType(
 			dst.NewIdent(statusParam),
 			astbuilder.Dereference(statusTypeExpr),
 			statusLocal,
-			returnConversion)
+			returnConversion,
+		)
 
 		// return fmt.Errorf("expected Status of type <type of status> but received %T instead", fromStatus)
 		returnError := astbuilder.Returns(
 			astbuilder.FormatError(
 				fmtPackage,
 				fmt.Sprintf("expected Status of type %s but received %%T instead", statusType.Name()),
-				dst.NewIdent(statusParam)))
+				dst.NewIdent(statusParam),
+			),
+		)
 		returnError.Decorations().Before = dst.EmptyLine
 
 		funcDetails := astbuilder.FuncDetails{
@@ -96,13 +96,14 @@ func NewInitializeSpecFunction(
 			ReceiverType:  astbuilder.Dereference(receiverType),
 			Body: astbuilder.Statements(
 				initialize,
-				returnError),
+				returnError,
+			),
 		}
 
 		funcDetails.AddComments("initializes the spec for this resource from the given status")
 		convertibleStatusInterfaceExpr, err := astmodel.ConvertibleStatusInterfaceType.AsTypeExpr(codeGenerationContext)
 		if err != nil {
-			return nil, errors.Wrapf(err, "creating type expression for %s", astmodel.ConvertibleStatusInterfaceType)
+			return nil, eris.Wrapf(err, "creating type expression for %s", astmodel.ConvertibleStatusInterfaceType)
 		}
 
 		funcDetails.AddParameter(statusParam, convertibleStatusInterfaceExpr)
@@ -116,5 +117,7 @@ func NewInitializeSpecFunction(
 		rsrc,
 		idFactory,
 		createFn,
-		requiredPackages), nil
+		astmodel.GenRuntimeReference,
+		astmodel.FmtReference,
+	), nil
 }

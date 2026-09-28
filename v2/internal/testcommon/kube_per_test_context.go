@@ -18,10 +18,11 @@ import (
 
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,6 +36,7 @@ import (
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/Azure/azure-service-operator/v2/internal/config"
 	"github.com/Azure/azure-service-operator/v2/internal/controllers"
+	"github.com/Azure/azure-service-operator/v2/internal/testcommon/creds"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon/matchers"
 	"github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
@@ -55,7 +57,7 @@ type KubePerTestContext struct {
 	tracker *ResourceTracker
 }
 
-func (tc KubePerTestContext) CreateTestNamespace(namespaceName string) error {
+func (tc *KubePerTestContext) CreateTestNamespace(namespaceName string) error {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespaceName,
@@ -66,28 +68,28 @@ func (tc KubePerTestContext) CreateTestNamespace(namespaceName string) error {
 	})
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return errors.Wrapf(err, "creating namespace")
+		return eris.Wrapf(err, "creating namespace")
 	}
 
 	return nil
 }
 
-func (tc KubePerTestContext) createTestNamespace() error {
+func (tc *KubePerTestContext) createTestNamespace() error {
 	return tc.CreateTestNamespace(tc.Namespace)
 }
 
-func (tc KubePerTestContext) MakeObjectMeta(prefix string) ctrl.ObjectMeta {
+func (tc *KubePerTestContext) MakeObjectMeta(prefix string) ctrl.ObjectMeta {
 	return tc.MakeObjectMetaWithName(tc.Namer.GenerateName(prefix))
 }
 
-func (tc KubePerTestContext) MakeObjectMetaWithName(name string) ctrl.ObjectMeta {
+func (tc *KubePerTestContext) MakeObjectMetaWithName(name string) ctrl.ObjectMeta {
 	return ctrl.ObjectMeta{
 		Name:      name,
 		Namespace: tc.Namespace,
 	}
 }
 
-func (tc KubePerTestContext) MakeObjectMetaWithNameAndCredentialFrom(name string, credentialFrom string) ctrl.ObjectMeta {
+func (tc *KubePerTestContext) MakeObjectMetaWithNameAndCredentialFrom(name string, credentialFrom string) ctrl.ObjectMeta {
 	return ctrl.ObjectMeta{
 		Name:      name,
 		Namespace: tc.Namespace,
@@ -97,7 +99,7 @@ func (tc KubePerTestContext) MakeObjectMetaWithNameAndCredentialFrom(name string
 	}
 }
 
-func (tc KubePerTestContext) MakeReferenceFromResource(resource client.Object) *genruntime.ResourceReference {
+func (tc *KubePerTestContext) MakeReferenceFromResource(resource client.Object) *genruntime.ResourceReference {
 	gvk, err := apiutil.GVKForObject(resource, tc.scheme)
 	if err != nil {
 		tc.T.Fatal(err)
@@ -110,7 +112,7 @@ func (tc KubePerTestContext) MakeReferenceFromResource(resource client.Object) *
 	}
 }
 
-func (tc KubePerTestContext) NewTestResourceGroup() *resources.ResourceGroup {
+func (tc *KubePerTestContext) NewTestResourceGroup() *resources.ResourceGroup {
 	return &resources.ResourceGroup{
 		ObjectMeta: tc.MakeObjectMeta("rg"),
 		Spec: resources.ResourceGroup_Spec{
@@ -122,7 +124,17 @@ func (tc KubePerTestContext) NewTestResourceGroup() *resources.ResourceGroup {
 }
 
 func CreateTestResourceGroupDefaultTags() map[string]string {
-	return map[string]string{"CreatedAt": time.Now().UTC().Format(time.RFC3339)}
+	tags := map[string]string{"CreatedAt": time.Now().UTC().Format(time.RFC3339)}
+
+	// Some tenants require tags of their own on every resource group. Recordings redact these again, so
+	// adding them doesn't tie a recording to the tenant it was made in. In record mode, a malformed setting
+	// is reported when the credentials are read, before any test runs.
+	policyTags, _ := creds.ResourceGroupTagsFromEnvironment()
+	for key, value := range policyTags {
+		tags[key] = value
+	}
+
+	return tags
 }
 
 func (ctx KubeGlobalContext) ForTest(t *testing.T) *KubePerTestContext {
@@ -139,7 +151,7 @@ func ReadFromEnvironmentForTest() (config.Values, error) {
 
 	// Test configs never want SyncPeriod set as it introduces jitter
 	cfg.SyncPeriod = nil
-	// Simulate pod namespace being set, as we're not running in a pod context so we don't have this env varaible
+	// Simulate pod namespace being set, as we're not running in a pod context so we don't have this env variable
 	// injected automatically
 	cfg.PodNamespace = "azureserviceoperator-system"
 
@@ -206,7 +218,7 @@ func (ctx KubeGlobalContext) forTestWithConfig(t *testing.T, cfg config.Values, 
 	// Register cleanup
 	result.T.Cleanup(func() {
 		// Names to delete
-		var namesToDelete []string
+		namesToDelete := make([]string, 0, len(result.tracker.Resources()))
 		for _, obj := range result.tracker.Resources() {
 			namesToDelete = append(namesToDelete, fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()))
 		}
@@ -310,17 +322,40 @@ func (tc *KubePerTestContext) PollingInterval() time.Duration {
 // the current task stacks to output. If gomega.Eventually hits its
 // timeout it will produce a nicer error message and stack trace.)
 func (tc *KubePerTestContext) OperationTimeout() time.Duration {
+	deadlineTimeout := tc.deadlineTimeout()
+
+	// return lesser of (operation timeout, deadline timeout)
+	if tc.DefaultOperationTimeout() < deadlineTimeout {
+		return tc.DefaultOperationTimeout()
+	}
+
+	return deadlineTimeout
+}
+
+func (tc *KubePerTestContext) CustomOperationTimeout(t time.Duration) time.Duration {
+	deadlineTimeout := tc.deadlineTimeout()
+
+	timeout := t
+	if tc.AzureClientRecorder.IsReplaying() {
+		// if we're replaying, always use the replay timeout
+		timeout = OperationTimeoutReplaying
+	}
+
+	// return lesser of (operation timeout, deadline timeout)
+	if timeout < deadlineTimeout {
+		return timeout
+	}
+
+	return deadlineTimeout
+}
+
+func (tc *KubePerTestContext) deadlineTimeout() time.Duration {
 	// how long until overall test timeout is hit
 	deadlineTimeout := time.Duration(math.MaxInt64)
 
 	deadline, hasDeadline := tc.T.Deadline()
 	if hasDeadline {
 		deadlineTimeout = time.Until(deadline) - time.Second // give us 1 second to clean up
-	}
-
-	// return lesser of (operation timeout, deadline timeout)
-	if tc.DefaultOperationTimeout() < deadlineTimeout {
-		return tc.DefaultOperationTimeout()
 	}
 
 	return deadlineTimeout
@@ -338,9 +373,9 @@ func (tc *KubePerTestContext) Eventually(actual interface{}, intervals ...interf
 	return tc.G.Eventually(actual, tc.OperationTimeout(), tc.PollingInterval())
 }
 
-func (tc *KubePerTestContext) ExpectResourceIsDeletedInAzure(armId string, apiVersion string) {
+func (tc *KubePerTestContext) ExpectResourceIsDeletedInAzure(armID string, apiVersion string) {
 	tc.Eventually(func() (bool, time.Duration, error) {
-		return tc.AzureClient.CheckExistenceWithGetByID(tc.Ctx, armId, apiVersion)
+		return tc.AzureClient.CheckExistenceWithGetByID(tc.Ctx, armID, apiVersion)
 	}).Should(gomega.BeFalse())
 }
 
@@ -358,11 +393,13 @@ func (tc *KubePerTestContext) CreateResource(obj client.Object) {
 		tc.LogSubsectionf(
 			"Creating %s resource %s",
 			arm.GetType(),
-			obj.GetName())
+			obj.GetName(),
+		)
 	} else {
 		tc.LogSubsectionf(
 			"Creating resource %s",
-			obj.GetName())
+			obj.GetName(),
+		)
 	}
 
 	tc.CreateResourceUntracked(obj)
@@ -427,7 +464,8 @@ func (tc *KubePerTestContext) CreateResourcesAndWait(objs ...client.Object) {
 
 	tc.LogSubsectionf(
 		"Creating %d resources",
-		len(objs))
+		len(objs),
+	)
 
 	for _, obj := range objs {
 		tc.CreateResource(obj)
@@ -495,6 +533,28 @@ func (tc *KubePerTestContext) PatchResourceAndWaitForState(
 	tc.Eventually(new).Should(tc.Match.BeInState(status, severity, gen))
 }
 
+func (tc *KubePerTestContext) CreateSimpleSecret(
+	name string,
+	key string,
+	secretData string,
+) genruntime.SecretReference {
+	secret := &corev1.Secret{
+		ObjectMeta: tc.MakeObjectMeta(name),
+		StringData: map[string]string{
+			key: secretData,
+		},
+	}
+
+	tc.CreateResource(secret)
+
+	secretRef := genruntime.SecretReference{
+		Name: secret.Name,
+		Key:  key,
+	}
+
+	return secretRef
+}
+
 // GetResource retrieves the current state of the resource from K8s (not from Azure).
 func (tc *KubePerTestContext) GetResource(key types.NamespacedName, obj client.Object) {
 	tc.T.Helper()
@@ -537,7 +597,8 @@ func (tc *KubePerTestContext) PatchAndExpectError(old client.Object, new client.
 func (tc *KubePerTestContext) DeleteResourceAndWait(obj client.Object) {
 	tc.LogSubsectionf(
 		"Deleting resource %s",
-		obj.GetName())
+		obj.GetName(),
+	)
 	tc.DeleteResource(obj)
 	tc.Eventually(obj).Should(tc.Match.BeDeleted())
 }
@@ -822,17 +883,17 @@ func (tc *KubePerTestContext) exportAsYAML(resource runtime.Object, filePath str
 
 	content, err := yaml.Marshal(resource)
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal to yaml")
+		return eris.Wrap(err, "failed to marshal to yaml")
 	}
 
 	folder := filepath.Dir(filePath)
 	if err = os.MkdirAll(folder, os.ModePerm); err != nil {
-		return errors.Wrapf(err, "couldn't create directory path to %s", filePath)
+		return eris.Wrapf(err, "couldn't create directory path to %s", filePath)
 	}
 
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
-		return errors.Wrapf(err, "failed to open file %s", filePath)
+		return eris.Wrapf(err, "failed to open file %s", filePath)
 	}
 
 	defer file.Close()
@@ -840,10 +901,24 @@ func (tc *KubePerTestContext) exportAsYAML(resource runtime.Object, filePath str
 	clean := sanitiseSample(string(content))
 	_, err = file.WriteString(clean)
 	if err != nil {
-		return errors.Wrapf(err, "failed to write yaml to file %s", filePath)
+		return eris.Wrapf(err, "failed to write yaml to file %s", filePath)
 	}
 
 	return nil
+}
+
+func (tc *KubePerTestContext) AddAnnotation(
+	obj *v1.ObjectMeta,
+	key string,
+	value string,
+) {
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	annotations[key] = value
+	obj.SetAnnotations(annotations)
 }
 
 type ResourceTracker struct {

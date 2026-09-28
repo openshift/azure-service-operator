@@ -1,8 +1,14 @@
 # Create secret or use an existing secret
 createAzureOperatorSecret: true
 
-# azureTenantID is the AAD tenant that the subscription is in
+# azureTenantID is the Entra tenant that the subscription is in
 azureTenantID: ""
+
+# azureAdditionalTenants is the list of (comma-separated) additional tenants the operator can authenticate with.
+# This is required when performing cross-tenant authentication. See
+# https://learn.microsoft.com/entra/external-id/cross-tenant-access-overview for more details.
+azureAdditionalTenants: ""
+
 # azureSubscriptionID is the Azure Subscription the operator will act against.
 azureSubscriptionID: ""
 
@@ -62,6 +68,13 @@ azureResourceManagerEndpoint: ""
 # audience is referred to as "activeDirectoryResourceId" in the Azure CLI.
 azureResourceManagerAudience: ""
 
+# allowMultiEnvManagement determines whether per-namespace and per-resource credentials can specify
+# their own Azure cloud environment settings (AZURE_RESOURCE_MANAGER_ENDPOINT, AZURE_RESOURCE_MANAGER_AUDIENCE,
+# and AZURE_AUTHORITY_HOST). When enabled, credentials must specify ALL three of these settings or NONE of them.
+# When disabled, any attempt to specify these settings in a credential will cause reconciliation to fail.
+# This defaults to false for security reasons.
+allowMultiEnvManagement: false
+
 # azureTargetNamespaces lists the namespaces the operator will watch
 # for Azure resources (if the mode includes running watchers). If
 # it's empty the operator will watch all namespaces.
@@ -85,7 +98,9 @@ webhook:
 # corresponding CRD yaml in the cart (and so no CRD in the k8s
 # repository).
 image:
-  repository: mcr.microsoft.com/k8s/azureserviceoperator:v2.8.0
+  tag: v2.21.0
+  repositoryBase: mcr.microsoft.com/k8s/azureserviceoperator
+  repository: "{{ .Values.image.repositoryBase }}:{{ .Values.image.tag }}"
   pullSecrets: []
 
 # 'metrics' define settings for the metrics from controller.
@@ -114,7 +129,7 @@ metrics:
 # the operator will only reconcile that subset if those are the only CRDs it finds when the pod starts.
 installCRDs: true
 
-# crdPattern is a semicolon delimited string containing the CRD patterns for the operator to install.
+# crdPattern is a semicolon delimited string or a list of strings containing the CRD patterns for the operator to install.
 # Setting this has no effect if installCRDs is false.
 # This defines what new CRDs will be installed by ASO. Will always upgrade any existing CRDs even if no
 # crdPattern is defined. Leaving this field unspecified for a fresh install of ASO will result in the operator pod
@@ -132,10 +147,29 @@ installCRDs: true
 # together to enable other scenarios, such as dbformysql.azure.com/FlexibleServersFirewallRules, and it's generally
 # easier to just include the whole group.
 # See https://azure.github.io/azure-service-operator/guide/crd-management for more details.
-crdPattern: ''
+crdPattern: ""
 
-# podAnnotations contain the pod annotations for Azure Service Operator
-podAnnotations: {}
+# crdLabels is a comma-delimited (or semicolon-delimited) string, or a list of key=value strings, containing
+# additional labels to apply to all CRDs managed by ASO.
+# Setting this has no effect if installCRDs is false.
+# Existing labels not managed by ASO are preserved when CRDs are upgraded. Note that removing a label from this
+# list does not remove it from CRDs already in the cluster.
+# Labels reserved by ASO itself (app.kubernetes.io/name, app.kubernetes.io/version and any label prefixed with
+# serviceoperator.azure.com/) cannot be set here and will be rejected at startup.
+# Example: "cluster.x-k8s.io/provider=infrastructure-azure"
+# Example: "cluster.x-k8s.io/provider=infrastructure-azure,environment=production" would apply both labels.
+# Example: "cluster.x-k8s.io/provider=infrastructure-azure;environment=production" is equivalent, using the
+# semicolon delimiter also accepted by crdPattern.
+# Example as a list:
+#   crdLabels:
+#     - cluster.x-k8s.io/provider=infrastructure-azure
+#     - environment=production
+crdLabels: ""
+
+useJSONLogging: false
+
+# deploymentAnnotations contain the deployment annotations for Azure Service Operator
+deploymentAnnotations: {}
 
 # multitenant contains the value to enable multi-tenant mode for ASOv2. If multitenant.enable is true + azureOperatorMode set to "webhooks", chart will
 # install a cluster and if multitenant.enable is true + azureOperatorMode set to "watchers", chart will install a tenant.
@@ -154,6 +188,69 @@ networkPolicies:
   mysqlCIDR: 0.0.0.0/0
   # Destination CIDR for talking to PostgreSQL servers
   postgresqlCIDR: 0.0.0.0/0
+  # Destination CIDR for talking to Sql servers
+  sqlCIDR: 0.0.0.0/0
+
+
+# Node labels for pod assignment
+# Ref: https://kubernetes.io/docs/user-guide/node-selection/
+nodeSelector:
+  kubernetes.io/os: linux
+
+# podAnnotations contain the pod annotations for Azure Service Operator
+podAnnotations: {}
+
+# Enable the pod disruption budget
+# Specifies the minimum number of pods that must be available at any given time during the disruption.
+# Ref: https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 50%
+
+# Labels to be added to the pod
+podLabels: {}
+
+# The securityContext of the pod
+# See https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+podSecurityContext: {}
+
+# Assign a PriorityClassName to pods if set
+priorityClassName: ""
+
+# Number of pod replicas to create for the deployment
+replicaCount: 2
+
+# Recommended initial values for resources
+# adjust them as necessary
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+go:
+  memLimit: 400MiB # This should be set to ~80-90% of the hard memory limit set above in resources
+
+# Number of old history to retain to allow rollback
+# Default Kubernetes value is set to 10
+revisionHistoryLimit: 10
+
+# Specify security settings for a Container
+# Ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
+# It is not recommended to reduce the restrictions in this list, but additional restrictions outside the default set
+# can be applied. If you believe additional securityContext configuration should be specified by default
+# please raise an issue.
+securityContext:
+  runAsUser: 65532 # nonroot user from gcr.io/distroless/static:nonroot image
+  runAsGroup: 65532 # nonroot group from gcr.io/distroless/static:nonroot image
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
 
 # Tolerations are applied to pods. Tolerations allow the scheduler to schedule pods with matching taints. Tolerations allow scheduling but don't guarantee scheduling
 # For more information, see https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration.
@@ -164,19 +261,20 @@ tolerations: []
 # Node affinity functions like the nodeSelector field but is more expressive and allows you to specify soft rules.
 # Inter-pod affinity/anti-affinity allows you to constrain Pods against labels on other Pods.
 # For more information, see https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+# For specific affinity best practices on AKS clusters, see https://azure.github.io/azure-service-operator/guide/best-practices/#affinity
 affinity: {}
 
 # MaxConcurrentReconciles is the number of threads/goroutines dedicated to reconciling each resource type.
-# If not specified, the default is 1.
+# If not specified, the default is 4.
 # IMPORTANT: Having MaxConcurrentReconciles set to N does not mean that ASO is limited to N interactions with
 # Azure at any given time, because the control loop yields to another resource while it is not actively issuing HTTP
 # calls to Azure. Any single resource only blocks the control-loop for its resource-type for as long as it takes to issue
 # an HTTP call to Azure, view the result, and make a decision. In most cases the time taken to perform these actions
 # (and thus how long the loop is blocked and preventing other resources from being acted upon) is a few hundred
-# milliseconds to at most a second or two. In a typical 60s period, many hundreds or even thousands of resources
-# can be managed with this set to 1.
+# milliseconds to at most a second or two. In a typical 60s period, hundreds of resources
+# for a given resource type can be managed with this set to 1.
 # MaxConcurrentReconciles applies to every registered resource type being watched/managed by ASO.
-maxConcurrentReconciles: 1
+maxConcurrentReconciles: 4
 
 rateLimit:
   # mode configures the internal rate-limiting mode.
@@ -200,3 +298,20 @@ rateLimit:
   qps: 5
   # The size of the bucket. This value only has an effect if mode is 'bucket'.
   bucketSize: 100
+
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true
+  # The name of the ServiceAccount to use.
+  # If not set and create is true, `azureserviceoperator-default` would be used as a name
+  name: ""
+  annotations: {}
+
+# List of extra environment variables to inject into the manager container
+# Example:
+# extraEnv:
+#   - name: ENV
+#     value: "prod"
+#   - name: SERVICE
+#     value: "azure-service-operator"
+extraEnv: []

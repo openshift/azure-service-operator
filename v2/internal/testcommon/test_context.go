@@ -17,12 +17,11 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/crypto/ssh"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
-
 	"github.com/Azure/azure-service-operator/v2/internal/config"
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
 	"github.com/Azure/azure-service-operator/v2/internal/metrics"
@@ -48,7 +47,7 @@ type PerTestContext struct {
 	AzureTenant           string
 	AzureBillingInvoiceID string
 	AzureMatch            *ARMMatcher
-	HttpClient            *http.Client
+	HTTPClient            *http.Client
 	Namer                 ResourceNamer
 	NoSpaceNamer          ResourceNamer
 	TestName              string
@@ -93,7 +92,7 @@ func (tc TestContext) ForTest(t *testing.T, cfg config.Values) (PerTestContext, 
 	cassetteName := "recordings/" + t.Name()
 	details, err := createTestRecorder(cassetteName, cfg, tc.RecordReplay, logger)
 	if err != nil {
-		return PerTestContext{}, errors.Wrapf(err, "creating recorder")
+		return PerTestContext{}, eris.Wrapf(err, "creating recorder")
 	}
 
 	// Use the recorder-specific CFG, which will force URLs and AADAuthorityHost (among other things) to default
@@ -109,11 +108,11 @@ func (tc TestContext) ForTest(t *testing.T, cfg config.Values) (PerTestContext, 
 	var globalARMClient *genericarmclient.GenericClient
 	options := &genericarmclient.GenericClientOptions{
 		Metrics:    metrics.NewARMClientMetrics(),
-		HttpClient: httpClient,
+		HTTPClient: httpClient,
 	}
 	globalARMClient, err = genericarmclient.NewGenericClient(cfg.Cloud(), details.Creds(), options)
 	if err != nil {
-		return PerTestContext{}, errors.Wrapf(err, "failed to create generic ARM client")
+		return PerTestContext{}, eris.Wrapf(err, "failed to create generic ARM client")
 	}
 
 	t.Cleanup(func() {
@@ -156,11 +155,23 @@ func (tc TestContext) ForTest(t *testing.T, cfg config.Values) (PerTestContext, 
 		AzureBillingInvoiceID: details.IDs().BillingInvoiceID,
 		AzureMatch:            NewARMMatcher(globalARMClient),
 		AzureClientRecorder:   details,
-		HttpClient:            httpClient,
+		HTTPClient:            httpClient,
 		TestName:              t.Name(),
 		Namespace:             createTestNamespaceName(t),
 		Ctx:                   context,
 	}, nil
+}
+
+// WithLiteralRedaction method is used to add literal redaction values based on the requirements of each test.
+// The method takes in redactValue to be `redacted` and replacement value to which the value should be `replaced`.
+func (tc PerTestContext) WithLiteralRedaction(redactionValue string, replacementValue string) {
+	tc.AzureClientRecorder.AddLiteralRedaction(redactionValue, replacementValue)
+}
+
+// WithRegexpRedaction method is used to add regexp redaction values based on the requirements of each test.
+// The method takes in regexp pattern to be `redacted` and replacement value to which the value should be `replaced`.
+func (tc PerTestContext) WithRegexpRedaction(pattern string, replacementValue string) {
+	tc.AzureClientRecorder.AddRegexpRedaction(pattern, replacementValue)
 }
 
 var replaceRegex = regexp.MustCompile("[./_]+")

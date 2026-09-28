@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -43,15 +43,14 @@ func RemoveStatusValidations() *Stage {
 				return nil, err
 			}
 
-			/* TODO(donotmerge)
 			err = errorIfSpecStatusOverlap(result, state.Definitions())
 			if err != nil {
 				return nil, err
 			}
-			*/
 
 			return state.WithOverlaidDefinitions(result), nil
-		})
+		},
+	)
 }
 
 func removeStatusTypeValidations(definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
@@ -63,7 +62,8 @@ func removeStatusTypeValidations(definitions astmodel.TypeDefinitionSet) (astmod
 			VisitEnumType:      removeEnumValidations,
 			VisitValidatedType: removeValidatedType,
 			VisitObjectType:    removeKubebuilderRequired,
-		}.Build())
+		}.Build(),
+	)
 
 	var errs []error
 
@@ -71,7 +71,7 @@ func removeStatusTypeValidations(definitions astmodel.TypeDefinitionSet) (astmod
 	for _, def := range statusDefinitions {
 		updatedTypes, err := walker.Walk(def)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "failed walking definitions"))
+			errs = append(errs, eris.Wrapf(err, "failed walking definitions"))
 		}
 
 		err = result.AddTypesAllowDuplicates(updatedTypes)
@@ -94,11 +94,10 @@ type overlapError struct {
 	statusRefs []astmodel.TypeName
 }
 
-// TODO: Remove nolint below
-func errorIfSpecStatusOverlap(statusDefinitions astmodel.TypeDefinitionSet, definitions astmodel.TypeDefinitionSet) error { // nolint:deadcode
+func errorIfSpecStatusOverlap(statusDefinitions astmodel.TypeDefinitionSet, definitions astmodel.TypeDefinitionSet) error {
 	allSpecTypes, err := astmodel.FindSpecConnectedDefinitions(definitions)
 	if err != nil {
-		return errors.Wrap(err, "couldn't find all spec definitions")
+		return eris.Wrap(err, "couldn't find all spec definitions")
 	}
 
 	// Verify that the set of spec definitions and the set of modified status definitions is totally disjoint
@@ -139,7 +138,7 @@ func errorIfSpecStatusOverlap(statusDefinitions astmodel.TypeDefinitionSet, defi
 			}
 		}
 
-		return errors.Errorf(result.String())
+		return eris.New(result.String())
 	}
 
 	return nil

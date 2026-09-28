@@ -7,19 +7,27 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"sync"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/pkg/errors"
+	"github.com/go-logr/logr"
+	"github.com/rotisserie/eris"
 	"github.com/spf13/cobra"
+	"github.com/vbauerster/mpb/v8"
 
 	"github.com/Azure/azure-service-operator/v2/api"
-	"github.com/Azure/azure-service-operator/v2/cmd/asoctl/internal/importing"
-	internalconfig "github.com/Azure/azure-service-operator/v2/internal/config"
+	"github.com/Azure/azure-service-operator/v2/cmd/asoctl/pkg/importreporter"
+	"github.com/Azure/azure-service-operator/v2/cmd/asoctl/pkg/importresources"
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
 	"github.com/Azure/azure-service-operator/v2/internal/version"
+	asocloud "github.com/Azure/azure-service-operator/v2/pkg/common/cloud"
 	"github.com/Azure/azure-service-operator/v2/pkg/common/config"
 )
 
@@ -64,17 +72,21 @@ https://docs.microsoft.com/azure/active-directory/develop/authentication-nationa
 		},
 	}
 
-	options.outputPath = cmd.Flags().StringP(
+	cmd.Flags().StringVarP(
+		&options.outputPath,
 		"output",
 		"o",
 		"",
-		"Write ARM resource CRDs to a single file")
+		"Write ARM resource CRDs to a single file",
+	)
 
-	options.outputFolder = cmd.Flags().StringP(
+	cmd.Flags().StringVarP(
+		&options.outputFolder,
 		"output-folder",
 		"f",
 		"",
-		"Write ARM resource CRDs to individual files in a folder")
+		"Write ARM resource CRDs to individual files in a folder",
+	)
 
 	cmd.MarkFlagsMutuallyExclusive("output", "output-folder")
 
@@ -83,51 +95,114 @@ https://docs.microsoft.com/azure/active-directory/develop/authentication-nationa
 		"namespace",
 		"n",
 		"",
-		"Write the imported resources to the specified namespace")
+		"Set the namespace of the the imported resources",
+	)
+
 	cmd.Flags().StringSliceVarP(
 		&options.labels,
 		"label",
 		"l",
 		nil,
-		"Add the specified labels to the imported resources. Multiple comma-separated labels can be specified (--label example.com/mylabel=foo,example.com/mylabel2=bar) or the --label (-l) argument can be used multiple times (-l example.com/mylabel=foo -l example.com/mylabel2=bar)")
+		"Add labels to the imported resources. Multiple comma-separated labels can be specified (--label example.com/mylabel=foo,example.com/mylabel2=bar) or the --label (-l) argument can be used multiple times (-l example.com/mylabel=foo -l example.com/mylabel2=bar)",
+	)
+
 	cmd.Flags().StringSliceVarP(
 		&options.annotations,
 		"annotation",
 		"a",
 		nil,
-		"Add the specified annotations to the imported resources. Multiple comma-separated annotations can be specified (--annotation example.com/myannotation=foo,example.com/myannotation2=bar) or the --annotation (-a) argument can be used multiple times (-a example.com/myannotation=foo -a example.com/myannotation2=bar)")
+		"Add annotations to the imported resources. Multiple comma-separated annotations can be specified (--annotation example.com/myannotation=foo,example.com/myannotation2=bar) or the --annotation (-a) argument can be used multiple times (-a example.com/myannotation=foo -a example.com/myannotation2=bar)",
+	)
+
+	cmd.Flags().IntVarP(
+		&options.workers,
+		"workers",
+		"w",
+		4,
+		"The number of parallel workers to use when importing resources",
+	)
+
+	cmd.Flags().BoolVarP(
+		&options.simpleLogging,
+		"simple-logging",
+		"s",
+		false,
+		"Use simple logging instead of progress bars",
+	)
 
 	return cmd
 }
 
 // importAzureResource imports an ARM resource and writes the YAML to stdout or a file
-func importAzureResource(ctx context.Context, armIDs []string, options *importAzureResourceOptions) error {
-	log, progress := CreateLoggerAndProgressBar()
+func importAzureResource(
+	ctx context.Context,
+	armIDs []string,
+	options *importAzureResourceOptions,
+) error {
+	// Check we're being asked to do something ... anything ...
+	if len(armIDs) == 0 {
+		return eris.New("no ARM IDs provided")
+	}
 
-	creds, err := azidentity.NewDefaultAzureCredential(nil)
+	// Create an ARM client for requesting resources
+	client, err := createARMClient(ctx, options)
 	if err != nil {
-		return errors.Wrap(err, "unable to get default Azure credential")
+		return eris.Wrapf(err, "failed to create ARM client")
 	}
 
-	clientOptions := &genericarmclient.GenericClientOptions{
-		UserAgent: "asoctl/" + version.BuildVersion,
+	done := make(chan struct{}) // signal for when we're done
+
+	var log logr.Logger
+	var progress importreporter.Interface
+	var output io.Writer
+	if options.simpleLogging {
+		log = CreateLogger()
+		progress = importreporter.NewLog("Import Azure Resources", log, done)
+		output = os.Stderr
+	} else {
+		var bar *mpb.Progress
+
+		// Caution: the progress bar can deadlock if no bar is ever created, so make sure the gap between
+		// this and the call to importer.Import() is as small as possible.
+		log, bar = CreateLoggerAndProgressBar()
+		progress = importreporter.NewBar("Import Azure Resources", bar, done)
+
+		// The progress bar can deadlock if no bar is ever created - which can happen if we need to return an error
+		// between here and the call to importer.Import(). To avoid this, we create a dummy bar that will complete
+		// asynchronously after a short delay.
+		setup := progress.Create("Initalizing")
+		setup.AddPending(1)
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			setup.Completed(1)
+		}()
+
+		output = bar
+
+		// Ensure the progress bar is closed when we're done, but skip if a panic has happened
+		defer func() {
+			if p := recover(); p != nil {
+				fmt.Fprintf(os.Stderr, "panic: %s\n", p)
+			} else {
+				// No panic
+				defer bar.Wait()
+			}
+		}()
 	}
 
-	activeCloud := options.cloud()
-	client, err := genericarmclient.NewGenericClient(activeCloud, creds, clientOptions)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create ARM client")
+	importerOptions := importresources.ResourceImporterOptions{
+		Workers: options.workers,
 	}
 
-	importer := importing.NewResourceImporter(api.CreateScheme(), client, log, progress)
+	importer := importresources.New(api.CreateScheme(), client, log, progress, importerOptions)
 	for _, armID := range armIDs {
 		err = importer.AddARMID(armID)
 		if err != nil {
-			return errors.Wrapf(err, "failed to add %q to import list", armID)
+			return eris.Wrapf(err, "failed to add %q to import list", armID)
 		}
 	}
 
-	result, err := importer.Import(ctx)
+	result, err := importer.Import(ctx, done)
 
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -135,7 +210,7 @@ func importAzureResource(ctx context.Context, armIDs []string, options *importAz
 
 	if err != nil {
 		if result.Count() == 0 {
-			return errors.Wrap(err, "failed to import any resources")
+			return eris.Wrap(err, "failed to import any resources")
 		}
 
 		log.Error(err, "Failed to import some resources.")
@@ -147,78 +222,225 @@ func importAzureResource(ctx context.Context, armIDs []string, options *importAz
 		return nil
 	}
 
-	// Apply additional configuration to imported resources.
+	err = configureImportedResources(options, result)
+	if err != nil {
+		return eris.Wrap(err, "failed to apply options to imported resources")
+	}
+
+	err = writeResources(result, options, log, output)
+	if err != nil {
+		return eris.Wrap(err, "failed to write resources")
+	}
+
+	return nil
+}
+
+// createARMClient creates our client for talking to ARM
+func createARMClient(
+	ctx context.Context,
+	options *importAzureResourceOptions,
+) (*genericarmclient.GenericClient, error) {
+	activeCloud := options.cloud()
+
+	creds, err := newChainedCredential(ctx, activeCloud)
+	if err != nil {
+		return nil, eris.Wrap(err, "unable to create Azure credential")
+	}
+
+	clientOptions := &genericarmclient.GenericClientOptions{
+		UserAgent: "asoctl/" + version.BuildVersion,
+	}
+
+	return genericarmclient.NewGenericClient(activeCloud, creds, clientOptions)
+}
+
+// newChainedCredential creates a ChainedTokenCredential with multiple credential types for asoctl.
+func newChainedCredential(
+	ctx context.Context,
+	cloud cloud.Configuration,
+) (azcore.TokenCredential, error) {
+	var creds []azcore.TokenCredential
+	var credErrors []string
+
+	envCred, err := azidentity.NewEnvironmentCredential(
+		&azidentity.EnvironmentCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloud,
+			},
+		},
+	)
+	if err != nil {
+		credErrors = append(credErrors, fmt.Sprintf("EnvironmentCredential: %s", err.Error()))
+	} else {
+		creds = append(creds, envCred)
+	}
+
+	wiCred, err := azidentity.NewWorkloadIdentityCredential(
+		&azidentity.WorkloadIdentityCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloud,
+			},
+		},
+	)
+	if err != nil {
+		credErrors = append(credErrors, fmt.Sprintf("WorkloadIdentityCredential: %s", err.Error()))
+	} else {
+		creds = append(creds, wiCred)
+	}
+
+	if isIMDSAvailable(ctx) {
+		miCred, err := azidentity.NewManagedIdentityCredential(
+			&azidentity.ManagedIdentityCredentialOptions{
+				ClientOptions: azcore.ClientOptions{
+					Cloud: cloud,
+				},
+			},
+		)
+		if err != nil {
+			credErrors = append(credErrors, fmt.Sprintf("ManagedIdentityCredential: %s", err.Error()))
+		} else {
+			creds = append(creds, miCred)
+		}
+	}
+
+	cliCred, err := azidentity.NewAzureCLICredential(nil)
+	if err != nil {
+		credErrors = append(credErrors, fmt.Sprintf("AzureCLICredential: %s", err.Error()))
+	} else {
+		creds = append(creds, cliCred)
+	}
+
+	// We only return an error if there are no possible credentials to use.
+	// If only some credentials failed we suppress errors as it may be expected that
+	// not all credentials will work in a given environment.
+	if len(creds) == 0 {
+		return nil, eris.Errorf("unable to create any credential:\n\t%s", fmt.Sprintf("%s", credErrors))
+	}
+
+	return azidentity.NewChainedTokenCredential(creds, nil)
+}
+
+func isIMDSAvailable(ctx context.Context) bool {
+	probeCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		probeCtx,
+		http.MethodGet,
+		"http://169.254.169.254/metadata/identity/oauth2/token",
+		nil,
+	)
+	if err != nil {
+		return false
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		return false
+	}
+	defer resp.Body.Close()
+	return true
+}
+
+// configureImportedResources applies additional configuration to imported resources
+func configureImportedResources(
+	options *importAzureResourceOptions,
+	result *importresources.Result,
+) error {
+	// Set the namespace on all resources
 	if options.namespace != "" {
 		result.SetNamespace(options.namespace)
 	}
 
+	// Apply labels
 	if len(options.labels) > 0 {
-		err = result.AddLabels(options.labels)
+		err := result.AddLabels(options.labels)
 		if err != nil {
-			return errors.Wrap(err, "failed to add labels")
+			return eris.Wrap(err, "failed to add labels")
 		}
 	}
 
+	// Apply annotations
 	if len(options.annotations) > 0 {
-		err = result.AddAnnotations(options.annotations)
+		err := result.AddAnnotations(options.annotations)
 		if err != nil {
-			return errors.Wrap(err, "failed to add annotations")
+			return eris.Wrap(err, "failed to add annotations")
 		}
 	}
 
+	return nil
+}
+
+func writeResources(
+	result *importresources.Result,
+	options *importAzureResourceOptions,
+	log logr.Logger,
+	out io.Writer,
+) error {
+	// Write all the resources to a single file
 	if file, ok := options.writeToFile(); ok {
 		log.Info(
 			"Writing to a single file",
-			"file", file)
+			"file", file,
+		)
 		err := result.SaveToSingleFile(file)
 		if err != nil {
-			return errors.Wrapf(err, "failed to write to file %s", file)
+			return eris.Wrapf(err, "failed to write to file %s", file)
 		}
-	} else if folder, ok := options.writeToFolder(); ok {
-		log.Info(
-			"Writing to individual files in folder",
-			"folder", folder)
-		err := result.SaveToIndividualFilesInFolder(folder)
-		if err != nil {
-			return errors.Wrapf(err, "failed to write into folder %s", folder)
-		}
-	} else {
-		err := result.SaveToWriter(progress)
-		if err != nil {
-			return errors.Wrapf(err, "failed to write to stdout")
-		}
+
+		return nil
 	}
 
-	// No error, wait for progress bar to finish & flush
-	progress.Wait()
+	// Write each resource to an individual file in a folder
+	if folder, ok := options.writeToFolder(); ok {
+		log.Info(
+			"Writing to individual files in folder",
+			"folder", folder,
+		)
+		err := result.SaveToIndividualFilesInFolder(folder)
+		if err != nil {
+			return eris.Wrapf(err, "failed to write into folder %s", folder)
+		}
+
+		return nil
+	}
+
+	// Write all the resources to stdout
+	err := result.SaveToWriter(out)
+	if err != nil {
+		return eris.Wrapf(err, "failed to write to stdout")
+	}
 
 	return nil
 }
 
 type importAzureResourceOptions struct {
-	outputPath   *string
-	outputFolder *string
-	namespace    string
-	annotations  []string
-	labels       []string
+	outputPath    string
+	outputFolder  string
+	namespace     string
+	annotations   []string
+	labels        []string
+	workers       int
+	simpleLogging bool
 
-	readCloud               sync.Once
-	azureAuthorityHost      string
-	resourceManagerEndpoint string
-	resourceManagerAudience string
+	readCloud sync.Once
+	cloudCfg  asocloud.Configuration
 }
 
 func (option *importAzureResourceOptions) writeToFile() (string, bool) {
-	if option.outputPath != nil && *option.outputPath != "" {
-		return *option.outputPath, true
+	if option.outputPath != "" {
+		return option.outputPath, true
 	}
 
 	return "", false
 }
 
 func (option *importAzureResourceOptions) writeToFolder() (string, bool) {
-	if option.outputFolder != nil && *option.outputFolder != "" {
-		return *option.outputFolder, true
+	if option.outputFolder != "" {
+		return option.outputFolder, true
 	}
 
 	return "", false
@@ -226,36 +448,12 @@ func (option *importAzureResourceOptions) writeToFolder() (string, bool) {
 
 func (option *importAzureResourceOptions) cloud() cloud.Configuration {
 	option.readCloud.Do(func() {
-		option.azureAuthorityHost = os.Getenv(config.AzureAuthorityHost)
-		option.resourceManagerEndpoint = os.Getenv(config.ResourceManagerEndpoint)
-		option.resourceManagerAudience = os.Getenv(config.ResourceManagerAudience)
-
-		if option.azureAuthorityHost == "" {
-			option.azureAuthorityHost = internalconfig.DefaultAADAuthorityHost
-		}
-		if option.resourceManagerEndpoint == "" {
-			option.resourceManagerEndpoint = internalconfig.DefaultEndpoint
-		}
-		if option.resourceManagerAudience == "" {
-			option.resourceManagerAudience = internalconfig.DefaultAudience
+		option.cloudCfg = asocloud.Configuration{
+			AzureAuthorityHost:      os.Getenv(config.AzureAuthorityHost),
+			ResourceManagerEndpoint: os.Getenv(config.ResourceManagerEndpoint),
+			ResourceManagerAudience: os.Getenv(config.ResourceManagerAudience),
 		}
 	})
 
-	hasDefaultAzureAuthorityHost := option.azureAuthorityHost == internalconfig.DefaultAADAuthorityHost
-	hasDefaultResourceManagerEndpoint := option.resourceManagerEndpoint == internalconfig.DefaultEndpoint
-	hasDefaultResourceManagerAudience := option.resourceManagerAudience == internalconfig.DefaultAudience
-
-	if hasDefaultAzureAuthorityHost && hasDefaultResourceManagerEndpoint && hasDefaultResourceManagerAudience {
-		return cloud.AzurePublic
-	}
-
-	return cloud.Configuration{
-		ActiveDirectoryAuthorityHost: option.azureAuthorityHost,
-		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-			cloud.ResourceManager: {
-				Endpoint: option.resourceManagerEndpoint,
-				Audience: option.resourceManagerAudience,
-			},
-		},
-	}
+	return option.cloudCfg.Cloud()
 }

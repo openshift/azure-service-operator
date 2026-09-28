@@ -12,6 +12,8 @@ default.etcd
 
 # Output of the test and coverage results
 reports/
+# Allow perf reports
+!v2/test/perf/reports/
 
 bin/
 coverage.txt
@@ -72,3 +74,10 @@ hack/tools
 
 # Private powershell scripts
 .ps
+
+# goenv condiguration
+.go-version
+v2/controller
+v2/cmd/asoctl/asoctl
+v2/tools/generator/aso-gen
+v2/tools/generator/generator

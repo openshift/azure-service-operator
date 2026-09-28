@@ -1,0 +1,150 @@
+// Copyright 2015 xeipuuv ( https://github.com/xeipuuv )
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// author           xeipuuv
+// author-github    https://github.com/xeipuuv
+// author-mail      xeipuuv@gmail.com
+//
+// repository-name  gojsonschema
+// repository-desc  An implementation of JSON Schema, based on IETF's draft v4 - Go language.
+//
+// description      Defines the structure of a sub-SubSchema.
+//                  A sub-SubSchema can contain other sub-schemas.
+//
+// created          27-02-2013
+
+package gojsonschema
+
+import (
+	"math/big"
+	"regexp"
+
+	"github.com/xeipuuv/gojsonreference"
+)
+
+// Constants
+const (
+	KEY_SCHEMA                = "$schema"
+	KEY_ID                    = "id"
+	KEY_ID_NEW                = "$id"
+	KEY_REF                   = "$ref"
+	KEY_TITLE                 = "title"
+	KEY_DESCRIPTION           = "description"
+	KEY_TYPE                  = "type"
+	KEY_ITEMS                 = "items"
+	KEY_ADDITIONAL_ITEMS      = "additionalItems"
+	KEY_PROPERTIES            = "properties"
+	KEY_PATTERN_PROPERTIES    = "patternProperties"
+	KEY_ADDITIONAL_PROPERTIES = "additionalProperties"
+	KEY_PROPERTY_NAMES        = "propertyNames"
+	KEY_DEFINITIONS           = "definitions"
+	KEY_MULTIPLE_OF           = "multipleOf"
+	KEY_MINIMUM               = "minimum"
+	KEY_MAXIMUM               = "maximum"
+	KEY_EXCLUSIVE_MINIMUM     = "exclusiveMinimum"
+	KEY_EXCLUSIVE_MAXIMUM     = "exclusiveMaximum"
+	KEY_MIN_LENGTH            = "minLength"
+	KEY_MAX_LENGTH            = "maxLength"
+	KEY_PATTERN               = "pattern"
+	KEY_FORMAT                = "format"
+	KEY_MIN_PROPERTIES        = "minProperties"
+	KEY_MAX_PROPERTIES        = "maxProperties"
+	KEY_DEPENDENCIES          = "dependencies"
+	KEY_REQUIRED              = "required"
+	KEY_MIN_ITEMS             = "minItems"
+	KEY_MAX_ITEMS             = "maxItems"
+	KEY_UNIQUE_ITEMS          = "uniqueItems"
+	KEY_CONTAINS              = "contains"
+	KEY_CONST                 = "const"
+	KEY_ENUM                  = "enum"
+	KEY_ONE_OF                = "oneOf"
+	KEY_ANY_OF                = "anyOf"
+	KEY_ALL_OF                = "allOf"
+	KEY_NOT                   = "not"
+	KEY_IF                    = "if"
+	KEY_THEN                  = "then"
+	KEY_ELSE                  = "else"
+)
+
+type SubSchema struct {
+	DraftVersion *Draft
+
+	// basic SubSchema meta properties
+	ID          *gojsonreference.JsonReference `json:"id,omitempty"`
+	Title       *string                        `json:"title,omitempty"`
+	Description *string                        `json:"description,omitempty"`
+
+	Property string `json:"property,omitempty"`
+
+	// Quick pass/fail for boolean schemas
+	pass *bool
+
+	// Types associated with the SubSchema
+	Types JsonSchemaType
+
+	// Reference url
+	Ref *gojsonreference.JsonReference
+	// Schema referenced
+	RefSchema *SubSchema
+
+	// hierarchy
+	Parent                      *SubSchema
+	ItemsChildren               []*SubSchema
+	ItemsChildrenIsSingleSchema bool
+	PropertiesChildren          []*SubSchema
+
+	// validation : number / integer
+	MultipleOf       *big.Rat
+	Maximum          *big.Rat
+	ExclusiveMaximum *big.Rat
+	Minimum          *big.Rat
+	ExclusiveMinimum *big.Rat
+
+	// validation : string
+	MinLength *int
+	MaxLength *int
+	Pattern   *regexp.Regexp
+	Format    string
+
+	// validation : object
+	MinProperties *int
+	MaxProperties *int
+	Required      []string
+
+	Dependencies         map[string]interface{}
+	AdditionalProperties interface{}
+	PatternProperties    map[string]*SubSchema
+	PropertyNames        *SubSchema
+
+	// validation : array
+	MinItems    *int
+	MaxItems    *int
+	UniqueItems bool
+	Contains    *SubSchema
+
+	AdditionalItems interface{}
+
+	// validation : all
+	Const *string //const is a golang keyword
+	Enum  []string
+
+	// validation : SubSchema
+	OneOf []*SubSchema
+	AnyOf []*SubSchema
+	AllOf []*SubSchema
+	Not   *SubSchema
+	If    *SubSchema // if/else are golang keywords
+	Then  *SubSchema
+	Else  *SubSchema
+}

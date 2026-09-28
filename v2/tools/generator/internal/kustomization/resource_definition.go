@@ -6,9 +6,9 @@
 package kustomization
 
 import (
-	"io/ioutil"
+	"os"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,15 +17,15 @@ type ResourceDefinition struct {
 }
 
 func LoadResourceDefinition(filePath string) (*ResourceDefinition, error) {
-	fileBytes, err := ioutil.ReadFile(filePath)
+	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "reading resource definition from %s", filePath)
+		return nil, eris.Wrapf(err, "reading resource definition from %s", filePath)
 	}
 
 	result := &ResourceDefinition{}
 	err = yaml.Unmarshal(fileBytes, result)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unmarshalling resource definition from %s", filePath)
+		return nil, eris.Wrapf(err, "unmarshalling resource definition from %s", filePath)
 	}
 
 	return result, nil

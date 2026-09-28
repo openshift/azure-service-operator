@@ -9,14 +9,13 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/bmatcuk/doublestar"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -27,17 +26,18 @@ const DeleteGeneratedCodeStageID = "deleteGenerated"
 
 // DeleteGeneratedCode creates a pipeline stage for cleanup of our output folder prior to generating files
 func DeleteGeneratedCode(outputFolder string) *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		DeleteGeneratedCodeStageID,
 		"Delete generated code from "+outputFolder,
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
 			err := deleteGeneratedCodeFromFolder(ctx, outputFolder)
 			if err != nil {
 				return nil, err
 			}
 
-			return definitions, nil
-		})
+			return state, nil
+		},
+	)
 }
 
 func deleteGeneratedCodeFromFolder(ctx context.Context, outputFolder string) error {
@@ -66,7 +66,7 @@ func deleteGeneratedCodeByPattern(ctx context.Context, globPattern string) error
 	// We use doublestar here rather than filepath.Glob because filepath.Glob doesn't support **
 	files, err := doublestar.Glob(globPattern)
 	if err != nil {
-		return errors.Wrapf(err, "error globbing files with pattern %q", globPattern)
+		return eris.Wrapf(err, "error globbing files with pattern %q", globPattern)
 	}
 
 	// We treat files as a queue of files needing deletion
@@ -85,7 +85,7 @@ func deleteGeneratedCodeByPattern(ctx context.Context, globPattern string) error
 
 		isGenerated, err := isFileGenerated(file)
 		if err != nil {
-			errorsSeen[file] = errors.Wrapf(err, "error determining if file was generated")
+			errorsSeen[file] = eris.Wrapf(err, "error determining if file was generated")
 			consecutiveDeleteFailures++
 			files = append(files, file) // requeue the file
 		}
@@ -93,7 +93,7 @@ func deleteGeneratedCodeByPattern(ctx context.Context, globPattern string) error
 		if isGenerated {
 			err := os.Remove(file)
 			if err != nil {
-				errorsSeen[file] = errors.Wrapf(err, "error determining if file was generated")
+				errorsSeen[file] = eris.Wrapf(err, "error determining if file was generated")
 				consecutiveDeleteFailures++
 				files = append(files, file) // requeue the file
 			} else {
@@ -136,7 +136,7 @@ func isFileGenerated(filename string) (bool, error) {
 	reader := bufio.NewReader(f)
 	for i := 0; i < maxLinesToCheck; i++ {
 		line, err := reader.ReadString('\n')
-		if errors.Is(err, io.EOF) {
+		if eris.Is(err, io.EOF) {
 			return false, nil
 		}
 
@@ -200,16 +200,16 @@ func deleteEmptyDirectories(ctx context.Context, path string) error {
 			return ctx.Err()
 		}
 
-		files, err := ioutil.ReadDir(dir)
+		files, err := os.ReadDir(dir)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "error reading directory %q", dir))
+			errs = append(errs, eris.Wrapf(err, "error reading directory %q", dir))
 		}
 
 		if len(files) == 0 {
 			// Directory is empty now, we can delete it
 			err := os.Remove(dir)
 			if err != nil {
-				errs = append(errs, errors.Wrapf(err, "error removing dir %q", dir))
+				errs = append(errs, eris.Wrapf(err, "error removing dir %q", dir))
 			}
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -70,6 +71,7 @@ func TestFieldMatcher_IsRestrictive_GivesExpectedResults(t *testing.T) {
 				var h matcherHost
 				g.Expect(yaml.Unmarshal([]byte(c.yaml), &h)).To(Succeed())
 				g.Expect(h.Field.IsRestrictive()).To(Equal(c.restrictive))
-			})
+			},
+		)
 	}
 }

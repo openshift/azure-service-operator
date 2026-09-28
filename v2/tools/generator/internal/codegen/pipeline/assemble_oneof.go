@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -25,10 +25,11 @@ func AssembleOneOfTypes(idFactory astmodel.IdentifierFactory) *Stage {
 			assembler := newOneOfAssembler(state.Definitions(), idFactory)
 			newDefs, err := assembler.assembleOneOfs()
 			if err != nil {
-				return nil, errors.Wrapf(err, "assembling OneOf types")
+				return nil, eris.Wrapf(err, "assembling OneOf types")
 			}
 			return state.WithOverlaidDefinitions(newDefs), nil
-		})
+		},
+	)
 
 	return stage
 }
@@ -108,20 +109,23 @@ func (oa *oneOfAssembler) assemble(name astmodel.InternalTypeName) error {
 
 // assemblePair updates a pair of nodes that have a relationship and recursively invokes itself to traverse the entire
 // tree of referenced imports.
-// ancestor is the parent or super-type. It may be a less specialised OneOf, a root OneOf, an Object or an AllOf
+// ancestor is the parent or super-type. It may be a less specialised OneOf, a root OneOf, an Object or an AllOf.
 // descendent is the child or subtype. It will be an intermediate or leaf OneOf.
-func (oa *oneOfAssembler) assemblePair(ancestor astmodel.InternalTypeName, descendant astmodel.InternalTypeName) error {
+func (oa *oneOfAssembler) assemblePair(
+	ancestor astmodel.InternalTypeName,
+	descendant astmodel.InternalTypeName,
+) error {
 	// Remove any direct reference to the parent from the leaf
 	err := oa.removeParentReferenceFromLeaf(ancestor, descendant)
 	if err != nil {
-		return errors.Wrapf(err, "removing parent reference %s from leaf %s", ancestor, descendant)
+		return eris.Wrapf(err, "removing parent reference %s from leaf %s", ancestor, descendant)
 	}
 
 	if oa.hasDiscriminatorValue(descendant) {
 		// Copy any common properties from the parent to the child
 		err = oa.embedCommonPropertiesInLeaf(ancestor, descendant)
 		if err != nil {
-			return errors.Wrapf(err, "embedding common properties from %s in leaf %s", ancestor, descendant)
+			return eris.Wrapf(err, "embedding common properties from %s in leaf %s", ancestor, descendant)
 		}
 	}
 
@@ -129,19 +133,19 @@ func (oa *oneOfAssembler) assemblePair(ancestor astmodel.InternalTypeName, desce
 		// Strip common properties from the root (we replace these with other properties in a later stage)
 		err := oa.removeCommonPropertiesFromRoot(ancestor)
 		if err != nil {
-			return errors.Wrapf(err, "removing common properties from OneOf root %s", ancestor)
+			return eris.Wrapf(err, "removing common properties from OneOf root %s", ancestor)
 		}
 
 		// We've found the actual root, add a reference to the leaf
 		err = oa.addLeafReferenceToRoot(ancestor, descendant)
 		if err != nil {
-			return errors.Wrapf(err, "adding leaf reference to %s from root %s", descendant, ancestor)
+			return eris.Wrapf(err, "adding leaf reference to %s from root %s", descendant, ancestor)
 		}
 
 		// Ensure the discriminator property exists on the leaf
 		err = oa.addDiscriminatorProperty(descendant, ancestor)
 		if err != nil {
-			return errors.Wrapf(err, "ensuring discriminator property exists on %s", descendant)
+			return eris.Wrapf(err, "ensuring discriminator property exists on %s", descendant)
 		}
 	}
 
@@ -211,9 +215,10 @@ func (oa *oneOfAssembler) removeCommonPropertiesFromRoot(root astmodel.InternalT
 		func(oneOf *astmodel.OneOfType) (*astmodel.OneOfType, error) {
 			result := oneOf.WithoutAnyPropertyObjects()
 			return result, nil
-		})
+		},
+	)
 
-	return errors.Wrapf(err, "removing common properties from root %s", root)
+	return eris.Wrapf(err, "removing common properties from root %s", root)
 }
 
 // removeParentReferenceFromLeaf removes any reference to the root from the leaf.
@@ -224,8 +229,9 @@ func (oa *oneOfAssembler) removeParentReferenceFromLeaf(parent astmodel.TypeName
 		leaf,
 		func(oneOf *astmodel.OneOfType) (*astmodel.OneOfType, error) {
 			return oneOf.WithoutType(parent), nil
-		})
-	return errors.Wrapf(err, "removing parent reference from leaf %s", leaf)
+		},
+	)
+	return eris.Wrapf(err, "removing parent reference from leaf %s", leaf)
 }
 
 // embedCommonPropertiesInLeaf embeds any common properties found on the parent into the leaf.
@@ -246,9 +252,10 @@ func (oa *oneOfAssembler) embedCommonPropertiesInLeaf(parent astmodel.InternalTy
 			}
 
 			return result, nil
-		})
+		},
+	)
 
-	return errors.Wrapf(err, "embedding common properties from OneOf in leaf %s", leaf)
+	return eris.Wrapf(err, "embedding common properties from OneOf in leaf %s", leaf)
 }
 
 // findCommonProperties finds all the object properties referenced by name to embed in a leaf OneOf.
@@ -286,21 +293,22 @@ func (oa *oneOfAssembler) addLeafReferenceToRoot(root astmodel.InternalTypeName,
 		root,
 		func(oneOf *astmodel.OneOfType) (*astmodel.OneOfType, error) {
 			return oneOf.WithType(leaf), nil
-		})
+		},
+	)
 
-	return errors.Wrapf(err, "adding leaf reference %s to root %s", leaf, root)
+	return eris.Wrapf(err, "adding leaf reference %s to root %s", leaf, root)
 }
 
 func (oa *oneOfAssembler) addDiscriminatorProperty(name astmodel.InternalTypeName, rootName astmodel.InternalTypeName) error {
 	// Find the name of the discriminator property from the root
 	root, ok := oa.asOneOf(rootName)
 	if !ok {
-		return errors.Errorf("couldn't find root %s", rootName)
+		return eris.Errorf("couldn't find root %s", rootName)
 	}
 
 	discriminatorProperty := root.DiscriminatorProperty()
 	propertyName := oa.idFactory.CreatePropertyName(discriminatorProperty, astmodel.Exported)
-	propertyJson := oa.idFactory.CreateStringIdentifier(discriminatorProperty, astmodel.NotExported)
+	propertyJSON := oa.idFactory.CreateStringIdentifier(discriminatorProperty, astmodel.NotExported)
 
 	err := oa.updateOneOf(
 		name,
@@ -312,16 +320,19 @@ func (oa *oneOfAssembler) addDiscriminatorProperty(name astmodel.InternalTypeNam
 			// Create the discriminator property as a single valued enum
 			enumType := astmodel.NewEnumType(
 				astmodel.StringType,
-				astmodel.MakeEnumValue(valueName, fmt.Sprintf("%q", discriminatorValue)))
+				astmodel.MakeEnumValue(valueName, fmt.Sprintf("%q", discriminatorValue)),
+			)
 
 			property := astmodel.NewPropertyDefinition(
 				propertyName,
-				propertyJson,
-				astmodel.NewOptionalType(enumType))
+				propertyJSON,
+				astmodel.NewOptionalType(enumType),
+			)
 
 			obj := astmodel.NewObjectType().WithProperty(property)
 			return oneOf.WithAdditionalPropertyObject(obj), nil
-		})
+		},
+	)
 
 	return err
 }
@@ -401,13 +412,13 @@ func (oa *oneOfAssembler) updateOneOf(
 
 		oneOf, ok = astmodel.AsOneOfType(def.Type())
 		if !ok {
-			return errors.Errorf("found definition for %s, but it wasn't a OneOf", name)
+			return eris.Errorf("found definition for %s, but it wasn't a OneOf", name)
 		}
 	}
 
 	updated, err := transform(oneOf)
 	if err != nil {
-		return errors.Wrapf(err, "transforming oneOf %s", name)
+		return eris.Wrapf(err, "transforming oneOf %s", name)
 	}
 
 	oa.updates[name] = updated

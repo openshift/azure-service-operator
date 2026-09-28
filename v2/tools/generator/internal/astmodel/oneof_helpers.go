@@ -5,9 +5,7 @@
 
 package astmodel
 
-import (
-	"github.com/pkg/errors"
-)
+import "github.com/rotisserie/eris"
 
 type PropertyNameAndType struct {
 	PropertyName PropertyName
@@ -25,21 +23,21 @@ func resolveOneOfMemberToObjectType(
 	if !ok {
 		return InternalTypeName{},
 			nil,
-			errors.Errorf("expected oneOf member to be a TypeName, instead was %s", DebugDescription(t))
+			eris.Errorf("expected oneOf member to be a TypeName, instead was %s", DebugDescription(t))
 	}
 
 	propType, err := definitions.FullyResolve(tn)
 	if err != nil {
 		return InternalTypeName{},
 			nil,
-			errors.Wrapf(err, "unable to resolve oneOf member type %s", tn)
+			eris.Wrapf(err, "unable to resolve oneOf member type %s", tn)
 	}
 
 	propObjType, ok := AsObjectType(propType)
 	if !ok {
 		return InternalTypeName{},
 			nil,
-			errors.Errorf("OneOf %s referenced non-object type %s", t, DebugDescription(propType))
+			eris.Errorf("OneOf %s referenced non-object type %s", t, DebugDescription(propType))
 	}
 
 	return tn, propObjType, nil
@@ -53,6 +51,11 @@ func getDiscriminatorMapping(
 	props := oneOf.Properties().Copy()
 	result := make(map[string]PropertyNameAndType, len(props))
 	for _, prop := range props {
+		// We now permit OneOf objects to also contain primitive types (e.g. Name), so we need to skip them
+		if _, ok := AsPrimitiveType(prop.PropertyType()); ok {
+			continue
+		}
+
 		propObjTypeName, propObjType, err := resolveOneOfMemberToObjectType(prop.PropertyType(), definitions)
 		if err != nil {
 			panic(err)
@@ -100,11 +103,21 @@ func DetermineDiscriminantAndValues(
 	oneOf *ObjectType,
 	definitions TypeDefinitionSet,
 ) (string, map[string]PropertyNameAndType, error) {
-	// grab out the first member of the OneOf
-	firstProp := oneOf.Properties().First()
+	// grab out the first object property of the OneOf
+	var firstProp *PropertyDefinition
+	for _, p := range oneOf.Properties().AsSlice() {
+		// Skip until we find a property referencing one of our leaves
+		if !IsOneOfLeafProperty(p, definitions) {
+			continue
+		}
+
+		firstProp = p
+		break
+	}
+
 	_, firstMember, err := resolveOneOfMemberToObjectType(firstProp.PropertyType(), definitions)
 	if err != nil {
-		return "", nil, errors.Wrap(err, "unable to resolve first member of OneOf")
+		return "", nil, eris.Wrap(err, "unable to resolve first member of OneOf")
 	}
 
 	// try to find a discriminator property out of the properties on the first member
@@ -122,5 +135,24 @@ func DetermineDiscriminantAndValues(
 		}
 	}
 
-	return "", nil, errors.Errorf("unable to determine a discriminator property for oneOf type")
+	return "", nil, eris.Errorf("unable to determine a discriminator property for oneOf type")
+}
+
+// IsOneOfLeafProperty determines if a property is a leaf property in a oneOf type.
+func IsOneOfLeafProperty(
+	prop *PropertyDefinition,
+	definitions TypeDefinitionSet,
+) bool {
+	itn, ok := AsInternalTypeName(prop.PropertyType())
+	if !ok {
+		return false
+	}
+
+	def, ok := definitions[itn]
+	if !ok {
+		return false
+	}
+
+	_, ok = AsObjectType(def.Type())
+	return ok
 }

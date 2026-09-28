@@ -13,13 +13,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/go-logr/logr"
-
 	"github.com/go-openapi/jsonpointer"
 	"github.com/go-openapi/spec"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
+	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
@@ -78,7 +77,7 @@ func (schema *OpenAPISchema) transformOpenAPISlice(slice []spec.Schema) []Schema
 	return result
 }
 
-func (schema *OpenAPISchema) Id() string {
+func (schema *OpenAPISchema) ID() string {
 	return schema.name
 }
 
@@ -196,7 +195,8 @@ func (schema *OpenAPISchema) pattern() *regexp.Regexp {
 	if err != nil {
 		schema.log.V(1).Info(
 			"Ignoring regexp we can't compile",
-			"pattern", p)
+			"pattern", p,
+		)
 		return nil
 	}
 
@@ -371,7 +371,7 @@ func (schema *OpenAPISchema) refTypeName() (astmodel.InternalTypeName, error) {
 			// or is nil (so could be set to the pulling-in package)
 			if otherSchema.Package == nil || otherSchema.Package.Equals(schema.outputPackage) {
 				if _, ok := otherSchema.Swagger.Definitions[name]; ok {
-					return astmodel.InternalTypeName{}, errors.Errorf(
+					return astmodel.InternalTypeName{}, eris.Errorf(
 						"importing type %s from file %s into package %s could generate collision with type in %s",
 						name,
 						absRefPath,
@@ -410,7 +410,8 @@ func (schema *OpenAPISchema) refSchema() Schema {
 		outputPackage,
 		schema.idFactory,
 		schema.loader,
-		schema.log)
+		schema.log,
+	)
 }
 
 // findFileForRef identifies the schema path for a ref, relative to the give schema path
@@ -475,7 +476,7 @@ func objectNameFromPointer(ptr *jsonpointer.Pointer) string {
 // resolveAbsolutePath makes an absolute path by combining 'baseFileName' and 'url'
 func resolveAbsolutePath(baseFileName string, url *url.URL) (string, error) {
 	if url.IsAbs() {
-		return "", errors.Errorf("absolute path %q not supported (only relative URLs)", url)
+		return "", eris.Errorf("absolute path %q not supported (only relative URLs)", url)
 	}
 
 	dir := filepath.Dir(baseFileName)

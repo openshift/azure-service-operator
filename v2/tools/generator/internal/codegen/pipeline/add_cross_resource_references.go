@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -39,9 +39,14 @@ func TransformCrossResourceReferences(configuration *config.Configuration, idFac
 					continue
 				}
 
-				t, err := visitor.Visit(def.Type(), def.Name())
+				conversionContext := ARMIDToReferenceTypeConverterContext{
+					DefinitionName:        def.Name(),
+					SelectedReferenceType: astmodel.ResourceReferenceType,
+				}
+
+				t, err := visitor.Visit(def.Type(), conversionContext)
 				if err != nil {
-					return nil, errors.Wrapf(err, "visiting %q", def.Name())
+					return nil, eris.Wrapf(err, "visiting %q", def.Name())
 				}
 
 				updatedDefs.Add(def.WithType(t))
@@ -49,11 +54,12 @@ func TransformCrossResourceReferences(configuration *config.Configuration, idFac
 
 			resultDefs, err := stripARMIDPrimitiveTypes(updatedDefs)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to strip ARM ID primitive types")
+				return nil, eris.Wrap(err, "failed to strip ARM ID primitive types")
 			}
 
 			return state.WithDefinitions(resultDefs), nil
-		})
+		},
+	)
 }
 
 func makeReferencePropertyName(existing *astmodel.PropertyDefinition, isSlice bool, isMap bool) string {
@@ -64,12 +70,15 @@ func makeReferencePropertyName(existing *astmodel.PropertyDefinition, isSlice bo
 
 	var referencePropertyName string
 	// Special case for "Id" and properties that end in "Id", which are quite common in the specs. This is primarily
-	// because it's awkward to have a field called "Id" not just be a string and instead but a complex type describing
+	// because it's awkward to have a field called "Id" not just be a string and instead be a complex type describing
 	// a reference.
 	s := existing.PropertyName().String()
 
 	if strings.ToLower(s) == "id" {
 		referencePropertyName = propertyNameSuffix
+	} else if strings.EqualFold(s, propertyNameSuffix) {
+		// If the property is already called "Reference" (or "reference"), we don't want to end up with "ReferenceReference"
+		referencePropertyName = s
 	} else if idRegex.MatchString(s) {
 		referencePropertyName = idRegex.ReplaceAllString(s, "${1}"+propertyNameSuffix)
 	} else {
@@ -105,27 +114,66 @@ func makeLegacyReferencePropertyName(existing *astmodel.PropertyDefinition, isSl
 	return referencePropertyName
 }
 
-type ARMIDToGenruntimeReferenceTypeVisitor struct {
-	astmodel.TypeVisitor[astmodel.InternalTypeName]
+type ARMIDToReferenceTypeConverter struct {
+	astmodel.TypeVisitor[ARMIDToReferenceTypeConverterContext]
 	idFactory astmodel.IdentifierFactory
 }
 
-func (v *ARMIDToGenruntimeReferenceTypeVisitor) transformARMIDToGenruntimeResourceReference(
-	_ *astmodel.TypeVisitor[astmodel.InternalTypeName],
+type ARMIDToReferenceTypeConverterContext struct {
+	DefinitionName        astmodel.InternalTypeName
+	SelectedReferenceType astmodel.ExternalTypeName
+}
+
+func (v *ARMIDToReferenceTypeConverter) transformARMIDToResourceReference(
+	_ *astmodel.TypeVisitor[ARMIDToReferenceTypeConverterContext],
 	it *astmodel.PrimitiveType,
-	_ astmodel.InternalTypeName,
+	ctx ARMIDToReferenceTypeConverterContext,
 ) (astmodel.Type, error) {
 	if it == astmodel.ARMIDType {
-		return astmodel.ResourceReferenceType, nil
+		return ctx.SelectedReferenceType, nil
 	}
 
 	return it, nil
 }
 
-func (v *ARMIDToGenruntimeReferenceTypeVisitor) renamePropertiesWithARMIDReferences(
-	this *astmodel.TypeVisitor[astmodel.InternalTypeName],
+func (v *ARMIDToReferenceTypeConverter) handleTransformationFlags(
+	visitor *astmodel.TypeVisitor[ARMIDToReferenceTypeConverterContext],
+	it *astmodel.FlaggedType,
+	ctx ARMIDToReferenceTypeConverterContext,
+) (astmodel.Type, error) {
+	// If a Wellknown Resource Reference is required, use it and remove the flag
+	if it.HasFlag(astmodel.WellKnownReferenceFlag) {
+		ctx.SelectedReferenceType = astmodel.WellKnownResourceReferenceType
+		elem, err := visitor.Visit(it.Element(), ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return it.WithElement(elem).WithoutFlag(astmodel.WellKnownReferenceFlag), nil
+	}
+
+	// If a Compatible Resource Reference is required, use it and remove the flag
+	if it.HasFlag(astmodel.CompatibleReferenceFlag) {
+		elem, err := visitor.Visit(it.Element(), ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return it.WithElement(elem).WithoutFlag(astmodel.CompatibleReferenceFlag), nil
+	}
+
+	elem, err := visitor.Visit(it.Element(), ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return it.WithElement(elem), nil
+}
+
+func (v *ARMIDToReferenceTypeConverter) renamePropertiesWithARMIDReferences(
+	this *astmodel.TypeVisitor[ARMIDToReferenceTypeConverterContext],
 	it *astmodel.ObjectType,
-	ctx astmodel.InternalTypeName,
+	ctx ARMIDToReferenceTypeConverterContext,
 ) (astmodel.Type, error) {
 	// First, we visit this type like normal
 	result, err := astmodel.IdentityVisitOfObjectType(this, it, ctx)
@@ -135,7 +183,7 @@ func (v *ARMIDToGenruntimeReferenceTypeVisitor) renamePropertiesWithARMIDReferen
 
 	ot, ok := result.(*astmodel.ObjectType)
 	if !ok {
-		return nil, errors.Errorf("result for visitObjectType of %s was not expected ObjectType, instead %T", ctx, result)
+		return nil, eris.Errorf("result for visitObjectType of %s was not expected ObjectType, instead %T", ctx, result)
 	}
 
 	// Now, check if any properties have been updated and if they have change their names to match
@@ -144,16 +192,30 @@ func (v *ARMIDToGenruntimeReferenceTypeVisitor) renamePropertiesWithARMIDReferen
 	ot.Properties().ForEach(func(prop *astmodel.PropertyDefinition) {
 		origProp, ok := it.Property(prop.PropertyName())
 		if !ok {
-			errs = append(errs, errors.Errorf("expected to find property %q on %s", prop.PropertyName(), ctx))
+			errs = append(errs, eris.Errorf("expected to find property %q on %s", prop.PropertyName(), ctx))
 			return
 		}
 
 		if origProp.Equals(prop, astmodel.EqualityOverrides{}) {
+			// No change to the property type
 			newProps = append(newProps, prop)
 			return
 		}
 
-		newProp := makeResourceReferenceProperty(ctx, v.idFactory, prop)
+		newProp := makeResourceReferenceProperty(ctx.DefinitionName, v.idFactory, prop)
+
+		if astmodel.CompatibleReferenceFlag.IsOn(origProp.PropertyType()) {
+			// If the original property is flagged for compatibility,
+			// We keep both versions to avoid breaking existing CRs
+			// but need to remove the flag first
+			pr, err := v.createCompatibilityProperty(origProp)
+			if err != nil {
+				errs = append(errs, eris.Wrapf(err, "removing compatibility flag from property %s", origProp.PropertyName()))
+			}
+
+			newProps = append(newProps, pr)
+		}
+
 		newProps = append(newProps, newProp)
 	})
 
@@ -167,10 +229,10 @@ func (v *ARMIDToGenruntimeReferenceTypeVisitor) renamePropertiesWithARMIDReferen
 	return ot, nil
 }
 
-func (v *ARMIDToGenruntimeReferenceTypeVisitor) stripValidationForResourceReferences(
-	this *astmodel.TypeVisitor[astmodel.InternalTypeName],
+func (v *ARMIDToReferenceTypeConverter) stripValidationForResourceReferences(
+	this *astmodel.TypeVisitor[ARMIDToReferenceTypeConverterContext],
 	it *astmodel.ValidatedType,
-	ctx astmodel.InternalTypeName,
+	ctx ARMIDToReferenceTypeConverterContext,
 ) (astmodel.Type, error) {
 	result, err := astmodel.IdentityVisitOfValidatedType(this, it, ctx)
 	if err != nil {
@@ -184,19 +246,33 @@ func (v *ARMIDToGenruntimeReferenceTypeVisitor) stripValidationForResourceRefere
 	// If they aren't equal, just return the element
 	validated, ok := result.(*astmodel.ValidatedType)
 	if !ok {
-		return nil, errors.Errorf("expected IdentityVisitOfValidatedType to return a ValidatedType, but it instead returned %T", result)
+		return nil, eris.Errorf("expected IdentityVisitOfValidatedType to return a ValidatedType, but it instead returned %T", result)
 	}
 	return validated.ElementType(), nil
 }
 
-func MakeARMIDToResourceReferenceTypeVisitor(idFactory astmodel.IdentifierFactory) ARMIDToGenruntimeReferenceTypeVisitor {
-	result := ARMIDToGenruntimeReferenceTypeVisitor{
+func (v *ARMIDToReferenceTypeConverter) createCompatibilityProperty(
+	property *astmodel.PropertyDefinition,
+) (*astmodel.PropertyDefinition, error) {
+	t, err := astmodel.CompatibleReferenceFlag.RemoveFrom(property.PropertyType())
+	if err != nil {
+		return nil, eris.Wrapf(err, "removing compatibility flag from property %s", property.PropertyName())
+	}
+
+	return property.WithType(t), nil
+}
+
+func MakeARMIDToResourceReferenceTypeVisitor(
+	idFactory astmodel.IdentifierFactory,
+) ARMIDToReferenceTypeConverter {
+	result := ARMIDToReferenceTypeConverter{
 		idFactory: idFactory,
 	}
-	result.TypeVisitor = astmodel.TypeVisitorBuilder[astmodel.InternalTypeName]{
-		VisitPrimitive:     result.transformARMIDToGenruntimeResourceReference,
+	result.TypeVisitor = astmodel.TypeVisitorBuilder[ARMIDToReferenceTypeConverterContext]{
+		VisitPrimitive:     result.transformARMIDToResourceReference,
 		VisitObjectType:    result.renamePropertiesWithARMIDReferences,
 		VisitValidatedType: result.stripValidationForResourceReferences,
+		VisitFlaggedType:   result.handleTransformationFlags,
 	}.Build()
 
 	return result
@@ -209,6 +285,7 @@ func makeResourceReferenceProperty(
 ) *astmodel.PropertyDefinition {
 	_, isSlice := astmodel.AsArrayType(existing.PropertyType())
 	_, isMap := astmodel.AsMapType(existing.PropertyType())
+
 	var referencePropertyName string
 	// This is hacky but works
 	if group, version := typeName.InternalPackageReference().GroupVersion(); group == "containerservice" && strings.Contains(version, "20210501") {
@@ -222,7 +299,8 @@ func makeResourceReferenceProperty(
 	newProp := astmodel.NewPropertyDefinition(
 		idFactory.CreatePropertyName(referencePropertyName, astmodel.Exported),
 		idFactory.CreateStringIdentifier(referencePropertyName, astmodel.NotExported),
-		existing.PropertyType())
+		existing.PropertyType(),
+	)
 	// TODO: We could pass this information forward some other way?
 	// Add tag so that we remember what this field was before
 	newProp = newProp.WithTag(astmodel.ARMReferenceTag, originalName)
