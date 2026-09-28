@@ -1,0 +1,231 @@
+# github.com/Azure/azure-service-operator/v2 v2.12.0 => ../../
+## explicit; go 1.26.0
+github.com/Azure/azure-service-operator/v2/internal/set
+github.com/Azure/azure-service-operator/v2/internal/util/match
+github.com/Azure/azure-service-operator/v2/internal/util/to
+github.com/Azure/azure-service-operator/v2/internal/util/typo
+github.com/Azure/azure-service-operator/v2/pkg/xcontext
+# github.com/bmatcuk/doublestar v1.3.4
+## explicit; go 1.12
+github.com/bmatcuk/doublestar
+# github.com/dave/dst v0.27.4
+## explicit; go 1.18
+github.com/dave/dst
+github.com/dave/dst/decorator
+github.com/dave/dst/decorator/resolver
+github.com/dave/dst/decorator/resolver/gopackages
+github.com/dave/dst/decorator/resolver/gotypes
+github.com/dave/dst/dstutil
+# github.com/devigned/tab v0.1.1
+## explicit; go 1.12
+github.com/devigned/tab
+# github.com/go-logr/logr v1.4.4
+## explicit; go 1.18
+github.com/go-logr/logr
+# github.com/go-logr/zerologr v1.2.3
+## explicit; go 1.17
+github.com/go-logr/zerologr
+# github.com/go-openapi/jsonpointer v1.0.1
+## explicit; go 1.26.0
+github.com/go-openapi/jsonpointer
+github.com/go-openapi/jsonpointer/jsonname
+# github.com/go-openapi/jsonreference v1.0.1
+## explicit; go 1.25.0
+github.com/go-openapi/jsonreference
+github.com/go-openapi/jsonreference/internal
+# github.com/go-openapi/spec v1.0.1
+## explicit; go 1.26.0
+github.com/go-openapi/spec
+# github.com/go-openapi/swag/conv v0.29.1
+## explicit; go 1.25.0
+github.com/go-openapi/swag/conv
+# github.com/go-openapi/swag/jsonutils v0.29.1
+## explicit; go 1.25.0
+github.com/go-openapi/swag/jsonutils
+github.com/go-openapi/swag/jsonutils/adapters
+github.com/go-openapi/swag/jsonutils/adapters/ifaces
+github.com/go-openapi/swag/jsonutils/adapters/stdlib/json
+# github.com/go-openapi/swag/loading v0.29.1
+## explicit; go 1.25.0
+github.com/go-openapi/swag/loading
+# github.com/go-openapi/swag/pools v0.29.1
+## explicit; go 1.25.0
+github.com/go-openapi/swag/pools
+# github.com/go-openapi/swag/stringutils v0.29.1
+## explicit; go 1.25.0
+github.com/go-openapi/swag/stringutils
+# github.com/go-openapi/swag/typeutils v0.29.1
+## explicit; go 1.25.0
+github.com/go-openapi/swag/typeutils
+# github.com/go-openapi/swag/yamlutils v0.29.1
+## explicit; go 1.25.0
+github.com/go-openapi/swag/yamlutils
+# github.com/gobuffalo/flect v1.0.3
+## explicit; go 1.16
+github.com/gobuffalo/flect
+# github.com/google/go-cmp v0.7.0
+## explicit; go 1.21
+github.com/google/go-cmp/cmp
+github.com/google/go-cmp/cmp/internal/diff
+github.com/google/go-cmp/cmp/internal/flags
+github.com/google/go-cmp/cmp/internal/function
+github.com/google/go-cmp/cmp/internal/value
+# github.com/hbollon/go-edlib v1.7.0
+## explicit; go 1.13
+github.com/hbollon/go-edlib
+github.com/hbollon/go-edlib/internal/orderedmap
+github.com/hbollon/go-edlib/internal/utils
+# github.com/inconshreveable/mousetrap v1.1.0
+## explicit; go 1.18
+github.com/inconshreveable/mousetrap
+# github.com/kr/pretty v0.3.1
+## explicit; go 1.12
+github.com/kr/pretty
+# github.com/kr/text v0.2.0
+## explicit
+github.com/kr/text
+# github.com/kylelemons/godebug v1.1.0
+## explicit; go 1.11
+github.com/kylelemons/godebug/diff
+# github.com/leanovate/gopter v0.2.11
+## explicit; go 1.12
+github.com/leanovate/gopter
+github.com/leanovate/gopter/gen
+github.com/leanovate/gopter/prop
+# github.com/mattn/go-colorable v0.1.14
+## explicit; go 1.18
+github.com/mattn/go-colorable
+# github.com/mattn/go-isatty v0.0.20
+## explicit; go 1.15
+github.com/mattn/go-isatty
+# github.com/onsi/gomega v1.43.0
+## explicit; go 1.25.0
+github.com/onsi/gomega
+github.com/onsi/gomega/format
+github.com/onsi/gomega/internal
+github.com/onsi/gomega/internal/gutil
+github.com/onsi/gomega/matchers
+github.com/onsi/gomega/matchers/internal/miter
+github.com/onsi/gomega/matchers/support/goraph/bipartitegraph
+github.com/onsi/gomega/matchers/support/goraph/edge
+github.com/onsi/gomega/matchers/support/goraph/node
+github.com/onsi/gomega/matchers/support/goraph/util
+github.com/onsi/gomega/types
+# github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
+## explicit
+github.com/pmezard/go-difflib/difflib
+# github.com/rogpeppe/go-internal v1.14.1
+## explicit; go 1.23
+github.com/rogpeppe/go-internal/fmtsort
+# github.com/rotisserie/eris v0.5.4
+## explicit; go 1.18
+github.com/rotisserie/eris
+# github.com/rs/zerolog v1.35.1
+## explicit; go 1.23
+github.com/rs/zerolog
+github.com/rs/zerolog/internal/cbor
+github.com/rs/zerolog/internal/json
+# github.com/samber/lo v1.53.0
+## explicit; go 1.18
+github.com/samber/lo
+github.com/samber/lo/internal/constraints
+github.com/samber/lo/internal/xrand
+github.com/samber/lo/internal/xtime
+github.com/samber/lo/mutable
+# github.com/sebdah/goldie/v2 v2.8.0
+## explicit; go 1.12
+github.com/sebdah/goldie/v2
+# github.com/sergi/go-diff v1.3.1
+## explicit; go 1.12
+github.com/sergi/go-diff/diffmatchpatch
+# github.com/spf13/cobra v1.10.2
+## explicit; go 1.15
+github.com/spf13/cobra
+# github.com/spf13/pflag v1.0.10
+## explicit; go 1.12
+github.com/spf13/pflag
+# github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb
+## explicit
+github.com/xeipuuv/gojsonpointer
+# github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415
+## explicit
+github.com/xeipuuv/gojsonreference
+# github.com/xeipuuv/gojsonschema v1.2.0 => github.com/devigned/gojsonschema v1.2.1-0.20191231010529-c593123f1e5d
+## explicit; go 1.13
+github.com/xeipuuv/gojsonschema
+# go.yaml.in/yaml/v3 v3.0.5
+## explicit; go 1.16
+go.yaml.in/yaml/v3
+# golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
+## explicit; go 1.25.0
+golang.org/x/exp/maps
+golang.org/x/exp/slices
+# golang.org/x/mod v0.40.0
+## explicit; go 1.25.0
+golang.org/x/mod/internal/lazyregexp
+golang.org/x/mod/modfile
+golang.org/x/mod/module
+golang.org/x/mod/semver
+# golang.org/x/net v0.58.0
+## explicit; go 1.25.0
+golang.org/x/net/html
+golang.org/x/net/html/atom
+golang.org/x/net/html/charset
+# golang.org/x/sync v0.22.0
+## explicit; go 1.25.0
+golang.org/x/sync/errgroup
+# golang.org/x/sys v0.47.0
+## explicit; go 1.25.0
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+# golang.org/x/text v0.41.0
+## explicit; go 1.25.0
+golang.org/x/text/cases
+golang.org/x/text/encoding
+golang.org/x/text/encoding/charmap
+golang.org/x/text/encoding/htmlindex
+golang.org/x/text/encoding/internal
+golang.org/x/text/encoding/internal/identifier
+golang.org/x/text/encoding/japanese
+golang.org/x/text/encoding/korean
+golang.org/x/text/encoding/simplifiedchinese
+golang.org/x/text/encoding/traditionalchinese
+golang.org/x/text/encoding/unicode
+golang.org/x/text/internal
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+golang.org/x/text/internal/utf8internal
+golang.org/x/text/language
+golang.org/x/text/runes
+golang.org/x/text/transform
+golang.org/x/text/unicode/norm
+# golang.org/x/tools v0.49.0
+## explicit; go 1.25.0
+golang.org/x/tools/go/ast/edge
+golang.org/x/tools/go/ast/inspector
+golang.org/x/tools/go/gcexportdata
+golang.org/x/tools/go/packages
+golang.org/x/tools/go/types/objectpath
+golang.org/x/tools/internal/aliases
+golang.org/x/tools/internal/event
+golang.org/x/tools/internal/event/core
+golang.org/x/tools/internal/event/keys
+golang.org/x/tools/internal/event/label
+golang.org/x/tools/internal/gcimporter
+golang.org/x/tools/internal/gocommand
+golang.org/x/tools/internal/moremaps
+golang.org/x/tools/internal/packagesinternal
+golang.org/x/tools/internal/pkgbits
+golang.org/x/tools/internal/stdlib
+golang.org/x/tools/internal/typesinternal
+golang.org/x/tools/internal/versions
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
+# k8s.io/apimachinery v0.37.0
+## explicit; go 1.26.0
+k8s.io/apimachinery/pkg/util/errors
+k8s.io/apimachinery/pkg/util/sets
+# github.com/Azure/azure-service-operator/v2 => ../../
+# github.com/xeipuuv/gojsonschema => github.com/devigned/gojsonschema v1.2.1-0.20191231010529-c593123f1e5d
