@@ -13,7 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	// The dataprotection package contains types and functions related to dataprotection resources.
-	dataprotection "github.com/Azure/azure-service-operator/v2/api/dataprotection/v1api20231101"
+	dataprotection "github.com/Azure/azure-service-operator/v2/api/dataprotection/v20231101"
 	// The testcommon package includes common testing utilities.
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	// The to package includes utilities for converting values to pointers.
@@ -23,7 +23,7 @@ import (
 func newBackupPolicy20231101(tc *testcommon.KubePerTestContext, backupVault *dataprotection.BackupVault, name string) *dataprotection.BackupVaultsBackupPolicy {
 	backupPolicy := &dataprotection.BackupVaultsBackupPolicy{
 		ObjectMeta: tc.MakeObjectMeta(name),
-		Spec: dataprotection.BackupVaults_BackupPolicy_Spec{
+		Spec: dataprotection.BackupVaultsBackupPolicy_Spec{
 			Owner: testcommon.AsOwner(backupVault),
 			Properties: &dataprotection.BaseBackupPolicy{
 				BackupPolicy: &dataprotection.BackupPolicy{

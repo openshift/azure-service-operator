@@ -11,14 +11,13 @@ import (
 	"strings"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 )
 
 // OneOfType represents something that can be any one of a number of selected types
 type OneOfType struct {
 	swaggerName           string        // Name of the OneOf as defined in the Swagger file
 	propertyObjects       []*ObjectType // Object definitions used to specify the properties held by this OneOf. May be empty.
-	options               TypeNameSet   // References to the type names of the options for this OneOf. May be empty.
 	types                 TypeSet       // Set of all possible types
 	discriminatorProperty string        // Identifies the discriminatorProperty property
 	discriminatorValue    string        // Discriminator value used to identify this subtype
@@ -31,7 +30,6 @@ func NewOneOfType(name string, types ...Type) *OneOfType {
 	return &OneOfType{
 		swaggerName: name,
 		types:       MakeTypeSet(types...),
-		options:     NewTypeNameSet(),
 	}
 }
 
@@ -117,7 +115,7 @@ func (oneOf *OneOfType) WithTypes(types []Type) *OneOfType {
 // Types returns what subtypes the OneOf may be.
 // Exposed as ReadonlyTypeSet so caller cannot break invariants.
 func (oneOf *OneOfType) Types() ReadonlyTypeSet {
-	return oneOf.types
+	return &oneOf.types
 }
 
 // PropertyObjects returns all the ObjectTypes that define the properties of this OneOf
@@ -154,7 +152,7 @@ var oneOFailureMsg = "OneOfType should have been replaced by generation time by 
 // AsType always panics; OneOf cannot be represented by the Go AST and must be
 // lowered to an object type
 func (oneOf *OneOfType) AsTypeExpr(codeGenerationContext *CodeGenerationContext) (dst.Expr, error) {
-	panic(errors.New(oneOFailureMsg))
+	panic(eris.New(oneOFailureMsg))
 }
 
 // AsDeclarations always panics; OneOf cannot be represented by the Go AST and must be
@@ -163,18 +161,18 @@ func (oneOf *OneOfType) AsDeclarations(
 	codeGenerationContext *CodeGenerationContext,
 	declContext DeclarationContext,
 ) ([]dst.Decl, error) {
-	panic(errors.New(oneOFailureMsg))
+	panic(eris.New(oneOFailureMsg))
 }
 
 // AsZero always panics; OneOf cannot be represented by the Go AST and must be
 // lowered to an object type
 func (oneOf *OneOfType) AsZero(_ TypeDefinitionSet, _ *CodeGenerationContext) dst.Expr {
-	panic(errors.New(oneOFailureMsg))
+	panic(eris.New(oneOFailureMsg))
 }
 
 // RequiredPackageReferences returns the union of the required imports of all the oneOf types
 func (oneOf *OneOfType) RequiredPackageReferences() *PackageReferenceSet {
-	panic(errors.New(oneOFailureMsg))
+	panic(eris.New(oneOFailureMsg))
 }
 
 // Equals returns true if the other Type is a OneOfType that contains
@@ -189,7 +187,42 @@ func (oneOf *OneOfType) Equals(t Type, overrides EqualityOverrides) bool {
 		return false
 	}
 
-	return oneOf.types.Equals(other.types, overrides)
+	// Check for different properties
+	if oneOf.swaggerName != other.swaggerName {
+		return false
+	}
+
+	if oneOf.discriminatorProperty != other.discriminatorProperty {
+		return false
+	}
+
+	if oneOf.discriminatorValue != other.discriminatorValue {
+		return false
+	}
+
+	// Check for different options to select from
+	if !oneOf.types.Equals(other.types, overrides) {
+		return false
+	}
+
+	// Check for different common properties
+	if len(oneOf.propertyObjects) != len(other.propertyObjects) {
+		return false
+	}
+
+	// Requiring exactly the same property objects in the same order is overly
+	// strict as they're actually all merged together into a single object
+	// and the order is not significant. Moreover, two one-of types would be the
+	// same if the merge is the same, regardless of how many object types were there
+	// to start with. This is all too complex to handle here though, so we'll just
+	// use the strict check.
+	for i := range oneOf.propertyObjects {
+		if !oneOf.propertyObjects[i].Equals(other.propertyObjects[i], overrides) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // String implements fmt.Stringer

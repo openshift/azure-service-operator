@@ -6,7 +6,10 @@ package storage
 import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -15,6 +18,7 @@ import (
 // +kubebuilder:rbac:groups=network.azure.com,resources={dnszonesarecords/status,dnszonesarecords/finalizers},verbs=get;update;patch
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,network}
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
@@ -23,13 +27,13 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20180501.DnsZonesARecord
 // Generator information:
-// - Generated from: /dns/resource-manager/Microsoft.Network/stable/2018-05-01/dns.json
+// - Generated from: /dns/resource-manager/Microsoft.Network/Dns/stable/2018-05-01/dns.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/dnsZones/{zoneName}/A/{relativeRecordSetName}
 type DnsZonesARecord struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              DnsZones_A_Spec   `json:"spec,omitempty"`
-	Status            DnsZones_A_STATUS `json:"status,omitempty"`
+	Spec              DnsZonesARecord_Spec   `json:"spec,omitempty"`
+	Status            DnsZonesARecord_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &DnsZonesARecord{}
@@ -44,6 +48,26 @@ func (record *DnsZonesARecord) SetConditions(conditions conditions.Conditions) {
 	record.Status.Conditions = conditions
 }
 
+var _ configmaps.Exporter = &DnsZonesARecord{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (record *DnsZonesARecord) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if record.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return record.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &DnsZonesARecord{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (record *DnsZonesARecord) SecretDestinationExpressions() []*core.DestinationExpression {
+	if record.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return record.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &DnsZonesARecord{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +77,7 @@ func (record *DnsZonesARecord) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2018-05-01"
 func (record DnsZonesARecord) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2018-05-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -87,11 +111,15 @@ func (record *DnsZonesARecord) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (record *DnsZonesARecord) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &DnsZones_A_STATUS{}
+	return &DnsZonesARecord_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (record *DnsZonesARecord) Owner() *genruntime.ResourceReference {
+	if record.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(record.Spec)
 	return record.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -99,16 +127,16 @@ func (record *DnsZonesARecord) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (record *DnsZonesARecord) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*DnsZones_A_STATUS); ok {
+	if st, ok := status.(*DnsZonesARecord_STATUS); ok {
 		record.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st DnsZones_A_STATUS
+	var st DnsZonesARecord_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	record.Status = st
@@ -130,7 +158,7 @@ func (record *DnsZonesARecord) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20180501.DnsZonesARecord
 // Generator information:
-// - Generated from: /dns/resource-manager/Microsoft.Network/stable/2018-05-01/dns.json
+// - Generated from: /dns/resource-manager/Microsoft.Network/Dns/stable/2018-05-01/dns.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/dnsZones/{zoneName}/A/{relativeRecordSetName}
 type DnsZonesARecordList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -138,21 +166,22 @@ type DnsZonesARecordList struct {
 	Items           []DnsZonesARecord `json:"items"`
 }
 
-// Storage version of v1api20180501.DnsZones_A_Spec
-type DnsZones_A_Spec struct {
+// Storage version of v1api20180501.DnsZonesARecord_Spec
+type DnsZonesARecord_Spec struct {
 	AAAARecords []AaaaRecord `json:"AAAARecords,omitempty"`
 	ARecords    []ARecord    `json:"ARecords,omitempty"`
 
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName       string            `json:"azureName,omitempty"`
-	CNAMERecord     *CnameRecord      `json:"CNAMERecord,omitempty"`
-	CaaRecords      []CaaRecord       `json:"caaRecords,omitempty"`
-	Etag            *string           `json:"etag,omitempty"`
-	MXRecords       []MxRecord        `json:"MXRecords,omitempty"`
-	Metadata        map[string]string `json:"metadata,omitempty"`
-	NSRecords       []NsRecord        `json:"NSRecords,omitempty"`
-	OriginalVersion string            `json:"originalVersion,omitempty"`
+	AzureName       string                       `json:"azureName,omitempty"`
+	CNAMERecord     *CnameRecord                 `json:"CNAMERecord,omitempty"`
+	CaaRecords      []CaaRecord                  `json:"caaRecords,omitempty"`
+	Etag            *string                      `json:"etag,omitempty"`
+	MXRecords       []MxRecord                   `json:"MXRecords,omitempty"`
+	Metadata        map[string]string            `json:"metadata,omitempty"`
+	NSRecords       []NsRecord                   `json:"NSRecords,omitempty"`
+	OperatorSpec    *DnsZonesARecordOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion string                       `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -168,28 +197,28 @@ type DnsZones_A_Spec struct {
 	TargetResource *SubResource                       `json:"targetResource,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &DnsZones_A_Spec{}
+var _ genruntime.ConvertibleSpec = &DnsZonesARecord_Spec{}
 
-// ConvertSpecFrom populates our DnsZones_A_Spec from the provided source
-func (zonesA *DnsZones_A_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == zonesA {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our DnsZonesARecord_Spec from the provided source
+func (record *DnsZonesARecord_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	if source == record {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
-	return source.ConvertSpecTo(zonesA)
+	return source.ConvertSpecTo(record)
 }
 
-// ConvertSpecTo populates the provided destination from our DnsZones_A_Spec
-func (zonesA *DnsZones_A_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == zonesA {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecTo populates the provided destination from our DnsZonesARecord_Spec
+func (record *DnsZonesARecord_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	if destination == record {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
-	return destination.ConvertSpecFrom(zonesA)
+	return destination.ConvertSpecFrom(record)
 }
 
-// Storage version of v1api20180501.DnsZones_A_STATUS
-type DnsZones_A_STATUS struct {
+// Storage version of v1api20180501.DnsZonesARecord_STATUS
+type DnsZonesARecord_STATUS struct {
 	AAAARecords       []AaaaRecord_STATUS    `json:"AAAARecords,omitempty"`
 	ARecords          []ARecord_STATUS       `json:"ARecords,omitempty"`
 	CNAMERecord       *CnameRecord_STATUS    `json:"CNAMERecord,omitempty"`
@@ -213,24 +242,32 @@ type DnsZones_A_STATUS struct {
 	Type              *string                `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &DnsZones_A_STATUS{}
+var _ genruntime.ConvertibleStatus = &DnsZonesARecord_STATUS{}
 
-// ConvertStatusFrom populates our DnsZones_A_STATUS from the provided source
-func (zonesA *DnsZones_A_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == zonesA {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our DnsZonesARecord_STATUS from the provided source
+func (record *DnsZonesARecord_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	if source == record {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
-	return source.ConvertStatusTo(zonesA)
+	return source.ConvertStatusTo(record)
 }
 
-// ConvertStatusTo populates the provided destination from our DnsZones_A_STATUS
-func (zonesA *DnsZones_A_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == zonesA {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our DnsZonesARecord_STATUS
+func (record *DnsZonesARecord_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	if destination == record {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
-	return destination.ConvertStatusFrom(zonesA)
+	return destination.ConvertStatusFrom(record)
+}
+
+// Storage version of v1api20180501.DnsZonesARecordOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type DnsZonesARecordOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
 }
 
 func init() {

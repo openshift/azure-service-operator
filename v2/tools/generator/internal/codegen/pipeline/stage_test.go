@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
+
+	"github.com/rotisserie/eris"
 )
 
 // RunTestPipeline is used to run a sequence of stages as a part of a unit test
@@ -20,7 +21,7 @@ func RunTestPipeline(state *State, stages ...*Stage) (*State, error) {
 	for _, stage := range stages {
 		s, err := stage.Run(context.TODO(), resultState)
 		if err != nil {
-			return nil, errors.Wrapf(err, "running stage %q", stage.id)
+			return nil, eris.Wrapf(err, "running stage %q", stage.id)
 		}
 
 		resultState = s
@@ -43,19 +44,19 @@ func TestStagePreconditions_GivenNoPrerequisites_ReturnsNoError(t *testing.T) {
 }
 
 const (
-	firstStageId = "firstStage"
-	testStageId  = "testStage"
-	lastStageId  = "lastStage"
+	firstStageID = "firstStage"
+	testStageID  = "testStage"
+	lastStageID  = "lastStage"
 )
 
 func TestStagePreconditions_GivenSatisfiedPrerequisites_ReturnsNoError(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
-	testStage := NewFakeStage(testStageId)
-	testStage.RequiresPrerequisiteStages(firstStageId)
+	testStage := NewFakeStage(testStageID)
+	testStage.RequiresPrerequisiteStages(firstStageID)
 
-	state := NewState().WithSeenStage(firstStageId)
+	state := NewState().WithSeenStage(firstStageID)
 	g.Expect(testStage.checkPreconditions(state)).To(BeNil())
 }
 
@@ -63,30 +64,30 @@ func TestStagePreconditions_GivenUnsatisfiedPrerequisites_ReturnsError(t *testin
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
-	testStage := NewFakeStage(testStageId)
-	testStage.RequiresPrerequisiteStages(firstStageId)
+	testStage := NewFakeStage(testStageID)
+	testStage.RequiresPrerequisiteStages(firstStageID)
 
 	state := NewState()
 	err := testStage.checkPreconditions(state)
 
 	g.Expect(err).NotTo(BeNil())
-	g.Expect(err.Error()).To(ContainSubstring(testStageId))
-	g.Expect(err.Error()).To(ContainSubstring(firstStageId))
+	g.Expect(err.Error()).To(ContainSubstring(testStageID))
+	g.Expect(err.Error()).To(ContainSubstring(firstStageID))
 }
 
 func TestStagePreconditions_WhenSatisfiedTooEarly_ReturnsError(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
-	testStage := NewFakeStage(testStageId)
-	testStage.RequiresPostrequisiteStages(lastStageId)
+	testStage := NewFakeStage(testStageID)
+	testStage.RequiresPostrequisiteStages(lastStageID)
 
-	state := NewState().WithSeenStage(lastStageId)
+	state := NewState().WithSeenStage(lastStageID)
 	err := testStage.checkPreconditions(state)
 
 	g.Expect(err).NotTo(BeNil())
-	g.Expect(err.Error()).To(ContainSubstring(testStageId))
-	g.Expect(err.Error()).To(ContainSubstring(lastStageId))
+	g.Expect(err.Error()).To(ContainSubstring(testStageID))
+	g.Expect(err.Error()).To(ContainSubstring(lastStageID))
 }
 
 func NewFakeStage(id string) *Stage {
@@ -95,5 +96,6 @@ func NewFakeStage(id string) *Stage {
 		"Stage "+id,
 		func(ctx context.Context, state *State) (*State, error) {
 			return state, nil
-		})
+		},
+	)
 }

@@ -203,8 +203,6 @@ func Test_CreateReceiver_GivenTypeName_ReturnsExpectedResult(t *testing.T) {
 		// Forbidden receiver suffixes
 		{"Address" + StatusSuffix, "address"},
 		{"Address" + SpecSuffix, "address"},
-		{"Address" + StatusSuffix + ARMSuffix, "address"},
-		{"Address" + SpecSuffix + ARMSuffix, "address"},
 		// Real world examples
 		{"EncryptionSettingsCollection", "collection"},
 		{"RedisLinkedServer", "server"},
@@ -217,7 +215,7 @@ func Test_CreateReceiver_GivenTypeName_ReturnsExpectedResult(t *testing.T) {
 		{"DatabaseAccountsMongodbDatabasesCollections" + SpecSuffix, "collections"},
 		{"DatabaseAccountsMongodbDatabasesCollectionsThroughputSettings" + SpecSuffix, "settings"},
 		// Very short receiver names need more detail
-		{"SignalR" + SpecSuffix + ARMSuffix, "signalR"},
+		{"SignalR" + SpecSuffix, "signalR"},
 		{"PublicIPAddressSku" + StatusSuffix, "addressSku"},
 		{"SBSku" + StatusSuffix, "sbSku"},
 		{"ManagedClusterSKU", "clusterSKU"},
@@ -226,6 +224,9 @@ func Test_CreateReceiver_GivenTypeName_ReturnsExpectedResult(t *testing.T) {
 		{"DiskSku" + StatusSuffix, "diskSku"},
 		// Conflicts with reserved words need more detail
 		{"BlobRestoreRange" + StatusSuffix, "restoreRange"},
+		// Conflicts with conversion-package import aliases (arm/storage) need more detail
+		{"FunctionsDeployment_Storage", "deploymentStorage"},
+		{"FunctionsDeployment_Storage" + StatusSuffix, "deploymentStorage"},
 	}
 
 	factory := NewIdentifierFactory()

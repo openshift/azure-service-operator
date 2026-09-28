@@ -9,14 +9,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
+	. "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/rotisserie/eris"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	. "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
@@ -48,7 +49,12 @@ func NewTestCredentialProvider(client kubeclient.Client) (identity.CredentialPro
 		return nil, err
 	}
 
-	creds := identity.NewDefaultCredential(tokenCreds, testPodNamespace, testSubscriptionID)
+	creds := identity.NewDefaultCredential(
+		tokenCreds,
+		testPodNamespace,
+		testSubscriptionID,
+		nil,
+	)
 	return identity.NewCredentialProvider(creds, client, nil), nil
 }
 
@@ -63,7 +69,7 @@ func NewTestARMClientCache(client kubeclient.Client) (*ARMClientCache, error) {
 		return nil, err
 	}
 
-	return NewARMClientCache(credentialProvider, client, cfg.Cloud(), nil, metrics.NewARMClientMetrics()), nil
+	return NewARMClientCache(credentialProvider, cfg.Cloud(), nil, metrics.NewARMClientMetrics()), nil
 }
 
 type testResources struct {
@@ -107,7 +113,7 @@ func Test_DefaultCredential_NotSet_ReturnsErrorWhenTryToUseGlobalCredential(t *t
 	g.Expect(err).To(BeNil())
 
 	providerWithNoDefaultCred := identity.NewCredentialProvider(nil, kubeClient, nil)
-	clientWithNoDefaultCred := NewARMClientCache(providerWithNoDefaultCred, kubeClient, cfg.Cloud(), nil, metrics.NewARMClientMetrics())
+	clientWithNoDefaultCred := NewARMClientCache(providerWithNoDefaultCred, cfg.Cloud(), nil, metrics.NewARMClientMetrics())
 
 	rg := newResourceGroup("")
 
@@ -188,7 +194,7 @@ func Test_ARMClientCache_PerResourceSecretInDifferentNamespace_ReturnsError(t *t
 	_, err = res.ARMClientCache.GetConnection(ctx, rg)
 	g.Expect(err).To(HaveOccurred())
 	var target *core.SecretNotFound
-	g.Expect(errors.As(err, &target)).To(BeTrue())
+	g.Expect(eris.As(err, &target)).To(BeTrue())
 }
 
 func Test_ARMClientCache_ReturnsError_IfSecretNotFound(t *testing.T) {

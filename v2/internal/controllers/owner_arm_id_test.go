@@ -50,7 +50,8 @@ func Test_OwnerIsARMIDOfResourceGroup_ResourceSuccessfullyReconciled(t *testing.
 	exists, _, err := tc.AzureClient.CheckExistenceWithGetByID(
 		tc.Ctx,
 		acctARMID,
-		string(storage.APIVersion_Value))
+		string(storage.APIVersion_Value),
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(exists).To(BeFalse())
 }
@@ -64,23 +65,27 @@ func Test_OwnerIsARMIDOfParent_ChildResourceSuccessfullyReconciled(t *testing.T)
 
 	// Now create a storage account
 	acct := newStorageAccount20230101(tc, rg)
-	tc.CreateResourceAndWait(acct)
 
 	// and a blob service
 	blobService := &storage.StorageAccountsBlobService{
 		ObjectMeta: tc.MakeObjectMeta("blobservice"),
-		Spec: storage.StorageAccounts_BlobService_Spec{
+		Spec: storage.StorageAccountsBlobService_Spec{
 			Owner: testcommon.AsOwner(acct),
 		},
 	}
-	tc.CreateResourceAndWait(blobService)
+
+	// Don't try to delete directly, this is not a real resource - to delete it in Azure you must delete its parent.
+	// We can delete it from the cluster by applying this annotation, but this won't change anything in Azure.
+	tc.AddAnnotation(&blobService.ObjectMeta, "serviceoperator.azure.com/reconcile-policy", "detach-on-delete")
+
+	tc.CreateResourcesAndWait(acct, blobService)
 
 	tc.Expect(blobService.Status.Id).ToNot(BeNil())
 	armID := *blobService.Status.Id
 
 	blobContainer := &storage.StorageAccountsBlobServicesContainer{
 		ObjectMeta: tc.MakeObjectMeta("container"),
-		Spec: storage.StorageAccounts_BlobServices_Container_Spec{
+		Spec: storage.StorageAccountsBlobServicesContainer_Spec{
 			Owner: testcommon.AsARMIDOwner(armID),
 		},
 	}
@@ -100,7 +105,8 @@ func Test_OwnerIsARMIDOfParent_ChildResourceSuccessfullyReconciled(t *testing.T)
 	exists, _, err := tc.AzureClient.CheckExistenceWithGetByID(
 		tc.Ctx,
 		containerARMID,
-		string(storage.APIVersion_Value))
+		string(storage.APIVersion_Value),
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(exists).To(BeFalse())
 }
@@ -149,8 +155,10 @@ func Test_OwnerIsARMID_ExtensionResourceSuccessfullyReconciled(t *testing.T) {
 				Name: configMapName,
 				Key:  principalIdKey,
 			},
-			RoleDefinitionReference: &genruntime.ResourceReference{
-				ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+			RoleDefinitionReference: &genruntime.WellKnownResourceReference{
+				ResourceReference: genruntime.ResourceReference{
+					ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+				},
 			},
 		},
 	}
@@ -165,7 +173,8 @@ func Test_OwnerIsARMID_ExtensionResourceSuccessfullyReconciled(t *testing.T) {
 	exists, _, err := tc.AzureClient.CheckExistenceWithGetByID(
 		tc.Ctx,
 		armId,
-		string(authorization.APIVersion_Value))
+		string(authorization.APIVersion_Value),
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(exists).To(BeFalse())
 }

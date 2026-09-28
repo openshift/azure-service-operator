@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -21,7 +21,8 @@ func NewHubFunction(idFactory astmodel.IdentifierFactory) astmodel.Function {
 	result := NewObjectFunction(
 		"Hub",
 		idFactory,
-		createHubFunctionBody)
+		createHubFunctionBody,
+	)
 	return result
 }
 
@@ -32,13 +33,13 @@ func createHubFunctionBody(
 	methodName string,
 ) (*dst.FuncDecl, error) {
 	// Create a sensible name for our receiver
-	receiverName := fn.IdFactory().CreateReceiver(receiver.Name())
+	receiverName := fn.IDFactory().CreateReceiver(receiver.Name())
 
 	// We always use a pointer receiver
 	receiverType := astmodel.NewOptionalType(receiver)
 	receiverTypeExpr, err := receiverType.AsTypeExpr(genContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating receiver type expression")
+		return nil, eris.Wrap(err, "creating receiver type expression")
 	}
 
 	details := astbuilder.FuncDetails{

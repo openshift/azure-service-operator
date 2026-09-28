@@ -14,63 +14,73 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/sync/semaphore"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog/v2/textlogger"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/Azure/azure-service-operator/v2/internal/config"
 	"github.com/Azure/azure-service-operator/v2/internal/controllers"
 	"github.com/Azure/azure-service-operator/v2/internal/identity"
+	"github.com/Azure/azure-service-operator/v2/internal/logging"
 	"github.com/Azure/azure-service-operator/v2/internal/metrics"
 	"github.com/Azure/azure-service-operator/v2/internal/reconcilers/arm"
+	"github.com/Azure/azure-service-operator/v2/internal/reconcilers/entra"
 	"github.com/Azure/azure-service-operator/v2/internal/reconcilers/generic"
+	asocel "github.com/Azure/azure-service-operator/v2/internal/util/cel"
 	"github.com/Azure/azure-service-operator/v2/internal/util/interval"
 	"github.com/Azure/azure-service-operator/v2/internal/util/kubeclient"
 	"github.com/Azure/azure-service-operator/v2/internal/util/lockedrand"
+	"github.com/Azure/azure-service-operator/v2/internal/util/to"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/registration"
 )
 
-func getRoot() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+func getRoot(
+	ctx context.Context,
+) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel")
 	out, err := cmd.Output()
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to get root directory")
+		return "", eris.Wrapf(err, "failed to get root directory")
 	}
 
 	return strings.TrimSpace(string(out)), nil
 }
 
-func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources) (*runningEnvTest, error) {
+func createSharedEnvTest(
+	ctx context.Context,
+	cfg testConfig,
+	namespaceResources *namespaceResources,
+) (*runningEnvTest, error) {
 	log.Printf("Creating shared envtest environment: %s\n", cfgToKey(cfg))
 
 	scheme := controllers.CreateScheme()
 
-	root, err := getRoot()
+	root, err := getRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	crdPath := filepath.Join(root, "v2/out/envtest/crds")
-	webhookPath := filepath.Join(root, "v2/config/webhook")
+	webhookPath := filepath.Join(root, "v2/config/webhook/generated/bases")
 
 	environment := envtest.Environment{
 		ErrorIfCRDPathMissing: true,
@@ -88,15 +98,22 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 		Scheme: scheme,
 	}
 
-	// TODO: Switch to klogr.New() below the below if we want controller-runtime logs in the tests.
+	logger := textlogger.NewLogger(textlogger.NewConfig(textlogger.Verbosity(logging.Debug)))
+
+	// TODO: Uncomment the below if we want controller-runtime logs in the tests.
 	// By default we've disabled controller runtime logs because they're very verbose and usually not useful.
-	// ctrl.SetLogger(klogr.New())
-	ctrl.SetLogger(logr.New(ctrllog.NullLogSink{}))
+	// ctrl.SetLogger(logger)
+	ctrl.SetLogger(logr.Discard())
 
 	log.Println("Starting envtest")
 	kubeConfig, err := environment.Start()
 	if err != nil {
-		return nil, errors.Wrapf(err, "starting envtest environment")
+		stopErr := environment.Stop()
+		if stopErr != nil {
+			return nil, eris.Wrapf(err, "starting envtest environment (also failed stopping envtest: %s)", stopErr.Error())
+		}
+
+		return nil, eris.Wrapf(err, "starting envtest environment")
 	}
 
 	stopEnvironment := func() {
@@ -105,16 +122,26 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 			panic(stopErr)
 		}
 	}
-
-	var cacheFunc cache.NewCacheFunc
-	if cfg.TargetNamespaces != nil && cfg.OperatorMode.IncludesWatchers() {
-		cacheFunc = func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
-			opts.DefaultNamespaces = make(map[string]cache.Config, len(cfg.TargetNamespaces))
-			for _, ns := range cfg.TargetNamespaces {
-				opts.DefaultNamespaces[ns] = cache.Config{}
+	created := false
+	var stopManager context.CancelFunc
+	// If we don't successfully create the environment, make sure we shut it down before returning
+	defer func() {
+		if !created {
+			if stopManager != nil {
+				stopManager()
 			}
+			stopEnvironment()
+		}
+	}()
 
-			return cache.New(config, opts)
+	cacheOpts := cache.Options{
+		// This will make sure that if we try to read an object that is not cached, we will fail rather than start a new informer
+		ReaderFailOnMissingInformer: true,
+	}
+	if cfg.TargetNamespaces != nil && cfg.OperatorMode.IncludesWatchers() {
+		cacheOpts.DefaultNamespaces = make(map[string]cache.Config, len(cfg.TargetNamespaces))
+		for _, ns := range cfg.TargetNamespaces {
+			cacheOpts.DefaultNamespaces[ns] = cache.Config{}
 		}
 	}
 
@@ -143,7 +170,7 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 			options.Cache = &client.CacheOptions{}
 			return NewTestClient(config, options)
 		},
-		NewCache: cacheFunc,
+		Cache: cacheOpts,
 		Metrics: server.Options{
 			BindAddress: "0", // disable serving metrics, or else we get conflicts listening on same port 8080
 		},
@@ -153,14 +180,8 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 		}),
 	})
 	if err != nil {
-		stopEnvironment()
-		return nil, errors.Wrapf(err, "creating controller-runtime manager")
+		return nil, eris.Wrapf(err, "creating controller-runtime manager")
 	}
-
-	// TODO: Uncomment the below if we want controller-runtime logs in the tests.
-	// By default we've disabled controller runtime logs because they're very verbose and usually not useful.
-	// ctrl.SetLogger(klogr.New())
-	ctrl.SetLogger(logr.New(ctrllog.NullLogSink{}))
 
 	loggerFactory := func(obj metav1.Object) logr.Logger {
 		result := namespaceResources.Lookup(obj.GetNamespace())
@@ -176,8 +197,14 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 	maxBackoff := 1 * time.Minute
 	if cfg.Replaying {
 		requeueDelay = 10 * time.Millisecond
-		minBackoff = 5 * time.Millisecond
-		maxBackoff = 5 * time.Millisecond
+		minBackoff = 10 * time.Millisecond
+
+		// maxBackoff is the maximum length of time we wait to retry.
+		// This used to be 10ms during testing but this caused an extremely large number of rapid retries and
+		// effectively starved other resources of CPU, resulting in tests taking much longer to complete because they
+		// progressed slowly. Increasing this to 1 second seems to strike a better balance between fast retries and
+		// allowing other resources to make progress.
+		maxBackoff = 1000 * time.Millisecond
 	}
 
 	// We use a custom indexer here so that we can simulate the caching client behavior for indexing even though
@@ -185,10 +212,19 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 	testIndexer := NewIndexer(mgr.GetScheme())
 	indexer := kubeclient.NewAndIndexer(mgr.GetFieldIndexer(), testIndexer)
 	kubeClient := kubeclient.NewClient(NewClient(mgr.GetClient(), testIndexer))
+	expressionEvaluator, err := asocel.NewExpressionEvaluator(asocel.Log(logger))
+	// Note that we don't start expressionEvaluator here because we're in a test context and turning cache eviction
+	// on is probably overkill.
+	if err != nil {
+		return nil, eris.Wrapf(err, "creating expression evaluator")
+	}
+
+	// This means a single evaluator will be used for all envtests. For the purposes of testing that's probably OK...
+	asocel.RegisterEvaluator(expressionEvaluator)
 
 	credentialProviderWrapper := &credentialProviderWrapper{namespaceResources: namespaceResources}
 
-	var clientFactory arm.ARMConnectionFactory = func(ctx context.Context, mo genruntime.ARMMetaObject) (arm.Connection, error) {
+	var armClientFactory arm.ARMConnectionFactory = func(ctx context.Context, mo genruntime.ARMMetaObject) (arm.Connection, error) {
 		result := namespaceResources.Lookup(mo.GetNamespace())
 		if result == nil {
 			panic(fmt.Sprintf("unable to locate ARM client for namespace %s; tests should only create resources in the namespace they are assigned or have declared via TargetNamespaces",
@@ -198,19 +234,39 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 		return result.armClientCache.GetConnection(ctx, mo)
 	}
 
+	var entraClientFactory entra.EntraConnectionFactory = func(ctx context.Context, mo genruntime.EntraMetaObject) (entra.Connection, error) {
+		result := namespaceResources.Lookup(mo.GetNamespace())
+		if result == nil {
+			panic(fmt.Sprintf("unable to locate Entra client for namespace %s; tests should only create resources in the namespace they are assigned or have declared via TargetNamespaces",
+				mo.GetNamespace()))
+		}
+
+		return result.entraClientCache.GetConnection(ctx, mo)
+	}
+
 	options := generic.Options{
 		LoggerFactory: loggerFactory,
 		Config:        cfg.Values,
 		Options: controller.Options{
+			// Skip name validation because it uses a package global cache which results in mistakenly
+			// classifying two controllers with the same name in different EnvTest environments as conflicting
+			// when in reality they are running in separate apiservers (simulating separate operators).
+			// In a real Kubernetes deployment that might be a problem, but not in EnvTest.
+			SkipNameValidation: to.Ptr(true),
+
 			// Allow concurrent reconciliation in tests
 			MaxConcurrentReconciles: 5,
 
 			// Use appropriate backoff for mode.
 			RateLimiter: generic.NewRateLimiter(minBackoff, maxBackoff),
-
-			LogConstructor: func(request *reconcile.Request) logr.Logger {
-				return ctrl.Log
-			},
+		},
+		// Specified here because usually controller-runtime logging would detect panics and log them for us
+		// but in the case of envtest we disable those logs because they're too verbose.
+		PanicHandler: func() {
+			if e := recover(); e != nil {
+				stack := debug.Stack()
+				log.Printf("panic: %s\nstack:%s\n", e, stack)
+			}
 		},
 		RequeueIntervalCalculator: interval.NewCalculator(
 			interval.CalculatorParameters{
@@ -219,49 +275,58 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 				ErrorBaseDelay:       minBackoff,
 				ErrorMaxFastDelay:    maxBackoff,
 				ErrorMaxSlowDelay:    maxBackoff,
+				ErrorVerySlowDelay:   maxBackoff,
 				RequeueDelayOverride: requeueDelay,
-			}),
+			},
+		),
 	}
 	positiveConditions := conditions.NewPositiveConditionBuilder(clock.New())
 
 	if cfg.OperatorMode.IncludesWatchers() {
+		clientsProvider := &controllers.ClientsProvider{
+			KubeClient:             kubeClient,
+			ARMConnectionFactory:   armClientFactory,
+			EntraConnectionFactory: entraClientFactory,
+		}
+
 		var objs []*registration.StorageType
 		objs, err = controllers.GetKnownStorageTypes(
 			mgr,
-			clientFactory,
+			clientsProvider,
 			credentialProviderWrapper,
-			kubeClient,
 			positiveConditions,
-			options)
+			expressionEvaluator,
+			options,
+		)
 		if err != nil {
 			return nil, err
 		}
 
+		//nolint:contextcheck // No need, the method is synchronous
 		err = generic.RegisterAll(
 			mgr,
 			indexer,
 			kubeClient,
 			positiveConditions,
 			objs,
-			options)
+			options,
+		)
 		if err != nil {
-			stopEnvironment()
-			return nil, errors.Wrapf(err, "registering reconcilers")
+			return nil, eris.Wrapf(err, "registering reconcilers")
 		}
 	}
 
 	if cfg.OperatorMode.IncludesWebhooks() {
 		err = generic.RegisterWebhooks(mgr, controllers.GetKnownTypes())
 		if err != nil {
-			stopEnvironment()
-			return nil, errors.Wrapf(err, "registering webhooks")
+			return nil, eris.Wrapf(err, "registering webhooks")
 		}
 	}
 
-	ctx, stopManager := context.WithCancel(context.Background())
+	ctx, stopManager = context.WithCancel(ctx)
 	go func() {
 		// this blocks until the input ctx is cancelled
-		// nolint:govet,shadow - We want shadowing here
+		//nolint:shadow // We want shadowing here
 		err := mgr.Start(ctx)
 		if err != nil {
 			panic(fmt.Sprintf("error running controller-runtime manager: %s\n", err.Error()))
@@ -280,7 +345,7 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 			}
 
 			if time.Now().After(timeoutAt) {
-				err = errors.Wrap(err, "timed out waiting for webhook server to start")
+				err = eris.Wrap(err, "timed out waiting for webhook server to start")
 				panic(err.Error())
 			}
 
@@ -301,6 +366,7 @@ func createSharedEnvTest(cfg testConfig, namespaceResources *namespaceResources)
 		stopEnvironment()
 	}
 
+	created = true
 	return &runningEnvTest{
 		KubeConfig: kubeConfig,
 		KubeClient: kubeClient,
@@ -316,8 +382,21 @@ type sharedEnvTests struct {
 	envtestLock               sync.Mutex
 	concurrencyLimitSemaphore *semaphore.Weighted
 	envtests                  map[string]*runningEnvTest
+	envtestsBeingCreated      map[string]*envTestCreation
 
 	namespaceResources *namespaceResources
+	createEnvTest      func(context.Context, testConfig, *namespaceResources) (*runningEnvTest, error)
+
+	// This hook allows callers to perform actions immediately after the initial lookup of an envTest instance.
+	// We use this during tests to ensure environments are correctly shared.
+	afterInitialLookup func()
+}
+
+type envTestCreation struct {
+	done    chan struct{}
+	envTest *runningEnvTest
+	err     error
+	callers int
 }
 
 type testConfig struct {
@@ -330,7 +409,8 @@ func cfgToKey(cfg testConfig) string {
 	return fmt.Sprintf(
 		"%s/Replaying:%t",
 		cfg.Values,
-		cfg.Replaying)
+		cfg.Replaying,
+	)
 }
 
 func (set *sharedEnvTests) stopAll() {
@@ -368,46 +448,111 @@ func (set *sharedEnvTests) garbageCollect(cfg testConfig, logger logr.Logger) {
 	}
 }
 
-func (set *sharedEnvTests) getRunningEnvTest(key string) *runningEnvTest {
-	set.envtestLock.Lock()
-	defer set.envtestLock.Unlock()
-
-	if envTest, ok := set.envtests[key]; ok {
-		envTest.Callers += 1
-		return envTest
-	}
-
-	return nil
-}
-
-func (set *sharedEnvTests) getEnvTestForConfig(ctx context.Context, cfg testConfig, logger logr.Logger) (*runningEnvTest, error) {
+func (set *sharedEnvTests) getEnvTestForConfig(
+	ctx context.Context,
+	cfg testConfig,
+	logger logr.Logger,
+) (*runningEnvTest, error) {
 	envTestKey := cfgToKey(cfg)
-	envTest := set.getRunningEnvTest(envTestKey)
-	if envTest != nil {
+
+	set.envtestLock.Lock()
+	if envTest, ok := set.envtests[envTestKey]; ok {
+		envTest.Callers += 1
+		set.envtestLock.Unlock()
 		return envTest, nil
 	}
 
-	// The order of these locks matters: Have to make sure we have spare capacity before take the shared lock
+	if set.envtestsBeingCreated == nil {
+		set.envtestsBeingCreated = make(map[string]*envTestCreation)
+	}
+	creation, found := set.envtestsBeingCreated[envTestKey]
+	if found {
+		creation.callers += 1
+	} else {
+		creation = &envTestCreation{
+			done:    make(chan struct{}),
+			callers: 1,
+		}
+		set.envtestsBeingCreated[envTestKey] = creation
+	}
+	set.envtestLock.Unlock()
+
+	if set.afterInitialLookup != nil {
+		set.afterInitialLookup()
+	}
+
+	if found {
+		select {
+		case <-creation.done:
+			return creation.envTest, creation.err
+		case <-ctx.Done():
+			set.envtestLock.Lock()
+			current, stillCreating := set.envtestsBeingCreated[envTestKey]
+			if stillCreating && current == creation {
+				creation.callers -= 1
+				set.envtestLock.Unlock()
+				return nil, ctx.Err()
+			}
+			set.envtestLock.Unlock()
+
+			// Creation completed while cancellation was being handled, so retain
+			// the reference reserved for this caller and return its result.
+			<-creation.done
+			return creation.envTest, creation.err
+		}
+	}
+
+	acquiredPermit := false
 	if cfg.CountsTowardsLimit {
 		logger.V(2).Info("Acquiring envtest concurrency semaphore")
 		err := set.concurrencyLimitSemaphore.Acquire(ctx, 1)
 		if err != nil {
+			set.completeEnvTestCreation(envTestKey, creation, nil, err)
 			return nil, err
 		}
+		acquiredPermit = true
+	}
+	defer func() {
+		if acquiredPermit {
+			set.concurrencyLimitSemaphore.Release(1)
+		}
+	}()
+
+	logger.V(2).Info("Starting envtest")
+
+	createEnvTest := set.createEnvTest
+	if createEnvTest == nil {
+		createEnvTest = createSharedEnvTest
+	}
+	newEnvTest, err := createEnvTest(ctx, cfg, set.namespaceResources)
+	if err != nil {
+		err = eris.Wrap(err, "unable to create shared envtest environment")
+		set.completeEnvTestCreation(envTestKey, creation, nil, err)
+		return nil, err
 	}
 
+	acquiredPermit = false
+	set.completeEnvTestCreation(envTestKey, creation, newEnvTest, nil)
+	return newEnvTest, nil
+}
+
+func (set *sharedEnvTests) completeEnvTestCreation(
+	key string,
+	creation *envTestCreation,
+	envTest *runningEnvTest,
+	err error,
+) {
 	set.envtestLock.Lock()
 	defer set.envtestLock.Unlock()
-	logger.V(2).Info("Starting envtest")
-	// no envtest exists for this config; make one
-	// nolint: contextcheck // 2022-09 @unrepentantgeek Seems to be a false positive
-	newEnvTest, err := createSharedEnvTest(cfg, set.namespaceResources)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create shared envtest environment")
-	}
 
-	set.envtests[envTestKey] = newEnvTest
-	return newEnvTest, nil
+	delete(set.envtestsBeingCreated, key)
+	if envTest != nil {
+		envTest.Callers = creation.callers
+		set.envtests[key] = envTest
+	}
+	creation.envTest = envTest
+	creation.err = err
+	close(creation.done)
 }
 
 type runningEnvTest struct {
@@ -423,6 +568,7 @@ type runningEnvTest struct {
 // right ARM client and logger we store them in here
 type perNamespace struct {
 	armClientCache     *arm.ARMClientCache
+	entraClientCache   *entra.EntraClientCache
 	credentialProvider identity.CredentialProvider
 	logger             logr.Logger
 }
@@ -469,6 +615,7 @@ func createEnvtestContext() (BaseTestContextFactory, context.CancelFunc) {
 		envtestLock:               sync.Mutex{},
 		concurrencyLimitSemaphore: semaphore.NewWeighted(int64(concurrencyLimit)),
 		envtests:                  make(map[string]*runningEnvTest),
+		envtestsBeingCreated:      make(map[string]*envTestCreation),
 		namespaceResources:        perNamespaceResources,
 	}
 
@@ -487,19 +634,27 @@ func createEnvtestContext() (BaseTestContextFactory, context.CancelFunc) {
 			defaultCred := identity.NewDefaultCredential(
 				perTestContext.AzureClient.Creds(),
 				cfg.PodNamespace,
-				perTestContext.AzureSubscription)
+				perTestContext.AzureSubscription,
+				nil,
+			)
 
 			credentialProvider := identity.NewCredentialProvider(defaultCred, envtest.KubeClient, nil)
 			// register resources needed by controller for namespace
 			armClientCache := arm.NewARMClientCache(
 				credentialProvider,
-				envtest.KubeClient,
 				cfg.Cloud(),
-				perTestContext.HttpClient,
-				metrics.NewARMClientMetrics())
+				perTestContext.HTTPClient,
+				metrics.NewARMClientMetrics(),
+			)
+
+			entraClientCache := entra.NewEntraClientCache(
+				credentialProvider,
+				perTestContext.HTTPClient,
+			)
 
 			resources := &perNamespace{
 				armClientCache:     armClientCache,
+				entraClientCache:   entraClientCache,
 				credentialProvider: credentialProvider,
 				logger:             perTestContext.logger,
 			}

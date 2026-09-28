@@ -5,26 +5,28 @@ package v1api20230403
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/monitor/v1api20230403/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/monitor/v1api20230403/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,monitor}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /monitor/resource-manager/Microsoft.Monitor/stable/2023-04-03/monitoringAccounts_API.json
+// - Generated from: /monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2023-04-03/monitoringAccounts_API.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Monitor/accounts/{azureMonitorWorkspaceName}
 type Account struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -67,28 +69,25 @@ func (account *Account) ConvertTo(hub conversion.Hub) error {
 	return account.AssignProperties_To_Account(destination)
 }
 
-// +kubebuilder:webhook:path=/mutate-monitor-azure-com-v1api20230403-account,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=monitor.azure.com,resources=accounts,verbs=create;update,versions=v1api20230403,name=default.v1api20230403.accounts.monitor.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &Account{}
 
-var _ admission.Defaulter = &Account{}
-
-// Default applies defaults to the Account resource
-func (account *Account) Default() {
-	account.defaultImpl()
-	var temp any = account
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (account *Account) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if account.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return account.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (account *Account) defaultAzureName() {
-	if account.Spec.AzureName == "" {
-		account.Spec.AzureName = account.Name
-	}
-}
+var _ secrets.Exporter = &Account{}
 
-// defaultImpl applies the code generated defaults to the Account resource
-func (account *Account) defaultImpl() { account.defaultAzureName() }
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (account *Account) SecretDestinationExpressions() []*core.DestinationExpression {
+	if account.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return account.Spec.OperatorSpec.SecretExpressions
+}
 
 var _ genruntime.ImportableResource = &Account{}
 
@@ -110,7 +109,7 @@ func (account *Account) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-04-03"
 func (account Account) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-04-03"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -149,6 +148,10 @@ func (account *Account) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (account *Account) Owner() *genruntime.ResourceReference {
+	if account.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(account.Spec)
 	return account.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -165,92 +168,11 @@ func (account *Account) SetStatus(status genruntime.ConvertibleStatus) error {
 	var st Account_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	account.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-monitor-azure-com-v1api20230403-account,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=monitor.azure.com,resources=accounts,verbs=create;update,versions=v1api20230403,name=validate.v1api20230403.accounts.monitor.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &Account{}
-
-// ValidateCreate validates the creation of the resource
-func (account *Account) ValidateCreate() (admission.Warnings, error) {
-	validations := account.createValidations()
-	var temp any = account
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (account *Account) ValidateDelete() (admission.Warnings, error) {
-	validations := account.deleteValidations()
-	var temp any = account
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (account *Account) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := account.updateValidations()
-	var temp any = account
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (account *Account) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){account.validateResourceReferences, account.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (account *Account) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (account *Account) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return account.validateResourceReferences()
-		},
-		account.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return account.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (account *Account) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(account)
-}
-
-// validateResourceReferences validates all resource references
-func (account *Account) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&account.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (account *Account) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*Account)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, account)
 }
 
 // AssignProperties_From_Account populates our Account from the provided source Account
@@ -263,7 +185,7 @@ func (account *Account) AssignProperties_From_Account(source *storage.Account) e
 	var spec Account_Spec
 	err := spec.AssignProperties_From_Account_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Account_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_Account_Spec() to populate field Spec")
 	}
 	account.Spec = spec
 
@@ -271,7 +193,7 @@ func (account *Account) AssignProperties_From_Account(source *storage.Account) e
 	var status Account_STATUS
 	err = status.AssignProperties_From_Account_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Account_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_Account_STATUS() to populate field Status")
 	}
 	account.Status = status
 
@@ -289,7 +211,7 @@ func (account *Account) AssignProperties_To_Account(destination *storage.Account
 	var spec storage.Account_Spec
 	err := account.Spec.AssignProperties_To_Account_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Account_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_Account_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
@@ -297,7 +219,7 @@ func (account *Account) AssignProperties_To_Account(destination *storage.Account
 	var status storage.Account_STATUS
 	err = account.Status.AssignProperties_To_Account_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Account_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_Account_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +238,7 @@ func (account *Account) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /monitor/resource-manager/Microsoft.Monitor/stable/2023-04-03/monitoringAccounts_API.json
+// - Generated from: /monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2023-04-03/monitoringAccounts_API.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Monitor/accounts/{azureMonitorWorkspaceName}
 type AccountList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -332,6 +254,10 @@ type Account_Spec struct {
 	// +kubebuilder:validation:Required
 	// Location: The geo-location where the resource lives
 	Location *string `json:"location,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *AccountOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -353,7 +279,7 @@ func (account *Account_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolv
 	if account == nil {
 		return nil, nil
 	}
-	result := &Account_Spec_ARM{}
+	result := &arm.Account_Spec{}
 
 	// Set property "Location":
 	if account.Location != nil {
@@ -366,10 +292,12 @@ func (account *Account_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolv
 
 	// Set property "Properties":
 	if account.PublicNetworkAccess != nil {
-		result.Properties = &AzureMonitorWorkspace_ARM{}
+		result.Properties = &arm.AzureMonitorWorkspace{}
 	}
 	if account.PublicNetworkAccess != nil {
-		publicNetworkAccess := *account.PublicNetworkAccess
+		var temp string
+		temp = string(*account.PublicNetworkAccess)
+		publicNetworkAccess := arm.AzureMonitorWorkspace_PublicNetworkAccess(temp)
 		result.Properties.PublicNetworkAccess = &publicNetworkAccess
 	}
 
@@ -385,14 +313,14 @@ func (account *Account_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolv
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (account *Account_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Account_Spec_ARM{}
+	return &arm.Account_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (account *Account_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Account_Spec_ARM)
+	typedInput, ok := armInput.(arm.Account_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Account_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Account_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
@@ -404,6 +332,8 @@ func (account *Account_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerRefe
 		account.Location = &location
 	}
 
+	// no assignment for property "OperatorSpec"
+
 	// Set property "Owner":
 	account.Owner = &genruntime.KnownResourceReference{
 		Name:  owner.Name,
@@ -414,7 +344,9 @@ func (account *Account_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerRefe
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.PublicNetworkAccess != nil {
-			publicNetworkAccess := *typedInput.Properties.PublicNetworkAccess
+			var temp string
+			temp = string(*typedInput.Properties.PublicNetworkAccess)
+			publicNetworkAccess := AzureMonitorWorkspace_PublicNetworkAccess(temp)
 			account.PublicNetworkAccess = &publicNetworkAccess
 		}
 	}
@@ -445,13 +377,13 @@ func (account *Account_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) 
 	src = &storage.Account_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
 	err = account.AssignProperties_From_Account_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
@@ -469,13 +401,13 @@ func (account *Account_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpe
 	dst = &storage.Account_Spec{}
 	err := account.AssignProperties_To_Account_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
@@ -489,6 +421,18 @@ func (account *Account_Spec) AssignProperties_From_Account_Spec(source *storage.
 
 	// Location
 	account.Location = genruntime.ClonePointerToString(source.Location)
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec AccountOperatorSpec
+		err := operatorSpec.AssignProperties_From_AccountOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AccountOperatorSpec() to populate field OperatorSpec")
+		}
+		account.OperatorSpec = &operatorSpec
+	} else {
+		account.OperatorSpec = nil
+	}
 
 	// Owner
 	if source.Owner != nil {
@@ -524,6 +468,18 @@ func (account *Account_Spec) AssignProperties_To_Account_Spec(destination *stora
 
 	// Location
 	destination.Location = genruntime.ClonePointerToString(account.Location)
+
+	// OperatorSpec
+	if account.OperatorSpec != nil {
+		var operatorSpec storage.AccountOperatorSpec
+		err := account.OperatorSpec.AssignProperties_To_AccountOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AccountOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
 
 	// OriginalVersion
 	destination.OriginalVersion = account.OriginalVersion()
@@ -646,13 +602,13 @@ func (account *Account_STATUS) ConvertStatusFrom(source genruntime.ConvertibleSt
 	src = &storage.Account_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
 	err = account.AssignProperties_From_Account_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
@@ -670,13 +626,13 @@ func (account *Account_STATUS) ConvertStatusTo(destination genruntime.Convertibl
 	dst = &storage.Account_STATUS{}
 	err := account.AssignProperties_To_Account_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
@@ -686,14 +642,14 @@ var _ genruntime.FromARMConverter = &Account_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (account *Account_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Account_STATUS_ARM{}
+	return &arm.Account_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (account *Account_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Account_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Account_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Account_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Account_STATUS, got %T", armInput)
 	}
 
 	// Set property "AccountId":
@@ -776,7 +732,9 @@ func (account *Account_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.ProvisioningState != nil {
-			provisioningState := *typedInput.Properties.ProvisioningState
+			var temp string
+			temp = string(*typedInput.Properties.ProvisioningState)
+			provisioningState := AzureMonitorWorkspace_ProvisioningState_STATUS(temp)
 			account.ProvisioningState = &provisioningState
 		}
 	}
@@ -785,7 +743,9 @@ func (account *Account_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.PublicNetworkAccess != nil {
-			publicNetworkAccess := *typedInput.Properties.PublicNetworkAccess
+			var temp string
+			temp = string(*typedInput.Properties.PublicNetworkAccess)
+			publicNetworkAccess := AzureMonitorWorkspace_PublicNetworkAccess_STATUS(temp)
 			account.PublicNetworkAccess = &publicNetworkAccess
 		}
 	}
@@ -833,7 +793,7 @@ func (account *Account_STATUS) AssignProperties_From_Account_STATUS(source *stor
 		var defaultIngestionSetting IngestionSettings_STATUS
 		err := defaultIngestionSetting.AssignProperties_From_IngestionSettings_STATUS(source.DefaultIngestionSettings)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_IngestionSettings_STATUS() to populate field DefaultIngestionSettings")
+			return eris.Wrap(err, "calling AssignProperties_From_IngestionSettings_STATUS() to populate field DefaultIngestionSettings")
 		}
 		account.DefaultIngestionSettings = &defaultIngestionSetting
 	} else {
@@ -854,7 +814,7 @@ func (account *Account_STATUS) AssignProperties_From_Account_STATUS(source *stor
 		var metric Metrics_STATUS
 		err := metric.AssignProperties_From_Metrics_STATUS(source.Metrics)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Metrics_STATUS() to populate field Metrics")
+			return eris.Wrap(err, "calling AssignProperties_From_Metrics_STATUS() to populate field Metrics")
 		}
 		account.Metrics = &metric
 	} else {
@@ -868,12 +828,10 @@ func (account *Account_STATUS) AssignProperties_From_Account_STATUS(source *stor
 	if source.PrivateEndpointConnections != nil {
 		privateEndpointConnectionList := make([]PrivateEndpointConnection_STATUS, len(source.PrivateEndpointConnections))
 		for privateEndpointConnectionIndex, privateEndpointConnectionItem := range source.PrivateEndpointConnections {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointConnectionItem := privateEndpointConnectionItem
 			var privateEndpointConnection PrivateEndpointConnection_STATUS
 			err := privateEndpointConnection.AssignProperties_From_PrivateEndpointConnection_STATUS(&privateEndpointConnectionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
+				return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
 			}
 			privateEndpointConnectionList[privateEndpointConnectionIndex] = privateEndpointConnection
 		}
@@ -905,7 +863,7 @@ func (account *Account_STATUS) AssignProperties_From_Account_STATUS(source *stor
 		var systemDatum SystemData_STATUS
 		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
 		}
 		account.SystemData = &systemDatum
 	} else {
@@ -938,7 +896,7 @@ func (account *Account_STATUS) AssignProperties_To_Account_STATUS(destination *s
 		var defaultIngestionSetting storage.IngestionSettings_STATUS
 		err := account.DefaultIngestionSettings.AssignProperties_To_IngestionSettings_STATUS(&defaultIngestionSetting)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_IngestionSettings_STATUS() to populate field DefaultIngestionSettings")
+			return eris.Wrap(err, "calling AssignProperties_To_IngestionSettings_STATUS() to populate field DefaultIngestionSettings")
 		}
 		destination.DefaultIngestionSettings = &defaultIngestionSetting
 	} else {
@@ -959,7 +917,7 @@ func (account *Account_STATUS) AssignProperties_To_Account_STATUS(destination *s
 		var metric storage.Metrics_STATUS
 		err := account.Metrics.AssignProperties_To_Metrics_STATUS(&metric)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Metrics_STATUS() to populate field Metrics")
+			return eris.Wrap(err, "calling AssignProperties_To_Metrics_STATUS() to populate field Metrics")
 		}
 		destination.Metrics = &metric
 	} else {
@@ -973,12 +931,10 @@ func (account *Account_STATUS) AssignProperties_To_Account_STATUS(destination *s
 	if account.PrivateEndpointConnections != nil {
 		privateEndpointConnectionList := make([]storage.PrivateEndpointConnection_STATUS, len(account.PrivateEndpointConnections))
 		for privateEndpointConnectionIndex, privateEndpointConnectionItem := range account.PrivateEndpointConnections {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointConnectionItem := privateEndpointConnectionItem
 			var privateEndpointConnection storage.PrivateEndpointConnection_STATUS
 			err := privateEndpointConnectionItem.AssignProperties_To_PrivateEndpointConnection_STATUS(&privateEndpointConnection)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
+				return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
 			}
 			privateEndpointConnectionList[privateEndpointConnectionIndex] = privateEndpointConnection
 		}
@@ -1008,7 +964,7 @@ func (account *Account_STATUS) AssignProperties_To_Account_STATUS(destination *s
 		var systemDatum storage.SystemData_STATUS
 		err := account.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
 		}
 		destination.SystemData = &systemDatum
 	} else {
@@ -1036,6 +992,102 @@ func (account *Account_STATUS) AssignProperties_To_Account_STATUS(destination *s
 type APIVersion string
 
 const APIVersion_Value = APIVersion("2023-04-03")
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type AccountOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_AccountOperatorSpec populates our AccountOperatorSpec from the provided source AccountOperatorSpec
+func (operator *AccountOperatorSpec) AssignProperties_From_AccountOperatorSpec(source *storage.AccountOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AccountOperatorSpec populates the provided destination AccountOperatorSpec from our AccountOperatorSpec
+func (operator *AccountOperatorSpec) AssignProperties_To_AccountOperatorSpec(destination *storage.AccountOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
 
 type AzureMonitorWorkspace_ProvisioningState_STATUS string
 
@@ -1097,14 +1149,14 @@ var _ genruntime.FromARMConverter = &IngestionSettings_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *IngestionSettings_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &IngestionSettings_STATUS_ARM{}
+	return &arm.IngestionSettings_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *IngestionSettings_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(IngestionSettings_STATUS_ARM)
+	typedInput, ok := armInput.(arm.IngestionSettings_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected IngestionSettings_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.IngestionSettings_STATUS, got %T", armInput)
 	}
 
 	// Set property "DataCollectionEndpointResourceId":
@@ -1171,14 +1223,14 @@ var _ genruntime.FromARMConverter = &Metrics_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (metrics *Metrics_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Metrics_STATUS_ARM{}
+	return &arm.Metrics_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (metrics *Metrics_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Metrics_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Metrics_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Metrics_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Metrics_STATUS, got %T", armInput)
 	}
 
 	// Set property "InternalId":
@@ -1243,14 +1295,14 @@ var _ genruntime.FromARMConverter = &PrivateEndpointConnection_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (connection *PrivateEndpointConnection_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateEndpointConnection_STATUS_ARM{}
+	return &arm.PrivateEndpointConnection_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (connection *PrivateEndpointConnection_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateEndpointConnection_STATUS_ARM)
+	typedInput, ok := armInput.(arm.PrivateEndpointConnection_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateEndpointConnection_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateEndpointConnection_STATUS, got %T", armInput)
 	}
 
 	// Set property "Id":
@@ -1317,14 +1369,14 @@ var _ genruntime.FromARMConverter = &SystemData_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (data *SystemData_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SystemData_STATUS_ARM{}
+	return &arm.SystemData_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SystemData_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SystemData_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SystemData_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SystemData_STATUS, got %T", armInput)
 	}
 
 	// Set property "CreatedAt":
@@ -1341,7 +1393,9 @@ func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "CreatedByType":
 	if typedInput.CreatedByType != nil {
-		createdByType := *typedInput.CreatedByType
+		var temp string
+		temp = string(*typedInput.CreatedByType)
+		createdByType := SystemData_CreatedByType_STATUS(temp)
 		data.CreatedByType = &createdByType
 	}
 
@@ -1359,7 +1413,9 @@ func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "LastModifiedByType":
 	if typedInput.LastModifiedByType != nil {
-		lastModifiedByType := *typedInput.LastModifiedByType
+		var temp string
+		temp = string(*typedInput.LastModifiedByType)
+		lastModifiedByType := SystemData_LastModifiedByType_STATUS(temp)
 		data.LastModifiedByType = &lastModifiedByType
 	}
 
@@ -1446,6 +1502,40 @@ func (data *SystemData_STATUS) AssignProperties_To_SystemData_STATUS(destination
 
 	// No error
 	return nil
+}
+
+type SystemData_CreatedByType_STATUS string
+
+const (
+	SystemData_CreatedByType_STATUS_Application     = SystemData_CreatedByType_STATUS("Application")
+	SystemData_CreatedByType_STATUS_Key             = SystemData_CreatedByType_STATUS("Key")
+	SystemData_CreatedByType_STATUS_ManagedIdentity = SystemData_CreatedByType_STATUS("ManagedIdentity")
+	SystemData_CreatedByType_STATUS_User            = SystemData_CreatedByType_STATUS("User")
+)
+
+// Mapping from string to SystemData_CreatedByType_STATUS
+var systemData_CreatedByType_STATUS_Values = map[string]SystemData_CreatedByType_STATUS{
+	"application":     SystemData_CreatedByType_STATUS_Application,
+	"key":             SystemData_CreatedByType_STATUS_Key,
+	"managedidentity": SystemData_CreatedByType_STATUS_ManagedIdentity,
+	"user":            SystemData_CreatedByType_STATUS_User,
+}
+
+type SystemData_LastModifiedByType_STATUS string
+
+const (
+	SystemData_LastModifiedByType_STATUS_Application     = SystemData_LastModifiedByType_STATUS("Application")
+	SystemData_LastModifiedByType_STATUS_Key             = SystemData_LastModifiedByType_STATUS("Key")
+	SystemData_LastModifiedByType_STATUS_ManagedIdentity = SystemData_LastModifiedByType_STATUS("ManagedIdentity")
+	SystemData_LastModifiedByType_STATUS_User            = SystemData_LastModifiedByType_STATUS("User")
+)
+
+// Mapping from string to SystemData_LastModifiedByType_STATUS
+var systemData_LastModifiedByType_STATUS_Values = map[string]SystemData_LastModifiedByType_STATUS{
+	"application":     SystemData_LastModifiedByType_STATUS_Application,
+	"key":             SystemData_LastModifiedByType_STATUS_Key,
+	"managedidentity": SystemData_LastModifiedByType_STATUS_ManagedIdentity,
+	"user":            SystemData_LastModifiedByType_STATUS_User,
 }
 
 func init() {

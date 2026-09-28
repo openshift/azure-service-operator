@@ -4,26 +4,29 @@
 package storage
 
 import (
+	"fmt"
+	storage "github.com/Azure/azure-service-operator/v2/api/compute/v20220301/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// +kubebuilder:rbac:groups=compute.azure.com,resources=images,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=compute.azure.com,resources={images/status,images/finalizers},verbs=get;update;patch
-
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,compute}
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20220301.Image
 // Generator information:
-// - Generated from: /compute/resource-manager/Microsoft.Compute/ComputeRP/stable/2022-03-01/image.json
+// - Generated from: /compute/resource-manager/Microsoft.Compute/Compute/stable/2022-03-01/image.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Compute/images/{imageName}
 type Image struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -44,6 +47,48 @@ func (image *Image) SetConditions(conditions conditions.Conditions) {
 	image.Status.Conditions = conditions
 }
 
+var _ conversion.Convertible = &Image{}
+
+// ConvertFrom populates our Image from the provided hub Image
+func (image *Image) ConvertFrom(hub conversion.Hub) error {
+	source, ok := hub.(*storage.Image)
+	if !ok {
+		return fmt.Errorf("expected compute/v20220301/storage/Image but received %T instead", hub)
+	}
+
+	return image.AssignProperties_From_Image(source)
+}
+
+// ConvertTo populates the provided hub Image from our Image
+func (image *Image) ConvertTo(hub conversion.Hub) error {
+	destination, ok := hub.(*storage.Image)
+	if !ok {
+		return fmt.Errorf("expected compute/v20220301/storage/Image but received %T instead", hub)
+	}
+
+	return image.AssignProperties_To_Image(destination)
+}
+
+var _ configmaps.Exporter = &Image{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (image *Image) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if image.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return image.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &Image{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (image *Image) SecretDestinationExpressions() []*core.DestinationExpression {
+	if image.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return image.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &Image{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +98,7 @@ func (image *Image) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-03-01"
 func (image Image) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-03-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -92,6 +137,10 @@ func (image *Image) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (image *Image) Owner() *genruntime.ResourceReference {
+	if image.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(image.Spec)
 	return image.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -108,15 +157,82 @@ func (image *Image) SetStatus(status genruntime.ConvertibleStatus) error {
 	var st Image_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	image.Status = st
 	return nil
 }
 
-// Hub marks that this Image is the hub type for conversion
-func (image *Image) Hub() {}
+// AssignProperties_From_Image populates our Image from the provided source Image
+func (image *Image) AssignProperties_From_Image(source *storage.Image) error {
+
+	// ObjectMeta
+	image.ObjectMeta = *source.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec Image_Spec
+	err := spec.AssignProperties_From_Image_Spec(&source.Spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_Image_Spec() to populate field Spec")
+	}
+	image.Spec = spec
+
+	// Status
+	var status Image_STATUS
+	err = status.AssignProperties_From_Image_STATUS(&source.Status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_Image_STATUS() to populate field Status")
+	}
+	image.Status = status
+
+	// Invoke the augmentConversionForImage interface (if implemented) to customize the conversion
+	var imageAsAny any = image
+	if augmentedImage, ok := imageAsAny.(augmentConversionForImage); ok {
+		err := augmentedImage.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_Image populates the provided destination Image from our Image
+func (image *Image) AssignProperties_To_Image(destination *storage.Image) error {
+
+	// ObjectMeta
+	destination.ObjectMeta = *image.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec storage.Image_Spec
+	err := image.Spec.AssignProperties_To_Image_Spec(&spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_Image_Spec() to populate field Spec")
+	}
+	destination.Spec = spec
+
+	// Status
+	var status storage.Image_STATUS
+	err = image.Status.AssignProperties_To_Image_STATUS(&status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_Image_STATUS() to populate field Status")
+	}
+	destination.Status = status
+
+	// Invoke the augmentConversionForImage interface (if implemented) to customize the conversion
+	var imageAsAny any = image
+	if augmentedImage, ok := imageAsAny.(augmentConversionForImage); ok {
+		err := augmentedImage.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
 
 // OriginalGVK returns a GroupValueKind for the original API version used to create the resource
 func (image *Image) OriginalGVK() *schema.GroupVersionKind {
@@ -130,7 +246,7 @@ func (image *Image) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20220301.Image
 // Generator information:
-// - Generated from: /compute/resource-manager/Microsoft.Compute/ComputeRP/stable/2022-03-01/image.json
+// - Generated from: /compute/resource-manager/Microsoft.Compute/Compute/stable/2022-03-01/image.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Compute/images/{imageName}
 type ImageList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -144,15 +260,21 @@ type APIVersion string
 
 const APIVersion_Value = APIVersion("2022-03-01")
 
+type augmentConversionForImage interface {
+	AssignPropertiesFrom(src *storage.Image) error
+	AssignPropertiesTo(dst *storage.Image) error
+}
+
 // Storage version of v1api20220301.Image_Spec
 type Image_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName        string            `json:"azureName,omitempty"`
-	ExtendedLocation *ExtendedLocation `json:"extendedLocation,omitempty"`
-	HyperVGeneration *string           `json:"hyperVGeneration,omitempty"`
-	Location         *string           `json:"location,omitempty"`
-	OriginalVersion  string            `json:"originalVersion,omitempty"`
+	AzureName        string             `json:"azureName,omitempty"`
+	ExtendedLocation *ExtendedLocation  `json:"extendedLocation,omitempty"`
+	HyperVGeneration *string            `json:"hyperVGeneration,omitempty"`
+	Location         *string            `json:"location,omitempty"`
+	OperatorSpec     *ImageOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion  string             `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -169,20 +291,242 @@ var _ genruntime.ConvertibleSpec = &Image_Spec{}
 
 // ConvertSpecFrom populates our Image_Spec from the provided source
 func (image *Image_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == image {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	src, ok := source.(*storage.Image_Spec)
+	if ok {
+		// Populate our instance from source
+		return image.AssignProperties_From_Image_Spec(src)
 	}
 
-	return source.ConvertSpecTo(image)
+	// Convert to an intermediate form
+	src = &storage.Image_Spec{}
+	err := src.ConvertSpecFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+	}
+
+	// Update our instance from src
+	err = image.AssignProperties_From_Image_Spec(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+	}
+
+	return nil
 }
 
 // ConvertSpecTo populates the provided destination from our Image_Spec
 func (image *Image_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == image {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	dst, ok := destination.(*storage.Image_Spec)
+	if ok {
+		// Populate destination from our instance
+		return image.AssignProperties_To_Image_Spec(dst)
 	}
 
-	return destination.ConvertSpecFrom(image)
+	// Convert to an intermediate form
+	dst = &storage.Image_Spec{}
+	err := image.AssignProperties_To_Image_Spec(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertSpecTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_Image_Spec populates our Image_Spec from the provided source Image_Spec
+func (image *Image_Spec) AssignProperties_From_Image_Spec(source *storage.Image_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureName
+	image.AzureName = source.AzureName
+
+	// ExtendedLocation
+	if source.ExtendedLocation != nil {
+		var extendedLocation ExtendedLocation
+		err := extendedLocation.AssignProperties_From_ExtendedLocation(source.ExtendedLocation)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ExtendedLocation() to populate field ExtendedLocation")
+		}
+		image.ExtendedLocation = &extendedLocation
+	} else {
+		image.ExtendedLocation = nil
+	}
+
+	// HyperVGeneration
+	image.HyperVGeneration = genruntime.ClonePointerToString(source.HyperVGeneration)
+
+	// Location
+	image.Location = genruntime.ClonePointerToString(source.Location)
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec ImageOperatorSpec
+		err := operatorSpec.AssignProperties_From_ImageOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ImageOperatorSpec() to populate field OperatorSpec")
+		}
+		image.OperatorSpec = &operatorSpec
+	} else {
+		image.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	image.OriginalVersion = source.OriginalVersion
+
+	// Owner
+	if source.Owner != nil {
+		owner := source.Owner.Copy()
+		image.Owner = &owner
+	} else {
+		image.Owner = nil
+	}
+
+	// SourceVirtualMachine
+	if source.SourceVirtualMachine != nil {
+		var sourceVirtualMachine SubResource
+		err := sourceVirtualMachine.AssignProperties_From_SubResource(source.SourceVirtualMachine)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field SourceVirtualMachine")
+		}
+		image.SourceVirtualMachine = &sourceVirtualMachine
+	} else {
+		image.SourceVirtualMachine = nil
+	}
+
+	// StorageProfile
+	if source.StorageProfile != nil {
+		var storageProfile ImageStorageProfile
+		err := storageProfile.AssignProperties_From_ImageStorageProfile(source.StorageProfile)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ImageStorageProfile() to populate field StorageProfile")
+		}
+		image.StorageProfile = &storageProfile
+	} else {
+		image.StorageProfile = nil
+	}
+
+	// Tags
+	image.Tags = genruntime.CloneMapOfStringToString(source.Tags)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		image.PropertyBag = propertyBag
+	} else {
+		image.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImage_Spec interface (if implemented) to customize the conversion
+	var imageAsAny any = image
+	if augmentedImage, ok := imageAsAny.(augmentConversionForImage_Spec); ok {
+		err := augmentedImage.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_Image_Spec populates the provided destination Image_Spec from our Image_Spec
+func (image *Image_Spec) AssignProperties_To_Image_Spec(destination *storage.Image_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(image.PropertyBag)
+
+	// AzureName
+	destination.AzureName = image.AzureName
+
+	// ExtendedLocation
+	if image.ExtendedLocation != nil {
+		var extendedLocation storage.ExtendedLocation
+		err := image.ExtendedLocation.AssignProperties_To_ExtendedLocation(&extendedLocation)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ExtendedLocation() to populate field ExtendedLocation")
+		}
+		destination.ExtendedLocation = &extendedLocation
+	} else {
+		destination.ExtendedLocation = nil
+	}
+
+	// HyperVGeneration
+	destination.HyperVGeneration = genruntime.ClonePointerToString(image.HyperVGeneration)
+
+	// Location
+	destination.Location = genruntime.ClonePointerToString(image.Location)
+
+	// OperatorSpec
+	if image.OperatorSpec != nil {
+		var operatorSpec storage.ImageOperatorSpec
+		err := image.OperatorSpec.AssignProperties_To_ImageOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ImageOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	destination.OriginalVersion = image.OriginalVersion
+
+	// Owner
+	if image.Owner != nil {
+		owner := image.Owner.Copy()
+		destination.Owner = &owner
+	} else {
+		destination.Owner = nil
+	}
+
+	// SourceVirtualMachine
+	if image.SourceVirtualMachine != nil {
+		var sourceVirtualMachine storage.SubResource
+		err := image.SourceVirtualMachine.AssignProperties_To_SubResource(&sourceVirtualMachine)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field SourceVirtualMachine")
+		}
+		destination.SourceVirtualMachine = &sourceVirtualMachine
+	} else {
+		destination.SourceVirtualMachine = nil
+	}
+
+	// StorageProfile
+	if image.StorageProfile != nil {
+		var storageProfile storage.ImageStorageProfile
+		err := image.StorageProfile.AssignProperties_To_ImageStorageProfile(&storageProfile)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ImageStorageProfile() to populate field StorageProfile")
+		}
+		destination.StorageProfile = &storageProfile
+	} else {
+		destination.StorageProfile = nil
+	}
+
+	// Tags
+	destination.Tags = genruntime.CloneMapOfStringToString(image.Tags)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImage_Spec interface (if implemented) to customize the conversion
+	var imageAsAny any = image
+	if augmentedImage, ok := imageAsAny.(augmentConversionForImage_Spec); ok {
+		err := augmentedImage.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20220301.Image_STATUS
@@ -207,20 +551,230 @@ var _ genruntime.ConvertibleStatus = &Image_STATUS{}
 
 // ConvertStatusFrom populates our Image_STATUS from the provided source
 func (image *Image_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == image {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+	src, ok := source.(*storage.Image_STATUS)
+	if ok {
+		// Populate our instance from source
+		return image.AssignProperties_From_Image_STATUS(src)
 	}
 
-	return source.ConvertStatusTo(image)
+	// Convert to an intermediate form
+	src = &storage.Image_STATUS{}
+	err := src.ConvertStatusFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+	}
+
+	// Update our instance from src
+	err = image.AssignProperties_From_Image_STATUS(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+	}
+
+	return nil
 }
 
 // ConvertStatusTo populates the provided destination from our Image_STATUS
 func (image *Image_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == image {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+	dst, ok := destination.(*storage.Image_STATUS)
+	if ok {
+		// Populate destination from our instance
+		return image.AssignProperties_To_Image_STATUS(dst)
 	}
 
-	return destination.ConvertStatusFrom(image)
+	// Convert to an intermediate form
+	dst = &storage.Image_STATUS{}
+	err := image.AssignProperties_To_Image_STATUS(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertStatusTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_Image_STATUS populates our Image_STATUS from the provided source Image_STATUS
+func (image *Image_STATUS) AssignProperties_From_Image_STATUS(source *storage.Image_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Conditions
+	image.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
+
+	// ExtendedLocation
+	if source.ExtendedLocation != nil {
+		var extendedLocation ExtendedLocation_STATUS
+		err := extendedLocation.AssignProperties_From_ExtendedLocation_STATUS(source.ExtendedLocation)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ExtendedLocation_STATUS() to populate field ExtendedLocation")
+		}
+		image.ExtendedLocation = &extendedLocation
+	} else {
+		image.ExtendedLocation = nil
+	}
+
+	// HyperVGeneration
+	image.HyperVGeneration = genruntime.ClonePointerToString(source.HyperVGeneration)
+
+	// Id
+	image.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Location
+	image.Location = genruntime.ClonePointerToString(source.Location)
+
+	// Name
+	image.Name = genruntime.ClonePointerToString(source.Name)
+
+	// ProvisioningState
+	image.ProvisioningState = genruntime.ClonePointerToString(source.ProvisioningState)
+
+	// SourceVirtualMachine
+	if source.SourceVirtualMachine != nil {
+		var sourceVirtualMachine SubResource_STATUS
+		err := sourceVirtualMachine.AssignProperties_From_SubResource_STATUS(source.SourceVirtualMachine)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field SourceVirtualMachine")
+		}
+		image.SourceVirtualMachine = &sourceVirtualMachine
+	} else {
+		image.SourceVirtualMachine = nil
+	}
+
+	// StorageProfile
+	if source.StorageProfile != nil {
+		var storageProfile ImageStorageProfile_STATUS
+		err := storageProfile.AssignProperties_From_ImageStorageProfile_STATUS(source.StorageProfile)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ImageStorageProfile_STATUS() to populate field StorageProfile")
+		}
+		image.StorageProfile = &storageProfile
+	} else {
+		image.StorageProfile = nil
+	}
+
+	// Tags
+	image.Tags = genruntime.CloneMapOfStringToString(source.Tags)
+
+	// Type
+	image.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		image.PropertyBag = propertyBag
+	} else {
+		image.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImage_STATUS interface (if implemented) to customize the conversion
+	var imageAsAny any = image
+	if augmentedImage, ok := imageAsAny.(augmentConversionForImage_STATUS); ok {
+		err := augmentedImage.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_Image_STATUS populates the provided destination Image_STATUS from our Image_STATUS
+func (image *Image_STATUS) AssignProperties_To_Image_STATUS(destination *storage.Image_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(image.PropertyBag)
+
+	// Conditions
+	destination.Conditions = genruntime.CloneSliceOfCondition(image.Conditions)
+
+	// ExtendedLocation
+	if image.ExtendedLocation != nil {
+		var extendedLocation storage.ExtendedLocation_STATUS
+		err := image.ExtendedLocation.AssignProperties_To_ExtendedLocation_STATUS(&extendedLocation)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ExtendedLocation_STATUS() to populate field ExtendedLocation")
+		}
+		destination.ExtendedLocation = &extendedLocation
+	} else {
+		destination.ExtendedLocation = nil
+	}
+
+	// HyperVGeneration
+	destination.HyperVGeneration = genruntime.ClonePointerToString(image.HyperVGeneration)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(image.Id)
+
+	// Location
+	destination.Location = genruntime.ClonePointerToString(image.Location)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(image.Name)
+
+	// ProvisioningState
+	destination.ProvisioningState = genruntime.ClonePointerToString(image.ProvisioningState)
+
+	// SourceVirtualMachine
+	if image.SourceVirtualMachine != nil {
+		var sourceVirtualMachine storage.SubResource_STATUS
+		err := image.SourceVirtualMachine.AssignProperties_To_SubResource_STATUS(&sourceVirtualMachine)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field SourceVirtualMachine")
+		}
+		destination.SourceVirtualMachine = &sourceVirtualMachine
+	} else {
+		destination.SourceVirtualMachine = nil
+	}
+
+	// StorageProfile
+	if image.StorageProfile != nil {
+		var storageProfile storage.ImageStorageProfile_STATUS
+		err := image.StorageProfile.AssignProperties_To_ImageStorageProfile_STATUS(&storageProfile)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ImageStorageProfile_STATUS() to populate field StorageProfile")
+		}
+		destination.StorageProfile = &storageProfile
+	} else {
+		destination.StorageProfile = nil
+	}
+
+	// Tags
+	destination.Tags = genruntime.CloneMapOfStringToString(image.Tags)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(image.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImage_STATUS interface (if implemented) to customize the conversion
+	var imageAsAny any = image
+	if augmentedImage, ok := imageAsAny.(augmentConversionForImage_STATUS); ok {
+		err := augmentedImage.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForImage_Spec interface {
+	AssignPropertiesFrom(src *storage.Image_Spec) error
+	AssignPropertiesTo(dst *storage.Image_Spec) error
+}
+
+type augmentConversionForImage_STATUS interface {
+	AssignPropertiesFrom(src *storage.Image_STATUS) error
+	AssignPropertiesTo(dst *storage.Image_STATUS) error
 }
 
 // Storage version of v1api20220301.ExtendedLocation
@@ -231,12 +785,258 @@ type ExtendedLocation struct {
 	Type        *string                `json:"type,omitempty"`
 }
 
+// AssignProperties_From_ExtendedLocation populates our ExtendedLocation from the provided source ExtendedLocation
+func (location *ExtendedLocation) AssignProperties_From_ExtendedLocation(source *storage.ExtendedLocation) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Name
+	location.Name = genruntime.ClonePointerToString(source.Name)
+
+	// Type
+	location.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		location.PropertyBag = propertyBag
+	} else {
+		location.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForExtendedLocation interface (if implemented) to customize the conversion
+	var locationAsAny any = location
+	if augmentedLocation, ok := locationAsAny.(augmentConversionForExtendedLocation); ok {
+		err := augmentedLocation.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ExtendedLocation populates the provided destination ExtendedLocation from our ExtendedLocation
+func (location *ExtendedLocation) AssignProperties_To_ExtendedLocation(destination *storage.ExtendedLocation) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(location.PropertyBag)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(location.Name)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(location.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForExtendedLocation interface (if implemented) to customize the conversion
+	var locationAsAny any = location
+	if augmentedLocation, ok := locationAsAny.(augmentConversionForExtendedLocation); ok {
+		err := augmentedLocation.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20220301.ExtendedLocation_STATUS
 // The complex type of the extended location.
 type ExtendedLocation_STATUS struct {
 	Name        *string                `json:"name,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	Type        *string                `json:"type,omitempty"`
+}
+
+// AssignProperties_From_ExtendedLocation_STATUS populates our ExtendedLocation_STATUS from the provided source ExtendedLocation_STATUS
+func (location *ExtendedLocation_STATUS) AssignProperties_From_ExtendedLocation_STATUS(source *storage.ExtendedLocation_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Name
+	location.Name = genruntime.ClonePointerToString(source.Name)
+
+	// Type
+	location.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		location.PropertyBag = propertyBag
+	} else {
+		location.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForExtendedLocation_STATUS interface (if implemented) to customize the conversion
+	var locationAsAny any = location
+	if augmentedLocation, ok := locationAsAny.(augmentConversionForExtendedLocation_STATUS); ok {
+		err := augmentedLocation.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ExtendedLocation_STATUS populates the provided destination ExtendedLocation_STATUS from our ExtendedLocation_STATUS
+func (location *ExtendedLocation_STATUS) AssignProperties_To_ExtendedLocation_STATUS(destination *storage.ExtendedLocation_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(location.PropertyBag)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(location.Name)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(location.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForExtendedLocation_STATUS interface (if implemented) to customize the conversion
+	var locationAsAny any = location
+	if augmentedLocation, ok := locationAsAny.(augmentConversionForExtendedLocation_STATUS); ok {
+		err := augmentedLocation.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20220301.ImageOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type ImageOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_ImageOperatorSpec populates our ImageOperatorSpec from the provided source ImageOperatorSpec
+func (operator *ImageOperatorSpec) AssignProperties_From_ImageOperatorSpec(source *storage.ImageOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		operator.PropertyBag = propertyBag
+	} else {
+		operator.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForImageOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ImageOperatorSpec populates the provided destination ImageOperatorSpec from our ImageOperatorSpec
+func (operator *ImageOperatorSpec) AssignProperties_To_ImageOperatorSpec(destination *storage.ImageOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForImageOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20220301.ImageStorageProfile
@@ -248,6 +1048,128 @@ type ImageStorageProfile struct {
 	ZoneResilient *bool                  `json:"zoneResilient,omitempty"`
 }
 
+// AssignProperties_From_ImageStorageProfile populates our ImageStorageProfile from the provided source ImageStorageProfile
+func (profile *ImageStorageProfile) AssignProperties_From_ImageStorageProfile(source *storage.ImageStorageProfile) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// DataDisks
+	if source.DataDisks != nil {
+		dataDiskList := make([]ImageDataDisk, len(source.DataDisks))
+		for dataDiskIndex, dataDiskItem := range source.DataDisks {
+			var dataDisk ImageDataDisk
+			err := dataDisk.AssignProperties_From_ImageDataDisk(&dataDiskItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_ImageDataDisk() to populate field DataDisks")
+			}
+			dataDiskList[dataDiskIndex] = dataDisk
+		}
+		profile.DataDisks = dataDiskList
+	} else {
+		profile.DataDisks = nil
+	}
+
+	// OsDisk
+	if source.OsDisk != nil {
+		var osDisk ImageOSDisk
+		err := osDisk.AssignProperties_From_ImageOSDisk(source.OsDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ImageOSDisk() to populate field OsDisk")
+		}
+		profile.OsDisk = &osDisk
+	} else {
+		profile.OsDisk = nil
+	}
+
+	// ZoneResilient
+	if source.ZoneResilient != nil {
+		zoneResilient := *source.ZoneResilient
+		profile.ZoneResilient = &zoneResilient
+	} else {
+		profile.ZoneResilient = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		profile.PropertyBag = propertyBag
+	} else {
+		profile.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageStorageProfile interface (if implemented) to customize the conversion
+	var profileAsAny any = profile
+	if augmentedProfile, ok := profileAsAny.(augmentConversionForImageStorageProfile); ok {
+		err := augmentedProfile.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ImageStorageProfile populates the provided destination ImageStorageProfile from our ImageStorageProfile
+func (profile *ImageStorageProfile) AssignProperties_To_ImageStorageProfile(destination *storage.ImageStorageProfile) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(profile.PropertyBag)
+
+	// DataDisks
+	if profile.DataDisks != nil {
+		dataDiskList := make([]storage.ImageDataDisk, len(profile.DataDisks))
+		for dataDiskIndex, dataDiskItem := range profile.DataDisks {
+			var dataDisk storage.ImageDataDisk
+			err := dataDiskItem.AssignProperties_To_ImageDataDisk(&dataDisk)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_ImageDataDisk() to populate field DataDisks")
+			}
+			dataDiskList[dataDiskIndex] = dataDisk
+		}
+		destination.DataDisks = dataDiskList
+	} else {
+		destination.DataDisks = nil
+	}
+
+	// OsDisk
+	if profile.OsDisk != nil {
+		var osDisk storage.ImageOSDisk
+		err := profile.OsDisk.AssignProperties_To_ImageOSDisk(&osDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ImageOSDisk() to populate field OsDisk")
+		}
+		destination.OsDisk = &osDisk
+	} else {
+		destination.OsDisk = nil
+	}
+
+	// ZoneResilient
+	if profile.ZoneResilient != nil {
+		zoneResilient := *profile.ZoneResilient
+		destination.ZoneResilient = &zoneResilient
+	} else {
+		destination.ZoneResilient = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageStorageProfile interface (if implemented) to customize the conversion
+	var profileAsAny any = profile
+	if augmentedProfile, ok := profileAsAny.(augmentConversionForImageStorageProfile); ok {
+		err := augmentedProfile.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20220301.ImageStorageProfile_STATUS
 // Describes a storage profile.
 type ImageStorageProfile_STATUS struct {
@@ -255,6 +1177,128 @@ type ImageStorageProfile_STATUS struct {
 	OsDisk        *ImageOSDisk_STATUS    `json:"osDisk,omitempty"`
 	PropertyBag   genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	ZoneResilient *bool                  `json:"zoneResilient,omitempty"`
+}
+
+// AssignProperties_From_ImageStorageProfile_STATUS populates our ImageStorageProfile_STATUS from the provided source ImageStorageProfile_STATUS
+func (profile *ImageStorageProfile_STATUS) AssignProperties_From_ImageStorageProfile_STATUS(source *storage.ImageStorageProfile_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// DataDisks
+	if source.DataDisks != nil {
+		dataDiskList := make([]ImageDataDisk_STATUS, len(source.DataDisks))
+		for dataDiskIndex, dataDiskItem := range source.DataDisks {
+			var dataDisk ImageDataDisk_STATUS
+			err := dataDisk.AssignProperties_From_ImageDataDisk_STATUS(&dataDiskItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_ImageDataDisk_STATUS() to populate field DataDisks")
+			}
+			dataDiskList[dataDiskIndex] = dataDisk
+		}
+		profile.DataDisks = dataDiskList
+	} else {
+		profile.DataDisks = nil
+	}
+
+	// OsDisk
+	if source.OsDisk != nil {
+		var osDisk ImageOSDisk_STATUS
+		err := osDisk.AssignProperties_From_ImageOSDisk_STATUS(source.OsDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ImageOSDisk_STATUS() to populate field OsDisk")
+		}
+		profile.OsDisk = &osDisk
+	} else {
+		profile.OsDisk = nil
+	}
+
+	// ZoneResilient
+	if source.ZoneResilient != nil {
+		zoneResilient := *source.ZoneResilient
+		profile.ZoneResilient = &zoneResilient
+	} else {
+		profile.ZoneResilient = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		profile.PropertyBag = propertyBag
+	} else {
+		profile.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageStorageProfile_STATUS interface (if implemented) to customize the conversion
+	var profileAsAny any = profile
+	if augmentedProfile, ok := profileAsAny.(augmentConversionForImageStorageProfile_STATUS); ok {
+		err := augmentedProfile.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ImageStorageProfile_STATUS populates the provided destination ImageStorageProfile_STATUS from our ImageStorageProfile_STATUS
+func (profile *ImageStorageProfile_STATUS) AssignProperties_To_ImageStorageProfile_STATUS(destination *storage.ImageStorageProfile_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(profile.PropertyBag)
+
+	// DataDisks
+	if profile.DataDisks != nil {
+		dataDiskList := make([]storage.ImageDataDisk_STATUS, len(profile.DataDisks))
+		for dataDiskIndex, dataDiskItem := range profile.DataDisks {
+			var dataDisk storage.ImageDataDisk_STATUS
+			err := dataDiskItem.AssignProperties_To_ImageDataDisk_STATUS(&dataDisk)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_ImageDataDisk_STATUS() to populate field DataDisks")
+			}
+			dataDiskList[dataDiskIndex] = dataDisk
+		}
+		destination.DataDisks = dataDiskList
+	} else {
+		destination.DataDisks = nil
+	}
+
+	// OsDisk
+	if profile.OsDisk != nil {
+		var osDisk storage.ImageOSDisk_STATUS
+		err := profile.OsDisk.AssignProperties_To_ImageOSDisk_STATUS(&osDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ImageOSDisk_STATUS() to populate field OsDisk")
+		}
+		destination.OsDisk = &osDisk
+	} else {
+		destination.OsDisk = nil
+	}
+
+	// ZoneResilient
+	if profile.ZoneResilient != nil {
+		zoneResilient := *profile.ZoneResilient
+		destination.ZoneResilient = &zoneResilient
+	} else {
+		destination.ZoneResilient = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageStorageProfile_STATUS interface (if implemented) to customize the conversion
+	var profileAsAny any = profile
+	if augmentedProfile, ok := profileAsAny.(augmentConversionForImageStorageProfile_STATUS); ok {
+		err := augmentedProfile.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20220301.SubResource
@@ -265,10 +1309,167 @@ type SubResource struct {
 	Reference *genruntime.ResourceReference `armReference:"Id" json:"reference,omitempty"`
 }
 
+// AssignProperties_From_SubResource populates our SubResource from the provided source SubResource
+func (resource *SubResource) AssignProperties_From_SubResource(source *storage.SubResource) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Reference
+	if source.Reference != nil {
+		reference := source.Reference.Copy()
+		resource.Reference = &reference
+	} else {
+		resource.Reference = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		resource.PropertyBag = propertyBag
+	} else {
+		resource.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSubResource interface (if implemented) to customize the conversion
+	var resourceAsAny any = resource
+	if augmentedResource, ok := resourceAsAny.(augmentConversionForSubResource); ok {
+		err := augmentedResource.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SubResource populates the provided destination SubResource from our SubResource
+func (resource *SubResource) AssignProperties_To_SubResource(destination *storage.SubResource) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(resource.PropertyBag)
+
+	// Reference
+	if resource.Reference != nil {
+		reference := resource.Reference.Copy()
+		destination.Reference = &reference
+	} else {
+		destination.Reference = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSubResource interface (if implemented) to customize the conversion
+	var resourceAsAny any = resource
+	if augmentedResource, ok := resourceAsAny.(augmentConversionForSubResource); ok {
+		err := augmentedResource.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20220301.SubResource_STATUS
 type SubResource_STATUS struct {
 	Id          *string                `json:"id,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
+}
+
+// AssignProperties_From_SubResource_STATUS populates our SubResource_STATUS from the provided source SubResource_STATUS
+func (resource *SubResource_STATUS) AssignProperties_From_SubResource_STATUS(source *storage.SubResource_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Id
+	resource.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		resource.PropertyBag = propertyBag
+	} else {
+		resource.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSubResource_STATUS interface (if implemented) to customize the conversion
+	var resourceAsAny any = resource
+	if augmentedResource, ok := resourceAsAny.(augmentConversionForSubResource_STATUS); ok {
+		err := augmentedResource.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SubResource_STATUS populates the provided destination SubResource_STATUS from our SubResource_STATUS
+func (resource *SubResource_STATUS) AssignProperties_To_SubResource_STATUS(destination *storage.SubResource_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(resource.PropertyBag)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(resource.Id)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSubResource_STATUS interface (if implemented) to customize the conversion
+	var resourceAsAny any = resource
+	if augmentedResource, ok := resourceAsAny.(augmentConversionForSubResource_STATUS); ok {
+		err := augmentedResource.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForExtendedLocation interface {
+	AssignPropertiesFrom(src *storage.ExtendedLocation) error
+	AssignPropertiesTo(dst *storage.ExtendedLocation) error
+}
+
+type augmentConversionForExtendedLocation_STATUS interface {
+	AssignPropertiesFrom(src *storage.ExtendedLocation_STATUS) error
+	AssignPropertiesTo(dst *storage.ExtendedLocation_STATUS) error
+}
+
+type augmentConversionForImageOperatorSpec interface {
+	AssignPropertiesFrom(src *storage.ImageOperatorSpec) error
+	AssignPropertiesTo(dst *storage.ImageOperatorSpec) error
+}
+
+type augmentConversionForImageStorageProfile interface {
+	AssignPropertiesFrom(src *storage.ImageStorageProfile) error
+	AssignPropertiesTo(dst *storage.ImageStorageProfile) error
+}
+
+type augmentConversionForImageStorageProfile_STATUS interface {
+	AssignPropertiesFrom(src *storage.ImageStorageProfile_STATUS) error
+	AssignPropertiesTo(dst *storage.ImageStorageProfile_STATUS) error
+}
+
+type augmentConversionForSubResource interface {
+	AssignPropertiesFrom(src *storage.SubResource) error
+	AssignPropertiesTo(dst *storage.SubResource) error
+}
+
+type augmentConversionForSubResource_STATUS interface {
+	AssignPropertiesFrom(src *storage.SubResource_STATUS) error
+	AssignPropertiesTo(dst *storage.SubResource_STATUS) error
 }
 
 // Storage version of v1api20220301.ImageDataDisk
@@ -285,6 +1486,158 @@ type ImageDataDisk struct {
 	StorageAccountType *string                `json:"storageAccountType,omitempty"`
 }
 
+// AssignProperties_From_ImageDataDisk populates our ImageDataDisk from the provided source ImageDataDisk
+func (disk *ImageDataDisk) AssignProperties_From_ImageDataDisk(source *storage.ImageDataDisk) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// BlobUri
+	disk.BlobUri = genruntime.ClonePointerToString(source.BlobUri)
+
+	// Caching
+	disk.Caching = genruntime.ClonePointerToString(source.Caching)
+
+	// DiskEncryptionSet
+	if source.DiskEncryptionSet != nil {
+		var diskEncryptionSet SubResource
+		err := diskEncryptionSet.AssignProperties_From_SubResource(source.DiskEncryptionSet)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field DiskEncryptionSet")
+		}
+		disk.DiskEncryptionSet = &diskEncryptionSet
+	} else {
+		disk.DiskEncryptionSet = nil
+	}
+
+	// DiskSizeGB
+	disk.DiskSizeGB = genruntime.ClonePointerToInt(source.DiskSizeGB)
+
+	// Lun
+	disk.Lun = genruntime.ClonePointerToInt(source.Lun)
+
+	// ManagedDisk
+	if source.ManagedDisk != nil {
+		var managedDisk SubResource
+		err := managedDisk.AssignProperties_From_SubResource(source.ManagedDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field ManagedDisk")
+		}
+		disk.ManagedDisk = &managedDisk
+	} else {
+		disk.ManagedDisk = nil
+	}
+
+	// Snapshot
+	if source.Snapshot != nil {
+		var snapshot SubResource
+		err := snapshot.AssignProperties_From_SubResource(source.Snapshot)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field Snapshot")
+		}
+		disk.Snapshot = &snapshot
+	} else {
+		disk.Snapshot = nil
+	}
+
+	// StorageAccountType
+	disk.StorageAccountType = genruntime.ClonePointerToString(source.StorageAccountType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		disk.PropertyBag = propertyBag
+	} else {
+		disk.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageDataDisk interface (if implemented) to customize the conversion
+	var diskAsAny any = disk
+	if augmentedDisk, ok := diskAsAny.(augmentConversionForImageDataDisk); ok {
+		err := augmentedDisk.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ImageDataDisk populates the provided destination ImageDataDisk from our ImageDataDisk
+func (disk *ImageDataDisk) AssignProperties_To_ImageDataDisk(destination *storage.ImageDataDisk) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(disk.PropertyBag)
+
+	// BlobUri
+	destination.BlobUri = genruntime.ClonePointerToString(disk.BlobUri)
+
+	// Caching
+	destination.Caching = genruntime.ClonePointerToString(disk.Caching)
+
+	// DiskEncryptionSet
+	if disk.DiskEncryptionSet != nil {
+		var diskEncryptionSet storage.SubResource
+		err := disk.DiskEncryptionSet.AssignProperties_To_SubResource(&diskEncryptionSet)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field DiskEncryptionSet")
+		}
+		destination.DiskEncryptionSet = &diskEncryptionSet
+	} else {
+		destination.DiskEncryptionSet = nil
+	}
+
+	// DiskSizeGB
+	destination.DiskSizeGB = genruntime.ClonePointerToInt(disk.DiskSizeGB)
+
+	// Lun
+	destination.Lun = genruntime.ClonePointerToInt(disk.Lun)
+
+	// ManagedDisk
+	if disk.ManagedDisk != nil {
+		var managedDisk storage.SubResource
+		err := disk.ManagedDisk.AssignProperties_To_SubResource(&managedDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field ManagedDisk")
+		}
+		destination.ManagedDisk = &managedDisk
+	} else {
+		destination.ManagedDisk = nil
+	}
+
+	// Snapshot
+	if disk.Snapshot != nil {
+		var snapshot storage.SubResource
+		err := disk.Snapshot.AssignProperties_To_SubResource(&snapshot)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field Snapshot")
+		}
+		destination.Snapshot = &snapshot
+	} else {
+		destination.Snapshot = nil
+	}
+
+	// StorageAccountType
+	destination.StorageAccountType = genruntime.ClonePointerToString(disk.StorageAccountType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageDataDisk interface (if implemented) to customize the conversion
+	var diskAsAny any = disk
+	if augmentedDisk, ok := diskAsAny.(augmentConversionForImageDataDisk); ok {
+		err := augmentedDisk.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20220301.ImageDataDisk_STATUS
 // Describes a data disk.
 type ImageDataDisk_STATUS struct {
@@ -297,6 +1650,158 @@ type ImageDataDisk_STATUS struct {
 	PropertyBag        genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	Snapshot           *SubResource_STATUS    `json:"snapshot,omitempty"`
 	StorageAccountType *string                `json:"storageAccountType,omitempty"`
+}
+
+// AssignProperties_From_ImageDataDisk_STATUS populates our ImageDataDisk_STATUS from the provided source ImageDataDisk_STATUS
+func (disk *ImageDataDisk_STATUS) AssignProperties_From_ImageDataDisk_STATUS(source *storage.ImageDataDisk_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// BlobUri
+	disk.BlobUri = genruntime.ClonePointerToString(source.BlobUri)
+
+	// Caching
+	disk.Caching = genruntime.ClonePointerToString(source.Caching)
+
+	// DiskEncryptionSet
+	if source.DiskEncryptionSet != nil {
+		var diskEncryptionSet SubResource_STATUS
+		err := diskEncryptionSet.AssignProperties_From_SubResource_STATUS(source.DiskEncryptionSet)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field DiskEncryptionSet")
+		}
+		disk.DiskEncryptionSet = &diskEncryptionSet
+	} else {
+		disk.DiskEncryptionSet = nil
+	}
+
+	// DiskSizeGB
+	disk.DiskSizeGB = genruntime.ClonePointerToInt(source.DiskSizeGB)
+
+	// Lun
+	disk.Lun = genruntime.ClonePointerToInt(source.Lun)
+
+	// ManagedDisk
+	if source.ManagedDisk != nil {
+		var managedDisk SubResource_STATUS
+		err := managedDisk.AssignProperties_From_SubResource_STATUS(source.ManagedDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field ManagedDisk")
+		}
+		disk.ManagedDisk = &managedDisk
+	} else {
+		disk.ManagedDisk = nil
+	}
+
+	// Snapshot
+	if source.Snapshot != nil {
+		var snapshot SubResource_STATUS
+		err := snapshot.AssignProperties_From_SubResource_STATUS(source.Snapshot)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field Snapshot")
+		}
+		disk.Snapshot = &snapshot
+	} else {
+		disk.Snapshot = nil
+	}
+
+	// StorageAccountType
+	disk.StorageAccountType = genruntime.ClonePointerToString(source.StorageAccountType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		disk.PropertyBag = propertyBag
+	} else {
+		disk.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageDataDisk_STATUS interface (if implemented) to customize the conversion
+	var diskAsAny any = disk
+	if augmentedDisk, ok := diskAsAny.(augmentConversionForImageDataDisk_STATUS); ok {
+		err := augmentedDisk.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ImageDataDisk_STATUS populates the provided destination ImageDataDisk_STATUS from our ImageDataDisk_STATUS
+func (disk *ImageDataDisk_STATUS) AssignProperties_To_ImageDataDisk_STATUS(destination *storage.ImageDataDisk_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(disk.PropertyBag)
+
+	// BlobUri
+	destination.BlobUri = genruntime.ClonePointerToString(disk.BlobUri)
+
+	// Caching
+	destination.Caching = genruntime.ClonePointerToString(disk.Caching)
+
+	// DiskEncryptionSet
+	if disk.DiskEncryptionSet != nil {
+		var diskEncryptionSet storage.SubResource_STATUS
+		err := disk.DiskEncryptionSet.AssignProperties_To_SubResource_STATUS(&diskEncryptionSet)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field DiskEncryptionSet")
+		}
+		destination.DiskEncryptionSet = &diskEncryptionSet
+	} else {
+		destination.DiskEncryptionSet = nil
+	}
+
+	// DiskSizeGB
+	destination.DiskSizeGB = genruntime.ClonePointerToInt(disk.DiskSizeGB)
+
+	// Lun
+	destination.Lun = genruntime.ClonePointerToInt(disk.Lun)
+
+	// ManagedDisk
+	if disk.ManagedDisk != nil {
+		var managedDisk storage.SubResource_STATUS
+		err := disk.ManagedDisk.AssignProperties_To_SubResource_STATUS(&managedDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field ManagedDisk")
+		}
+		destination.ManagedDisk = &managedDisk
+	} else {
+		destination.ManagedDisk = nil
+	}
+
+	// Snapshot
+	if disk.Snapshot != nil {
+		var snapshot storage.SubResource_STATUS
+		err := disk.Snapshot.AssignProperties_To_SubResource_STATUS(&snapshot)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field Snapshot")
+		}
+		destination.Snapshot = &snapshot
+	} else {
+		destination.Snapshot = nil
+	}
+
+	// StorageAccountType
+	destination.StorageAccountType = genruntime.ClonePointerToString(disk.StorageAccountType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageDataDisk_STATUS interface (if implemented) to customize the conversion
+	var diskAsAny any = disk
+	if augmentedDisk, ok := diskAsAny.(augmentConversionForImageDataDisk_STATUS); ok {
+		err := augmentedDisk.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20220301.ImageOSDisk
@@ -314,6 +1819,164 @@ type ImageOSDisk struct {
 	StorageAccountType *string                `json:"storageAccountType,omitempty"`
 }
 
+// AssignProperties_From_ImageOSDisk populates our ImageOSDisk from the provided source ImageOSDisk
+func (disk *ImageOSDisk) AssignProperties_From_ImageOSDisk(source *storage.ImageOSDisk) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// BlobUri
+	disk.BlobUri = genruntime.ClonePointerToString(source.BlobUri)
+
+	// Caching
+	disk.Caching = genruntime.ClonePointerToString(source.Caching)
+
+	// DiskEncryptionSet
+	if source.DiskEncryptionSet != nil {
+		var diskEncryptionSet SubResource
+		err := diskEncryptionSet.AssignProperties_From_SubResource(source.DiskEncryptionSet)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field DiskEncryptionSet")
+		}
+		disk.DiskEncryptionSet = &diskEncryptionSet
+	} else {
+		disk.DiskEncryptionSet = nil
+	}
+
+	// DiskSizeGB
+	disk.DiskSizeGB = genruntime.ClonePointerToInt(source.DiskSizeGB)
+
+	// ManagedDisk
+	if source.ManagedDisk != nil {
+		var managedDisk SubResource
+		err := managedDisk.AssignProperties_From_SubResource(source.ManagedDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field ManagedDisk")
+		}
+		disk.ManagedDisk = &managedDisk
+	} else {
+		disk.ManagedDisk = nil
+	}
+
+	// OsState
+	disk.OsState = genruntime.ClonePointerToString(source.OsState)
+
+	// OsType
+	disk.OsType = genruntime.ClonePointerToString(source.OsType)
+
+	// Snapshot
+	if source.Snapshot != nil {
+		var snapshot SubResource
+		err := snapshot.AssignProperties_From_SubResource(source.Snapshot)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field Snapshot")
+		}
+		disk.Snapshot = &snapshot
+	} else {
+		disk.Snapshot = nil
+	}
+
+	// StorageAccountType
+	disk.StorageAccountType = genruntime.ClonePointerToString(source.StorageAccountType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		disk.PropertyBag = propertyBag
+	} else {
+		disk.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageOSDisk interface (if implemented) to customize the conversion
+	var diskAsAny any = disk
+	if augmentedDisk, ok := diskAsAny.(augmentConversionForImageOSDisk); ok {
+		err := augmentedDisk.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ImageOSDisk populates the provided destination ImageOSDisk from our ImageOSDisk
+func (disk *ImageOSDisk) AssignProperties_To_ImageOSDisk(destination *storage.ImageOSDisk) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(disk.PropertyBag)
+
+	// BlobUri
+	destination.BlobUri = genruntime.ClonePointerToString(disk.BlobUri)
+
+	// Caching
+	destination.Caching = genruntime.ClonePointerToString(disk.Caching)
+
+	// DiskEncryptionSet
+	if disk.DiskEncryptionSet != nil {
+		var diskEncryptionSet storage.SubResource
+		err := disk.DiskEncryptionSet.AssignProperties_To_SubResource(&diskEncryptionSet)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field DiskEncryptionSet")
+		}
+		destination.DiskEncryptionSet = &diskEncryptionSet
+	} else {
+		destination.DiskEncryptionSet = nil
+	}
+
+	// DiskSizeGB
+	destination.DiskSizeGB = genruntime.ClonePointerToInt(disk.DiskSizeGB)
+
+	// ManagedDisk
+	if disk.ManagedDisk != nil {
+		var managedDisk storage.SubResource
+		err := disk.ManagedDisk.AssignProperties_To_SubResource(&managedDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field ManagedDisk")
+		}
+		destination.ManagedDisk = &managedDisk
+	} else {
+		destination.ManagedDisk = nil
+	}
+
+	// OsState
+	destination.OsState = genruntime.ClonePointerToString(disk.OsState)
+
+	// OsType
+	destination.OsType = genruntime.ClonePointerToString(disk.OsType)
+
+	// Snapshot
+	if disk.Snapshot != nil {
+		var snapshot storage.SubResource
+		err := disk.Snapshot.AssignProperties_To_SubResource(&snapshot)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field Snapshot")
+		}
+		destination.Snapshot = &snapshot
+	} else {
+		destination.Snapshot = nil
+	}
+
+	// StorageAccountType
+	destination.StorageAccountType = genruntime.ClonePointerToString(disk.StorageAccountType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageOSDisk interface (if implemented) to customize the conversion
+	var diskAsAny any = disk
+	if augmentedDisk, ok := diskAsAny.(augmentConversionForImageOSDisk); ok {
+		err := augmentedDisk.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20220301.ImageOSDisk_STATUS
 // Describes an Operating System disk.
 type ImageOSDisk_STATUS struct {
@@ -327,6 +1990,184 @@ type ImageOSDisk_STATUS struct {
 	PropertyBag        genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	Snapshot           *SubResource_STATUS    `json:"snapshot,omitempty"`
 	StorageAccountType *string                `json:"storageAccountType,omitempty"`
+}
+
+// AssignProperties_From_ImageOSDisk_STATUS populates our ImageOSDisk_STATUS from the provided source ImageOSDisk_STATUS
+func (disk *ImageOSDisk_STATUS) AssignProperties_From_ImageOSDisk_STATUS(source *storage.ImageOSDisk_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// BlobUri
+	disk.BlobUri = genruntime.ClonePointerToString(source.BlobUri)
+
+	// Caching
+	disk.Caching = genruntime.ClonePointerToString(source.Caching)
+
+	// DiskEncryptionSet
+	if source.DiskEncryptionSet != nil {
+		var diskEncryptionSet SubResource_STATUS
+		err := diskEncryptionSet.AssignProperties_From_SubResource_STATUS(source.DiskEncryptionSet)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field DiskEncryptionSet")
+		}
+		disk.DiskEncryptionSet = &diskEncryptionSet
+	} else {
+		disk.DiskEncryptionSet = nil
+	}
+
+	// DiskSizeGB
+	disk.DiskSizeGB = genruntime.ClonePointerToInt(source.DiskSizeGB)
+
+	// ManagedDisk
+	if source.ManagedDisk != nil {
+		var managedDisk SubResource_STATUS
+		err := managedDisk.AssignProperties_From_SubResource_STATUS(source.ManagedDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field ManagedDisk")
+		}
+		disk.ManagedDisk = &managedDisk
+	} else {
+		disk.ManagedDisk = nil
+	}
+
+	// OsState
+	disk.OsState = genruntime.ClonePointerToString(source.OsState)
+
+	// OsType
+	disk.OsType = genruntime.ClonePointerToString(source.OsType)
+
+	// Snapshot
+	if source.Snapshot != nil {
+		var snapshot SubResource_STATUS
+		err := snapshot.AssignProperties_From_SubResource_STATUS(source.Snapshot)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field Snapshot")
+		}
+		disk.Snapshot = &snapshot
+	} else {
+		disk.Snapshot = nil
+	}
+
+	// StorageAccountType
+	disk.StorageAccountType = genruntime.ClonePointerToString(source.StorageAccountType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		disk.PropertyBag = propertyBag
+	} else {
+		disk.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageOSDisk_STATUS interface (if implemented) to customize the conversion
+	var diskAsAny any = disk
+	if augmentedDisk, ok := diskAsAny.(augmentConversionForImageOSDisk_STATUS); ok {
+		err := augmentedDisk.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ImageOSDisk_STATUS populates the provided destination ImageOSDisk_STATUS from our ImageOSDisk_STATUS
+func (disk *ImageOSDisk_STATUS) AssignProperties_To_ImageOSDisk_STATUS(destination *storage.ImageOSDisk_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(disk.PropertyBag)
+
+	// BlobUri
+	destination.BlobUri = genruntime.ClonePointerToString(disk.BlobUri)
+
+	// Caching
+	destination.Caching = genruntime.ClonePointerToString(disk.Caching)
+
+	// DiskEncryptionSet
+	if disk.DiskEncryptionSet != nil {
+		var diskEncryptionSet storage.SubResource_STATUS
+		err := disk.DiskEncryptionSet.AssignProperties_To_SubResource_STATUS(&diskEncryptionSet)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field DiskEncryptionSet")
+		}
+		destination.DiskEncryptionSet = &diskEncryptionSet
+	} else {
+		destination.DiskEncryptionSet = nil
+	}
+
+	// DiskSizeGB
+	destination.DiskSizeGB = genruntime.ClonePointerToInt(disk.DiskSizeGB)
+
+	// ManagedDisk
+	if disk.ManagedDisk != nil {
+		var managedDisk storage.SubResource_STATUS
+		err := disk.ManagedDisk.AssignProperties_To_SubResource_STATUS(&managedDisk)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field ManagedDisk")
+		}
+		destination.ManagedDisk = &managedDisk
+	} else {
+		destination.ManagedDisk = nil
+	}
+
+	// OsState
+	destination.OsState = genruntime.ClonePointerToString(disk.OsState)
+
+	// OsType
+	destination.OsType = genruntime.ClonePointerToString(disk.OsType)
+
+	// Snapshot
+	if disk.Snapshot != nil {
+		var snapshot storage.SubResource_STATUS
+		err := disk.Snapshot.AssignProperties_To_SubResource_STATUS(&snapshot)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field Snapshot")
+		}
+		destination.Snapshot = &snapshot
+	} else {
+		destination.Snapshot = nil
+	}
+
+	// StorageAccountType
+	destination.StorageAccountType = genruntime.ClonePointerToString(disk.StorageAccountType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForImageOSDisk_STATUS interface (if implemented) to customize the conversion
+	var diskAsAny any = disk
+	if augmentedDisk, ok := diskAsAny.(augmentConversionForImageOSDisk_STATUS); ok {
+		err := augmentedDisk.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForImageDataDisk interface {
+	AssignPropertiesFrom(src *storage.ImageDataDisk) error
+	AssignPropertiesTo(dst *storage.ImageDataDisk) error
+}
+
+type augmentConversionForImageDataDisk_STATUS interface {
+	AssignPropertiesFrom(src *storage.ImageDataDisk_STATUS) error
+	AssignPropertiesTo(dst *storage.ImageDataDisk_STATUS) error
+}
+
+type augmentConversionForImageOSDisk interface {
+	AssignPropertiesFrom(src *storage.ImageOSDisk) error
+	AssignPropertiesTo(dst *storage.ImageOSDisk) error
+}
+
+type augmentConversionForImageOSDisk_STATUS interface {
+	AssignPropertiesFrom(src *storage.ImageOSDisk_STATUS) error
+	AssignPropertiesTo(dst *storage.ImageOSDisk_STATUS) error
 }
 
 func init() {

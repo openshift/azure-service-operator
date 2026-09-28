@@ -10,10 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/internal/set"
-
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/functions"
 )
@@ -21,18 +20,21 @@ import (
 // ExportControllerResourceRegistrations creates a Stage to generate type registrations
 // for resources.
 func ExportControllerResourceRegistrations(idFactory astmodel.IdentifierFactory, outputPath string) *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		"exportControllerResourceRegistrations",
 		fmt.Sprintf("Export resource registrations to %q", outputPath),
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
 			// If the configuration doesn't specify an output destination for us, just do nothing
 			if outputPath == "" {
-				return definitions, nil
+				return state, nil
 			}
 
+			definitions := state.Definitions()
 			var resources []astmodel.InternalTypeName
 			var storageVersionResources []astmodel.InternalTypeName
 			var resourceExtensions []astmodel.InternalTypeName
+			validatingWebhooks := make(map[astmodel.InternalTypeName]astmodel.InternalTypeName)
+			mutatingWebhooks := make(map[astmodel.InternalTypeName]astmodel.InternalTypeName)
 			indexFunctions := make(map[astmodel.InternalTypeName][]*functions.IndexRegistrationFunction)
 			secretPropertyKeys := make(map[astmodel.InternalTypeName][]string)
 			configMapPropertyKeys := make(map[astmodel.InternalTypeName][]string)
@@ -41,17 +43,17 @@ func ExportControllerResourceRegistrations(idFactory astmodel.IdentifierFactory,
 			for _, def := range definitions {
 				if resource, ok := astmodel.AsResourceType(def.Type()); ok {
 
-					if resource.IsStorageVersion() {
+					if resource.IsStorageVersion() { // This means the resource is the one storage version in k8s
 						storageVersionResources = append(storageVersionResources, def.Name())
 
 						secretChains, err := catalogSecretPropertyChains(def, definitions)
 						if err != nil {
-							return nil, errors.Wrapf(err, "failed to catalog %s secret property chains", def.Name())
+							return nil, eris.Wrapf(err, "failed to catalog %s secret property chains", def.Name())
 						}
 
 						configMapChains, err := catalogConfigMapPropertyChains(def, definitions)
 						if err != nil {
-							return nil, errors.Wrapf(err, "failed to catalog %s configmap property chains", def.Name())
+							return nil, eris.Wrapf(err, "failed to catalog %s configmap property chains", def.Name())
 						}
 
 						resourceSecretIndexFunctions, resourceSecretPropertyKeys := transformChainsToIndexFunctionsAndKeys(secretChains, idFactory, def)
@@ -60,6 +62,12 @@ func ExportControllerResourceRegistrations(idFactory astmodel.IdentifierFactory,
 						indexFunctions[def.Name()] = append(resourceSecretIndexFunctions, resourceConfigMapIndexFunctions...)
 						secretPropertyKeys[def.Name()] = resourceSecretPropertyKeys
 						configMapPropertyKeys[def.Name()] = resourceConfigMapPropertyKeys
+					}
+
+					if !astmodel.IsStoragePackageReference(def.Name().PackageReference()) {
+						// Currently storage versions don't have webhooks
+						validatingWebhooks[def.Name()] = astmodel.CreateWebhookTypeName(def.Name())
+						mutatingWebhooks[def.Name()] = astmodel.CreateWebhookTypeName(def.Name())
 					}
 
 					resources = append(resources, def.Name())
@@ -75,16 +83,20 @@ func ExportControllerResourceRegistrations(idFactory astmodel.IdentifierFactory,
 				indexFunctions,
 				secretPropertyKeys,
 				configMapPropertyKeys,
-				resourceExtensions)
+				resourceExtensions,
+				validatingWebhooks,
+				mutatingWebhooks,
+			)
 			fileWriter := astmodel.NewGoSourceFileWriter(file)
 
 			err := fileWriter.SaveToFile(outputPath)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to write controller type registration file to %q", outputPath)
+				return nil, eris.Wrapf(err, "failed to write controller type registration file to %q", outputPath)
 			}
 
-			return definitions, nil
-		})
+			return state, nil
+		},
+	)
 }
 
 func transformChainsToIndexFunctionsAndKeys(
@@ -104,7 +116,8 @@ func transformChainsToIndexFunctionsAndKeys(
 			chain.indexMethodName(idFactory, def.Name()),
 			def.Name(),
 			propertyKey,
-			chain.properties())
+			chain.properties(),
+		)
 		indexFunctions = append(indexFunctions, indexFunction)
 		propertyKeys = append(propertyKeys, propertyKey)
 	}
@@ -162,10 +175,15 @@ func tryResolvePropertyPathCollision(chains []*propertyChain) bool {
 		return false
 	}
 
-	// Check for parents with different names
+	// Check for parents with different names. A parent with a nil prop is the root of the chain (the resource
+	// or object itself, with nothing above it); use the empty string as its name. This can't collide with a
+	// real property name, so it's always treated as distinct from any named parent.
 	names := set.Make[string]()
 	for _, parent := range parents.Values() {
-		name := string(parent.prop.PropertyName())
+		name := ""
+		if parent.prop != nil {
+			name = string(parent.prop.PropertyName())
+		}
 		names.Add(name)
 	}
 
@@ -219,7 +237,7 @@ func catalogPropertyChains(
 
 	_, err := walker.Walk(def)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error cataloging secret properties")
+		return nil, eris.Wrapf(err, "error cataloging secret properties")
 	}
 
 	return indexBuilder.propChains, nil
@@ -237,7 +255,7 @@ func (b *indexFunctionBuilder) catalogSecretProperties(
 	ctx *propertyChain,
 ) (astmodel.Type, error) {
 	it.Properties().ForEach(func(prop *astmodel.PropertyDefinition) {
-		if prop.IsSecret() {
+		if prop.Secrecy() == astmodel.ImportSecretModeRequired || prop.Secrecy() == astmodel.ImportSecretModeOptional {
 			b.propChains = append(b.propChains, ctx.add(prop))
 		}
 	})
@@ -333,7 +351,9 @@ func (chain *propertyChain) indexPropertyPath() string {
 		result = chain.root.indexPropertyPath()
 	}
 
-	if chain.requiredForPropertyPath {
+	// chain.prop is nil for the root of the chain (the resource or object itself); there's nothing to add to the
+	// path in that case.
+	if chain.requiredForPropertyPath && chain.prop != nil {
 		result += chain.prop.PropertyName().String()
 	}
 
@@ -345,10 +365,10 @@ func (chain *propertyChain) indexPropertyPath() string {
 // a member of a collection, such as .spec.secretsCollection.password. This is OK because the key is just a string
 // and all that string is doing is uniquely representing this field.
 func (chain *propertyChain) indexPropertyKey() string {
-	values := []string{
-		".spec",
-	}
-	for _, prop := range chain.properties() {
+	properties := chain.properties()
+	values := make([]string, 0, 1+len(properties))
+	values = append(values, ".spec")
+	for _, prop := range properties {
 		name, ok := prop.JSONName()
 		if !ok {
 			panic(fmt.Sprintf("property %s has no JSON name", prop.PropertyName()))

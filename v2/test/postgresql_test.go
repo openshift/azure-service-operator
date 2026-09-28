@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib" // the pgx lib
 	. "github.com/onsi/gomega"
+
+	_ "github.com/jackc/pgx/v5/stdlib" // the pgx lib
 	v1 "k8s.io/api/core/v1"
 
 	postgresqlv1 "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v1"
-	postgresql "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v1api20210601"
+	postgresql "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v20250801"
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
@@ -23,12 +24,13 @@ import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 )
 
+const postgresqlTestRegion string = "westcentralus" // This region is chosen because it currently has capacity for PostgreSQL Flexible Servers
+
 func Test_PostgreSQL_Combined(t *testing.T) {
 	t.Parallel()
 	tc := globalTestContext.ForTest(t)
 	// Force this test to run in a region that is not capacity constrained.
-	// location := tc.AzureRegion TODO: Uncomment this line when West US 2 is no longer constrained
-	tc.AzureRegion = to.Ptr("australiaeast")
+	tc.AzureRegion = to.Ptr(postgresqlTestRegion)
 	rg := tc.CreateTestResourceGroupAndWait()
 
 	adminUsername := "myadmin"
@@ -39,10 +41,9 @@ func Test_PostgreSQL_Combined(t *testing.T) {
 	tc.CreateResource(secret)
 
 	flexibleServer := newPostgreSQLServer(tc, rg, adminUsername, adminPasswordKey, secret.Name)
-	tc.CreateResourceAndWait(flexibleServer)
-
 	firewallRule := newPostgreSQLServerOpenFirewallRule(tc, flexibleServer)
-	tc.CreateResourceAndWait(firewallRule)
+
+	tc.CreateResourcesAndWait(flexibleServer, firewallRule)
 
 	tc.Expect(flexibleServer.Status.FullyQualifiedDomainName).ToNot(BeNil())
 	fqdn := *flexibleServer.Status.FullyQualifiedDomainName
@@ -55,7 +56,8 @@ func Test_PostgreSQL_Combined(t *testing.T) {
 				postgresqlutil.DefaultMaintanenceDatabase,
 				postgresqlutil.PSqlServerPort,
 				adminUsername,
-				adminPassword)
+				adminPassword,
+			)
 			if err != nil {
 				return err
 			}
@@ -99,7 +101,8 @@ func PostgreSQL_AdminSecret_Rollover(tc *testcommon.KubePerTestContext, fqdn str
 		postgresqlutil.DefaultMaintanenceDatabase,
 		postgresqlutil.PSqlServerPort,
 		adminUsername,
-		adminPassword)
+		adminPassword,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	// Close the connection
 	tc.Expect(conn.Close()).To(Succeed())
@@ -125,7 +128,8 @@ func PostgreSQL_AdminSecret_Rollover(tc *testcommon.KubePerTestContext, fqdn str
 				postgresqlutil.DefaultMaintanenceDatabase,
 				postgresqlutil.PSqlServerPort,
 				adminUsername,
-				newAdminPassword)
+				newAdminPassword,
+			)
 			if err != nil {
 				return err
 			}
@@ -147,7 +151,8 @@ func PostgreSQL_User_Helpers(tc *testcommon.KubePerTestContext, fqdn string, adm
 		postgresqlutil.DefaultMaintanenceDatabase,
 		postgresqlutil.PSqlServerPort,
 		adminUsername,
-		adminPassword)
+		adminPassword,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	defer db.Close()
 
@@ -168,7 +173,6 @@ func PostgreSQL_User_Helpers(tc *testcommon.KubePerTestContext, fqdn string, adm
 	// Test setting some user roles
 	expectedUserRoles := []string{"azure_pg_admin"}
 	tc.Expect(postgresqlutil.ReconcileUserServerRoles(ctx, db, postgresqlutil.SQLUser{Name: username}, expectedUserRoles)).To(Succeed())
-
 	userRoles, err = postgresqlutil.GetUserServerRoles(ctx, db, postgresqlutil.SQLUser{Name: username})
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(userRoles).To(Equal(set.Make[string](expectedUserRoles...)))
@@ -176,7 +180,21 @@ func PostgreSQL_User_Helpers(tc *testcommon.KubePerTestContext, fqdn string, adm
 	// Update user roles to add some and remove some
 	expectedUserRoles = []string{"pg_read_all_stats"}
 	tc.Expect(postgresqlutil.ReconcileUserServerRoles(ctx, db, postgresqlutil.SQLUser{Name: username}, expectedUserRoles)).To(Succeed())
+	userRoles, err = postgresqlutil.GetUserServerRoles(ctx, db, postgresqlutil.SQLUser{Name: username})
+	tc.Expect(err).ToNot(HaveOccurred())
+	tc.Expect(userRoles).To(Equal(set.Make[string](expectedUserRoles...)))
 
+	// Update user roles to add a role with an uppercase character in it (ensure it works!)
+	tc.Expect(postgresqlutil.CreateRoleWithPermissions(ctx, db, "myRole", "LOGIN", "CREATEDB", "CREATEROLE")).To(Succeed())
+	expectedUserRoles = []string{"pg_read_all_stats", "myRole"}
+	tc.Expect(postgresqlutil.ReconcileUserServerRoles(ctx, db, postgresqlutil.SQLUser{Name: username}, expectedUserRoles)).To(Succeed())
+	userRoles, err = postgresqlutil.GetUserServerRoles(ctx, db, postgresqlutil.SQLUser{Name: username})
+	tc.Expect(err).ToNot(HaveOccurred())
+	tc.Expect(userRoles).To(Equal(set.Make[string](expectedUserRoles...)))
+
+	// Update user roles to remove a role with an uppercase character in it (ensure it works!)
+	expectedUserRoles = []string{"pg_read_all_stats"}
+	tc.Expect(postgresqlutil.ReconcileUserServerRoles(ctx, db, postgresqlutil.SQLUser{Name: username}, expectedUserRoles)).To(Succeed())
 	userRoles, err = postgresqlutil.GetUserServerRoles(ctx, db, postgresqlutil.SQLUser{Name: username})
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(userRoles).To(Equal(set.Make[string](expectedUserRoles...)))
@@ -225,7 +243,8 @@ func PostgreSQL_User_CRUD(tc *testcommon.KubePerTestContext, server *postgresql.
 		postgresqlutil.DefaultMaintanenceDatabase,
 		postgresqlutil.PSqlServerPort,
 		to.Value(server.Spec.AdministratorLogin),
-		adminPassword)
+		adminPassword,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	defer conn.Close()
 
@@ -257,13 +276,14 @@ func PostgreSQL_User_CRUD(tc *testcommon.KubePerTestContext, server *postgresql.
 		postgresqlutil.DefaultMaintanenceDatabase,
 		postgresqlutil.PSqlServerPort,
 		user.Spec.AzureName,
-		password)
+		password,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	// Close the connection
 	tc.Expect(conn.Close()).To(Succeed())
 
 	// Update the secret
-	newPassword := tc.Namer.GeneratePassword()
+	newPassword := tc.Namer.GeneratePassword() + ";" // append trailing semicolon as a previously restricted character to ensure password now works
 	newSecret := &v1.Secret{
 		ObjectMeta: userSecret.ObjectMeta,
 		StringData: map[string]string{
@@ -281,7 +301,8 @@ func PostgreSQL_User_CRUD(tc *testcommon.KubePerTestContext, server *postgresql.
 				postgresqlutil.DefaultMaintanenceDatabase,
 				postgresqlutil.PSqlServerPort,
 				user.Spec.AzureName,
-				newPassword)
+				newPassword,
+			)
 			if err != nil {
 				return err
 			}
@@ -296,8 +317,10 @@ func PostgreSQL_User_CRUD(tc *testcommon.KubePerTestContext, server *postgresql.
 
 func Test_PostgreSQL_User(t *testing.T) {
 	t.Parallel()
+	t.Skip("2026-03 Taking too long to run in live mode, timing out after 30 minutes, needs investigation")
+
 	tc := globalTestContext.ForTest(t)
-	tc.AzureRegion = to.Ptr("australiaeast")
+	tc.AzureRegion = to.Ptr(postgresqlTestRegion)
 	rg := tc.CreateTestResourceGroupAndWait()
 
 	adminUsername := "myadmin"
@@ -349,21 +372,19 @@ func newPostgresSQLSecret(tc *testcommon.KubePerTestContext, key string, passwor
 }
 
 func newPostgreSQLServer(tc *testcommon.KubePerTestContext, rg *resources.ResourceGroup, adminUsername string, adminKey string, adminSecretName string) *postgresql.FlexibleServer {
-	version := postgresql.ServerVersion_13
 	secretRef := genruntime.SecretReference{
 		Name: adminSecretName,
 		Key:  adminKey,
 	}
-	tier := postgresql.Sku_Tier_GeneralPurpose
 	flexibleServer := &postgresql.FlexibleServer{
 		ObjectMeta: tc.MakeObjectMeta("postgresql"),
 		Spec: postgresql.FlexibleServer_Spec{
 			Location: tc.AzureRegion,
 			Owner:    testcommon.AsOwner(rg),
-			Version:  &version,
+			Version:  to.Ptr(postgresql.PostgresMajorVersion_18),
 			Sku: &postgresql.Sku{
 				Name: to.Ptr("Standard_D4s_v3"),
-				Tier: &tier,
+				Tier: to.Ptr(postgresql.SkuTier_GeneralPurpose),
 			},
 			AdministratorLogin:         to.Ptr(adminUsername),
 			AdministratorLoginPassword: &secretRef,
@@ -381,7 +402,7 @@ func newPostgreSQLServerOpenFirewallRule(tc *testcommon.KubePerTestContext, flex
 	// because there's no data in the database anyway
 	firewallRule := &postgresql.FlexibleServersFirewallRule{
 		ObjectMeta: tc.MakeObjectMeta("firewall"),
-		Spec: postgresql.FlexibleServers_FirewallRule_Spec{
+		Spec: postgresql.FlexibleServersFirewallRule_Spec{
 			Owner:          testcommon.AsOwner(flexibleServer),
 			StartIpAddress: to.Ptr("0.0.0.0"),
 			EndIpAddress:   to.Ptr("255.255.255.255"),

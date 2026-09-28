@@ -13,6 +13,8 @@ spec:
         - image: localhost:5000/azureserviceoperator:latest
           name: manager
           env:
+            - name: GOMEMLIMIT
+              value: 400MiB # This should be set to ~80-90% of the hard memory limit on the pod
             - name: AZURE_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -29,6 +31,18 @@ spec:
                 secretKeyRef:
                   name: aso-controller-settings
                   key: AZURE_TENANT_ID
+            - name: AZURE_ADDITIONAL_TENANTS
+              valueFrom:
+                secretKeyRef:
+                  name: aso-controller-settings
+                  key: AZURE_ADDITIONAL_TENANTS
+                  optional: true
+            - name: AZURE_USER_ASSIGNED_IDENTITY_CREDENTIALS
+              valueFrom:
+                secretKeyRef:
+                  name: aso-controller-settings
+                  key: AZURE_USER_ASSIGNED_IDENTITY_CREDENTIALS
+                  optional: true
             - name: AZURE_SUBSCRIPTION_ID
               valueFrom:
                 secretKeyRef:
@@ -116,6 +130,18 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: RATE_LIMIT_BUCKET_SIZE
+                  name: aso-controller-settings
+                  optional: true
+            - name: DEFAULT_RECONCILE_POLICY
+              valueFrom:
+                secretKeyRef:
+                  key: DEFAULT_RECONCILE_POLICY
+                  name: aso-controller-settings
+                  optional: true
+            - name: ALLOW_MULTI_ENV_MANAGEMENT
+              valueFrom:
+                secretKeyRef:
+                  key: ALLOW_MULTI_ENV_MANAGEMENT
                   name: aso-controller-settings
                   optional: true
             # Used for setting the operator-namespace annotation (and

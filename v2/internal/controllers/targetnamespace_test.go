@@ -9,6 +9,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,7 +19,7 @@ import (
 
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/Azure/azure-service-operator/v2/internal/config"
-	"github.com/Azure/azure-service-operator/v2/internal/reconcilers/generic"
+	"github.com/Azure/azure-service-operator/v2/internal/reconcilers"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 )
@@ -92,7 +93,7 @@ func checkNamespaceAnnotation(tc *testcommon.KubePerTestContext, instance metav1
 	res, err := meta.Accessor(instance)
 	namespace := res.GetNamespace()
 	tc.Expect(err).ToNot(HaveOccurred(), namespace)
-	actual, found := res.GetAnnotations()[generic.NamespaceAnnotation]
+	actual, found := res.GetAnnotations()[reconcilers.OperatorNamespaceAnnotation]
 	tc.Expect(found).To(BeTrue(), namespace)
 	tc.Expect(actual).To(Equal(expected), namespace)
 }
@@ -102,7 +103,7 @@ func checkNoNamespaceAnnotation(tc *testcommon.KubePerTestContext, instance meta
 	res, err := meta.Accessor(instance)
 	namespace := res.GetNamespace()
 	tc.Expect(err).ToNot(HaveOccurred(), namespace)
-	_, found := res.GetAnnotations()[generic.NamespaceAnnotation]
+	_, found := res.GetAnnotations()[reconcilers.OperatorNamespaceAnnotation]
 	tc.Expect(found).To(BeFalse(), namespace)
 }
 
@@ -160,7 +161,7 @@ func TestOperatorNamespacePreventsReconciling(t *testing.T) {
 			Name:      tc.Namer.GenerateName("rg"),
 			Namespace: tc.Namespace,
 			Annotations: map[string]string{
-				generic.NamespaceAnnotation: "some-other-operator",
+				reconcilers.OperatorNamespaceAnnotation: "some-other-operator",
 			},
 		},
 		Spec: resources.ResourceGroup_Spec{
@@ -174,7 +175,7 @@ func TestOperatorNamespacePreventsReconciling(t *testing.T) {
 
 	var events corev1.EventList
 	tc.ListResources(&events, &client.ListOptions{
-		FieldSelector: fields.ParseSelectorOrDie("involvedObject.name=" + notMine.ObjectMeta.Name),
+		FieldSelector: fields.ParseSelectorOrDie("involvedObject.name=" + notMine.Name),
 		Namespace:     tc.Namespace,
 	})
 	tc.Expect(events.Items).To(HaveLen(1))
@@ -191,7 +192,7 @@ func TestOperatorNamespacePreventsReconciling(t *testing.T) {
 			Name:      tc.Namer.GenerateName("rg"),
 			Namespace: tc.Namespace,
 			Annotations: map[string]string{
-				generic.NamespaceAnnotation: podNamespace,
+				reconcilers.OperatorNamespaceAnnotation: podNamespace,
 			},
 		},
 		Spec: resources.ResourceGroup_Spec{

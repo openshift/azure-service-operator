@@ -8,20 +8,22 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
 // AddCrossplaneEmbeddedResourceStatus puts an embedded runtimev1alpha1.ResourceStatus on every spec type
 func AddCrossplaneEmbeddedResourceStatus(idFactory astmodel.IdentifierFactory) *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		"addCrossplaneEmbeddedResourceStatus",
 		"Add an embedded runtimev1alpha1.ResourceStatus to every status type",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			definitions := state.Definitions()
 			statusTypeName := astmodel.MakeExternalTypeName(
 				CrossplaneRuntimeV1Package,
-				idFactory.CreateIdentifier("ResourceStatus", astmodel.Exported))
+				idFactory.CreateIdentifier("ResourceStatus", astmodel.Exported),
+			)
 			embeddedStatus := astmodel.NewPropertyDefinition("", ",inline", statusTypeName)
 
 			result := make(astmodel.TypeDefinitionSet)
@@ -34,7 +36,7 @@ func AddCrossplaneEmbeddedResourceStatus(idFactory astmodel.IdentifierFactory) *
 
 					statusDef, err := definitions.ResolveResourceStatusDefinition(resource)
 					if err != nil {
-						return nil, errors.Wrapf(err, "getting resource status definition")
+						return nil, eris.Wrapf(err, "getting resource status definition")
 					}
 
 					// The assumption here is that specs are all Objects
@@ -42,7 +44,7 @@ func AddCrossplaneEmbeddedResourceStatus(idFactory astmodel.IdentifierFactory) *
 						return o.WithEmbeddedProperty(embeddedStatus)
 					})
 					if err != nil {
-						return nil, errors.Wrapf(err, "adding embedded crossplane status")
+						return nil, eris.Wrapf(err, "adding embedded crossplane status")
 					}
 
 					result.Add(typeDef)
@@ -62,6 +64,7 @@ func AddCrossplaneEmbeddedResourceStatus(idFactory astmodel.IdentifierFactory) *
 				}
 			}
 
-			return result, nil
-		})
+			return state.WithDefinitions(result), nil
+		},
+	)
 }

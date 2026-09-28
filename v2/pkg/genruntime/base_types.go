@@ -79,10 +79,15 @@ type ARMOwnedMetaObject interface {
 	ARMOwned
 }
 
+// EntraMetaObject represents an arbitrary ASO resource that is an Entra resource
+type EntraMetaObject interface {
+	MetaObject
+}
+
 // AddAnnotation adds the specified annotation to the object.
 // Empty string annotations are not allowed. Attempting to add an annotation with a value
 // of empty string will result in the removal of that annotation.
-func AddAnnotation(obj MetaObject, k string, v string) {
+func AddAnnotation(obj metav1.Object, k string, v string) {
 	annotations := obj.GetAnnotations()
 	annotations = AddToMap(annotations, k, v)
 	obj.SetAnnotations(annotations)
@@ -148,14 +153,14 @@ func NewARMResource(spec ARMResourceSpec, status ARMResourceStatus, id string) A
 	return &armResourceImpl{
 		spec:   spec,
 		status: status,
-		Id:     id,
+		id:     id,
 	}
 }
 
 type armResourceImpl struct {
 	spec   ARMResourceSpec
 	status ARMResourceStatus
-	Id     string
+	id     string
 }
 
 var _ ARMResource = &armResourceImpl{}
@@ -169,7 +174,7 @@ func (resource *armResourceImpl) Status() ARMResourceStatus {
 }
 
 func (resource *armResourceImpl) GetID() string {
-	return resource.Id
+	return resource.id
 }
 
 // GetReadyCondition gets the ready condition from the object

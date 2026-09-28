@@ -7,8 +7,11 @@ package genericarmclient
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
 
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
 )
@@ -38,21 +41,38 @@ func NewCloudError(err error) *CloudError {
 	}
 }
 
-func NewTestCloudError(code string, message string) *CloudError {
-	return &CloudError{
+type TestOption func(e *CloudError)
+
+func WithTestInnerError(err error) TestOption {
+	return func(e *CloudError) {
+		e.error = err
+	}
+}
+
+func NewTestCloudError(code string, message string, options ...TestOption) *CloudError {
+	result := &CloudError{
 		code:    &code,
 		message: &message,
 	}
+
+	for _, opt := range options {
+		opt(result)
+	}
+	return result
 }
 
 // Error implements the error interface for type CloudError.
 // The contents of the error text are not contractual and subject to change.
-func (e CloudError) Error() string {
-	return e.error.Error()
+func (e *CloudError) Error() string {
+	requestID := e.RequestID()
+	if e.RequestID() == "" {
+		requestID = "unknown"
+	}
+	return fmt.Sprintf("%s, RequestID: %s", e.error.Error(), requestID)
 }
 
 // Code returns the error code from the message, if present, or UnknownErrorCode if not.
-func (e CloudError) Code() string {
+func (e *CloudError) Code() string {
 	if e.code != nil && *e.code != "" {
 		return *e.code
 	}
@@ -61,7 +81,7 @@ func (e CloudError) Code() string {
 }
 
 // Message returns the message from the error, if present, or UnknownErrorMessage if not.
-func (e CloudError) Message() string {
+func (e *CloudError) Message() string {
 	if e.message != nil && *e.message != "" {
 		return *e.message
 	}
@@ -70,7 +90,7 @@ func (e CloudError) Message() string {
 }
 
 // Target returns the target of the error, if present, or an empty string if not.
-func (e CloudError) Target() string {
+func (e *CloudError) Target() string {
 	if e.target != nil && *e.target != "" {
 		return *e.target
 	}
@@ -79,8 +99,27 @@ func (e CloudError) Target() string {
 }
 
 // Details returns the details of the error, if present, or an empty slice if not
-func (e CloudError) Details() []*ErrorResponse {
+func (e *CloudError) Details() []*ErrorResponse {
 	return e.details
+}
+
+// RequestID returns the request ID (from x-ms-request-id header) of the error, if one exists.
+func (e *CloudError) RequestID() string {
+	var respErr *azcore.ResponseError
+	if !eris.As(e, &respErr) {
+		return ""
+	}
+
+	id, ok := respErr.RawResponse.Header[http.CanonicalHeaderKey("x-ms-request-id")]
+	if !ok {
+		return ""
+	}
+
+	if len(id) == 0 {
+		return ""
+	}
+
+	return id[0]
 }
 
 func (e *CloudError) UnmarshalJSON(data []byte) error {
@@ -99,7 +138,7 @@ func (e *CloudError) UnmarshalJSON(data []byte) error {
 
 	err := json.Unmarshal(data, &content)
 	if err != nil {
-		return errors.Wrap(err, "unmarshalling JSON for CloudError")
+		return eris.Wrap(err, "unmarshalling JSON for CloudError")
 	}
 
 	if content.InnerError != nil {
@@ -117,6 +156,6 @@ func (e *CloudError) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (e CloudError) Unwrap() error {
+func (e *CloudError) Unwrap() error {
 	return e.error
 }

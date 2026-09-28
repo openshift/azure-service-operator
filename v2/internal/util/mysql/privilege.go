@@ -9,13 +9,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/internal/set"
 )
+
+// MySQL privilege names cannot be parameterized, so allow only SQL keyword characters before interpolation.
+// See https://dev.mysql.com/doc/refman/8.4/en/grant.html (Privileges Supported by MySQL).
+// Note that while static privileges seem to never contain _, dynamic privileges can contain _
+var validPrivilegeName = regexp.MustCompile(`^[A-Za-z_ ]+$`)
 
 type SQLPrivilegeDelta struct {
 	AddedPrivileges   set.Set[string]
@@ -77,9 +83,10 @@ func GetUserDatabasePrivileges(ctx context.Context, db *sql.DB, user string, hos
 	rows, err := db.QueryContext(
 		ctx,
 		"SELECT TABLE_SCHEMA, PRIVILEGE_TYPE FROM INFORMATION_SCHEMA.SCHEMA_PRIVILEGES WHERE GRANTEE = ?",
-		formatUser(user, hostname))
+		formatUser(user, hostname),
+	)
 	if err != nil {
-		return nil, errors.Wrapf(err, "listing database grants for user %s", user)
+		return nil, eris.Wrapf(err, "listing database grants for user %s", user)
 	}
 	defer rows.Close()
 
@@ -88,7 +95,7 @@ func GetUserDatabasePrivileges(ctx context.Context, db *sql.DB, user string, hos
 		var database, privilege string
 		err := rows.Scan(&database, &privilege)
 		if err != nil {
-			return nil, errors.Wrapf(err, "extracting privilege row")
+			return nil, eris.Wrapf(err, "extracting privilege row")
 		}
 
 		var privileges set.Set[string]
@@ -102,7 +109,7 @@ func GetUserDatabasePrivileges(ctx context.Context, db *sql.DB, user string, hos
 	}
 
 	if rows.Err() != nil {
-		return nil, errors.Wrapf(rows.Err(), "iterating database privileges")
+		return nil, eris.Wrapf(rows.Err(), "iterating database privileges")
 	}
 
 	return results, nil
@@ -119,9 +126,10 @@ func GetUserServerPrivileges(ctx context.Context, db *sql.DB, user string, hostn
 	rows, err := db.QueryContext(
 		ctx,
 		"SELECT PRIVILEGE_TYPE FROM INFORMATION_SCHEMA.USER_PRIVILEGES WHERE GRANTEE = ? AND PRIVILEGE_TYPE != 'USAGE'",
-		formatUser(user, hostname))
+		formatUser(user, hostname),
+	)
 	if err != nil {
-		return nil, errors.Wrapf(err, "listing grants for user %s", user)
+		return nil, eris.Wrapf(err, "listing grants for user %s", user)
 	}
 	defer rows.Close()
 
@@ -130,13 +138,13 @@ func GetUserServerPrivileges(ctx context.Context, db *sql.DB, user string, hostn
 		var row string
 		err := rows.Scan(&row)
 		if err != nil {
-			return nil, errors.Wrapf(err, "extracting privilege field")
+			return nil, eris.Wrapf(err, "extracting privilege field")
 		}
 
 		result.Add(row)
 	}
 	if rows.Err() != nil {
-		return nil, errors.Wrapf(rows.Err(), "iterating privileges")
+		return nil, eris.Wrapf(rows.Err(), "iterating privileges")
 	}
 
 	return result, nil
@@ -150,7 +158,7 @@ func ReconcileUserServerPrivileges(ctx context.Context, db *sql.DB, user string,
 
 	currentPrivileges, err := GetUserServerPrivileges(ctx, db, user, hostname)
 	if err != nil {
-		return errors.Wrapf(err, "couldn't get existing privileges for user %s", user)
+		return eris.Wrapf(err, "couldn't get existing privileges for user %s", user)
 	}
 
 	privsDiff := DiffCurrentAndExpectedSQLPrivileges(currentPrivileges, desiredPrivileges)
@@ -182,7 +190,7 @@ func ReconcileUserDatabasePrivileges(ctx context.Context, conn *sql.DB, user str
 
 	currentPrivs, err := GetUserDatabasePrivileges(ctx, conn, user, hostname)
 	if err != nil {
-		return errors.Wrapf(err, "couldn't get existing database privileges for user %s", user)
+		return eris.Wrapf(err, "couldn't get existing database privileges for user %s", user)
 	}
 
 	allDatabases := make(set.Set[string])
@@ -202,11 +210,11 @@ func ReconcileUserDatabasePrivileges(ctx context.Context, conn *sql.DB, user str
 
 		err = addPrivileges(ctx, conn, db, user, privsDiff.AddedPrivileges)
 		if err != nil {
-			dbErrors = append(dbErrors, errors.Wrap(err, db))
+			dbErrors = append(dbErrors, eris.Wrap(err, db))
 		}
 		err = deletePrivileges(ctx, conn, db, user, privsDiff.DeletedPrivileges)
 		if err != nil {
-			dbErrors = append(dbErrors, errors.Wrap(err, db))
+			dbErrors = append(dbErrors, eris.Wrap(err, db))
 		}
 	}
 
@@ -219,12 +227,16 @@ func addPrivileges(ctx context.Context, db *sql.DB, database string, user string
 		return nil
 	}
 
+	if err := validatePrivilegeNames(privileges); err != nil {
+		return err
+	}
+
 	toAdd := strings.Join(privileges.Values(), ",")
 	// TODO: Is there a way to just disable G201, which this violates?
 	// We say //nolint:gosec below because gosec is trying to tell us this is a dangerous SQL query with a risk of SQL
 	// injection. The user effectively has admin access to the DB through the operator already the minute that they can
 	// create users with arbitrary permission levels.
-	_, err := db.ExecContext(ctx, fmt.Sprintf("GRANT %s ON %s TO ?", toAdd, asGrantTarget(database)), user) //nolint:gosec
+	_, err := db.ExecContext(ctx, fmt.Sprintf("GRANT %s ON %s TO ?", toAdd, asGrantTarget(database)), user)
 
 	return err
 }
@@ -233,6 +245,10 @@ func deletePrivileges(ctx context.Context, db *sql.DB, database string, user str
 	if len(privileges) == 0 {
 		// Nothing to do
 		return nil
+	}
+
+	if err := validatePrivilegeNames(privileges); err != nil {
+		return err
 	}
 
 	toDelete := strings.Join(privileges.Values(), ",")
@@ -253,7 +269,22 @@ func asGrantTarget(database string) string {
 	if database == "" {
 		return "*.*"
 	}
-	return fmt.Sprintf("`%s`.*", database)
+	return fmt.Sprintf("%s.*", escapeBacktickIdentifier(database))
+}
+
+// escapeBacktickIdentifier escapes and wraps a value for use as a backtick-delimited MySQL identifier.
+func escapeBacktickIdentifier(value string) string {
+	escaped := strings.ReplaceAll(value, "`", "``")
+	return "`" + escaped + "`"
+}
+
+func validatePrivilegeNames(privileges set.Set[string]) error {
+	for _, priv := range privileges.Values() {
+		if !validPrivilegeName.MatchString(priv) {
+			return fmt.Errorf("invalid privilege name %q: must contain only letters, underscores, and spaces", priv)
+		}
+	}
+	return nil
 }
 
 func formatUser(user string, hostname string) string {

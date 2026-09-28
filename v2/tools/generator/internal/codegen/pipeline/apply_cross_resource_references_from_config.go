@@ -10,20 +10,21 @@ import (
 	"regexp"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
-
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
 )
 
-type ARMIDPropertyClassification string
+type ReferenceType string
 
 const (
-	ARMIDPropertyClassificationUnset       = ARMIDPropertyClassification("unset")
-	ARMIDPropertyClassificationSet         = ARMIDPropertyClassification("set")
-	ARMIDPropertyClassificationUnspecified = ARMIDPropertyClassification("unspecified")
+	ReferenceTypeString       = ReferenceType("string")        // A simple string
+	ReferenceTypeARM          = ReferenceType("arm")           // A full ARM reference
+	ReferenceTypeARMWellknown = ReferenceType("arm+wellknown") // A full ARM reference OR a well known identifier
+	ReferenceTypeARMCompat    = ReferenceType("arm+compat")    // A full ARM reference, but backward compatible
+	ReferenceTypeUnspecified  = ReferenceType("unspecified")   // We don't know what to do with this
 )
 
 // ApplyCrossResourceReferencesFromConfigStageID is the unique identifier for this pipeline stage
@@ -42,44 +43,66 @@ func ApplyCrossResourceReferencesFromConfig(
 
 			var crossResourceReferenceErrs []error
 
-			isCrossResourceReference := func(typeName astmodel.InternalTypeName, prop *astmodel.PropertyDefinition) ARMIDPropertyClassification {
+			isCrossResourceReference := func(typeName astmodel.InternalTypeName, prop *astmodel.PropertyDefinition) ReferenceType {
 				// First check if we know that this property is an ARMID already
-				isReference, ok := configuration.ObjectModelConfiguration.ARMReference.Lookup(typeName, prop.PropertyName())
+				referenceType, ok := configuration.ObjectModelConfiguration.ReferenceType.Lookup(typeName, prop.PropertyName())
 				isSwaggerARMID := isTypeARMID(prop.PropertyType())
 
 				// If we've got a Swagger ARM ID entry AND an entry in our config, that might be a problem
 				if ok && isSwaggerARMID {
-					if !isReference {
-						// We allow overriding the ARM ID status of a property to false in our config
-						return ARMIDPropertyClassificationUnset
-					} else {
+					switch referenceType {
+					case config.ReferenceTypeSimple:
+						// We permit "simple" in the config to force a reference to be handled as a string
+						return ReferenceTypeString
+
+					case config.ReferenceTypeARM:
 						// Swagger has marked this field as a reference, and we also have it marked in our
 						// config. Record an error saying that the config entry is no longer needed
 						crossResourceReferenceErrs = append(
 							crossResourceReferenceErrs,
-							errors.Errorf("%s.%s marked as ARM reference, but value is not needed because Swagger already says it is an ARM reference",
+							eris.Errorf("%s.%s marked with reference type ARM, but value is not needed because Swagger already says it is an ARM reference",
 								typeName.String(),
-								prop.PropertyName().String()))
+								prop.PropertyName().String()),
+						)
+					case config.ReferenceTypeWellKnown:
+						// We permit "arm+wellknown" in config to accommodate references that are MORE than a simple ARM ID
+						return ReferenceTypeARMWellknown
+
+					case config.ReferenceTypeCompatible:
+						// We permit "arm+compat" in config to accommodate references that need to be specially handled for backward compatibility
+						return ReferenceTypeARMCompat
 					}
 				}
 
 				if DoesPropertyLookLikeARMReference(prop) && !ok {
-					// This is an error for now to ensure that we don't accidentally miss adding references.
-					// If/when we move to using an upstream marker for cross resource refs, we can remove this and just
-					// trust the Swagger.
+					// This is an error to ensure that we don't accidentally miss adding references.
 					crossResourceReferenceErrs = append(
 						crossResourceReferenceErrs,
-						errors.Errorf(
+						eris.Errorf(
 							"%s.%s looks like a resource reference but was not labelled as one; You may need to add it to the 'objectModelConfiguration' section of the config file",
 							typeName,
-							prop.PropertyName()))
+							prop.PropertyName(),
+						),
+					)
 				}
 
-				if isReference {
-					return ARMIDPropertyClassificationSet
-				}
+				// Convert from configuration reference types to internal reference types
+				switch referenceType {
+				case config.ReferenceTypeARM:
+					return ReferenceTypeARM
 
-				return ARMIDPropertyClassificationUnspecified
+				case config.ReferenceTypeSimple:
+					return ReferenceTypeString
+
+				case config.ReferenceTypeWellKnown:
+					return ReferenceTypeARMWellknown
+
+				case config.ReferenceTypeCompatible:
+					return ReferenceTypeARMCompat
+
+				default:
+					return ReferenceTypeUnspecified
+				}
 			}
 
 			visitor := MakeARMIDPropertyTypeVisitor(isCrossResourceReference, log)
@@ -93,7 +116,7 @@ func ApplyCrossResourceReferencesFromConfig(
 
 				t, err := visitor.Visit(def.Type(), def.Name())
 				if err != nil {
-					return nil, errors.Wrapf(err, "visiting %q", def.Name())
+					return nil, eris.Wrapf(err, "visiting %q", def.Name())
 				}
 
 				typesWithARMIDs.Add(def.WithType(t))
@@ -107,18 +130,20 @@ func ApplyCrossResourceReferencesFromConfig(
 				return nil, err
 			}
 
-			err = configuration.ObjectModelConfiguration.ARMReference.VerifyConsumed()
+			err = configuration.ObjectModelConfiguration.ReferenceType.VerifyConsumed()
 			if err != nil {
-				return nil, errors.Wrap(
+				return nil, eris.Wrap(
 					err,
-					"Found unused $armReference configurations; these need to be fixed or removed.")
+					"Found unused $armReference configurations; these need to be fixed or removed.",
+				)
 			}
 
 			return state.WithDefinitions(typesWithARMIDs), nil
-		})
+		},
+	)
 }
 
-type crossResourceReferenceChecker func(typeName astmodel.InternalTypeName, prop *astmodel.PropertyDefinition) ARMIDPropertyClassification
+type crossResourceReferenceChecker func(typeName astmodel.InternalTypeName, prop *astmodel.PropertyDefinition) ReferenceType
 
 type ARMIDPropertyTypeVisitor struct {
 	astmodel.TypeVisitor[astmodel.InternalTypeName]
@@ -143,22 +168,36 @@ func MakeARMIDPropertyTypeVisitor(
 		var newProps []*astmodel.PropertyDefinition
 		it.Properties().ForEach(func(prop *astmodel.PropertyDefinition) {
 			classification := visitor.isPropertyAnARMReference(ctx, prop)
-			if classification == ARMIDPropertyClassificationSet {
+
+			wasType := astmodel.DebugDescription(prop.PropertyType())
+
+			switch classification {
+			case ReferenceTypeARM:
+				prop = makeARMReferenceProperty(prop)
+
+			case ReferenceTypeString:
+				prop = makeStringReferenceProperty(prop)
+
+			case ReferenceTypeARMWellknown:
+				prop = makeWellKnownARMReferenceProperty(prop)
+
+			case ReferenceTypeARMCompat:
+				prop = makeCompatibleARMReferenceProperty(prop)
+
+			case ReferenceTypeUnspecified:
+				// Do nothing, we don't know what this is
+			}
+
+			nowType := astmodel.DebugDescription(prop.PropertyType())
+
+			if wasType != nowType {
 				log.V(1).Info(
-					"Transforming property",
+					"Transformed property",
 					"definition", ctx,
 					"property", prop.PropertyName(),
-					"was", prop.PropertyType(),
-					"now", "astmodel.ARMID")
-				prop = makeARMIDProperty(prop)
-			} else if classification == ARMIDPropertyClassificationUnset {
-				log.V(1).Info(
-					"Transforming property",
-					"definition", ctx,
-					"property", prop.PropertyName(),
-					"was", prop.PropertyType(),
-					"now", "string")
-				prop = unsetARMIDProperty(prop)
+					"was", wasType,
+					"now", nowType,
+				)
 			}
 
 			newProps = append(newProps, prop)
@@ -216,13 +255,38 @@ func DoesPropertyLookLikeARMReference(prop *astmodel.PropertyDefinition) bool {
 	return false
 }
 
-func makeARMIDProperty(existing *astmodel.PropertyDefinition) *astmodel.PropertyDefinition {
-	return makeARMIDPropertyImpl(existing, astmodel.ARMIDType)
+// makeARMReferenceProperty modifies an existing property definition into an ARM reference property.
+func makeARMReferenceProperty(existing *astmodel.PropertyDefinition) *astmodel.PropertyDefinition {
+	return makeReferenceProperty(existing, astmodel.ARMIDType)
 }
 
-func makeARMIDPropertyImpl(existing *astmodel.PropertyDefinition, newType astmodel.Type) *astmodel.PropertyDefinition {
-	_, isSlice := astmodel.AsArrayType(existing.PropertyType())
-	_, isMap := astmodel.AsMapType(existing.PropertyType())
+// makeWellKnownARMReferenceProperty modifies an existing property definition into a well-known ARM reference property.
+func makeWellKnownARMReferenceProperty(existing *astmodel.PropertyDefinition) *astmodel.PropertyDefinition {
+	return makeReferenceProperty(existing, astmodel.ARMIDType, astmodel.WellKnownReferenceFlag)
+}
+
+// makeCompatibleARMReferenceProperty modifies an existing property definition into a ARM reference property with backward compatibility characteristics.
+func makeCompatibleARMReferenceProperty(existing *astmodel.PropertyDefinition) *astmodel.PropertyDefinition {
+	return makeReferenceProperty(existing, astmodel.ARMIDType, astmodel.CompatibleReferenceFlag)
+}
+
+// makeStringReferenceProperty modifies an existing property definition into a string reference property.
+func makeStringReferenceProperty(existing *astmodel.PropertyDefinition) *astmodel.PropertyDefinition {
+	return makeReferenceProperty(existing, astmodel.StringType)
+}
+
+// makeReferenceProperty modifies an existing property definition to use the specified type and any associated flags.
+// property is the existing property definition.
+// newType is the new type to use for the property.
+// flags is an optional set of flags to apply.
+func makeReferenceProperty(
+	property *astmodel.PropertyDefinition,
+	newType astmodel.Type,
+	flags ...astmodel.TypeFlag,
+) *astmodel.PropertyDefinition {
+	_, isSlice := astmodel.AsArrayType(property.PropertyType())
+	_, isMap := astmodel.AsMapType(property.PropertyType())
+	_, isOptional := astmodel.AsOptionalType(property.PropertyType())
 
 	var newPropType astmodel.Type
 
@@ -230,17 +294,20 @@ func makeARMIDPropertyImpl(existing *astmodel.PropertyDefinition, newType astmod
 		newPropType = astmodel.NewArrayType(newType)
 	} else if isMap {
 		newPropType = astmodel.NewMapType(astmodel.StringType, newType)
-	} else {
+	} else if isOptional {
 		newPropType = astmodel.NewOptionalType(newType)
+	} else {
+		newPropType = newType
 	}
 
-	newProp := existing.WithType(newPropType)
+	// Apply flags
+	for _, f := range flags {
+		newPropType = f.ApplyTo(newPropType)
+	}
+
+	newProp := property.WithType(newPropType)
 
 	return newProp
-}
-
-func unsetARMIDProperty(existing *astmodel.PropertyDefinition) *astmodel.PropertyDefinition {
-	return makeARMIDPropertyImpl(existing, astmodel.StringType)
 }
 
 // isTypeARMID determines if the type has an ARM ID somewhere inside of it

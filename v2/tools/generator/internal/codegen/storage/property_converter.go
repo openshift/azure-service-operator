@@ -8,7 +8,7 @@ package storage
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
@@ -62,7 +62,8 @@ func (p *PropertyConverter) ConvertProperty(property *astmodel.PropertyDefinitio
 	return nil, fmt.Errorf(
 		"failed to find a conversion for property %s (%s)",
 		property.PropertyName(),
-		astmodel.DebugDescription(property.PropertyType()))
+		astmodel.DebugDescription(property.PropertyType()),
+	)
 }
 
 // stripAllValidations removes all validations
@@ -161,13 +162,15 @@ func (p *PropertyConverter) preserveResourceReferenceProperties(
 ) (*astmodel.PropertyDefinition, error) {
 	propertyType := prop.PropertyType()
 	if opt, ok := astmodel.AsOptionalType(propertyType); ok {
-		if astmodel.TypeEquals(opt.Element(), astmodel.ResourceReferenceType) {
+		if astmodel.TypeEquals(opt.Element(), astmodel.ResourceReferenceType) ||
+			astmodel.TypeEquals(opt.Element(), astmodel.WellKnownResourceReferenceType) {
 			// Keep these unchanged
 			return prop, nil
 		}
 	}
 
-	if astmodel.TypeEquals(propertyType, astmodel.ResourceReferenceType) {
+	if astmodel.TypeEquals(propertyType, astmodel.ResourceReferenceType) ||
+		astmodel.TypeEquals(propertyType, astmodel.WellKnownResourceReferenceType) {
 		// Keep these unchanged
 		return prop, nil
 	}
@@ -181,7 +184,7 @@ func (p *PropertyConverter) defaultPropertyConversion(
 ) (*astmodel.PropertyDefinition, error) {
 	propertyType, err := p.visitor.Visit(property.PropertyType(), nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "converting property %q", property.PropertyName())
+		return nil, eris.Wrapf(err, "converting property %q", property.PropertyName())
 	}
 
 	newProperty := property.WithType(propertyType).

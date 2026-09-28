@@ -5,7 +5,7 @@ package vcurrent
 
 import (
 	vnext "github.com/Azure/azure-service-operator/testing/verification/vnext"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 )
 
 type Person struct {
@@ -19,12 +19,10 @@ func (person *Person) AssignProperties_From_Person(source *vnext.Person) error {
 	if source.Keys != nil {
 		keyMap := make(map[string]Release, len(source.Keys))
 		for key, keyValue := range source.Keys {
-			// Shadow the loop variable to avoid aliasing
-			keyValue := keyValue
 			var keyLocal Release
 			err := keyLocal.AssignProperties_From_Release(&keyValue)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Release() to populate field Keys")
+				return eris.Wrap(err, "calling AssignProperties_From_Release() to populate field Keys")
 			}
 			keyMap[key] = keyLocal
 		}
@@ -44,12 +42,10 @@ func (person *Person) AssignProperties_To_Person(destination *vnext.Person) erro
 	if person.Keys != nil {
 		keyMap := make(map[string]vnext.Release, len(person.Keys))
 		for key, keyValue := range person.Keys {
-			// Shadow the loop variable to avoid aliasing
-			keyValue := keyValue
 			var keyLocal vnext.Release
 			err := keyValue.AssignProperties_To_Release(&keyLocal)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Release() to populate field Keys")
+				return eris.Wrap(err, "calling AssignProperties_To_Release() to populate field Keys")
 			}
 			keyMap[key] = keyLocal
 		}

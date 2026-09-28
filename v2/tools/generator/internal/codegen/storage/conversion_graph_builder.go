@@ -6,7 +6,7 @@
 package storage
 
 import (
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -16,18 +16,15 @@ import (
 // the storage variants of the packages. It uses a separate GroupConversionGraphBuilder for each distinct group
 type ConversionGraphBuilder struct {
 	configuration *config.ObjectModelConfiguration
-	versionPrefix string
 	subBuilders   map[string]*GroupConversionGraphBuilder
 }
 
 // NewConversionGraphBuilder creates a new builder for all our required conversion graphs
 func NewConversionGraphBuilder(
 	configuration *config.ObjectModelConfiguration,
-	versionPrefix string,
 ) *ConversionGraphBuilder {
 	return &ConversionGraphBuilder{
 		configuration: configuration,
-		versionPrefix: versionPrefix,
 		subBuilders:   make(map[string]*GroupConversionGraphBuilder),
 	}
 }
@@ -53,7 +50,7 @@ func (b *ConversionGraphBuilder) Build() (*ConversionGraph, error) {
 	for group, builder := range b.subBuilders {
 		subgraph, err := builder.Build()
 		if err != nil {
-			return nil, errors.Wrapf(err, "building subgraph for group %s", group)
+			return nil, eris.Wrapf(err, "building subgraph for group %s", group)
 		}
 
 		subgraphs[group] = subgraph
@@ -73,7 +70,7 @@ func (b *ConversionGraphBuilder) getSubBuilder(name astmodel.InternalTypeName) *
 	group := name.InternalPackageReference().Group()
 	subBuilder, ok := b.subBuilders[group]
 	if !ok {
-		subBuilder = NewGroupConversionGraphBuilder(group, b.configuration, b.versionPrefix)
+		subBuilder = NewGroupConversionGraphBuilder(group, b.configuration)
 		b.subBuilders[group] = subBuilder
 	}
 

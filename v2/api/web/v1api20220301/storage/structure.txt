@@ -3,9 +3,10 @@ github.com/Azure/azure-service-operator/v2/api/web/v1api20220301/storage
 ------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2022-03-01"
+
 ServerFarm: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
-├── Spec: Object (24 properties)
+├── Spec: Object (25 properties)
 │   ├── AzureName: string
 │   ├── ElasticScaleEnabled: *bool
 │   ├── ExtendedLocation: *Object (2 properties)
@@ -24,6 +25,10 @@ ServerFarm: Resource
 │   │   └── Reference: *genruntime.ResourceReference
 │   ├── Location: *string
 │   ├── MaximumElasticWorkerCount: *int
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PerSiteScaling: *bool
@@ -119,9 +124,10 @@ ServerFarm: Resource
     ├── Type: *string
     ├── WorkerTierName: *string
     └── ZoneRedundant: *bool
+
 Site: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
-├── Spec: Object (36 properties)
+├── Spec: Object (37 properties)
 │   ├── AzureName: string
 │   ├── ClientAffinityEnabled: *bool
 │   ├── ClientCertEnabled: *bool
@@ -171,6 +177,10 @@ Site: Resource
 │   ├── KeyVaultReferenceIdentity: *string
 │   ├── Kind: *string
 │   ├── Location: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -661,3 +671,234 @@ Site: Resource
     ├── VnetContentShareEnabled: *bool
     ├── VnetImagePullEnabled: *bool
     └── VnetRouteAllEnabled: *bool
+
+SitesSourcecontrol: Resource
+├── Owner: web/v1api20220301.Site
+├── Spec: Object (12 properties)
+│   ├── Branch: *string
+│   ├── DeploymentRollbackEnabled: *bool
+│   ├── GitHubActionConfiguration: *Object (5 properties)
+│   │   ├── CodeConfiguration: *Object (3 properties)
+│   │   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   │   ├── RuntimeStack: *string
+│   │   │   └── RuntimeVersion: *string
+│   │   ├── ContainerConfiguration: *Object (5 properties)
+│   │   │   ├── ImageName: *string
+│   │   │   ├── Password: *genruntime.SecretReference
+│   │   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   │   ├── ServerUrl: *string
+│   │   │   └── Username: *string
+│   │   ├── GenerateWorkflowFile: *bool
+│   │   ├── IsLinux: *bool
+│   │   └── PropertyBag: genruntime.PropertyBag
+│   ├── IsGitHubAction: *bool
+│   ├── IsManualIntegration: *bool
+│   ├── IsMercurial: *bool
+│   ├── Kind: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
+│   ├── OriginalVersion: string
+│   ├── Owner: *genruntime.KnownResourceReference
+│   ├── PropertyBag: genruntime.PropertyBag
+│   └── RepoUrl: *string
+└── Status: Object (13 properties)
+    ├── Branch: *string
+    ├── Conditions: conditions.Condition[]
+    ├── DeploymentRollbackEnabled: *bool
+    ├── GitHubActionConfiguration: *Object (5 properties)
+    │   ├── CodeConfiguration: *Object (3 properties)
+    │   │   ├── PropertyBag: genruntime.PropertyBag
+    │   │   ├── RuntimeStack: *string
+    │   │   └── RuntimeVersion: *string
+    │   ├── ContainerConfiguration: *Object (4 properties)
+    │   │   ├── ImageName: *string
+    │   │   ├── PropertyBag: genruntime.PropertyBag
+    │   │   ├── ServerUrl: *string
+    │   │   └── Username: *string
+    │   ├── GenerateWorkflowFile: *bool
+    │   ├── IsLinux: *bool
+    │   └── PropertyBag: genruntime.PropertyBag
+    ├── Id: *string
+    ├── IsGitHubAction: *bool
+    ├── IsManualIntegration: *bool
+    ├── IsMercurial: *bool
+    ├── Kind: *string
+    ├── Name: *string
+    ├── PropertyBag: genruntime.PropertyBag
+    ├── RepoUrl: *string
+    └── Type: *string
+
+augmentConversionForApiDefinitionInfo: Interface
+
+augmentConversionForApiDefinitionInfo_STATUS: Interface
+
+augmentConversionForApiManagementConfig: Interface
+
+augmentConversionForApiManagementConfig_STATUS: Interface
+
+augmentConversionForAutoHealActions: Interface
+
+augmentConversionForAutoHealActions_STATUS: Interface
+
+augmentConversionForAutoHealCustomAction: Interface
+
+augmentConversionForAutoHealCustomAction_STATUS: Interface
+
+augmentConversionForAutoHealRules: Interface
+
+augmentConversionForAutoHealRules_STATUS: Interface
+
+augmentConversionForAutoHealTriggers: Interface
+
+augmentConversionForAutoHealTriggers_STATUS: Interface
+
+augmentConversionForAzureStorageInfoValue: Interface
+
+augmentConversionForAzureStorageInfoValue_STATUS: Interface
+
+augmentConversionForCapability: Interface
+
+augmentConversionForCapability_STATUS: Interface
+
+augmentConversionForCloningInfo: Interface
+
+augmentConversionForCloningInfo_STATUS: Interface
+
+augmentConversionForConnStringInfo: Interface
+
+augmentConversionForConnStringInfo_STATUS: Interface
+
+augmentConversionForCorsSettings: Interface
+
+augmentConversionForCorsSettings_STATUS: Interface
+
+augmentConversionForExperiments: Interface
+
+augmentConversionForExperiments_STATUS: Interface
+
+augmentConversionForExtendedLocation: Interface
+
+augmentConversionForExtendedLocation_STATUS: Interface
+
+augmentConversionForGitHubActionCodeConfiguration: Interface
+
+augmentConversionForGitHubActionCodeConfiguration_STATUS: Interface
+
+augmentConversionForGitHubActionConfiguration: Interface
+
+augmentConversionForGitHubActionConfiguration_STATUS: Interface
+
+augmentConversionForGitHubActionContainerConfiguration: Interface
+
+augmentConversionForGitHubActionContainerConfiguration_STATUS: Interface
+
+augmentConversionForHandlerMapping: Interface
+
+augmentConversionForHandlerMapping_STATUS: Interface
+
+augmentConversionForHostNameSslState: Interface
+
+augmentConversionForHostNameSslState_STATUS: Interface
+
+augmentConversionForHostingEnvironmentProfile: Interface
+
+augmentConversionForHostingEnvironmentProfile_STATUS: Interface
+
+augmentConversionForIpSecurityRestriction: Interface
+
+augmentConversionForIpSecurityRestriction_STATUS: Interface
+
+augmentConversionForKubeEnvironmentProfile: Interface
+
+augmentConversionForKubeEnvironmentProfile_STATUS: Interface
+
+augmentConversionForManagedServiceIdentity: Interface
+
+augmentConversionForManagedServiceIdentity_STATUS: Interface
+
+augmentConversionForNameValuePair: Interface
+
+augmentConversionForNameValuePair_STATUS: Interface
+
+augmentConversionForPushSettings: Interface
+
+augmentConversionForPushSettings_STATUS: Interface
+
+augmentConversionForRampUpRule: Interface
+
+augmentConversionForRampUpRule_STATUS: Interface
+
+augmentConversionForRequestsBasedTrigger: Interface
+
+augmentConversionForRequestsBasedTrigger_STATUS: Interface
+
+augmentConversionForServerFarm: Interface
+
+augmentConversionForServerFarmOperatorSpec: Interface
+
+augmentConversionForServerFarm_STATUS: Interface
+
+augmentConversionForServerFarm_Spec: Interface
+
+augmentConversionForSite: Interface
+
+augmentConversionForSiteConfig: Interface
+
+augmentConversionForSiteConfig_STATUS: Interface
+
+augmentConversionForSiteLimits: Interface
+
+augmentConversionForSiteLimits_STATUS: Interface
+
+augmentConversionForSiteMachineKey_STATUS: Interface
+
+augmentConversionForSiteOperatorSpec: Interface
+
+augmentConversionForSite_STATUS: Interface
+
+augmentConversionForSite_Spec: Interface
+
+augmentConversionForSitesSourcecontrol: Interface
+
+augmentConversionForSitesSourcecontrolOperatorSpec: Interface
+
+augmentConversionForSitesSourcecontrol_STATUS: Interface
+
+augmentConversionForSitesSourcecontrol_Spec: Interface
+
+augmentConversionForSkuCapacity: Interface
+
+augmentConversionForSkuCapacity_STATUS: Interface
+
+augmentConversionForSkuDescription: Interface
+
+augmentConversionForSkuDescription_STATUS: Interface
+
+augmentConversionForSlotSwapStatus_STATUS: Interface
+
+augmentConversionForSlowRequestsBasedTrigger: Interface
+
+augmentConversionForSlowRequestsBasedTrigger_STATUS: Interface
+
+augmentConversionForStatusCodesBasedTrigger: Interface
+
+augmentConversionForStatusCodesBasedTrigger_STATUS: Interface
+
+augmentConversionForStatusCodesRangeBasedTrigger: Interface
+
+augmentConversionForStatusCodesRangeBasedTrigger_STATUS: Interface
+
+augmentConversionForUserAssignedIdentityDetails: Interface
+
+augmentConversionForUserAssignedIdentity_STATUS: Interface
+
+augmentConversionForVirtualApplication: Interface
+
+augmentConversionForVirtualApplication_STATUS: Interface
+
+augmentConversionForVirtualDirectory: Interface
+
+augmentConversionForVirtualDirectory_STATUS: Interface
+

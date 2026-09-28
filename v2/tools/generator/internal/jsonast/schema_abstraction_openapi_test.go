@@ -10,9 +10,10 @@ import (
 	"runtime"
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/go-logr/logr"
 	"github.com/go-openapi/spec"
-	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
@@ -56,7 +57,8 @@ func Test_CanExtractTypeNameFromSameFile(t *testing.T) {
 		schemaPackage,
 		astmodel.NewIdentifierFactory(),
 		loader,
-		logr.Discard())
+		logr.Discard(),
+	)
 
 	typeName, err := wrappedSchema.refTypeName()
 	g.Expect(err).ToNot(HaveOccurred())
@@ -106,7 +108,8 @@ func Test_CanExtractTypeNameFromDifferentFile_AndInheritPackage(t *testing.T) {
 		schemaPackage,
 		astmodel.NewIdentifierFactory(),
 		loader,
-		logr.Discard())
+		logr.Discard(),
+	)
 
 	typeName, err := wrappedSchema.refTypeName()
 	g.Expect(err).ToNot(HaveOccurred())
@@ -158,7 +161,8 @@ func Test_CanExtractTypeNameFromDifferentFile_AndUsePresetPackage(t *testing.T) 
 		schemaPackage,
 		astmodel.NewIdentifierFactory(),
 		loader,
-		logr.Discard())
+		logr.Discard(),
+	)
 
 	typeName, err := wrappedSchema.refTypeName()
 	g.Expect(err).ToNot(HaveOccurred())
@@ -208,7 +212,8 @@ func Test_GeneratingCollidingTypeNamesReturnsError(t *testing.T) {
 		schemaPackage,
 		astmodel.NewIdentifierFactory(),
 		loader,
-		logr.Discard())
+		logr.Discard(),
+	)
 
 	_, err := wrappedSchema.refTypeName()
 	g.Expect(err).To(HaveOccurred())
@@ -277,7 +282,8 @@ func Test_GeneratingCollidingTypeNamesWithSiblingFilesReturnsError(t *testing.T)
 		schemaPackage,
 		astmodel.NewIdentifierFactory(),
 		loader,
-		logr.Discard())
+		logr.Discard(),
+	)
 
 	_, err := wrappedSchema.refTypeName()
 	g.Expect(err).To(HaveOccurred())

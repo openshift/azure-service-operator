@@ -4,17 +4,20 @@
 package storage
 
 import (
-	"fmt"
 	storage "github.com/Azure/azure-service-operator/v2/api/servicebus/v1api20211101/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,servicebus}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
@@ -22,7 +25,7 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20221001preview.Namespace
 // Generator information:
-// - Generated from: /servicebus/resource-manager/Microsoft.ServiceBus/preview/2022-10-01-preview/namespace-preview.json
+// - Generated from: /servicebus/resource-manager/Microsoft.ServiceBus/ServiceBus/preview/2022-10-01-preview/namespace-preview.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ServiceBus/namespaces/{namespaceName}
 type Namespace struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -47,22 +50,56 @@ var _ conversion.Convertible = &Namespace{}
 
 // ConvertFrom populates our Namespace from the provided hub Namespace
 func (namespace *Namespace) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.Namespace)
-	if !ok {
-		return fmt.Errorf("expected servicebus/v1api20211101/storage/Namespace but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.Namespace
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return namespace.AssignProperties_From_Namespace(source)
+	err = namespace.AssignProperties_From_Namespace(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to namespace")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub Namespace from our Namespace
 func (namespace *Namespace) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.Namespace)
-	if !ok {
-		return fmt.Errorf("expected servicebus/v1api20211101/storage/Namespace but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.Namespace
+	err := namespace.AssignProperties_To_Namespace(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from namespace")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return namespace.AssignProperties_To_Namespace(destination)
+	return nil
+}
+
+var _ configmaps.Exporter = &Namespace{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (namespace *Namespace) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if namespace.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return namespace.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &Namespace{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (namespace *Namespace) SecretDestinationExpressions() []*core.DestinationExpression {
+	if namespace.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return namespace.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &Namespace{}
@@ -74,7 +111,7 @@ func (namespace *Namespace) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-10-01-preview"
 func (namespace Namespace) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-10-01-preview"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -113,6 +150,10 @@ func (namespace *Namespace) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (namespace *Namespace) Owner() *genruntime.ResourceReference {
+	if namespace.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(namespace.Spec)
 	return namespace.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -129,7 +170,7 @@ func (namespace *Namespace) SetStatus(status genruntime.ConvertibleStatus) error
 	var st Namespace_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	namespace.Status = st
@@ -146,7 +187,7 @@ func (namespace *Namespace) AssignProperties_From_Namespace(source *storage.Name
 	var spec Namespace_Spec
 	err := spec.AssignProperties_From_Namespace_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Namespace_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_Namespace_Spec() to populate field Spec")
 	}
 	namespace.Spec = spec
 
@@ -154,7 +195,7 @@ func (namespace *Namespace) AssignProperties_From_Namespace(source *storage.Name
 	var status Namespace_STATUS
 	err = status.AssignProperties_From_Namespace_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Namespace_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_Namespace_STATUS() to populate field Status")
 	}
 	namespace.Status = status
 
@@ -163,7 +204,7 @@ func (namespace *Namespace) AssignProperties_From_Namespace(source *storage.Name
 	if augmentedNamespace, ok := namespaceAsAny.(augmentConversionForNamespace); ok {
 		err := augmentedNamespace.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -181,7 +222,7 @@ func (namespace *Namespace) AssignProperties_To_Namespace(destination *storage.N
 	var spec storage.Namespace_Spec
 	err := namespace.Spec.AssignProperties_To_Namespace_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Namespace_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_Namespace_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
@@ -189,7 +230,7 @@ func (namespace *Namespace) AssignProperties_To_Namespace(destination *storage.N
 	var status storage.Namespace_STATUS
 	err = namespace.Status.AssignProperties_To_Namespace_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Namespace_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_Namespace_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -198,7 +239,7 @@ func (namespace *Namespace) AssignProperties_To_Namespace(destination *storage.N
 	if augmentedNamespace, ok := namespaceAsAny.(augmentConversionForNamespace); ok {
 		err := augmentedNamespace.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -218,7 +259,7 @@ func (namespace *Namespace) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20221001preview.Namespace
 // Generator information:
-// - Generated from: /servicebus/resource-manager/Microsoft.ServiceBus/preview/2022-10-01-preview/namespace-preview.json
+// - Generated from: /servicebus/resource-manager/Microsoft.ServiceBus/ServiceBus/preview/2022-10-01-preview/namespace-preview.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ServiceBus/namespaces/{namespaceName}
 type NamespaceList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -279,13 +320,13 @@ func (namespace *Namespace_Spec) ConvertSpecFrom(source genruntime.ConvertibleSp
 	src = &storage.Namespace_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
 	err = namespace.AssignProperties_From_Namespace_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
@@ -303,13 +344,13 @@ func (namespace *Namespace_Spec) ConvertSpecTo(destination genruntime.Convertibl
 	dst = &storage.Namespace_Spec{}
 	err := namespace.AssignProperties_To_Namespace_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
@@ -339,7 +380,7 @@ func (namespace *Namespace_Spec) AssignProperties_From_Namespace_Spec(source *st
 		var encryption Encryption
 		err := encryption.AssignProperties_From_Encryption(source.Encryption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Encryption() to populate field Encryption")
+			return eris.Wrap(err, "calling AssignProperties_From_Encryption() to populate field Encryption")
 		}
 		namespace.Encryption = &encryption
 	} else {
@@ -351,7 +392,7 @@ func (namespace *Namespace_Spec) AssignProperties_From_Namespace_Spec(source *st
 		var identity Identity
 		err := identity.AssignProperties_From_Identity(source.Identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Identity() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_From_Identity() to populate field Identity")
 		}
 		namespace.Identity = &identity
 	} else {
@@ -366,7 +407,7 @@ func (namespace *Namespace_Spec) AssignProperties_From_Namespace_Spec(source *st
 		var minimumTlsVersion string
 		err := propertyBag.Pull("MinimumTlsVersion", &minimumTlsVersion)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'MinimumTlsVersion' from propertyBag")
+			return eris.Wrap(err, "pulling 'MinimumTlsVersion' from propertyBag")
 		}
 
 		namespace.MinimumTlsVersion = &minimumTlsVersion
@@ -379,7 +420,7 @@ func (namespace *Namespace_Spec) AssignProperties_From_Namespace_Spec(source *st
 		var operatorSpec NamespaceOperatorSpec
 		err := operatorSpec.AssignProperties_From_NamespaceOperatorSpec(source.OperatorSpec)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_NamespaceOperatorSpec() to populate field OperatorSpec")
+			return eris.Wrap(err, "calling AssignProperties_From_NamespaceOperatorSpec() to populate field OperatorSpec")
 		}
 		namespace.OperatorSpec = &operatorSpec
 	} else {
@@ -402,7 +443,7 @@ func (namespace *Namespace_Spec) AssignProperties_From_Namespace_Spec(source *st
 		var premiumMessagingPartition int
 		err := propertyBag.Pull("PremiumMessagingPartitions", &premiumMessagingPartition)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'PremiumMessagingPartitions' from propertyBag")
+			return eris.Wrap(err, "pulling 'PremiumMessagingPartitions' from propertyBag")
 		}
 
 		namespace.PremiumMessagingPartitions = &premiumMessagingPartition
@@ -415,7 +456,7 @@ func (namespace *Namespace_Spec) AssignProperties_From_Namespace_Spec(source *st
 		var publicNetworkAccess string
 		err := propertyBag.Pull("PublicNetworkAccess", &publicNetworkAccess)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'PublicNetworkAccess' from propertyBag")
+			return eris.Wrap(err, "pulling 'PublicNetworkAccess' from propertyBag")
 		}
 
 		namespace.PublicNetworkAccess = &publicNetworkAccess
@@ -428,7 +469,7 @@ func (namespace *Namespace_Spec) AssignProperties_From_Namespace_Spec(source *st
 		var sku SBSku
 		err := sku.AssignProperties_From_SBSku(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SBSku() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_SBSku() to populate field Sku")
 		}
 		namespace.Sku = &sku
 	} else {
@@ -458,7 +499,7 @@ func (namespace *Namespace_Spec) AssignProperties_From_Namespace_Spec(source *st
 	if augmentedNamespace, ok := namespaceAsAny.(augmentConversionForNamespace_Spec); ok {
 		err := augmentedNamespace.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -490,7 +531,7 @@ func (namespace *Namespace_Spec) AssignProperties_To_Namespace_Spec(destination 
 		var encryption storage.Encryption
 		err := namespace.Encryption.AssignProperties_To_Encryption(&encryption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Encryption() to populate field Encryption")
+			return eris.Wrap(err, "calling AssignProperties_To_Encryption() to populate field Encryption")
 		}
 		destination.Encryption = &encryption
 	} else {
@@ -502,7 +543,7 @@ func (namespace *Namespace_Spec) AssignProperties_To_Namespace_Spec(destination 
 		var identity storage.Identity
 		err := namespace.Identity.AssignProperties_To_Identity(&identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Identity() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_To_Identity() to populate field Identity")
 		}
 		destination.Identity = &identity
 	} else {
@@ -524,7 +565,7 @@ func (namespace *Namespace_Spec) AssignProperties_To_Namespace_Spec(destination 
 		var operatorSpec storage.NamespaceOperatorSpec
 		err := namespace.OperatorSpec.AssignProperties_To_NamespaceOperatorSpec(&operatorSpec)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_NamespaceOperatorSpec() to populate field OperatorSpec")
+			return eris.Wrap(err, "calling AssignProperties_To_NamespaceOperatorSpec() to populate field OperatorSpec")
 		}
 		destination.OperatorSpec = &operatorSpec
 	} else {
@@ -561,7 +602,7 @@ func (namespace *Namespace_Spec) AssignProperties_To_Namespace_Spec(destination 
 		var sku storage.SBSku
 		err := namespace.Sku.AssignProperties_To_SBSku(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SBSku() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_SBSku() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -591,7 +632,7 @@ func (namespace *Namespace_Spec) AssignProperties_To_Namespace_Spec(destination 
 	if augmentedNamespace, ok := namespaceAsAny.(augmentConversionForNamespace_Spec); ok {
 		err := augmentedNamespace.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -641,13 +682,13 @@ func (namespace *Namespace_STATUS) ConvertStatusFrom(source genruntime.Convertib
 	src = &storage.Namespace_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
 	err = namespace.AssignProperties_From_Namespace_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
@@ -665,13 +706,13 @@ func (namespace *Namespace_STATUS) ConvertStatusTo(destination genruntime.Conver
 	dst = &storage.Namespace_STATUS{}
 	err := namespace.AssignProperties_To_Namespace_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
@@ -704,7 +745,7 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 		var encryption Encryption_STATUS
 		err := encryption.AssignProperties_From_Encryption_STATUS(source.Encryption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Encryption_STATUS() to populate field Encryption")
+			return eris.Wrap(err, "calling AssignProperties_From_Encryption_STATUS() to populate field Encryption")
 		}
 		namespace.Encryption = &encryption
 	} else {
@@ -719,7 +760,7 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 		var identity Identity_STATUS
 		err := identity.AssignProperties_From_Identity_STATUS(source.Identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Identity_STATUS() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_From_Identity_STATUS() to populate field Identity")
 		}
 		namespace.Identity = &identity
 	} else {
@@ -737,7 +778,7 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 		var minimumTlsVersion string
 		err := propertyBag.Pull("MinimumTlsVersion", &minimumTlsVersion)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'MinimumTlsVersion' from propertyBag")
+			return eris.Wrap(err, "pulling 'MinimumTlsVersion' from propertyBag")
 		}
 
 		namespace.MinimumTlsVersion = &minimumTlsVersion
@@ -753,7 +794,7 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 		var premiumMessagingPartition int
 		err := propertyBag.Pull("PremiumMessagingPartitions", &premiumMessagingPartition)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'PremiumMessagingPartitions' from propertyBag")
+			return eris.Wrap(err, "pulling 'PremiumMessagingPartitions' from propertyBag")
 		}
 
 		namespace.PremiumMessagingPartitions = &premiumMessagingPartition
@@ -765,12 +806,10 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 	if source.PrivateEndpointConnections != nil {
 		privateEndpointConnectionList := make([]PrivateEndpointConnection_STATUS, len(source.PrivateEndpointConnections))
 		for privateEndpointConnectionIndex, privateEndpointConnectionItem := range source.PrivateEndpointConnections {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointConnectionItem := privateEndpointConnectionItem
 			var privateEndpointConnection PrivateEndpointConnection_STATUS
 			err := privateEndpointConnection.AssignProperties_From_PrivateEndpointConnection_STATUS(&privateEndpointConnectionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
+				return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
 			}
 			privateEndpointConnectionList[privateEndpointConnectionIndex] = privateEndpointConnection
 		}
@@ -787,7 +826,7 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 		var publicNetworkAccess string
 		err := propertyBag.Pull("PublicNetworkAccess", &publicNetworkAccess)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'PublicNetworkAccess' from propertyBag")
+			return eris.Wrap(err, "pulling 'PublicNetworkAccess' from propertyBag")
 		}
 
 		namespace.PublicNetworkAccess = &publicNetworkAccess
@@ -803,7 +842,7 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 		var sku SBSku_STATUS
 		err := sku.AssignProperties_From_SBSku_STATUS(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SBSku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_SBSku_STATUS() to populate field Sku")
 		}
 		namespace.Sku = &sku
 	} else {
@@ -818,7 +857,7 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 		var systemDatum SystemData_STATUS
 		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
 		}
 		namespace.SystemData = &systemDatum
 	} else {
@@ -854,7 +893,7 @@ func (namespace *Namespace_STATUS) AssignProperties_From_Namespace_STATUS(source
 	if augmentedNamespace, ok := namespaceAsAny.(augmentConversionForNamespace_STATUS); ok {
 		err := augmentedNamespace.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -889,7 +928,7 @@ func (namespace *Namespace_STATUS) AssignProperties_To_Namespace_STATUS(destinat
 		var encryption storage.Encryption_STATUS
 		err := namespace.Encryption.AssignProperties_To_Encryption_STATUS(&encryption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Encryption_STATUS() to populate field Encryption")
+			return eris.Wrap(err, "calling AssignProperties_To_Encryption_STATUS() to populate field Encryption")
 		}
 		destination.Encryption = &encryption
 	} else {
@@ -904,7 +943,7 @@ func (namespace *Namespace_STATUS) AssignProperties_To_Namespace_STATUS(destinat
 		var identity storage.Identity_STATUS
 		err := namespace.Identity.AssignProperties_To_Identity_STATUS(&identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Identity_STATUS() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_To_Identity_STATUS() to populate field Identity")
 		}
 		destination.Identity = &identity
 	} else {
@@ -938,12 +977,10 @@ func (namespace *Namespace_STATUS) AssignProperties_To_Namespace_STATUS(destinat
 	if namespace.PrivateEndpointConnections != nil {
 		privateEndpointConnectionList := make([]storage.PrivateEndpointConnection_STATUS, len(namespace.PrivateEndpointConnections))
 		for privateEndpointConnectionIndex, privateEndpointConnectionItem := range namespace.PrivateEndpointConnections {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointConnectionItem := privateEndpointConnectionItem
 			var privateEndpointConnection storage.PrivateEndpointConnection_STATUS
 			err := privateEndpointConnectionItem.AssignProperties_To_PrivateEndpointConnection_STATUS(&privateEndpointConnection)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
+				return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
 			}
 			privateEndpointConnectionList[privateEndpointConnectionIndex] = privateEndpointConnection
 		}
@@ -970,7 +1007,7 @@ func (namespace *Namespace_STATUS) AssignProperties_To_Namespace_STATUS(destinat
 		var sku storage.SBSku_STATUS
 		err := namespace.Sku.AssignProperties_To_SBSku_STATUS(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SBSku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_SBSku_STATUS() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -985,7 +1022,7 @@ func (namespace *Namespace_STATUS) AssignProperties_To_Namespace_STATUS(destinat
 		var systemDatum storage.SystemData_STATUS
 		err := namespace.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
 		}
 		destination.SystemData = &systemDatum
 	} else {
@@ -1021,7 +1058,7 @@ func (namespace *Namespace_STATUS) AssignProperties_To_Namespace_STATUS(destinat
 	if augmentedNamespace, ok := namespaceAsAny.(augmentConversionForNamespace_STATUS); ok {
 		err := augmentedNamespace.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1060,12 +1097,10 @@ func (encryption *Encryption) AssignProperties_From_Encryption(source *storage.E
 	if source.KeyVaultProperties != nil {
 		keyVaultPropertyList := make([]KeyVaultProperties, len(source.KeyVaultProperties))
 		for keyVaultPropertyIndex, keyVaultPropertyItem := range source.KeyVaultProperties {
-			// Shadow the loop variable to avoid aliasing
-			keyVaultPropertyItem := keyVaultPropertyItem
 			var keyVaultProperty KeyVaultProperties
 			err := keyVaultProperty.AssignProperties_From_KeyVaultProperties(&keyVaultPropertyItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_KeyVaultProperties() to populate field KeyVaultProperties")
+				return eris.Wrap(err, "calling AssignProperties_From_KeyVaultProperties() to populate field KeyVaultProperties")
 			}
 			keyVaultPropertyList[keyVaultPropertyIndex] = keyVaultProperty
 		}
@@ -1094,7 +1129,7 @@ func (encryption *Encryption) AssignProperties_From_Encryption(source *storage.E
 	if augmentedEncryption, ok := encryptionAsAny.(augmentConversionForEncryption); ok {
 		err := augmentedEncryption.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1114,12 +1149,10 @@ func (encryption *Encryption) AssignProperties_To_Encryption(destination *storag
 	if encryption.KeyVaultProperties != nil {
 		keyVaultPropertyList := make([]storage.KeyVaultProperties, len(encryption.KeyVaultProperties))
 		for keyVaultPropertyIndex, keyVaultPropertyItem := range encryption.KeyVaultProperties {
-			// Shadow the loop variable to avoid aliasing
-			keyVaultPropertyItem := keyVaultPropertyItem
 			var keyVaultProperty storage.KeyVaultProperties
 			err := keyVaultPropertyItem.AssignProperties_To_KeyVaultProperties(&keyVaultProperty)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_KeyVaultProperties() to populate field KeyVaultProperties")
+				return eris.Wrap(err, "calling AssignProperties_To_KeyVaultProperties() to populate field KeyVaultProperties")
 			}
 			keyVaultPropertyList[keyVaultPropertyIndex] = keyVaultProperty
 		}
@@ -1148,7 +1181,7 @@ func (encryption *Encryption) AssignProperties_To_Encryption(destination *storag
 	if augmentedEncryption, ok := encryptionAsAny.(augmentConversionForEncryption); ok {
 		err := augmentedEncryption.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1177,12 +1210,10 @@ func (encryption *Encryption_STATUS) AssignProperties_From_Encryption_STATUS(sou
 	if source.KeyVaultProperties != nil {
 		keyVaultPropertyList := make([]KeyVaultProperties_STATUS, len(source.KeyVaultProperties))
 		for keyVaultPropertyIndex, keyVaultPropertyItem := range source.KeyVaultProperties {
-			// Shadow the loop variable to avoid aliasing
-			keyVaultPropertyItem := keyVaultPropertyItem
 			var keyVaultProperty KeyVaultProperties_STATUS
 			err := keyVaultProperty.AssignProperties_From_KeyVaultProperties_STATUS(&keyVaultPropertyItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_KeyVaultProperties_STATUS() to populate field KeyVaultProperties")
+				return eris.Wrap(err, "calling AssignProperties_From_KeyVaultProperties_STATUS() to populate field KeyVaultProperties")
 			}
 			keyVaultPropertyList[keyVaultPropertyIndex] = keyVaultProperty
 		}
@@ -1211,7 +1242,7 @@ func (encryption *Encryption_STATUS) AssignProperties_From_Encryption_STATUS(sou
 	if augmentedEncryption, ok := encryptionAsAny.(augmentConversionForEncryption_STATUS); ok {
 		err := augmentedEncryption.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1231,12 +1262,10 @@ func (encryption *Encryption_STATUS) AssignProperties_To_Encryption_STATUS(desti
 	if encryption.KeyVaultProperties != nil {
 		keyVaultPropertyList := make([]storage.KeyVaultProperties_STATUS, len(encryption.KeyVaultProperties))
 		for keyVaultPropertyIndex, keyVaultPropertyItem := range encryption.KeyVaultProperties {
-			// Shadow the loop variable to avoid aliasing
-			keyVaultPropertyItem := keyVaultPropertyItem
 			var keyVaultProperty storage.KeyVaultProperties_STATUS
 			err := keyVaultPropertyItem.AssignProperties_To_KeyVaultProperties_STATUS(&keyVaultProperty)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_KeyVaultProperties_STATUS() to populate field KeyVaultProperties")
+				return eris.Wrap(err, "calling AssignProperties_To_KeyVaultProperties_STATUS() to populate field KeyVaultProperties")
 			}
 			keyVaultPropertyList[keyVaultPropertyIndex] = keyVaultProperty
 		}
@@ -1265,7 +1294,7 @@ func (encryption *Encryption_STATUS) AssignProperties_To_Encryption_STATUS(desti
 	if augmentedEncryption, ok := encryptionAsAny.(augmentConversionForEncryption_STATUS); ok {
 		err := augmentedEncryption.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1293,12 +1322,10 @@ func (identity *Identity) AssignProperties_From_Identity(source *storage.Identit
 	if source.UserAssignedIdentities != nil {
 		userAssignedIdentityList := make([]UserAssignedIdentityDetails, len(source.UserAssignedIdentities))
 		for userAssignedIdentityIndex, userAssignedIdentityItem := range source.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityItem := userAssignedIdentityItem
 			var userAssignedIdentity UserAssignedIdentityDetails
 			err := userAssignedIdentity.AssignProperties_From_UserAssignedIdentityDetails(&userAssignedIdentityItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityList[userAssignedIdentityIndex] = userAssignedIdentity
 		}
@@ -1319,7 +1346,7 @@ func (identity *Identity) AssignProperties_From_Identity(source *storage.Identit
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForIdentity); ok {
 		err := augmentedIdentity.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1339,12 +1366,10 @@ func (identity *Identity) AssignProperties_To_Identity(destination *storage.Iden
 	if identity.UserAssignedIdentities != nil {
 		userAssignedIdentityList := make([]storage.UserAssignedIdentityDetails, len(identity.UserAssignedIdentities))
 		for userAssignedIdentityIndex, userAssignedIdentityItem := range identity.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityItem := userAssignedIdentityItem
 			var userAssignedIdentity storage.UserAssignedIdentityDetails
 			err := userAssignedIdentityItem.AssignProperties_To_UserAssignedIdentityDetails(&userAssignedIdentity)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityList[userAssignedIdentityIndex] = userAssignedIdentity
 		}
@@ -1365,7 +1390,7 @@ func (identity *Identity) AssignProperties_To_Identity(destination *storage.Iden
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForIdentity); ok {
 		err := augmentedIdentity.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1401,12 +1426,10 @@ func (identity *Identity_STATUS) AssignProperties_From_Identity_STATUS(source *s
 	if source.UserAssignedIdentities != nil {
 		userAssignedIdentityMap := make(map[string]UserAssignedIdentity_STATUS, len(source.UserAssignedIdentities))
 		for userAssignedIdentityKey, userAssignedIdentityValue := range source.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityValue := userAssignedIdentityValue
 			var userAssignedIdentity UserAssignedIdentity_STATUS
 			err := userAssignedIdentity.AssignProperties_From_UserAssignedIdentity_STATUS(&userAssignedIdentityValue)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UserAssignedIdentity_STATUS() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_From_UserAssignedIdentity_STATUS() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityMap[userAssignedIdentityKey] = userAssignedIdentity
 		}
@@ -1427,7 +1450,7 @@ func (identity *Identity_STATUS) AssignProperties_From_Identity_STATUS(source *s
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForIdentity_STATUS); ok {
 		err := augmentedIdentity.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1453,12 +1476,10 @@ func (identity *Identity_STATUS) AssignProperties_To_Identity_STATUS(destination
 	if identity.UserAssignedIdentities != nil {
 		userAssignedIdentityMap := make(map[string]storage.UserAssignedIdentity_STATUS, len(identity.UserAssignedIdentities))
 		for userAssignedIdentityKey, userAssignedIdentityValue := range identity.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityValue := userAssignedIdentityValue
 			var userAssignedIdentity storage.UserAssignedIdentity_STATUS
 			err := userAssignedIdentityValue.AssignProperties_To_UserAssignedIdentity_STATUS(&userAssignedIdentity)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UserAssignedIdentity_STATUS() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_To_UserAssignedIdentity_STATUS() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityMap[userAssignedIdentityKey] = userAssignedIdentity
 		}
@@ -1479,7 +1500,7 @@ func (identity *Identity_STATUS) AssignProperties_To_Identity_STATUS(destination
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForIdentity_STATUS); ok {
 		err := augmentedIdentity.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1490,8 +1511,10 @@ func (identity *Identity_STATUS) AssignProperties_To_Identity_STATUS(destination
 // Storage version of v1api20221001preview.NamespaceOperatorSpec
 // Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
 type NamespaceOperatorSpec struct {
-	PropertyBag genruntime.PropertyBag    `json:"$propertyBag,omitempty"`
-	Secrets     *NamespaceOperatorSecrets `json:"secrets,omitempty"`
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+	Secrets              *NamespaceOperatorSecrets     `json:"secrets,omitempty"`
 }
 
 // AssignProperties_From_NamespaceOperatorSpec populates our NamespaceOperatorSpec from the provided source NamespaceOperatorSpec
@@ -1499,12 +1522,44 @@ func (operator *NamespaceOperatorSpec) AssignProperties_From_NamespaceOperatorSp
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
 	// Secrets
 	if source.Secrets != nil {
 		var secret NamespaceOperatorSecrets
 		err := secret.AssignProperties_From_NamespaceOperatorSecrets(source.Secrets)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_NamespaceOperatorSecrets() to populate field Secrets")
+			return eris.Wrap(err, "calling AssignProperties_From_NamespaceOperatorSecrets() to populate field Secrets")
 		}
 		operator.Secrets = &secret
 	} else {
@@ -1523,7 +1578,7 @@ func (operator *NamespaceOperatorSpec) AssignProperties_From_NamespaceOperatorSp
 	if augmentedOperator, ok := operatorAsAny.(augmentConversionForNamespaceOperatorSpec); ok {
 		err := augmentedOperator.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1536,12 +1591,44 @@ func (operator *NamespaceOperatorSpec) AssignProperties_To_NamespaceOperatorSpec
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
 
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
 	// Secrets
 	if operator.Secrets != nil {
 		var secret storage.NamespaceOperatorSecrets
 		err := operator.Secrets.AssignProperties_To_NamespaceOperatorSecrets(&secret)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_NamespaceOperatorSecrets() to populate field Secrets")
+			return eris.Wrap(err, "calling AssignProperties_To_NamespaceOperatorSecrets() to populate field Secrets")
 		}
 		destination.Secrets = &secret
 	} else {
@@ -1560,7 +1647,7 @@ func (operator *NamespaceOperatorSpec) AssignProperties_To_NamespaceOperatorSpec
 	if augmentedOperator, ok := operatorAsAny.(augmentConversionForNamespaceOperatorSpec); ok {
 		err := augmentedOperator.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1595,7 +1682,7 @@ func (connection *PrivateEndpointConnection_STATUS) AssignProperties_From_Privat
 	if augmentedConnection, ok := connectionAsAny.(augmentConversionForPrivateEndpointConnection_STATUS); ok {
 		err := augmentedConnection.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1623,7 +1710,7 @@ func (connection *PrivateEndpointConnection_STATUS) AssignProperties_To_PrivateE
 	if augmentedConnection, ok := connectionAsAny.(augmentConversionForPrivateEndpointConnection_STATUS); ok {
 		err := augmentedConnection.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1666,7 +1753,7 @@ func (sbSku *SBSku) AssignProperties_From_SBSku(source *storage.SBSku) error {
 	if augmentedSbSku, ok := sbSkuAsAny.(augmentConversionForSBSku); ok {
 		err := augmentedSbSku.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1700,7 +1787,7 @@ func (sbSku *SBSku) AssignProperties_To_SBSku(destination *storage.SBSku) error 
 	if augmentedSbSku, ok := sbSkuAsAny.(augmentConversionForSBSku); ok {
 		err := augmentedSbSku.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1743,7 +1830,7 @@ func (sbSku *SBSku_STATUS) AssignProperties_From_SBSku_STATUS(source *storage.SB
 	if augmentedSbSku, ok := sbSkuAsAny.(augmentConversionForSBSku_STATUS); ok {
 		err := augmentedSbSku.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1777,7 +1864,7 @@ func (sbSku *SBSku_STATUS) AssignProperties_To_SBSku_STATUS(destination *storage
 	if augmentedSbSku, ok := sbSkuAsAny.(augmentConversionForSBSku_STATUS); ok {
 		err := augmentedSbSku.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1832,7 +1919,7 @@ func (data *SystemData_STATUS) AssignProperties_From_SystemData_STATUS(source *s
 	if augmentedData, ok := dataAsAny.(augmentConversionForSystemData_STATUS); ok {
 		err := augmentedData.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1875,7 +1962,7 @@ func (data *SystemData_STATUS) AssignProperties_To_SystemData_STATUS(destination
 	if augmentedData, ok := dataAsAny.(augmentConversionForSystemData_STATUS); ok {
 		err := augmentedData.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1948,7 +2035,7 @@ func (properties *KeyVaultProperties) AssignProperties_From_KeyVaultProperties(s
 		var identity UserAssignedIdentityProperties
 		err := identity.AssignProperties_From_UserAssignedIdentityProperties(source.Identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityProperties() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityProperties() to populate field Identity")
 		}
 		properties.Identity = &identity
 	} else {
@@ -1976,7 +2063,7 @@ func (properties *KeyVaultProperties) AssignProperties_From_KeyVaultProperties(s
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForKeyVaultProperties); ok {
 		err := augmentedProperties.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1994,7 +2081,7 @@ func (properties *KeyVaultProperties) AssignProperties_To_KeyVaultProperties(des
 		var identity storage.UserAssignedIdentityProperties
 		err := properties.Identity.AssignProperties_To_UserAssignedIdentityProperties(&identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityProperties() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityProperties() to populate field Identity")
 		}
 		destination.Identity = &identity
 	} else {
@@ -2022,7 +2109,7 @@ func (properties *KeyVaultProperties) AssignProperties_To_KeyVaultProperties(des
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForKeyVaultProperties); ok {
 		err := augmentedProperties.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2050,7 +2137,7 @@ func (properties *KeyVaultProperties_STATUS) AssignProperties_From_KeyVaultPrope
 		var identity UserAssignedIdentityProperties_STATUS
 		err := identity.AssignProperties_From_UserAssignedIdentityProperties_STATUS(source.Identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityProperties_STATUS() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityProperties_STATUS() to populate field Identity")
 		}
 		properties.Identity = &identity
 	} else {
@@ -2078,7 +2165,7 @@ func (properties *KeyVaultProperties_STATUS) AssignProperties_From_KeyVaultPrope
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForKeyVaultProperties_STATUS); ok {
 		err := augmentedProperties.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2096,7 +2183,7 @@ func (properties *KeyVaultProperties_STATUS) AssignProperties_To_KeyVaultPropert
 		var identity storage.UserAssignedIdentityProperties_STATUS
 		err := properties.Identity.AssignProperties_To_UserAssignedIdentityProperties_STATUS(&identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityProperties_STATUS() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityProperties_STATUS() to populate field Identity")
 		}
 		destination.Identity = &identity
 	} else {
@@ -2124,7 +2211,7 @@ func (properties *KeyVaultProperties_STATUS) AssignProperties_To_KeyVaultPropert
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForKeyVaultProperties_STATUS); ok {
 		err := augmentedProperties.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2149,7 +2236,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_From_NamespaceOperator
 
 	// Endpoint
 	if source.Endpoint != nil {
-		endpoint := source.Endpoint.Copy()
+		endpoint := *source.Endpoint.DeepCopy()
 		secrets.Endpoint = &endpoint
 	} else {
 		secrets.Endpoint = nil
@@ -2157,7 +2244,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_From_NamespaceOperator
 
 	// PrimaryConnectionString
 	if source.PrimaryConnectionString != nil {
-		primaryConnectionString := source.PrimaryConnectionString.Copy()
+		primaryConnectionString := *source.PrimaryConnectionString.DeepCopy()
 		secrets.PrimaryConnectionString = &primaryConnectionString
 	} else {
 		secrets.PrimaryConnectionString = nil
@@ -2165,7 +2252,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_From_NamespaceOperator
 
 	// PrimaryKey
 	if source.PrimaryKey != nil {
-		primaryKey := source.PrimaryKey.Copy()
+		primaryKey := *source.PrimaryKey.DeepCopy()
 		secrets.PrimaryKey = &primaryKey
 	} else {
 		secrets.PrimaryKey = nil
@@ -2173,7 +2260,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_From_NamespaceOperator
 
 	// SecondaryConnectionString
 	if source.SecondaryConnectionString != nil {
-		secondaryConnectionString := source.SecondaryConnectionString.Copy()
+		secondaryConnectionString := *source.SecondaryConnectionString.DeepCopy()
 		secrets.SecondaryConnectionString = &secondaryConnectionString
 	} else {
 		secrets.SecondaryConnectionString = nil
@@ -2181,7 +2268,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_From_NamespaceOperator
 
 	// SecondaryKey
 	if source.SecondaryKey != nil {
-		secondaryKey := source.SecondaryKey.Copy()
+		secondaryKey := *source.SecondaryKey.DeepCopy()
 		secrets.SecondaryKey = &secondaryKey
 	} else {
 		secrets.SecondaryKey = nil
@@ -2199,7 +2286,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_From_NamespaceOperator
 	if augmentedSecrets, ok := secretsAsAny.(augmentConversionForNamespaceOperatorSecrets); ok {
 		err := augmentedSecrets.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2214,7 +2301,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_To_NamespaceOperatorSe
 
 	// Endpoint
 	if secrets.Endpoint != nil {
-		endpoint := secrets.Endpoint.Copy()
+		endpoint := *secrets.Endpoint.DeepCopy()
 		destination.Endpoint = &endpoint
 	} else {
 		destination.Endpoint = nil
@@ -2222,7 +2309,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_To_NamespaceOperatorSe
 
 	// PrimaryConnectionString
 	if secrets.PrimaryConnectionString != nil {
-		primaryConnectionString := secrets.PrimaryConnectionString.Copy()
+		primaryConnectionString := *secrets.PrimaryConnectionString.DeepCopy()
 		destination.PrimaryConnectionString = &primaryConnectionString
 	} else {
 		destination.PrimaryConnectionString = nil
@@ -2230,7 +2317,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_To_NamespaceOperatorSe
 
 	// PrimaryKey
 	if secrets.PrimaryKey != nil {
-		primaryKey := secrets.PrimaryKey.Copy()
+		primaryKey := *secrets.PrimaryKey.DeepCopy()
 		destination.PrimaryKey = &primaryKey
 	} else {
 		destination.PrimaryKey = nil
@@ -2238,7 +2325,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_To_NamespaceOperatorSe
 
 	// SecondaryConnectionString
 	if secrets.SecondaryConnectionString != nil {
-		secondaryConnectionString := secrets.SecondaryConnectionString.Copy()
+		secondaryConnectionString := *secrets.SecondaryConnectionString.DeepCopy()
 		destination.SecondaryConnectionString = &secondaryConnectionString
 	} else {
 		destination.SecondaryConnectionString = nil
@@ -2246,7 +2333,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_To_NamespaceOperatorSe
 
 	// SecondaryKey
 	if secrets.SecondaryKey != nil {
-		secondaryKey := secrets.SecondaryKey.Copy()
+		secondaryKey := *secrets.SecondaryKey.DeepCopy()
 		destination.SecondaryKey = &secondaryKey
 	} else {
 		destination.SecondaryKey = nil
@@ -2264,7 +2351,7 @@ func (secrets *NamespaceOperatorSecrets) AssignProperties_To_NamespaceOperatorSe
 	if augmentedSecrets, ok := secretsAsAny.(augmentConversionForNamespaceOperatorSecrets); ok {
 		err := augmentedSecrets.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2303,7 +2390,7 @@ func (identity *UserAssignedIdentity_STATUS) AssignProperties_From_UserAssignedI
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForUserAssignedIdentity_STATUS); ok {
 		err := augmentedIdentity.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2334,7 +2421,7 @@ func (identity *UserAssignedIdentity_STATUS) AssignProperties_To_UserAssignedIde
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForUserAssignedIdentity_STATUS); ok {
 		err := augmentedIdentity.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2369,7 +2456,7 @@ func (details *UserAssignedIdentityDetails) AssignProperties_From_UserAssignedId
 	if augmentedDetails, ok := detailsAsAny.(augmentConversionForUserAssignedIdentityDetails); ok {
 		err := augmentedDetails.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2397,7 +2484,7 @@ func (details *UserAssignedIdentityDetails) AssignProperties_To_UserAssignedIden
 	if augmentedDetails, ok := detailsAsAny.(augmentConversionForUserAssignedIdentityDetails); ok {
 		err := augmentedDetails.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2463,7 +2550,7 @@ func (properties *UserAssignedIdentityProperties) AssignProperties_From_UserAssi
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForUserAssignedIdentityProperties); ok {
 		err := augmentedProperties.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2496,7 +2583,7 @@ func (properties *UserAssignedIdentityProperties) AssignProperties_To_UserAssign
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForUserAssignedIdentityProperties); ok {
 		err := augmentedProperties.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2530,7 +2617,7 @@ func (properties *UserAssignedIdentityProperties_STATUS) AssignProperties_From_U
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForUserAssignedIdentityProperties_STATUS); ok {
 		err := augmentedProperties.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2558,7 +2645,7 @@ func (properties *UserAssignedIdentityProperties_STATUS) AssignProperties_To_Use
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForUserAssignedIdentityProperties_STATUS); ok {
 		err := augmentedProperties.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 

@@ -9,11 +9,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
-
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
-
 	. "github.com/onsi/gomega"
+
+	"github.com/Azure/azure-service-operator/v2/internal/util/to"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
 )
 
 func makeSynth(definitions ...astmodel.TypeDefinition) synthesizer {
@@ -36,12 +36,13 @@ var emptyObject = astmodel.NewObjectType()
 func defineEnum(strings ...string) astmodel.Type {
 	values := make([]astmodel.EnumValue, 0, len(strings))
 	for _, value := range strings {
-		values = append(values, astmodel.MakeEnumValue(value, value))
+		values = append(values, astmodel.MakeEnumValue(value, `"`+value+`"`))
 	}
 
 	return astmodel.NewEnumType(
 		astmodel.StringType,
-		values...)
+		values...,
+	)
 }
 
 // any type merged with AnyType is just the type
@@ -89,8 +90,9 @@ func TestMergeMapObject(t *testing.T) {
 	expected := oneProp.WithProperties(
 		astmodel.NewPropertyDefinition(
 			astmodel.AdditionalPropertiesPropertyName,
-			astmodel.AdditionalPropertiesJsonName,
-			newMap),
+			astmodel.AdditionalPropertiesJSONName,
+			newMap,
+		),
 	)
 
 	synth := makeSynth()
@@ -234,13 +236,16 @@ func TestMergeObjectObjectCommonProperties(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	obj1 := astmodel.NewObjectType().WithProperties(
-		astmodel.NewPropertyDefinition("x", "x", defineEnum("a", "b")))
+		astmodel.NewPropertyDefinition("x", "x", defineEnum("a", "b")),
+	)
 
 	obj2 := astmodel.NewObjectType().WithProperties(
-		astmodel.NewPropertyDefinition("x", "x", defineEnum("b", "c")))
+		astmodel.NewPropertyDefinition("x", "x", defineEnum("b", "c")),
+	)
 
 	expected := astmodel.NewObjectType().WithProperties(
-		astmodel.NewPropertyDefinition("x", "x", defineEnum("b")))
+		astmodel.NewPropertyDefinition("x", "x", defineEnum("b")),
+	)
 
 	synth := makeSynth()
 	g.Expect(synth.intersectTypes(obj1, obj2)).To(Equal(expected))
@@ -285,7 +290,8 @@ func TestMergeValidated(t *testing.T) {
 		astmodel.StringType,
 		astmodel.StringValidations{
 			MaxLength: &maxLen,
-		})
+		},
+	)
 
 	synth := makeSynth()
 	g.Expect(synth.intersectTypes(validatedString, astmodel.StringType)).To(Equal(validatedString))
@@ -301,13 +307,15 @@ func TestMergeValidatedOfOptional(t *testing.T) {
 		astmodel.OptionalStringType,
 		astmodel.StringValidations{
 			MaxLength: &maxLen,
-		})
+		},
+	)
 
 	validatedString := astmodel.NewValidatedType(
 		astmodel.StringType,
 		astmodel.StringValidations{
 			MaxLength: &maxLen,
-		})
+		},
+	)
 
 	synth := makeSynth()
 	g.Expect(synth.intersectTypes(validatedOptionalString, astmodel.StringType)).To(Equal(validatedString))
@@ -457,7 +465,8 @@ func TestSynthesizerOneOfObject_GivenOneOfUsingTypeNames_ReturnsExpectedObject(t
 
 	commonProperties := test.CreateObjectType(
 		test.FamilyNameProperty,
-		test.FullNameProperty)
+		test.FullNameProperty,
+	)
 
 	parent := createTestLeafOneOfDefinition(
 		"Parent",
@@ -465,21 +474,24 @@ func TestSynthesizerOneOfObject_GivenOneOfUsingTypeNames_ReturnsExpectedObject(t
 		"", // No discriminator, to force use of type names
 		commonProperties,
 		test.PostalAddress2021,
-		test.ResidentialAddress2021)
+		test.ResidentialAddress2021,
+	)
 
 	child := createTestLeafOneOfDefinition(
 		"Child",
 		"", // No swagger name, to force use of type names
 		"", // No discriminator, to force use of type names
 		commonProperties,
-		test.KnownAsProperty)
+		test.KnownAsProperty,
+	)
 
 	person := createTestRootOneOfDefinition(
 		"Person",
 		"Kind",
 		// Use names to reference leaves
 		parent.Name(),
-		child.Name())
+		child.Name(),
+	)
 
 	synth := makeSynth(parent, child, person)
 
@@ -500,7 +512,8 @@ func TestSynthesizerOneOfObject_GivenOneOfUsingSwaggerNames_ReturnsExpectedObjec
 
 	commonProperties := test.CreateObjectType(
 		test.FamilyNameProperty,
-		test.FullNameProperty)
+		test.FullNameProperty,
+	)
 
 	parent := createTestLeafOneOfDefinition(
 		"Parent",
@@ -508,21 +521,24 @@ func TestSynthesizerOneOfObject_GivenOneOfUsingSwaggerNames_ReturnsExpectedObjec
 		"", // No discriminator, to force use of the Swagger names
 		commonProperties,
 		test.PostalAddress2021,
-		test.ResidentialAddress2021)
+		test.ResidentialAddress2021,
+	)
 
 	child := createTestLeafOneOfDefinition(
 		"Child",
 		"Junior",
 		"", // No discriminator, to force use of the Swagger names
 		commonProperties,
-		test.KnownAsProperty)
+		test.KnownAsProperty,
+	)
 
 	person := createTestRootOneOfDefinition(
 		"Person",
 		"Kind",
 		// Use bodies to ensure we're not using the type names
 		parent.Type(),
-		child.Type())
+		child.Type(),
+	)
 
 	synth := makeSynth(parent, child, person)
 
@@ -543,7 +559,8 @@ func TestSynthesizerOneOfObject_GivenOneOfUsingDiscriminatorValues_ReturnsExpect
 
 	commonProperties := test.CreateObjectType(
 		test.FamilyNameProperty,
-		test.FullNameProperty)
+		test.FullNameProperty,
+	)
 
 	parent := createTestLeafOneOfDefinition(
 		"Parent",
@@ -551,21 +568,24 @@ func TestSynthesizerOneOfObject_GivenOneOfUsingDiscriminatorValues_ReturnsExpect
 		"Maxima",
 		commonProperties,
 		test.PostalAddress2021,
-		test.ResidentialAddress2021)
+		test.ResidentialAddress2021,
+	)
 
 	child := createTestLeafOneOfDefinition(
 		"Child",
 		"", // no swagger name
 		"Minima",
 		commonProperties,
-		test.KnownAsProperty)
+		test.KnownAsProperty,
+	)
 
 	person := createTestRootOneOfDefinition(
 		"Person",
 		"Kind",
 		// Use bodies to ensure we're not using the type names
 		parent.Type(),
-		child.Type())
+		child.Type(),
+	)
 
 	synth := makeSynth(parent, child, person)
 
@@ -579,48 +599,6 @@ func TestSynthesizerOneOfObject_GivenOneOfUsingDiscriminatorValues_ReturnsExpect
 	test.AssertPropertyExists(t, actual, "Maxima")
 	test.AssertPropertyExists(t, actual, "Minima")
 }
-
-var (
-	olympianProperties = test.CreateObjectType(
-		test.FullNameProperty,
-		test.KnownAsProperty)
-
-	zeus = createTestLeafOneOfDefinition(
-		"Zeus",
-		"zeus",
-		"zeus",
-		olympianProperties,
-		astmodel.NewPropertyDefinition("LightningBolts", "lightningBolts", astmodel.IntType))
-
-	demeter = createTestLeafOneOfDefinition(
-		"Demeter",
-		"demeter",
-		"demeter",
-		olympianProperties,
-		astmodel.NewPropertyDefinition("Crops", "crops", astmodel.IntType))
-
-	poscidon = createTestLeafOneOfDefinition(
-		"Poseidon",
-		"poseidon",
-		"poseidon",
-		olympianProperties,
-		astmodel.NewPropertyDefinition("Tsunamis", "tsunamis", astmodel.IntType))
-
-	hades = createTestLeafOneOfDefinition(
-		"Hades",
-		"hades",
-		"hades",
-		olympianProperties,
-		astmodel.NewPropertyDefinition("Souls", "souls", astmodel.IntType))
-
-	olympian = createTestRootOneOfDefinition(
-		"Olympian",
-		"name",
-		zeus.Name(),
-		demeter.Name(),
-		poscidon.Name(),
-		hades.Name())
-)
 
 func createTestRootOneOfDefinition(
 	name string,
@@ -658,16 +636,23 @@ func Test_ConversionWithNestedAllOfs_ReturnsExpectedResult(t *testing.T) {
 		astmodel.NewObjectType().
 			WithProperties(
 				astmodel.NewPropertyDefinition(
-					"Location", "location", astmodel.OptionalStringType),
+					"Location", "location", astmodel.OptionalStringType,
+				),
 				astmodel.NewPropertyDefinition(
-					"Tags", "tags", astmodel.NewOptionalType(astmodel.AnyType))))
+					"Tags", "tags", astmodel.NewOptionalType(astmodel.AnyType),
+				),
+			),
+	)
 
 	webTestProperties := astmodel.MakeTypeDefinition(
 		astmodel.MakeInternalTypeName(test.Pkg2020, "WebTestProperties"),
 		astmodel.NewObjectType().
 			WithProperties(
 				astmodel.NewPropertyDefinition(
-					"Alias", "alias", astmodel.OptionalStringType)))
+					"Alias", "alias", astmodel.OptionalStringType,
+				),
+			),
+	)
 
 	webTest := astmodel.MakeTypeDefinition(
 		astmodel.MakeInternalTypeName(test.Pkg2020, "WebTest"),
@@ -677,24 +662,34 @@ func Test_ConversionWithNestedAllOfs_ReturnsExpectedResult(t *testing.T) {
 				astmodel.NewPropertyDefinition(
 					"Kind", "kind", astmodel.NewOptionalType(astmodel.NewEnumType(
 						astmodel.StringType,
-						astmodel.MakeEnumValue("MultiStep", "multistep"),
-						astmodel.MakeEnumValue("Ping", "ping")))),
-				astmodel.NewPropertyDefinition("Properties", "properties", webTestProperties.Name()))))
+						astmodel.MakeEnumValue("MultiStep", `"multistep"`),
+						astmodel.MakeEnumValue("Ping", `"ping"`),
+					)),
+				),
+				astmodel.NewPropertyDefinition("Properties", "properties", webTestProperties.Name()),
+			),
+		),
+	)
 
 	webTestSpec := astmodel.NewAllOfType(
 		webTest.Name(),
 		astmodel.NewObjectType().WithProperties(
 			astmodel.NewPropertyDefinition("AzureName", "azurename", astmodel.StringType),
-			astmodel.NewPropertyDefinition("Name", "name", astmodel.StringType)))
+			astmodel.NewPropertyDefinition("Name", "name", astmodel.StringType),
+		),
+	)
 
 	webTest_Status := astmodel.MakeTypeDefinition(
 		astmodel.MakeInternalTypeName(test.Pkg2020, "WebTest_Status"),
 		astmodel.NewObjectType().WithProperties(
-			astmodel.NewPropertyDefinition("Status", "status", astmodel.OptionalStringType)))
+			astmodel.NewPropertyDefinition("Status", "status", astmodel.OptionalStringType),
+		),
+	)
 
 	webTestResource := astmodel.MakeTypeDefinition(
 		astmodel.MakeInternalTypeName(test.Pkg2020, "WebTestResource"),
-		astmodel.NewResourceType(webTestSpec, webTest_Status.Name()))
+		astmodel.NewResourceType(webTestSpec, webTest_Status.Name()),
+	)
 
 	defs := make(astmodel.TypeDefinitionSet)
 	defs.AddAll(webtestsResource, webTestProperties, webTest, webTest_Status, webTestResource)
@@ -721,25 +716,30 @@ func TestConversionOfSequentialOneOf_ReturnsExpectedResults(t *testing.T) {
 	first := astmodel.NewObjectType().
 		WithProperties(
 			astmodel.NewPropertyDefinition("alpha", "alpha", astmodel.StringType),
-			astmodel.NewPropertyDefinition("beta", "beta", astmodel.StringType))
+			astmodel.NewPropertyDefinition("beta", "beta", astmodel.StringType),
+		)
 
 	second := astmodel.NewObjectType().
 		WithProperties(
 			astmodel.NewPropertyDefinition("gamma", "gamma", astmodel.StringType),
-			astmodel.NewPropertyDefinition("delta", "delta", astmodel.StringType))
+			astmodel.NewPropertyDefinition("delta", "delta", astmodel.StringType),
+		)
 
 	third := astmodel.NewObjectType().
 		WithProperties(
 			astmodel.NewPropertyDefinition("epsilon", "epsilon", astmodel.StringType),
-			astmodel.NewPropertyDefinition("zeta", "zeta", astmodel.StringType))
+			astmodel.NewPropertyDefinition("zeta", "zeta", astmodel.StringType),
+		)
 
 	firstDef := astmodel.MakeTypeDefinition(
 		astmodel.MakeInternalTypeName(test.Pkg2020, "First"),
-		first)
+		first,
+	)
 
 	allOfDef := astmodel.MakeTypeDefinition(
 		astmodel.MakeInternalTypeName(test.Pkg2020, "AllOf"),
-		astmodel.NewAllOfType(firstDef.Name(), second, third))
+		astmodel.NewAllOfType(firstDef.Name(), second, third),
+	)
 
 	defs := make(astmodel.TypeDefinitionSet)
 	defs.AddAll(allOfDef, firstDef)
@@ -754,4 +754,125 @@ func TestConversionOfSequentialOneOf_ReturnsExpectedResults(t *testing.T) {
 	for _, def := range finalState.definitions {
 		test.AssertDefinitionHasExpectedShape(t, def.Name().Name(), def)
 	}
+}
+
+// Checking a scenario discovered while importing the Kusto group.
+// When a resource spec contains an allOf that in turn contains a oneOf, we need all the properties pushed down
+// to the oneof leaves
+func TestConversionOfAllOf_WhenContainingOneOf_ReturnsExpectedResult(t *testing.T) {
+	t.Parallel()
+
+	g := NewGomegaWithT(t)
+
+	idFactory := astmodel.NewIdentifierFactory()
+
+	readwriteDatabase := astmodel.MakeTypeDefinition(
+		astmodel.MakeInternalTypeName(test.Pkg2020, "ReadWriteDatabase"),
+		astmodel.NewObjectType().
+			WithProperties(
+				astmodel.NewPropertyDefinition(
+					"KeyVaultURL",
+					"keyVaultUrl",
+					astmodel.StringType,
+				),
+				astmodel.NewPropertyDefinition(
+					"HotCachePeriod",
+					"hotCachePeriod",
+					astmodel.StringType,
+				),
+				astmodel.NewPropertyDefinition(
+					"Kind",
+					"kind",
+					astmodel.NewEnumType(astmodel.StringType, astmodel.MakeEnumValue("ReadWriteDatabase", `"ReadWriteDatabase"`)),
+				),
+				astmodel.NewPropertyDefinition(
+					"Location",
+					"location",
+					astmodel.StringType,
+				),
+			),
+	)
+
+	readonlyFollowingDatabase := astmodel.MakeTypeDefinition(
+		astmodel.MakeInternalTypeName(test.Pkg2020, "ReadOnlyFollowingDatabase"),
+		astmodel.NewObjectType().
+			WithProperties(
+				astmodel.NewPropertyDefinition(
+					"DatabaseShareOrigin",
+					"databaseShareOrigin",
+					astmodel.StringType,
+				),
+				astmodel.NewPropertyDefinition(
+					"HotCachePeriod",
+					"hotCachePeriod",
+					astmodel.StringType,
+				),
+				astmodel.NewPropertyDefinition(
+					"Kind",
+					"kind",
+					astmodel.NewEnumType(astmodel.StringType, astmodel.MakeEnumValue("ReadOnlyFollowingDatabase", `"ReadOnlyFollowingDatabase"`)),
+				),
+				astmodel.NewPropertyDefinition(
+					"Location",
+					"location",
+					astmodel.StringType,
+				),
+			),
+	)
+
+	database := astmodel.MakeTypeDefinition(
+		astmodel.MakeInternalTypeName(test.Pkg2020, "Database"),
+		astmodel.NewOneOfType(
+			"database",
+			readwriteDatabase.Name(),
+			readonlyFollowingDatabase.Name(),
+		).
+			WithDiscriminatorProperty("Kind"),
+	)
+
+	clusters_database := astmodel.MakeTypeDefinition(
+		astmodel.MakeInternalTypeName(test.Pkg2020, "Clusters_Database"),
+		astmodel.NewResourceType(
+			astmodel.NewAllOfType(
+				database.Name(),
+				astmodel.NewObjectType().
+					WithProperty(
+						astmodel.NewPropertyDefinition(
+							"Name",
+							"name",
+							astmodel.NewValidatedType(
+								astmodel.StringType,
+								astmodel.StringValidations{
+									MaxLength: to.Ptr(int64(96)),
+								},
+							),
+						),
+					),
+				astmodel.NewObjectType().
+					WithProperty(
+						astmodel.NewPropertyDefinition(
+							"Name",
+							"name",
+							astmodel.StringType,
+						),
+					),
+			),
+			astmodel.NewObjectType(),
+		),
+	)
+
+	defs := astmodel.MakeTypeDefinitionSetFromDefinitions(
+		readwriteDatabase,
+		readonlyFollowingDatabase,
+		database,
+		clusters_database,
+	)
+
+	state := NewState(defs)
+	stage := ConvertAllOfAndOneOfToObjects(idFactory)
+
+	finalState, err := stage.Run(context.TODO(), state)
+	g.Expect(err).To(BeNil())
+
+	test.AssertDefinitionsHaveExpectedShapes(t, "structure.txt", finalState.Definitions())
 }

@@ -9,9 +9,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/pkg/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -54,11 +53,12 @@ func RenameProperties(cfg *config.ObjectModelConfiguration) *Stage {
 			}
 
 			if err := cfg.RenamePropertyTo.VerifyConsumed(); err != nil {
-				return nil, errors.Wrap(err, "verifying property rename configuration")
+				return nil, eris.Wrap(err, "verifying property rename configuration")
 			}
 
 			return state.WithOverlaidDefinitions(modified), nil
-		})
+		},
+	)
 
 	stage.RequiresPostrequisiteStages(
 		AddStatusConditionsStageID, // Must rename other properties before we try to introduce the `Conditions` property
@@ -100,13 +100,14 @@ func renamePropertiesInObjectType(
 
 			updated := prop.
 				WithName(astmodel.PropertyName(name)).
-				WithJsonName(strings.ToLower(name))
+				WithJSONName(strings.ToLower(name))
 			properties = append(properties, updated)
 
 			return nil
-		})
+		},
+	)
 	if err != nil {
-		return nil, errors.Wrapf(err, "renaming properties for %s", typeName)
+		return nil, eris.Wrapf(err, "renaming properties for %s", typeName)
 	}
 
 	return ot.WithoutProperties().WithProperties(properties...), nil

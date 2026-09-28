@@ -1,89 +1,155 @@
-| Type Definitions in package "dbforpostgresql"      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-|----------------------------------------------------|---------------|----------------------|---------------|----------------------|
-| APIVersion                                         | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| AuthConfig                                         |               |                      | v1api20221201 | v1api20230601preview |
-| AuthConfig_ActiveDirectoryAuth                     |               |                      | v1api20221201 | v1api20230601preview |
-| AuthConfig_ActiveDirectoryAuth_STATUS              |               |                      | v1api20221201 | v1api20230601preview |
-| AuthConfig_PasswordAuth                            |               |                      | v1api20221201 | v1api20230601preview |
-| AuthConfig_PasswordAuth_STATUS                     |               |                      | v1api20221201 | v1api20230601preview |
-| AuthConfig_STATUS                                  |               |                      | v1api20221201 | v1api20230601preview |
-| Backup                                             | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Backup_GeoRedundantBackup                          | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Backup_GeoRedundantBackup_STATUS                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Backup_STATUS                                      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ConfigurationProperties                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ConfigurationProperties_DataType_STATUS            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ConfigurationProperties_STATUS                     | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| DataEncryption                                     |               |                      | v1api20221201 | v1api20230601preview |
-| DataEncryption_GeoBackupEncryptionKeyStatus        |               |                      |               | v1api20230601preview |
-| DataEncryption_GeoBackupEncryptionKeyStatus_STATUS |               |                      |               | v1api20230601preview |
-| DataEncryption_PrimaryEncryptionKeyStatus          |               |                      |               | v1api20230601preview |
-| DataEncryption_PrimaryEncryptionKeyStatus_STATUS   |               |                      |               | v1api20230601preview |
-| DataEncryption_STATUS                              |               |                      | v1api20221201 | v1api20230601preview |
-| DataEncryption_Type                                |               |                      | v1api20221201 | v1api20230601preview |
-| DataEncryption_Type_STATUS                         |               |                      | v1api20221201 | v1api20230601preview |
-| DatabaseProperties                                 | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| DatabaseProperties_STATUS                          | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FirewallRuleProperties                             | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FirewallRuleProperties_STATUS                      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServer                                     | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServer_STATUS                              | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServer_Spec                                | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServersConfiguration                       | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServersDatabase                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServersFirewallRule                        | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServers_Configuration_STATUS               | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServers_Configuration_Spec                 | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServers_Database_STATUS                    | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServers_Database_Spec                      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServers_FirewallRule_STATUS                | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| FlexibleServers_FirewallRule_Spec                  | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| HighAvailability                                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| HighAvailability_Mode                              | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| HighAvailability_Mode_STATUS                       | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| HighAvailability_STATUS                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| HighAvailability_State_STATUS                      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| MaintenanceWindow                                  | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| MaintenanceWindow_STATUS                           | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Network                                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Network_PublicNetworkAccess                        |               |                      |               | v1api20230601preview |
-| Network_PublicNetworkAccess_STATUS                 | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Network_STATUS                                     | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| PrivateEndpointConnection_STATUS                   |               |                      |               | v1api20230601preview |
-| Replica                                            |               |                      |               | v1api20230601preview |
-| Replica_PromoteMode                                |               |                      |               | v1api20230601preview |
-| Replica_PromoteMode_STATUS                         |               |                      |               | v1api20230601preview |
-| Replica_PromoteOption                              |               |                      |               | v1api20230601preview |
-| Replica_PromoteOption_STATUS                       |               |                      |               | v1api20230601preview |
-| Replica_ReplicationState_STATUS                    |               |                      |               | v1api20230601preview |
-| Replica_STATUS                                     |               |                      |               | v1api20230601preview |
-| ReplicationRole                                    |               |                      | v1api20221201 | v1api20230601preview |
-| ReplicationRole_STATUS                             |               |                      | v1api20221201 | v1api20230601preview |
-| ServerProperties                                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ServerProperties_CreateMode                        | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ServerProperties_CreateMode_STATUS                 | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ServerProperties_STATUS                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ServerProperties_State_STATUS                      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ServerVersion                                      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| ServerVersion_STATUS                               | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Sku                                                | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Sku_STATUS                                         | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Sku_Tier                                           | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Sku_Tier_STATUS                                    | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Storage                                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Storage_AutoGrow                                   |               |                      |               | v1api20230601preview |
-| Storage_AutoGrow_STATUS                            |               |                      |               | v1api20230601preview |
-| Storage_STATUS                                     | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| Storage_Tier                                       |               |                      |               | v1api20230601preview |
-| Storage_Tier_STATUS                                |               |                      |               | v1api20230601preview |
-| Storage_Type                                       |               |                      |               | v1api20230601preview |
-| Storage_Type_STATUS                                |               |                      |               | v1api20230601preview |
-| SystemData_CreatedByType_STATUS                    | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| SystemData_LastModifiedByType_STATUS               | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| SystemData_STATUS                                  | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview |
-| UserAssignedIdentity                               |               |                      | v1api20221201 | v1api20230601preview |
-| UserAssignedIdentityDetails                        |               |                      | v1api20221201 | v1api20230601preview |
-| UserAssignedIdentity_STATUS                        |               |                      | v1api20221201 | v1api20230601preview |
-| UserAssignedIdentity_Type                          |               |                      | v1api20221201 | v1api20230601preview |
-| UserAssignedIdentity_Type_STATUS                   |               |                      | v1api20221201 | v1api20230601preview |
-| UserIdentity_STATUS                                |               |                      | v1api20221201 | v1api20230601preview |
+| Type Definitions in package "dbforpostgresql"             | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+|-----------------------------------------------------------|---------------|----------------------|---------------|----------------------|---------------|-----------|
+| APIVersion                                                | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| AdministratorMicrosoftEntraPropertiesForAdd               |               |                      |               |                      |               | v20250801 |
+| AdministratorMicrosoftEntraProperties_STATUS              |               |                      |               |                      |               | v20250801 |
+| AdvancedThreatProtectionSettingsProperties                |               |                      |               |                      |               | v20250801 |
+| AdvancedThreatProtectionSettingsProperties_STATUS         |               |                      |               |                      |               | v20250801 |
+| AuthConfig                                                |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| AuthConfig_ActiveDirectoryAuth                            |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| AuthConfig_ActiveDirectoryAuth_STATUS                     |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| AuthConfig_PasswordAuth                                   |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| AuthConfig_PasswordAuth_STATUS                            |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| AuthConfig_STATUS                                         |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| AzureManagedDiskPerformanceTier                           |               |                      |               |                      |               | v20250801 |
+| AzureManagedDiskPerformanceTier_STATUS                    |               |                      |               |                      |               | v20250801 |
+| Backup                                                    | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| BackupAutomaticAndOnDemandProperties_STATUS               |               |                      |               |                      |               | v20250801 |
+| BackupType_STATUS                                         |               |                      |               |                      |               | v20250801 |
+| Backup_GeoRedundantBackup                                 | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| Backup_GeoRedundantBackup_STATUS                          | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| Backup_STATUS                                             | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| Cluster                                                   |               |                      |               |                      |               | v20250801 |
+| Cluster_STATUS                                            |               |                      |               |                      |               | v20250801 |
+| ConfigurationDataType_STATUS                              |               |                      |               |                      |               | v20250801 |
+| ConfigurationProperties                                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| ConfigurationProperties_DataType_STATUS                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| ConfigurationProperties_STATUS                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| CreateMode                                                |               |                      |               |                      |               | v20250801 |
+| CreateMode_STATUS                                         |               |                      |               |                      |               | v20250801 |
+| DataEncryption                                            |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| DataEncryptionType                                        |               |                      |               |                      |               | v20250801 |
+| DataEncryptionType_STATUS                                 |               |                      |               |                      |               | v20250801 |
+| DataEncryption_GeoBackupEncryptionKeyStatus               |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| DataEncryption_GeoBackupEncryptionKeyStatus_STATUS        |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| DataEncryption_PrimaryEncryptionKeyStatus                 |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| DataEncryption_PrimaryEncryptionKeyStatus_STATUS          |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| DataEncryption_STATUS                                     |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| DataEncryption_Type                                       |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| DataEncryption_Type_STATUS                                |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| DatabaseProperties                                        | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| DatabaseProperties_STATUS                                 | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| EncryptionKeyStatus_STATUS                                |               |                      |               |                      |               | v20250801 |
+| FirewallRuleProperties                                    | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FirewallRuleProperties_STATUS                             | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServer                                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServer_STATUS                                     | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServer_Spec                                       | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersAdministrator                              |               |                      |               |                      |               | v20250801 |
+| FlexibleServersAdministrator_STATUS                       |               |                      |               |                      |               | v20250801 |
+| FlexibleServersAdministrator_Spec                         |               |                      |               |                      |               | v20250801 |
+| FlexibleServersAdvancedThreatProtectionSettings           |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServersAdvancedThreatProtectionSettings_STATUS    |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServersAdvancedThreatProtectionSettings_Spec      |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServersBackup                                     |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServersBackup_STATUS                              |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServersBackup_Spec                                |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServersConfiguration                              | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersConfiguration_STATUS                       | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersConfiguration_Spec                         | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersDatabase                                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersDatabase_STATUS                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersDatabase_Spec                              | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersFirewallRule                               | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersFirewallRule_STATUS                        | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersFirewallRule_Spec                          | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| FlexibleServersVirtualEndpoint                            |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServersVirtualEndpoint_STATUS                     |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServersVirtualEndpoint_Spec                       |               |                      |               |                      | v1api20240801 | v20250801 |
+| FlexibleServers_AdvancedThreatProtectionSetting_Name_Spec |               |                      |               |                      | v1api20240801 | v20250801 |
+| HighAvailability                                          | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| HighAvailabilityState_STATUS                              |               |                      |               |                      |               | v20250801 |
+| HighAvailability_Mode                                     | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| HighAvailability_Mode_STATUS                              | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| HighAvailability_STATUS                                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| HighAvailability_State_STATUS                             | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| IdentityType                                              |               |                      |               |                      |               | v20250801 |
+| IdentityType_STATUS                                       |               |                      |               |                      |               | v20250801 |
+| MaintenanceWindow                                         | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| MaintenanceWindow_STATUS                                  | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| MicrosoftEntraAuth                                        |               |                      |               |                      |               | v20250801 |
+| MicrosoftEntraAuth_STATUS                                 |               |                      |               |                      |               | v20250801 |
+| Network                                                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| Network_PublicNetworkAccess                               |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Network_PublicNetworkAccess_STATUS                        | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| Network_STATUS                                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| PostgresMajorVersion                                      |               |                      |               |                      |               | v20250801 |
+| PostgresMajorVersion_STATUS                               |               |                      |               |                      |               | v20250801 |
+| PrincipalType                                             |               |                      |               |                      |               | v20250801 |
+| PrincipalType_STATUS                                      |               |                      |               |                      |               | v20250801 |
+| PrivateEndpointConnection_STATUS                          |               |                      |               | v1api20230601preview | v1api20240801 | v20250801 |
+| ReadReplicaPromoteMode                                    |               |                      |               |                      |               | v20250801 |
+| ReadReplicaPromoteMode_STATUS                             |               |                      |               |                      |               | v20250801 |
+| ReadReplicaPromoteOption                                  |               |                      |               |                      |               | v20250801 |
+| ReadReplicaPromoteOption_STATUS                           |               |                      |               |                      |               | v20250801 |
+| Replica                                                   |               |                      |               | v1api20230601preview | v1api20240801 | v20250801 |
+| Replica_PromoteMode                                       |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Replica_PromoteMode_STATUS                                |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Replica_PromoteOption                                     |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Replica_PromoteOption_STATUS                              |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Replica_ReplicationState_STATUS                           |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Replica_STATUS                                            |               |                      |               | v1api20230601preview | v1api20240801 | v20250801 |
+| ReplicationRole                                           |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| ReplicationRole_STATUS                                    |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| ReplicationState_STATUS                                   |               |                      |               |                      |               | v20250801 |
+| ServerBackupProperties_BackupType_STATUS                  |               |                      |               |                      | v1api20240801 |           |
+| ServerBackupProperties_STATUS                             |               |                      |               |                      | v1api20240801 |           |
+| ServerProperties                                          | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| ServerProperties_CreateMode                               | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| ServerProperties_CreateMode_STATUS                        | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| ServerProperties_STATUS                                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| ServerProperties_State_STATUS                             | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| ServerPublicNetworkAccessState                            |               |                      |               |                      |               | v20250801 |
+| ServerPublicNetworkAccessState_STATUS                     |               |                      |               |                      |               | v20250801 |
+| ServerState_STATUS                                        |               |                      |               |                      |               | v20250801 |
+| ServerThreatProtectionProperties                          |               |                      |               |                      | v1api20240801 |           |
+| ServerThreatProtectionProperties_STATUS                   |               |                      |               |                      | v1api20240801 |           |
+| ServerThreatProtectionProperties_State                    |               |                      |               |                      | v1api20240801 |           |
+| ServerThreatProtectionProperties_State_STATUS             |               |                      |               |                      | v1api20240801 |           |
+| ServerVersion                                             | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| ServerVersion_STATUS                                      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| Sku                                                       | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| SkuTier                                                   |               |                      |               |                      |               | v20250801 |
+| SkuTier_STATUS                                            |               |                      |               |                      |               | v20250801 |
+| Sku_STATUS                                                | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| Sku_Tier                                                  | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| Sku_Tier_STATUS                                           | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| Storage                                                   | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| StorageAutoGrow                                           |               |                      |               |                      |               | v20250801 |
+| StorageAutoGrow_STATUS                                    |               |                      |               |                      |               | v20250801 |
+| StorageType                                               |               |                      |               |                      |               | v20250801 |
+| StorageType_STATUS                                        |               |                      |               |                      |               | v20250801 |
+| Storage_AutoGrow                                          |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Storage_AutoGrow_STATUS                                   |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Storage_STATUS                                            | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| Storage_Tier                                              |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Storage_Tier_STATUS                                       |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Storage_Type                                              |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| Storage_Type_STATUS                                       |               |                      |               | v1api20230601preview | v1api20240801 |           |
+| SystemData_CreatedByType_STATUS                           | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| SystemData_LastModifiedByType_STATUS                      | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| SystemData_STATUS                                         | v1api20210601 | v1api20220120preview | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| ThreatProtectionState                                     |               |                      |               |                      |               | v20250801 |
+| ThreatProtectionState_STATUS                              |               |                      |               |                      |               | v20250801 |
+| UserAssignedIdentity                                      |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| UserAssignedIdentityDetails                               |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| UserAssignedIdentity_STATUS                               |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| UserAssignedIdentity_Type                                 |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| UserAssignedIdentity_Type_STATUS                          |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 |           |
+| UserIdentity_STATUS                                       |               |                      | v1api20221201 | v1api20230601preview | v1api20240801 | v20250801 |
+| VirtualEndpointResourceProperties                         |               |                      |               |                      | v1api20240801 | v20250801 |
+| VirtualEndpointResourceProperties_EndpointType            |               |                      |               |                      | v1api20240801 |           |
+| VirtualEndpointResourceProperties_EndpointType_STATUS     |               |                      |               |                      | v1api20240801 |           |
+| VirtualEndpointResourceProperties_STATUS                  |               |                      |               |                      | v1api20240801 | v20250801 |
+| VirtualEndpointType                                       |               |                      |               |                      |               | v20250801 |
+| VirtualEndpointType_STATUS                                |               |                      |               |                      |               | v20250801 |

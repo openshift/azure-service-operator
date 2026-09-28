@@ -11,7 +11,8 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
+
+	"github.com/rotisserie/eris"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/Azure/azure-service-operator/v2/internal/util/lockedrand"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/retry"
 )
 
 func newCalculator(params CalculatorParameters) Calculator {
@@ -38,10 +40,12 @@ func Test_Success_WithoutSyncPeriod_ReturnsEmptyResult(t *testing.T) {
 
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
@@ -59,11 +63,13 @@ func Test_Success_WithSyncPeriod_ReturnsSyncPeriod(t *testing.T) {
 	syncPeriod := 12 * time.Second
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-			SyncPeriod:        &syncPeriod,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+			SyncPeriod:         &syncPeriod,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
@@ -73,6 +79,7 @@ func Test_Success_WithSyncPeriod_ReturnsSyncPeriod(t *testing.T) {
 	// Threshold here needs to be at or below the lower-bound of the RequeuePeriod, taking Jitter into account
 	// Currently jitter is 0.25, so the 12s above becomes 9s to 15s
 	g.Expect(result.RequeueAfter >= 9*time.Second).To(BeTrue())
+	g.Expect(result.RequeueAfter <= 15*time.Second).To(BeTrue())
 
 	g.Expect(calc.(*calculator).failures).To(HaveLen(0))
 }
@@ -84,11 +91,13 @@ func Test_Requeue_ReturnsResultUnmodified(t *testing.T) {
 	syncPeriod := 10 * time.Second
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-			SyncPeriod:        &syncPeriod,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+			SyncPeriod:         &syncPeriod,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
@@ -109,9 +118,11 @@ func Test_RequeueWithDelayOverride_ReturnsResultWithDelay(t *testing.T) {
 			ErrorBaseDelay:       1 * time.Second,
 			ErrorMaxFastDelay:    5 * time.Second,
 			ErrorMaxSlowDelay:    10 * time.Second,
+			ErrorVerySlowDelay:   20 * time.Second,
 			SyncPeriod:           &syncPeriod,
 			RequeueDelayOverride: 77 * time.Second,
-		})
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
@@ -128,14 +139,16 @@ func Test_Error_ReturnedAsIs(t *testing.T) {
 
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
-	inputErr := errors.New("An error")
+	inputErr := eris.New("An error")
 	result, err := calc.NextInterval(req, ctrl.Result{}, inputErr)
 	g.Expect(err).To(Equal(inputErr))
 	g.Expect(result).To(Equal(ctrl.Result{}))
@@ -149,14 +162,16 @@ func Test_ErrorFollowedBySuccess_ClearsFailureTracking(t *testing.T) {
 
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
-	inputErr := errors.New("An error")
+	inputErr := eris.New("An error")
 	result, err := calc.NextInterval(req, ctrl.Result{}, inputErr)
 	g.Expect(err).To(Equal(inputErr))
 	g.Expect(result).To(Equal(ctrl.Result{}))
@@ -174,14 +189,16 @@ func Test_ReadyConditionErrorWithErrorSeverity_ReturnsSuccess(t *testing.T) {
 
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
-	inputErr := conditions.NewReadyConditionImpactingError(errors.New("problem"), conditions.ConditionSeverityError, conditions.ReasonFailed)
+	inputErr := conditions.NewReadyConditionImpactingError(eris.New("problem"), conditions.ConditionSeverityError, conditions.ReasonFailed)
 	result, err := calc.NextInterval(req, ctrl.Result{}, inputErr)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(result).To(Equal(ctrl.Result{}))
@@ -195,17 +212,20 @@ func Test_ReadyConditionErrorWithSlowBackoff_UsesSlowBackoff(t *testing.T) {
 
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
 	inputErr := conditions.NewReadyConditionImpactingError(
-		errors.New("problem"),
+		eris.New("problem"),
 		conditions.ConditionSeverityWarning,
-		conditions.Reason{Name: "Abc", RetryClassification: conditions.RetrySlow})
+		conditions.Reason{Name: "Abc", RetryClassification: retry.Slow},
+	)
 
 	expectedDelaySec := []int64{1, 2, 4, 8, 10, 10, 10}
 
@@ -231,17 +251,20 @@ func Test_ReadyConditionErrorWithFastBackoff_UsesFastBackoff(t *testing.T) {
 
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
 	inputErr := conditions.NewReadyConditionImpactingError(
-		errors.New("problem"),
+		eris.New("problem"),
 		conditions.ConditionSeverityWarning,
-		conditions.Reason{Name: "Abc", RetryClassification: conditions.RetryFast})
+		conditions.Reason{Name: "Abc", RetryClassification: retry.Fast},
+	)
 
 	expectedDelaySec := []int64{1, 2, 4, 5, 5, 5, 5}
 
@@ -261,16 +284,59 @@ func Test_ReadyConditionErrorWithFastBackoff_UsesFastBackoff(t *testing.T) {
 	g.Expect(calc.(*calculator).failures).To(HaveLen(0))
 }
 
+func Test_ReadyConditionErrorWithVerySlowBackoff_UsesVerySlowBackoff(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	calc := newCalculator(
+		CalculatorParameters{
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
+
+	inputErr := conditions.NewReadyConditionImpactingError(
+		eris.New("problem"),
+		conditions.ConditionSeverityWarning,
+		conditions.Reason{Name: "Abc", RetryClassification: retry.VerySlow},
+	)
+
+	result, err := calc.NextInterval(req, ctrl.Result{}, inputErr)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Threshold here needs to be at or below the lower-bound of the ErrorVerySlowDelay, taking Jitter into account
+	// Currently jitter is 0.25, so the 20s above becomes 15 to 25
+	g.Expect(result.RequeueAfter >= 15*time.Second).To(BeTrue())
+	g.Expect(result.RequeueAfter <= 25*time.Second).To(BeTrue())
+
+	// VerySlow still counts as a failure. If another retry happens with a different retry classification,
+	// it will start backing off based on the number of consecutive VerySlow failures
+	g.Expect(calc.(*calculator).failures).To(HaveLen(1))
+
+	// Success should then clear failure tracking
+	result, err = calc.NextInterval(req, ctrl.Result{}, nil)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(result).To(Equal(ctrl.Result{}))
+
+	g.Expect(calc.(*calculator).failures).To(HaveLen(0))
+}
+
 func Test_KubeClientNotFoundError_ReturnsSuccess(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 
@@ -293,10 +359,12 @@ func Test_KubeClientConflict_ReturnsBackoff(t *testing.T) {
 
 	calc := newCalculator(
 		CalculatorParameters{
-			ErrorBaseDelay:    1 * time.Second,
-			ErrorMaxFastDelay: 5 * time.Second,
-			ErrorMaxSlowDelay: 10 * time.Second,
-		})
+			ErrorBaseDelay:     1 * time.Second,
+			ErrorMaxFastDelay:  5 * time.Second,
+			ErrorMaxSlowDelay:  10 * time.Second,
+			ErrorVerySlowDelay: 20 * time.Second,
+		},
+	)
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "foo", Name: "bar"}}
 

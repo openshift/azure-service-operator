@@ -10,11 +10,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/azure-service-operator/v2/internal/set"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
 // Stage represents a composable stage of processing that can transform or process the set
@@ -53,74 +50,8 @@ func NewStage(
 	}
 }
 
-// NewLegacyStage is a legacy constructor for creating a new pipeline stage that's ready for execution
-// DO NOT USE THIS FOR ANY NEW STAGES - it's kept for compatibility with an older style of pipeline stages that will be
-// migrated to the new style over time.
-func NewLegacyStage(
-	id string,
-	description string,
-	action func(context.Context, astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error),
-) *Stage {
-	if !knownLegacyStages.Contains(id) {
-		msg := fmt.Sprintf(
-			"No new legacy stages (use NewStage instead): %s is not the id of a known legacy stage",
-			id)
-		panic(msg)
-	}
-
-	return NewStage(
-		id,
-		description,
-		func(ctx context.Context, state *State) (*State, error) {
-			types, err := action(ctx, state.Definitions())
-			if err != nil {
-				return nil, err
-			}
-
-			return state.WithDefinitions(types), nil
-		})
-}
-
-var knownLegacyStages = set.Make(
-	"addCrossResourceReferences",
-	"addCrossplaneAtProviderProperty",
-	"addCrossplaneEmbeddedResourceSpec",
-	"addCrossplaneEmbeddedResourceStatus",
-	"addCrossplaneForProviderProperty",
-	"addCrossplaneOwnerProperties",
-	"allof-anyof-objects",
-	"applyArmConversionInterface",
-	"assertTypesStructureValid",
-	"augmentSpecWithStatus",
-	"collapseCrossGroupReferences",
-	"createArmTypes",
-	"deleteGenerated",
-	"determineResourceOwnership",
-	"ensureArmTypeExistsForEveryType",
-	"exportControllerResourceRegistrations",
-	"exportPackages",
-	"flattenProperties",
-	"flattenResources",
-	"injectHubFunction",
-	"injectOriginalGVKFunction",
-	"injectOriginalVersionFunction",
-	"injectOriginalVersionProperty",
-	"loadSchema",
-	"loadTypes",
-	"markStorageVersion",
-	"nameTypes",
-	"pluralizeNames",
-	"propertyRewrites",
-	"removeAliases",
-	"removeEmbeddedResources",
-	"replaceAnyTypeWithJSON",
-	"reportTypesAndVersions",
-	"rogueCheck",
-	"simplifyDefinitions",
-	"stripUnreferenced")
-
-// HasId returns true if this stage has the specified id, false otherwise
-func (stage *Stage) HasId(id string) bool {
+// HasID returns true if this stage has the specified id, false otherwise
+func (stage *Stage) HasID(id string) bool {
 	return stage.id == id
 }
 
@@ -133,7 +64,8 @@ func (stage *Stage) RequiresPrerequisiteStages(prerequisites ...string) {
 			"Prerequisites of stage '%s' already set to '%s'; cannot modify to '%s'.",
 			stage.id,
 			strings.Join(stage.prerequisites, "; "),
-			strings.Join(prerequisites, "; ")))
+			strings.Join(prerequisites, "; "),
+		))
 	}
 
 	stage.prerequisites = prerequisites
@@ -157,7 +89,8 @@ func (stage *Stage) RequiresPostrequisiteStages(postrequisites ...string) {
 			"Postrequisites of stage '%s' already set to '%s'; cannot modify to '%s'.",
 			stage.id,
 			strings.Join(stage.postrequisites, "; "),
-			strings.Join(postrequisites, "; ")))
+			strings.Join(postrequisites, "; "),
+		))
 	}
 
 	stage.postrequisites = postrequisites
@@ -186,8 +119,8 @@ func (stage *Stage) IsUsedFor(target Target) bool {
 	return false
 }
 
-// Id returns the unique identifier for this stage
-func (stage *Stage) Id() string {
+// ID returns the unique identifier for this stage
+func (stage *Stage) ID() string {
 	return stage.id
 }
 
@@ -199,7 +132,7 @@ func (stage *Stage) Description() string {
 // Run is used to execute the action associated with this stage
 func (stage *Stage) Run(ctx context.Context, state *State) (*State, error) {
 	if err := stage.checkPreconditions(state); err != nil {
-		return nil, errors.Wrapf(err, "preconditions of stage %s not met", stage.id)
+		return nil, eris.Wrapf(err, "preconditions of stage %s not met", stage.id)
 	}
 
 	resultState, err := stage.action(ctx, state)
@@ -238,7 +171,7 @@ func (stage *Stage) checkPrerequisites(state *State) error {
 	for _, prereq := range stage.prerequisites {
 		satisfied := state.stagesSeen.Contains(prereq)
 		if !satisfied {
-			errs = append(errs, errors.Errorf("prerequisite %q of stage %q NOT satisfied.", prereq, stage.Id()))
+			errs = append(errs, eris.Errorf("prerequisite %q of stage %q NOT satisfied.", prereq, stage.ID()))
 		}
 	}
 
@@ -251,7 +184,7 @@ func (stage *Stage) checkPostrequisites(state *State) error {
 	for _, postreq := range stage.postrequisites {
 		early := state.stagesSeen.Contains(postreq)
 		if early {
-			errs = append(errs, errors.Errorf("postrequisite %q satisfied of stage %q early.", postreq, stage.Id()))
+			errs = append(errs, eris.Errorf("postrequisite %q satisfied of stage %q early.", postreq, stage.ID()))
 		}
 	}
 

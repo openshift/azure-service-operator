@@ -8,7 +8,7 @@ package configmaps
 import (
 	"sort"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,16 +48,55 @@ func (c *Collector) get(dest *genruntime.ConfigMapDestination) *v1.ConfigMap {
 		}
 		c.configs[dest.Name] = existing
 	}
+
 	return existing
+}
+
+// mergeStringMap merges src into dest, returning the result.
+// If the same key already exists in dest with a different value, an error is recorded.
+func (c *Collector) mergeStringMap(dest map[string]string, src map[string]string, configMapName string, kind string) map[string]string {
+	if len(src) == 0 {
+		return dest
+	}
+	if dest == nil {
+		dest = make(map[string]string, len(src))
+	}
+	for k, v := range src {
+		if existing, ok := dest[k]; ok && existing != v {
+			c.errors = append(
+				c.errors,
+				eris.Errorf(
+					"%s collision for configmap %q: %s %q has conflicting values %q and %q",
+					kind,
+					configMapName,
+					kind,
+					k,
+					existing,
+					v,
+				),
+			)
+			continue
+		}
+		dest[k] = v
+	}
+	return dest
+}
+
+func (c *Collector) mergeAnnotations(dest map[string]string, src map[string]string, configMapName string) map[string]string {
+	return c.mergeStringMap(dest, src, configMapName, "annotation")
+}
+
+func (c *Collector) mergeLabels(dest map[string]string, src map[string]string, configMapName string) map[string]string {
+	return c.mergeStringMap(dest, src, configMapName, "label")
 }
 
 func (c *Collector) errIfKeyExists(val *v1.ConfigMap, key string) error {
 	if _, ok := val.Data[key]; ok {
-		return errors.Errorf("key collision, entry exists for key %s in Data", key)
+		return eris.Errorf("key collision, entry exists for key '%s' in Data", key)
 	}
 
 	if _, ok := val.BinaryData[key]; ok {
-		return errors.Errorf("key collision, entry exists for key %s in BinaryData", key)
+		return eris.Errorf("key collision, entry exists for key '%s' in BinaryData", key)
 	}
 
 	return nil
@@ -73,7 +112,7 @@ func (c *Collector) AddValue(dest *genruntime.ConfigMapDestination, value string
 
 	if value == "" {
 		// A dest was provided, but we couldn't find the key to match. This is an error
-		c.errors = append(c.errors, errors.Errorf("could not find value to save to '%s'", dest.String()))
+		c.errors = append(c.errors, eris.Errorf("could not find value to save to '%s'", dest.String()))
 		return
 	}
 
@@ -85,6 +124,8 @@ func (c *Collector) AddValue(dest *genruntime.ConfigMapDestination, value string
 	}
 
 	existing.Data[dest.Key] = value
+	existing.Annotations = c.mergeAnnotations(existing.Annotations, dest.Annotations, dest.Name)
+	existing.Labels = c.mergeLabels(existing.Labels, dest.Labels, dest.Name)
 }
 
 // AddBinaryValue adds the dest and ConfigMapDestination pair to the collector. If another value has already
@@ -103,6 +144,8 @@ func (c *Collector) AddBinaryValue(dest *genruntime.ConfigMapDestination, value 
 	}
 
 	existing.BinaryData[dest.Key] = value
+	existing.Annotations = c.mergeAnnotations(existing.Annotations, dest.Annotations, dest.Name)
+	existing.Labels = c.mergeLabels(existing.Labels, dest.Labels, dest.Name)
 }
 
 // Values returns the set of Values that have been collected.

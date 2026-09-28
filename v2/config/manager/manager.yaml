@@ -24,11 +24,13 @@ spec:
   selector:
     matchLabels:
       control-plane: controller-manager
-  replicas: 1
+  replicas: 2
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 10
   template:
     metadata:
       labels:
-        aadpodidbinding: aso-manager-binding
         control-plane: controller-manager
         app.kubernetes.io/name: azure-service-operator
         app.kubernetes.io/version: ${VERSION}
@@ -45,6 +47,7 @@ spec:
         - --enable-leader-election
         - --v=2
         - --crd-pattern=
+        - --crd-labels=
         ports:
           - containerPort: 8081
             name: health-port
@@ -52,26 +55,36 @@ spec:
           - containerPort: 8443
             name: metrics-port
             protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          periodSeconds: 10
+          failureThreshold: 12
         livenessProbe:
           httpGet:
             path: /healthz
             port: 8081
-          initialDelaySeconds: 60
         readinessProbe:
           httpGet:
             path: /readyz
             port: 8081
-          initialDelaySeconds: 60
         image: controller:latest
         name: manager
         resources:
           limits:
             cpu: 500m
-            memory: 512Mi
+            memory: 512Mi  # Make sure to change the GOMEMLIMIT env variable if you change this too
           requests:
             cpu: 200m
             memory: 256Mi
         securityContext:
-          readOnlyRootFilesystem: true
+          runAsUser: 65532 # nonroot user from gcr.io/distroless/static:nonroot image
+          runAsGroup: 65532 # nonroot group from gcr.io/distroless/static:nonroot image
+          runAsNonRoot: true
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
       terminationGracePeriodSeconds: 10

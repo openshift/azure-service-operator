@@ -5,26 +5,28 @@ package v1api20220615
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/insights/v1api20220615/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/insights/v1api20220615/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,insights}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /monitor/resource-manager/Microsoft.Insights/stable/2022-06-15/scheduledQueryRule_API.json
+// - Generated from: /monitor/resource-manager/Microsoft.Insights/Insights/stable/2022-06-15/scheduledQueryRule_API.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Insights/scheduledQueryRules/{ruleName}
 type ScheduledQueryRule struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -67,28 +69,25 @@ func (rule *ScheduledQueryRule) ConvertTo(hub conversion.Hub) error {
 	return rule.AssignProperties_To_ScheduledQueryRule(destination)
 }
 
-// +kubebuilder:webhook:path=/mutate-insights-azure-com-v1api20220615-scheduledqueryrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=scheduledqueryrules,verbs=create;update,versions=v1api20220615,name=default.v1api20220615.scheduledqueryrules.insights.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &ScheduledQueryRule{}
 
-var _ admission.Defaulter = &ScheduledQueryRule{}
-
-// Default applies defaults to the ScheduledQueryRule resource
-func (rule *ScheduledQueryRule) Default() {
-	rule.defaultImpl()
-	var temp any = rule
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (rule *ScheduledQueryRule) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if rule.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return rule.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (rule *ScheduledQueryRule) defaultAzureName() {
-	if rule.Spec.AzureName == "" {
-		rule.Spec.AzureName = rule.Name
-	}
-}
+var _ secrets.Exporter = &ScheduledQueryRule{}
 
-// defaultImpl applies the code generated defaults to the ScheduledQueryRule resource
-func (rule *ScheduledQueryRule) defaultImpl() { rule.defaultAzureName() }
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (rule *ScheduledQueryRule) SecretDestinationExpressions() []*core.DestinationExpression {
+	if rule.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return rule.Spec.OperatorSpec.SecretExpressions
+}
 
 var _ genruntime.ImportableResource = &ScheduledQueryRule{}
 
@@ -110,7 +109,7 @@ func (rule *ScheduledQueryRule) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-06-15"
 func (rule ScheduledQueryRule) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-06-15"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -149,6 +148,10 @@ func (rule *ScheduledQueryRule) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (rule *ScheduledQueryRule) Owner() *genruntime.ResourceReference {
+	if rule.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(rule.Spec)
 	return rule.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -165,92 +168,11 @@ func (rule *ScheduledQueryRule) SetStatus(status genruntime.ConvertibleStatus) e
 	var st ScheduledQueryRule_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	rule.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-insights-azure-com-v1api20220615-scheduledqueryrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=scheduledqueryrules,verbs=create;update,versions=v1api20220615,name=validate.v1api20220615.scheduledqueryrules.insights.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &ScheduledQueryRule{}
-
-// ValidateCreate validates the creation of the resource
-func (rule *ScheduledQueryRule) ValidateCreate() (admission.Warnings, error) {
-	validations := rule.createValidations()
-	var temp any = rule
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (rule *ScheduledQueryRule) ValidateDelete() (admission.Warnings, error) {
-	validations := rule.deleteValidations()
-	var temp any = rule
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (rule *ScheduledQueryRule) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := rule.updateValidations()
-	var temp any = rule
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (rule *ScheduledQueryRule) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){rule.validateResourceReferences, rule.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (rule *ScheduledQueryRule) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (rule *ScheduledQueryRule) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return rule.validateResourceReferences()
-		},
-		rule.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return rule.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (rule *ScheduledQueryRule) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(rule)
-}
-
-// validateResourceReferences validates all resource references
-func (rule *ScheduledQueryRule) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&rule.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (rule *ScheduledQueryRule) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*ScheduledQueryRule)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, rule)
 }
 
 // AssignProperties_From_ScheduledQueryRule populates our ScheduledQueryRule from the provided source ScheduledQueryRule
@@ -263,7 +185,7 @@ func (rule *ScheduledQueryRule) AssignProperties_From_ScheduledQueryRule(source 
 	var spec ScheduledQueryRule_Spec
 	err := spec.AssignProperties_From_ScheduledQueryRule_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_ScheduledQueryRule_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_ScheduledQueryRule_Spec() to populate field Spec")
 	}
 	rule.Spec = spec
 
@@ -271,7 +193,7 @@ func (rule *ScheduledQueryRule) AssignProperties_From_ScheduledQueryRule(source 
 	var status ScheduledQueryRule_STATUS
 	err = status.AssignProperties_From_ScheduledQueryRule_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_ScheduledQueryRule_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_ScheduledQueryRule_STATUS() to populate field Status")
 	}
 	rule.Status = status
 
@@ -289,7 +211,7 @@ func (rule *ScheduledQueryRule) AssignProperties_To_ScheduledQueryRule(destinati
 	var spec storage.ScheduledQueryRule_Spec
 	err := rule.Spec.AssignProperties_To_ScheduledQueryRule_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_ScheduledQueryRule_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_ScheduledQueryRule_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
@@ -297,7 +219,7 @@ func (rule *ScheduledQueryRule) AssignProperties_To_ScheduledQueryRule(destinati
 	var status storage.ScheduledQueryRule_STATUS
 	err = rule.Status.AssignProperties_To_ScheduledQueryRule_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_ScheduledQueryRule_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_ScheduledQueryRule_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +238,7 @@ func (rule *ScheduledQueryRule) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /monitor/resource-manager/Microsoft.Insights/stable/2022-06-15/scheduledQueryRule_API.json
+// - Generated from: /monitor/resource-manager/Microsoft.Insights/Insights/stable/2022-06-15/scheduledQueryRule_API.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Insights/scheduledQueryRules/{ruleName}
 type ScheduledQueryRuleList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -337,6 +259,7 @@ type ScheduledQueryRule_Spec struct {
 	// Relevant only for rules of the kind LogAlert.
 	AutoMitigate *bool `json:"autoMitigate,omitempty"`
 
+	// +kubebuilder:validation:Pattern="^[^#<>%&:\\?/{}*]{1,260}$"
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
 	AzureName string `json:"azureName,omitempty"`
@@ -371,6 +294,10 @@ type ScheduledQueryRule_Spec struct {
 	// MuteActionsDuration: Mute actions for the chosen period of time (in ISO 8601 duration format) after the alert is fired.
 	// Relevant only for rules of the kind LogAlert.
 	MuteActionsDuration *string `json:"muteActionsDuration,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *ScheduledQueryRuleOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// OverrideQueryTimeRange: If specified then overrides the query time range (default is
 	// WindowSize*NumberOfEvaluationPeriods). Relevant only for rules of the kind LogAlert.
@@ -414,11 +341,13 @@ func (rule *ScheduledQueryRule_Spec) ConvertToARM(resolved genruntime.ConvertToA
 	if rule == nil {
 		return nil, nil
 	}
-	result := &ScheduledQueryRule_Spec_ARM{}
+	result := &arm.ScheduledQueryRule_Spec{}
 
 	// Set property "Kind":
 	if rule.Kind != nil {
-		kind := *rule.Kind
+		var temp string
+		temp = string(*rule.Kind)
+		kind := arm.ScheduledQueryRule_Kind_Spec(temp)
 		result.Kind = &kind
 	}
 
@@ -447,14 +376,14 @@ func (rule *ScheduledQueryRule_Spec) ConvertToARM(resolved genruntime.ConvertToA
 		rule.SkipQueryValidation != nil ||
 		rule.TargetResourceTypes != nil ||
 		rule.WindowSize != nil {
-		result.Properties = &ScheduledQueryRuleProperties_ARM{}
+		result.Properties = &arm.ScheduledQueryRuleProperties{}
 	}
 	if rule.Actions != nil {
-		actions_ARM, err := (*rule.Actions).ConvertToARM(resolved)
+		actions_ARM, err := rule.Actions.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		actions := *actions_ARM.(*Actions_ARM)
+		actions := *actions_ARM.(*arm.Actions)
 		result.Properties.Actions = &actions
 	}
 	if rule.AutoMitigate != nil {
@@ -466,11 +395,11 @@ func (rule *ScheduledQueryRule_Spec) ConvertToARM(resolved genruntime.ConvertToA
 		result.Properties.CheckWorkspaceAlertsStorageConfigured = &checkWorkspaceAlertsStorageConfigured
 	}
 	if rule.Criteria != nil {
-		criteria_ARM, err := (*rule.Criteria).ConvertToARM(resolved)
+		criteria_ARM, err := rule.Criteria.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		criteria := *criteria_ARM.(*ScheduledQueryRuleCriteria_ARM)
+		criteria := *criteria_ARM.(*arm.ScheduledQueryRuleCriteria)
 		result.Properties.Criteria = &criteria
 	}
 	if rule.Description != nil {
@@ -505,7 +434,9 @@ func (rule *ScheduledQueryRule_Spec) ConvertToARM(resolved genruntime.ConvertToA
 		result.Properties.Scopes = append(result.Properties.Scopes, itemARMID)
 	}
 	if rule.Severity != nil {
-		severity := *rule.Severity
+		var temp int
+		temp = int(*rule.Severity)
+		severity := arm.ScheduledQueryRuleProperties_Severity(temp)
 		result.Properties.Severity = &severity
 	}
 	if rule.SkipQueryValidation != nil {
@@ -532,14 +463,14 @@ func (rule *ScheduledQueryRule_Spec) ConvertToARM(resolved genruntime.ConvertToA
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (rule *ScheduledQueryRule_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ScheduledQueryRule_Spec_ARM{}
+	return &arm.ScheduledQueryRule_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (rule *ScheduledQueryRule_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ScheduledQueryRule_Spec_ARM)
+	typedInput, ok := armInput.(arm.ScheduledQueryRule_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ScheduledQueryRule_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ScheduledQueryRule_Spec, got %T", armInput)
 	}
 
 	// Set property "Actions":
@@ -629,7 +560,9 @@ func (rule *ScheduledQueryRule_Spec) PopulateFromARM(owner genruntime.ArbitraryO
 
 	// Set property "Kind":
 	if typedInput.Kind != nil {
-		kind := *typedInput.Kind
+		var temp string
+		temp = string(*typedInput.Kind)
+		kind := ScheduledQueryRule_Kind_Spec(temp)
 		rule.Kind = &kind
 	}
 
@@ -647,6 +580,8 @@ func (rule *ScheduledQueryRule_Spec) PopulateFromARM(owner genruntime.ArbitraryO
 			rule.MuteActionsDuration = &muteActionsDuration
 		}
 	}
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "OverrideQueryTimeRange":
 	// copying flattened property:
@@ -669,7 +604,9 @@ func (rule *ScheduledQueryRule_Spec) PopulateFromARM(owner genruntime.ArbitraryO
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.Severity != nil {
-			severity := *typedInput.Properties.Severity
+			var temp int
+			temp = int(*typedInput.Properties.Severity)
+			severity := ScheduledQueryRuleProperties_Severity(temp)
 			rule.Severity = &severity
 		}
 	}
@@ -726,13 +663,13 @@ func (rule *ScheduledQueryRule_Spec) ConvertSpecFrom(source genruntime.Convertib
 	src = &storage.ScheduledQueryRule_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
 	err = rule.AssignProperties_From_ScheduledQueryRule_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
@@ -750,13 +687,13 @@ func (rule *ScheduledQueryRule_Spec) ConvertSpecTo(destination genruntime.Conver
 	dst = &storage.ScheduledQueryRule_Spec{}
 	err := rule.AssignProperties_To_ScheduledQueryRule_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
@@ -770,7 +707,7 @@ func (rule *ScheduledQueryRule_Spec) AssignProperties_From_ScheduledQueryRule_Sp
 		var action Actions
 		err := action.AssignProperties_From_Actions(source.Actions)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Actions() to populate field Actions")
+			return eris.Wrap(err, "calling AssignProperties_From_Actions() to populate field Actions")
 		}
 		rule.Actions = &action
 	} else {
@@ -801,7 +738,7 @@ func (rule *ScheduledQueryRule_Spec) AssignProperties_From_ScheduledQueryRule_Sp
 		var criterion ScheduledQueryRuleCriteria
 		err := criterion.AssignProperties_From_ScheduledQueryRuleCriteria(source.Criteria)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ScheduledQueryRuleCriteria() to populate field Criteria")
+			return eris.Wrap(err, "calling AssignProperties_From_ScheduledQueryRuleCriteria() to populate field Criteria")
 		}
 		rule.Criteria = &criterion
 	} else {
@@ -840,6 +777,18 @@ func (rule *ScheduledQueryRule_Spec) AssignProperties_From_ScheduledQueryRule_Sp
 	// MuteActionsDuration
 	rule.MuteActionsDuration = genruntime.ClonePointerToString(source.MuteActionsDuration)
 
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec ScheduledQueryRuleOperatorSpec
+		err := operatorSpec.AssignProperties_From_ScheduledQueryRuleOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ScheduledQueryRuleOperatorSpec() to populate field OperatorSpec")
+		}
+		rule.OperatorSpec = &operatorSpec
+	} else {
+		rule.OperatorSpec = nil
+	}
+
 	// OverrideQueryTimeRange
 	rule.OverrideQueryTimeRange = genruntime.ClonePointerToString(source.OverrideQueryTimeRange)
 
@@ -855,8 +804,6 @@ func (rule *ScheduledQueryRule_Spec) AssignProperties_From_ScheduledQueryRule_Sp
 	if source.ScopesReferences != nil {
 		scopesReferenceList := make([]genruntime.ResourceReference, len(source.ScopesReferences))
 		for scopesReferenceIndex, scopesReferenceItem := range source.ScopesReferences {
-			// Shadow the loop variable to avoid aliasing
-			scopesReferenceItem := scopesReferenceItem
 			scopesReferenceList[scopesReferenceIndex] = scopesReferenceItem.Copy()
 		}
 		rule.ScopesReferences = scopesReferenceList
@@ -903,7 +850,7 @@ func (rule *ScheduledQueryRule_Spec) AssignProperties_To_ScheduledQueryRule_Spec
 		var action storage.Actions
 		err := rule.Actions.AssignProperties_To_Actions(&action)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Actions() to populate field Actions")
+			return eris.Wrap(err, "calling AssignProperties_To_Actions() to populate field Actions")
 		}
 		destination.Actions = &action
 	} else {
@@ -934,7 +881,7 @@ func (rule *ScheduledQueryRule_Spec) AssignProperties_To_ScheduledQueryRule_Spec
 		var criterion storage.ScheduledQueryRuleCriteria
 		err := rule.Criteria.AssignProperties_To_ScheduledQueryRuleCriteria(&criterion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ScheduledQueryRuleCriteria() to populate field Criteria")
+			return eris.Wrap(err, "calling AssignProperties_To_ScheduledQueryRuleCriteria() to populate field Criteria")
 		}
 		destination.Criteria = &criterion
 	} else {
@@ -972,6 +919,18 @@ func (rule *ScheduledQueryRule_Spec) AssignProperties_To_ScheduledQueryRule_Spec
 	// MuteActionsDuration
 	destination.MuteActionsDuration = genruntime.ClonePointerToString(rule.MuteActionsDuration)
 
+	// OperatorSpec
+	if rule.OperatorSpec != nil {
+		var operatorSpec storage.ScheduledQueryRuleOperatorSpec
+		err := rule.OperatorSpec.AssignProperties_To_ScheduledQueryRuleOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ScheduledQueryRuleOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
 	// OriginalVersion
 	destination.OriginalVersion = rule.OriginalVersion()
 
@@ -990,8 +949,6 @@ func (rule *ScheduledQueryRule_Spec) AssignProperties_To_ScheduledQueryRule_Spec
 	if rule.ScopesReferences != nil {
 		scopesReferenceList := make([]genruntime.ResourceReference, len(rule.ScopesReferences))
 		for scopesReferenceIndex, scopesReferenceItem := range rule.ScopesReferences {
-			// Shadow the loop variable to avoid aliasing
-			scopesReferenceItem := scopesReferenceItem
 			scopesReferenceList[scopesReferenceIndex] = scopesReferenceItem.Copy()
 		}
 		destination.ScopesReferences = scopesReferenceList
@@ -1043,7 +1000,7 @@ func (rule *ScheduledQueryRule_Spec) Initialize_From_ScheduledQueryRule_STATUS(s
 		var action Actions
 		err := action.Initialize_From_Actions_STATUS(source.Actions)
 		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_Actions_STATUS() to populate field Actions")
+			return eris.Wrap(err, "calling Initialize_From_Actions_STATUS() to populate field Actions")
 		}
 		rule.Actions = &action
 	} else {
@@ -1071,7 +1028,7 @@ func (rule *ScheduledQueryRule_Spec) Initialize_From_ScheduledQueryRule_STATUS(s
 		var criterion ScheduledQueryRuleCriteria
 		err := criterion.Initialize_From_ScheduledQueryRuleCriteria_STATUS(source.Criteria)
 		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ScheduledQueryRuleCriteria_STATUS() to populate field Criteria")
+			return eris.Wrap(err, "calling Initialize_From_ScheduledQueryRuleCriteria_STATUS() to populate field Criteria")
 		}
 		rule.Criteria = &criterion
 	} else {
@@ -1262,13 +1219,13 @@ func (rule *ScheduledQueryRule_STATUS) ConvertStatusFrom(source genruntime.Conve
 	src = &storage.ScheduledQueryRule_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
 	err = rule.AssignProperties_From_ScheduledQueryRule_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
@@ -1286,13 +1243,13 @@ func (rule *ScheduledQueryRule_STATUS) ConvertStatusTo(destination genruntime.Co
 	dst = &storage.ScheduledQueryRule_STATUS{}
 	err := rule.AssignProperties_To_ScheduledQueryRule_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
@@ -1302,14 +1259,14 @@ var _ genruntime.FromARMConverter = &ScheduledQueryRule_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (rule *ScheduledQueryRule_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ScheduledQueryRule_STATUS_ARM{}
+	return &arm.ScheduledQueryRule_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (rule *ScheduledQueryRule_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ScheduledQueryRule_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ScheduledQueryRule_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ScheduledQueryRule_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ScheduledQueryRule_STATUS, got %T", armInput)
 	}
 
 	// Set property "Actions":
@@ -1437,7 +1394,9 @@ func (rule *ScheduledQueryRule_STATUS) PopulateFromARM(owner genruntime.Arbitrar
 
 	// Set property "Kind":
 	if typedInput.Kind != nil {
-		kind := *typedInput.Kind
+		var temp string
+		temp = string(*typedInput.Kind)
+		kind := ScheduledQueryRule_Kind_STATUS(temp)
 		rule.Kind = &kind
 	}
 
@@ -1483,7 +1442,9 @@ func (rule *ScheduledQueryRule_STATUS) PopulateFromARM(owner genruntime.Arbitrar
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.Severity != nil {
-			severity := *typedInput.Properties.Severity
+			var temp int
+			temp = int(*typedInput.Properties.Severity)
+			severity := ScheduledQueryRuleProperties_Severity_STATUS(temp)
 			rule.Severity = &severity
 		}
 	}
@@ -1551,7 +1512,7 @@ func (rule *ScheduledQueryRule_STATUS) AssignProperties_From_ScheduledQueryRule_
 		var action Actions_STATUS
 		err := action.AssignProperties_From_Actions_STATUS(source.Actions)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Actions_STATUS() to populate field Actions")
+			return eris.Wrap(err, "calling AssignProperties_From_Actions_STATUS() to populate field Actions")
 		}
 		rule.Actions = &action
 	} else {
@@ -1585,7 +1546,7 @@ func (rule *ScheduledQueryRule_STATUS) AssignProperties_From_ScheduledQueryRule_
 		var criterion ScheduledQueryRuleCriteria_STATUS
 		err := criterion.AssignProperties_From_ScheduledQueryRuleCriteria_STATUS(source.Criteria)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ScheduledQueryRuleCriteria_STATUS() to populate field Criteria")
+			return eris.Wrap(err, "calling AssignProperties_From_ScheduledQueryRuleCriteria_STATUS() to populate field Criteria")
 		}
 		rule.Criteria = &criterion
 	} else {
@@ -1676,7 +1637,7 @@ func (rule *ScheduledQueryRule_STATUS) AssignProperties_From_ScheduledQueryRule_
 		var systemDatum SystemData_STATUS
 		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
 		}
 		rule.SystemData = &systemDatum
 	} else {
@@ -1709,7 +1670,7 @@ func (rule *ScheduledQueryRule_STATUS) AssignProperties_To_ScheduledQueryRule_ST
 		var action storage.Actions_STATUS
 		err := rule.Actions.AssignProperties_To_Actions_STATUS(&action)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Actions_STATUS() to populate field Actions")
+			return eris.Wrap(err, "calling AssignProperties_To_Actions_STATUS() to populate field Actions")
 		}
 		destination.Actions = &action
 	} else {
@@ -1743,7 +1704,7 @@ func (rule *ScheduledQueryRule_STATUS) AssignProperties_To_ScheduledQueryRule_ST
 		var criterion storage.ScheduledQueryRuleCriteria_STATUS
 		err := rule.Criteria.AssignProperties_To_ScheduledQueryRuleCriteria_STATUS(&criterion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ScheduledQueryRuleCriteria_STATUS() to populate field Criteria")
+			return eris.Wrap(err, "calling AssignProperties_To_ScheduledQueryRuleCriteria_STATUS() to populate field Criteria")
 		}
 		destination.Criteria = &criterion
 	} else {
@@ -1833,7 +1794,7 @@ func (rule *ScheduledQueryRule_STATUS) AssignProperties_To_ScheduledQueryRule_ST
 		var systemDatum storage.SystemData_STATUS
 		err := rule.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
 		}
 		destination.SystemData = &systemDatum
 	} else {
@@ -1879,7 +1840,7 @@ func (actions *Actions) ConvertToARM(resolved genruntime.ConvertToARMResolvedDet
 	if actions == nil {
 		return nil, nil
 	}
-	result := &Actions_ARM{}
+	result := &arm.Actions{}
 
 	// Set property "ActionGroups":
 	for _, item := range actions.ActionGroupsReferences {
@@ -1902,14 +1863,14 @@ func (actions *Actions) ConvertToARM(resolved genruntime.ConvertToARMResolvedDet
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (actions *Actions) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Actions_ARM{}
+	return &arm.Actions{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (actions *Actions) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Actions_ARM)
+	typedInput, ok := armInput.(arm.Actions)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Actions_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Actions, got %T", armInput)
 	}
 
 	// no assignment for property "ActionGroupsReferences"
@@ -1933,8 +1894,6 @@ func (actions *Actions) AssignProperties_From_Actions(source *storage.Actions) e
 	if source.ActionGroupsReferences != nil {
 		actionGroupsReferenceList := make([]genruntime.ResourceReference, len(source.ActionGroupsReferences))
 		for actionGroupsReferenceIndex, actionGroupsReferenceItem := range source.ActionGroupsReferences {
-			// Shadow the loop variable to avoid aliasing
-			actionGroupsReferenceItem := actionGroupsReferenceItem
 			actionGroupsReferenceList[actionGroupsReferenceIndex] = actionGroupsReferenceItem.Copy()
 		}
 		actions.ActionGroupsReferences = actionGroupsReferenceList
@@ -1958,8 +1917,6 @@ func (actions *Actions) AssignProperties_To_Actions(destination *storage.Actions
 	if actions.ActionGroupsReferences != nil {
 		actionGroupsReferenceList := make([]genruntime.ResourceReference, len(actions.ActionGroupsReferences))
 		for actionGroupsReferenceIndex, actionGroupsReferenceItem := range actions.ActionGroupsReferences {
-			// Shadow the loop variable to avoid aliasing
-			actionGroupsReferenceItem := actionGroupsReferenceItem
 			actionGroupsReferenceList[actionGroupsReferenceIndex] = actionGroupsReferenceItem.Copy()
 		}
 		destination.ActionGroupsReferences = actionGroupsReferenceList
@@ -2004,14 +1961,14 @@ var _ genruntime.FromARMConverter = &Actions_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (actions *Actions_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Actions_STATUS_ARM{}
+	return &arm.Actions_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (actions *Actions_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Actions_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Actions_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Actions_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Actions_STATUS, got %T", armInput)
 	}
 
 	// Set property "ActionGroups":
@@ -2066,6 +2023,33 @@ func (actions *Actions_STATUS) AssignProperties_To_Actions_STATUS(destination *s
 	return nil
 }
 
+// +kubebuilder:validation:Enum={"LogAlert","LogToMetric"}
+type ScheduledQueryRule_Kind_Spec string
+
+const (
+	ScheduledQueryRule_Kind_Spec_LogAlert    = ScheduledQueryRule_Kind_Spec("LogAlert")
+	ScheduledQueryRule_Kind_Spec_LogToMetric = ScheduledQueryRule_Kind_Spec("LogToMetric")
+)
+
+// Mapping from string to ScheduledQueryRule_Kind_Spec
+var scheduledQueryRule_Kind_Spec_Values = map[string]ScheduledQueryRule_Kind_Spec{
+	"logalert":    ScheduledQueryRule_Kind_Spec_LogAlert,
+	"logtometric": ScheduledQueryRule_Kind_Spec_LogToMetric,
+}
+
+type ScheduledQueryRule_Kind_STATUS string
+
+const (
+	ScheduledQueryRule_Kind_STATUS_LogAlert    = ScheduledQueryRule_Kind_STATUS("LogAlert")
+	ScheduledQueryRule_Kind_STATUS_LogToMetric = ScheduledQueryRule_Kind_STATUS("LogToMetric")
+)
+
+// Mapping from string to ScheduledQueryRule_Kind_STATUS
+var scheduledQueryRule_Kind_STATUS_Values = map[string]ScheduledQueryRule_Kind_STATUS{
+	"logalert":    ScheduledQueryRule_Kind_STATUS_LogAlert,
+	"logtometric": ScheduledQueryRule_Kind_STATUS_LogToMetric,
+}
+
 // The rule criteria that defines the conditions of the scheduled query rule.
 type ScheduledQueryRuleCriteria struct {
 	// AllOf: A list of conditions to evaluate against the specified scopes
@@ -2079,7 +2063,7 @@ func (criteria *ScheduledQueryRuleCriteria) ConvertToARM(resolved genruntime.Con
 	if criteria == nil {
 		return nil, nil
 	}
-	result := &ScheduledQueryRuleCriteria_ARM{}
+	result := &arm.ScheduledQueryRuleCriteria{}
 
 	// Set property "AllOf":
 	for _, item := range criteria.AllOf {
@@ -2087,21 +2071,21 @@ func (criteria *ScheduledQueryRuleCriteria) ConvertToARM(resolved genruntime.Con
 		if err != nil {
 			return nil, err
 		}
-		result.AllOf = append(result.AllOf, *item_ARM.(*Condition_ARM))
+		result.AllOf = append(result.AllOf, *item_ARM.(*arm.Condition))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *ScheduledQueryRuleCriteria) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ScheduledQueryRuleCriteria_ARM{}
+	return &arm.ScheduledQueryRuleCriteria{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *ScheduledQueryRuleCriteria) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ScheduledQueryRuleCriteria_ARM)
+	typedInput, ok := armInput.(arm.ScheduledQueryRuleCriteria)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ScheduledQueryRuleCriteria_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ScheduledQueryRuleCriteria, got %T", armInput)
 	}
 
 	// Set property "AllOf":
@@ -2125,12 +2109,10 @@ func (criteria *ScheduledQueryRuleCriteria) AssignProperties_From_ScheduledQuery
 	if source.AllOf != nil {
 		allOfList := make([]Condition, len(source.AllOf))
 		for allOfIndex, allOfItem := range source.AllOf {
-			// Shadow the loop variable to avoid aliasing
-			allOfItem := allOfItem
 			var allOf Condition
 			err := allOf.AssignProperties_From_Condition(&allOfItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Condition() to populate field AllOf")
+				return eris.Wrap(err, "calling AssignProperties_From_Condition() to populate field AllOf")
 			}
 			allOfList[allOfIndex] = allOf
 		}
@@ -2152,12 +2134,10 @@ func (criteria *ScheduledQueryRuleCriteria) AssignProperties_To_ScheduledQueryRu
 	if criteria.AllOf != nil {
 		allOfList := make([]storage.Condition, len(criteria.AllOf))
 		for allOfIndex, allOfItem := range criteria.AllOf {
-			// Shadow the loop variable to avoid aliasing
-			allOfItem := allOfItem
 			var allOf storage.Condition
 			err := allOfItem.AssignProperties_To_Condition(&allOf)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Condition() to populate field AllOf")
+				return eris.Wrap(err, "calling AssignProperties_To_Condition() to populate field AllOf")
 			}
 			allOfList[allOfIndex] = allOf
 		}
@@ -2184,12 +2164,10 @@ func (criteria *ScheduledQueryRuleCriteria) Initialize_From_ScheduledQueryRuleCr
 	if source.AllOf != nil {
 		allOfList := make([]Condition, len(source.AllOf))
 		for allOfIndex, allOfItem := range source.AllOf {
-			// Shadow the loop variable to avoid aliasing
-			allOfItem := allOfItem
 			var allOf Condition
 			err := allOf.Initialize_From_Condition_STATUS(&allOfItem)
 			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_Condition_STATUS() to populate field AllOf")
+				return eris.Wrap(err, "calling Initialize_From_Condition_STATUS() to populate field AllOf")
 			}
 			allOfList[allOfIndex] = allOf
 		}
@@ -2212,14 +2190,14 @@ var _ genruntime.FromARMConverter = &ScheduledQueryRuleCriteria_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *ScheduledQueryRuleCriteria_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ScheduledQueryRuleCriteria_STATUS_ARM{}
+	return &arm.ScheduledQueryRuleCriteria_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *ScheduledQueryRuleCriteria_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ScheduledQueryRuleCriteria_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ScheduledQueryRuleCriteria_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ScheduledQueryRuleCriteria_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ScheduledQueryRuleCriteria_STATUS, got %T", armInput)
 	}
 
 	// Set property "AllOf":
@@ -2243,12 +2221,10 @@ func (criteria *ScheduledQueryRuleCriteria_STATUS) AssignProperties_From_Schedul
 	if source.AllOf != nil {
 		allOfList := make([]Condition_STATUS, len(source.AllOf))
 		for allOfIndex, allOfItem := range source.AllOf {
-			// Shadow the loop variable to avoid aliasing
-			allOfItem := allOfItem
 			var allOf Condition_STATUS
 			err := allOf.AssignProperties_From_Condition_STATUS(&allOfItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Condition_STATUS() to populate field AllOf")
+				return eris.Wrap(err, "calling AssignProperties_From_Condition_STATUS() to populate field AllOf")
 			}
 			allOfList[allOfIndex] = allOf
 		}
@@ -2270,18 +2246,112 @@ func (criteria *ScheduledQueryRuleCriteria_STATUS) AssignProperties_To_Scheduled
 	if criteria.AllOf != nil {
 		allOfList := make([]storage.Condition_STATUS, len(criteria.AllOf))
 		for allOfIndex, allOfItem := range criteria.AllOf {
-			// Shadow the loop variable to avoid aliasing
-			allOfItem := allOfItem
 			var allOf storage.Condition_STATUS
 			err := allOfItem.AssignProperties_To_Condition_STATUS(&allOf)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Condition_STATUS() to populate field AllOf")
+				return eris.Wrap(err, "calling AssignProperties_To_Condition_STATUS() to populate field AllOf")
 			}
 			allOfList[allOfIndex] = allOf
 		}
 		destination.AllOf = allOfList
 	} else {
 		destination.AllOf = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type ScheduledQueryRuleOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_ScheduledQueryRuleOperatorSpec populates our ScheduledQueryRuleOperatorSpec from the provided source ScheduledQueryRuleOperatorSpec
+func (operator *ScheduledQueryRuleOperatorSpec) AssignProperties_From_ScheduledQueryRuleOperatorSpec(source *storage.ScheduledQueryRuleOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ScheduledQueryRuleOperatorSpec populates the provided destination ScheduledQueryRuleOperatorSpec from our ScheduledQueryRuleOperatorSpec
+func (operator *ScheduledQueryRuleOperatorSpec) AssignProperties_To_ScheduledQueryRuleOperatorSpec(destination *storage.ScheduledQueryRuleOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
 	}
 
 	// Update the property bag
@@ -2341,14 +2411,14 @@ var _ genruntime.FromARMConverter = &SystemData_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (data *SystemData_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SystemData_STATUS_ARM{}
+	return &arm.SystemData_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SystemData_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SystemData_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SystemData_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SystemData_STATUS, got %T", armInput)
 	}
 
 	// Set property "CreatedAt":
@@ -2365,7 +2435,9 @@ func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "CreatedByType":
 	if typedInput.CreatedByType != nil {
-		createdByType := *typedInput.CreatedByType
+		var temp string
+		temp = string(*typedInput.CreatedByType)
+		createdByType := SystemData_CreatedByType_STATUS(temp)
 		data.CreatedByType = &createdByType
 	}
 
@@ -2383,7 +2455,9 @@ func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "LastModifiedByType":
 	if typedInput.LastModifiedByType != nil {
-		lastModifiedByType := *typedInput.LastModifiedByType
+		var temp string
+		temp = string(*typedInput.LastModifiedByType)
+		lastModifiedByType := SystemData_LastModifiedByType_STATUS(temp)
 		data.LastModifiedByType = &lastModifiedByType
 	}
 
@@ -2479,7 +2553,7 @@ type Condition struct {
 
 	// FailingPeriods: The minimum number of violations required within the selected lookback time window required to raise an
 	// alert. Relevant only for rules of the kind LogAlert.
-	FailingPeriods *Condition_FailingPeriods `json:"failingPeriods,omitempty"`
+	FailingPeriods *ConditionFailingPeriods `json:"failingPeriods,omitempty"`
 
 	// MetricMeasureColumn: The column containing the metric measure number. Relevant only for rules of the kind LogAlert.
 	MetricMeasureColumn *string `json:"metricMeasureColumn,omitempty"`
@@ -2512,7 +2586,7 @@ func (condition *Condition) ConvertToARM(resolved genruntime.ConvertToARMResolve
 	if condition == nil {
 		return nil, nil
 	}
-	result := &Condition_ARM{}
+	result := &arm.Condition{}
 
 	// Set property "Dimensions":
 	for _, item := range condition.Dimensions {
@@ -2520,16 +2594,16 @@ func (condition *Condition) ConvertToARM(resolved genruntime.ConvertToARMResolve
 		if err != nil {
 			return nil, err
 		}
-		result.Dimensions = append(result.Dimensions, *item_ARM.(*Dimension_ARM))
+		result.Dimensions = append(result.Dimensions, *item_ARM.(*arm.Dimension))
 	}
 
 	// Set property "FailingPeriods":
 	if condition.FailingPeriods != nil {
-		failingPeriods_ARM, err := (*condition.FailingPeriods).ConvertToARM(resolved)
+		failingPeriods_ARM, err := condition.FailingPeriods.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		failingPeriods := *failingPeriods_ARM.(*Condition_FailingPeriods_ARM)
+		failingPeriods := *failingPeriods_ARM.(*arm.ConditionFailingPeriods)
 		result.FailingPeriods = &failingPeriods
 	}
 
@@ -2547,7 +2621,9 @@ func (condition *Condition) ConvertToARM(resolved genruntime.ConvertToARMResolve
 
 	// Set property "Operator":
 	if condition.Operator != nil {
-		operator := *condition.Operator
+		var temp string
+		temp = string(*condition.Operator)
+		operator := arm.Condition_Operator(temp)
 		result.Operator = &operator
 	}
 
@@ -2575,7 +2651,9 @@ func (condition *Condition) ConvertToARM(resolved genruntime.ConvertToARMResolve
 
 	// Set property "TimeAggregation":
 	if condition.TimeAggregation != nil {
-		timeAggregation := *condition.TimeAggregation
+		var temp string
+		temp = string(*condition.TimeAggregation)
+		timeAggregation := arm.Condition_TimeAggregation(temp)
 		result.TimeAggregation = &timeAggregation
 	}
 	return result, nil
@@ -2583,14 +2661,14 @@ func (condition *Condition) ConvertToARM(resolved genruntime.ConvertToARMResolve
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (condition *Condition) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Condition_ARM{}
+	return &arm.Condition{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (condition *Condition) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Condition_ARM)
+	typedInput, ok := armInput.(arm.Condition)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Condition_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Condition, got %T", armInput)
 	}
 
 	// Set property "Dimensions":
@@ -2605,7 +2683,7 @@ func (condition *Condition) PopulateFromARM(owner genruntime.ArbitraryOwnerRefer
 
 	// Set property "FailingPeriods":
 	if typedInput.FailingPeriods != nil {
-		var failingPeriods1 Condition_FailingPeriods
+		var failingPeriods1 ConditionFailingPeriods
 		err := failingPeriods1.PopulateFromARM(owner, *typedInput.FailingPeriods)
 		if err != nil {
 			return err
@@ -2628,7 +2706,9 @@ func (condition *Condition) PopulateFromARM(owner genruntime.ArbitraryOwnerRefer
 
 	// Set property "Operator":
 	if typedInput.Operator != nil {
-		operator := *typedInput.Operator
+		var temp string
+		temp = string(*typedInput.Operator)
+		operator := Condition_Operator(temp)
 		condition.Operator = &operator
 	}
 
@@ -2648,7 +2728,9 @@ func (condition *Condition) PopulateFromARM(owner genruntime.ArbitraryOwnerRefer
 
 	// Set property "TimeAggregation":
 	if typedInput.TimeAggregation != nil {
-		timeAggregation := *typedInput.TimeAggregation
+		var temp string
+		temp = string(*typedInput.TimeAggregation)
+		timeAggregation := Condition_TimeAggregation(temp)
 		condition.TimeAggregation = &timeAggregation
 	}
 
@@ -2663,12 +2745,10 @@ func (condition *Condition) AssignProperties_From_Condition(source *storage.Cond
 	if source.Dimensions != nil {
 		dimensionList := make([]Dimension, len(source.Dimensions))
 		for dimensionIndex, dimensionItem := range source.Dimensions {
-			// Shadow the loop variable to avoid aliasing
-			dimensionItem := dimensionItem
 			var dimension Dimension
 			err := dimension.AssignProperties_From_Dimension(&dimensionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Dimension() to populate field Dimensions")
+				return eris.Wrap(err, "calling AssignProperties_From_Dimension() to populate field Dimensions")
 			}
 			dimensionList[dimensionIndex] = dimension
 		}
@@ -2679,10 +2759,10 @@ func (condition *Condition) AssignProperties_From_Condition(source *storage.Cond
 
 	// FailingPeriods
 	if source.FailingPeriods != nil {
-		var failingPeriod Condition_FailingPeriods
-		err := failingPeriod.AssignProperties_From_Condition_FailingPeriods(source.FailingPeriods)
+		var failingPeriod ConditionFailingPeriods
+		err := failingPeriod.AssignProperties_From_ConditionFailingPeriods(source.FailingPeriods)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Condition_FailingPeriods() to populate field FailingPeriods")
+			return eris.Wrap(err, "calling AssignProperties_From_ConditionFailingPeriods() to populate field FailingPeriods")
 		}
 		condition.FailingPeriods = &failingPeriod
 	} else {
@@ -2745,12 +2825,10 @@ func (condition *Condition) AssignProperties_To_Condition(destination *storage.C
 	if condition.Dimensions != nil {
 		dimensionList := make([]storage.Dimension, len(condition.Dimensions))
 		for dimensionIndex, dimensionItem := range condition.Dimensions {
-			// Shadow the loop variable to avoid aliasing
-			dimensionItem := dimensionItem
 			var dimension storage.Dimension
 			err := dimensionItem.AssignProperties_To_Dimension(&dimension)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Dimension() to populate field Dimensions")
+				return eris.Wrap(err, "calling AssignProperties_To_Dimension() to populate field Dimensions")
 			}
 			dimensionList[dimensionIndex] = dimension
 		}
@@ -2761,10 +2839,10 @@ func (condition *Condition) AssignProperties_To_Condition(destination *storage.C
 
 	// FailingPeriods
 	if condition.FailingPeriods != nil {
-		var failingPeriod storage.Condition_FailingPeriods
-		err := condition.FailingPeriods.AssignProperties_To_Condition_FailingPeriods(&failingPeriod)
+		var failingPeriod storage.ConditionFailingPeriods
+		err := condition.FailingPeriods.AssignProperties_To_ConditionFailingPeriods(&failingPeriod)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Condition_FailingPeriods() to populate field FailingPeriods")
+			return eris.Wrap(err, "calling AssignProperties_To_ConditionFailingPeriods() to populate field FailingPeriods")
 		}
 		destination.FailingPeriods = &failingPeriod
 	} else {
@@ -2830,12 +2908,10 @@ func (condition *Condition) Initialize_From_Condition_STATUS(source *Condition_S
 	if source.Dimensions != nil {
 		dimensionList := make([]Dimension, len(source.Dimensions))
 		for dimensionIndex, dimensionItem := range source.Dimensions {
-			// Shadow the loop variable to avoid aliasing
-			dimensionItem := dimensionItem
 			var dimension Dimension
 			err := dimension.Initialize_From_Dimension_STATUS(&dimensionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_Dimension_STATUS() to populate field Dimensions")
+				return eris.Wrap(err, "calling Initialize_From_Dimension_STATUS() to populate field Dimensions")
 			}
 			dimensionList[dimensionIndex] = dimension
 		}
@@ -2846,10 +2922,10 @@ func (condition *Condition) Initialize_From_Condition_STATUS(source *Condition_S
 
 	// FailingPeriods
 	if source.FailingPeriods != nil {
-		var failingPeriod Condition_FailingPeriods
-		err := failingPeriod.Initialize_From_Condition_FailingPeriods_STATUS(source.FailingPeriods)
+		var failingPeriod ConditionFailingPeriods
+		err := failingPeriod.Initialize_From_ConditionFailingPeriods_STATUS(source.FailingPeriods)
 		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_Condition_FailingPeriods_STATUS() to populate field FailingPeriods")
+			return eris.Wrap(err, "calling Initialize_From_ConditionFailingPeriods_STATUS() to populate field FailingPeriods")
 		}
 		condition.FailingPeriods = &failingPeriod
 	} else {
@@ -2900,7 +2976,7 @@ type Condition_STATUS struct {
 
 	// FailingPeriods: The minimum number of violations required within the selected lookback time window required to raise an
 	// alert. Relevant only for rules of the kind LogAlert.
-	FailingPeriods *Condition_FailingPeriods_STATUS `json:"failingPeriods,omitempty"`
+	FailingPeriods *ConditionFailingPeriods_STATUS `json:"failingPeriods,omitempty"`
 
 	// MetricMeasureColumn: The column containing the metric measure number. Relevant only for rules of the kind LogAlert.
 	MetricMeasureColumn *string `json:"metricMeasureColumn,omitempty"`
@@ -2930,14 +3006,14 @@ var _ genruntime.FromARMConverter = &Condition_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (condition *Condition_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Condition_STATUS_ARM{}
+	return &arm.Condition_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (condition *Condition_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Condition_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Condition_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Condition_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Condition_STATUS, got %T", armInput)
 	}
 
 	// Set property "Dimensions":
@@ -2952,7 +3028,7 @@ func (condition *Condition_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwn
 
 	// Set property "FailingPeriods":
 	if typedInput.FailingPeriods != nil {
-		var failingPeriods1 Condition_FailingPeriods_STATUS
+		var failingPeriods1 ConditionFailingPeriods_STATUS
 		err := failingPeriods1.PopulateFromARM(owner, *typedInput.FailingPeriods)
 		if err != nil {
 			return err
@@ -2975,7 +3051,9 @@ func (condition *Condition_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwn
 
 	// Set property "Operator":
 	if typedInput.Operator != nil {
-		operator := *typedInput.Operator
+		var temp string
+		temp = string(*typedInput.Operator)
+		operator := Condition_Operator_STATUS(temp)
 		condition.Operator = &operator
 	}
 
@@ -2999,7 +3077,9 @@ func (condition *Condition_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwn
 
 	// Set property "TimeAggregation":
 	if typedInput.TimeAggregation != nil {
-		timeAggregation := *typedInput.TimeAggregation
+		var temp string
+		temp = string(*typedInput.TimeAggregation)
+		timeAggregation := Condition_TimeAggregation_STATUS(temp)
 		condition.TimeAggregation = &timeAggregation
 	}
 
@@ -3014,12 +3094,10 @@ func (condition *Condition_STATUS) AssignProperties_From_Condition_STATUS(source
 	if source.Dimensions != nil {
 		dimensionList := make([]Dimension_STATUS, len(source.Dimensions))
 		for dimensionIndex, dimensionItem := range source.Dimensions {
-			// Shadow the loop variable to avoid aliasing
-			dimensionItem := dimensionItem
 			var dimension Dimension_STATUS
 			err := dimension.AssignProperties_From_Dimension_STATUS(&dimensionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Dimension_STATUS() to populate field Dimensions")
+				return eris.Wrap(err, "calling AssignProperties_From_Dimension_STATUS() to populate field Dimensions")
 			}
 			dimensionList[dimensionIndex] = dimension
 		}
@@ -3030,10 +3108,10 @@ func (condition *Condition_STATUS) AssignProperties_From_Condition_STATUS(source
 
 	// FailingPeriods
 	if source.FailingPeriods != nil {
-		var failingPeriod Condition_FailingPeriods_STATUS
-		err := failingPeriod.AssignProperties_From_Condition_FailingPeriods_STATUS(source.FailingPeriods)
+		var failingPeriod ConditionFailingPeriods_STATUS
+		err := failingPeriod.AssignProperties_From_ConditionFailingPeriods_STATUS(source.FailingPeriods)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Condition_FailingPeriods_STATUS() to populate field FailingPeriods")
+			return eris.Wrap(err, "calling AssignProperties_From_ConditionFailingPeriods_STATUS() to populate field FailingPeriods")
 		}
 		condition.FailingPeriods = &failingPeriod
 	} else {
@@ -3091,12 +3169,10 @@ func (condition *Condition_STATUS) AssignProperties_To_Condition_STATUS(destinat
 	if condition.Dimensions != nil {
 		dimensionList := make([]storage.Dimension_STATUS, len(condition.Dimensions))
 		for dimensionIndex, dimensionItem := range condition.Dimensions {
-			// Shadow the loop variable to avoid aliasing
-			dimensionItem := dimensionItem
 			var dimension storage.Dimension_STATUS
 			err := dimensionItem.AssignProperties_To_Dimension_STATUS(&dimension)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Dimension_STATUS() to populate field Dimensions")
+				return eris.Wrap(err, "calling AssignProperties_To_Dimension_STATUS() to populate field Dimensions")
 			}
 			dimensionList[dimensionIndex] = dimension
 		}
@@ -3107,10 +3183,10 @@ func (condition *Condition_STATUS) AssignProperties_To_Condition_STATUS(destinat
 
 	// FailingPeriods
 	if condition.FailingPeriods != nil {
-		var failingPeriod storage.Condition_FailingPeriods_STATUS
-		err := condition.FailingPeriods.AssignProperties_To_Condition_FailingPeriods_STATUS(&failingPeriod)
+		var failingPeriod storage.ConditionFailingPeriods_STATUS
+		err := condition.FailingPeriods.AssignProperties_To_ConditionFailingPeriods_STATUS(&failingPeriod)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Condition_FailingPeriods_STATUS() to populate field FailingPeriods")
+			return eris.Wrap(err, "calling AssignProperties_To_ConditionFailingPeriods_STATUS() to populate field FailingPeriods")
 		}
 		destination.FailingPeriods = &failingPeriod
 	} else {
@@ -3164,188 +3240,38 @@ func (condition *Condition_STATUS) AssignProperties_To_Condition_STATUS(destinat
 	return nil
 }
 
-type Condition_FailingPeriods struct {
-	// MinFailingPeriodsToAlert: The number of violations to trigger an alert. Should be smaller or equal to
-	// numberOfEvaluationPeriods. Default value is 1
-	MinFailingPeriodsToAlert *int `json:"minFailingPeriodsToAlert,omitempty"`
+type SystemData_CreatedByType_STATUS string
 
-	// NumberOfEvaluationPeriods: The number of aggregated lookback points. The lookback time window is calculated based on the
-	// aggregation granularity (windowSize) and the selected number of aggregated points. Default value is 1
-	NumberOfEvaluationPeriods *int `json:"numberOfEvaluationPeriods,omitempty"`
+const (
+	SystemData_CreatedByType_STATUS_Application     = SystemData_CreatedByType_STATUS("Application")
+	SystemData_CreatedByType_STATUS_Key             = SystemData_CreatedByType_STATUS("Key")
+	SystemData_CreatedByType_STATUS_ManagedIdentity = SystemData_CreatedByType_STATUS("ManagedIdentity")
+	SystemData_CreatedByType_STATUS_User            = SystemData_CreatedByType_STATUS("User")
+)
+
+// Mapping from string to SystemData_CreatedByType_STATUS
+var systemData_CreatedByType_STATUS_Values = map[string]SystemData_CreatedByType_STATUS{
+	"application":     SystemData_CreatedByType_STATUS_Application,
+	"key":             SystemData_CreatedByType_STATUS_Key,
+	"managedidentity": SystemData_CreatedByType_STATUS_ManagedIdentity,
+	"user":            SystemData_CreatedByType_STATUS_User,
 }
 
-var _ genruntime.ARMTransformer = &Condition_FailingPeriods{}
+type SystemData_LastModifiedByType_STATUS string
 
-// ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (periods *Condition_FailingPeriods) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
-	if periods == nil {
-		return nil, nil
-	}
-	result := &Condition_FailingPeriods_ARM{}
+const (
+	SystemData_LastModifiedByType_STATUS_Application     = SystemData_LastModifiedByType_STATUS("Application")
+	SystemData_LastModifiedByType_STATUS_Key             = SystemData_LastModifiedByType_STATUS("Key")
+	SystemData_LastModifiedByType_STATUS_ManagedIdentity = SystemData_LastModifiedByType_STATUS("ManagedIdentity")
+	SystemData_LastModifiedByType_STATUS_User            = SystemData_LastModifiedByType_STATUS("User")
+)
 
-	// Set property "MinFailingPeriodsToAlert":
-	if periods.MinFailingPeriodsToAlert != nil {
-		minFailingPeriodsToAlert := *periods.MinFailingPeriodsToAlert
-		result.MinFailingPeriodsToAlert = &minFailingPeriodsToAlert
-	}
-
-	// Set property "NumberOfEvaluationPeriods":
-	if periods.NumberOfEvaluationPeriods != nil {
-		numberOfEvaluationPeriods := *periods.NumberOfEvaluationPeriods
-		result.NumberOfEvaluationPeriods = &numberOfEvaluationPeriods
-	}
-	return result, nil
-}
-
-// NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (periods *Condition_FailingPeriods) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Condition_FailingPeriods_ARM{}
-}
-
-// PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (periods *Condition_FailingPeriods) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Condition_FailingPeriods_ARM)
-	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Condition_FailingPeriods_ARM, got %T", armInput)
-	}
-
-	// Set property "MinFailingPeriodsToAlert":
-	if typedInput.MinFailingPeriodsToAlert != nil {
-		minFailingPeriodsToAlert := *typedInput.MinFailingPeriodsToAlert
-		periods.MinFailingPeriodsToAlert = &minFailingPeriodsToAlert
-	}
-
-	// Set property "NumberOfEvaluationPeriods":
-	if typedInput.NumberOfEvaluationPeriods != nil {
-		numberOfEvaluationPeriods := *typedInput.NumberOfEvaluationPeriods
-		periods.NumberOfEvaluationPeriods = &numberOfEvaluationPeriods
-	}
-
-	// No error
-	return nil
-}
-
-// AssignProperties_From_Condition_FailingPeriods populates our Condition_FailingPeriods from the provided source Condition_FailingPeriods
-func (periods *Condition_FailingPeriods) AssignProperties_From_Condition_FailingPeriods(source *storage.Condition_FailingPeriods) error {
-
-	// MinFailingPeriodsToAlert
-	periods.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(source.MinFailingPeriodsToAlert)
-
-	// NumberOfEvaluationPeriods
-	periods.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(source.NumberOfEvaluationPeriods)
-
-	// No error
-	return nil
-}
-
-// AssignProperties_To_Condition_FailingPeriods populates the provided destination Condition_FailingPeriods from our Condition_FailingPeriods
-func (periods *Condition_FailingPeriods) AssignProperties_To_Condition_FailingPeriods(destination *storage.Condition_FailingPeriods) error {
-	// Create a new property bag
-	propertyBag := genruntime.NewPropertyBag()
-
-	// MinFailingPeriodsToAlert
-	destination.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(periods.MinFailingPeriodsToAlert)
-
-	// NumberOfEvaluationPeriods
-	destination.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(periods.NumberOfEvaluationPeriods)
-
-	// Update the property bag
-	if len(propertyBag) > 0 {
-		destination.PropertyBag = propertyBag
-	} else {
-		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_Condition_FailingPeriods_STATUS populates our Condition_FailingPeriods from the provided source Condition_FailingPeriods_STATUS
-func (periods *Condition_FailingPeriods) Initialize_From_Condition_FailingPeriods_STATUS(source *Condition_FailingPeriods_STATUS) error {
-
-	// MinFailingPeriodsToAlert
-	periods.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(source.MinFailingPeriodsToAlert)
-
-	// NumberOfEvaluationPeriods
-	periods.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(source.NumberOfEvaluationPeriods)
-
-	// No error
-	return nil
-}
-
-type Condition_FailingPeriods_STATUS struct {
-	// MinFailingPeriodsToAlert: The number of violations to trigger an alert. Should be smaller or equal to
-	// numberOfEvaluationPeriods. Default value is 1
-	MinFailingPeriodsToAlert *int `json:"minFailingPeriodsToAlert,omitempty"`
-
-	// NumberOfEvaluationPeriods: The number of aggregated lookback points. The lookback time window is calculated based on the
-	// aggregation granularity (windowSize) and the selected number of aggregated points. Default value is 1
-	NumberOfEvaluationPeriods *int `json:"numberOfEvaluationPeriods,omitempty"`
-}
-
-var _ genruntime.FromARMConverter = &Condition_FailingPeriods_STATUS{}
-
-// NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (periods *Condition_FailingPeriods_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Condition_FailingPeriods_STATUS_ARM{}
-}
-
-// PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (periods *Condition_FailingPeriods_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Condition_FailingPeriods_STATUS_ARM)
-	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Condition_FailingPeriods_STATUS_ARM, got %T", armInput)
-	}
-
-	// Set property "MinFailingPeriodsToAlert":
-	if typedInput.MinFailingPeriodsToAlert != nil {
-		minFailingPeriodsToAlert := *typedInput.MinFailingPeriodsToAlert
-		periods.MinFailingPeriodsToAlert = &minFailingPeriodsToAlert
-	}
-
-	// Set property "NumberOfEvaluationPeriods":
-	if typedInput.NumberOfEvaluationPeriods != nil {
-		numberOfEvaluationPeriods := *typedInput.NumberOfEvaluationPeriods
-		periods.NumberOfEvaluationPeriods = &numberOfEvaluationPeriods
-	}
-
-	// No error
-	return nil
-}
-
-// AssignProperties_From_Condition_FailingPeriods_STATUS populates our Condition_FailingPeriods_STATUS from the provided source Condition_FailingPeriods_STATUS
-func (periods *Condition_FailingPeriods_STATUS) AssignProperties_From_Condition_FailingPeriods_STATUS(source *storage.Condition_FailingPeriods_STATUS) error {
-
-	// MinFailingPeriodsToAlert
-	periods.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(source.MinFailingPeriodsToAlert)
-
-	// NumberOfEvaluationPeriods
-	periods.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(source.NumberOfEvaluationPeriods)
-
-	// No error
-	return nil
-}
-
-// AssignProperties_To_Condition_FailingPeriods_STATUS populates the provided destination Condition_FailingPeriods_STATUS from our Condition_FailingPeriods_STATUS
-func (periods *Condition_FailingPeriods_STATUS) AssignProperties_To_Condition_FailingPeriods_STATUS(destination *storage.Condition_FailingPeriods_STATUS) error {
-	// Create a new property bag
-	propertyBag := genruntime.NewPropertyBag()
-
-	// MinFailingPeriodsToAlert
-	destination.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(periods.MinFailingPeriodsToAlert)
-
-	// NumberOfEvaluationPeriods
-	destination.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(periods.NumberOfEvaluationPeriods)
-
-	// Update the property bag
-	if len(propertyBag) > 0 {
-		destination.PropertyBag = propertyBag
-	} else {
-		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
+// Mapping from string to SystemData_LastModifiedByType_STATUS
+var systemData_LastModifiedByType_STATUS_Values = map[string]SystemData_LastModifiedByType_STATUS{
+	"application":     SystemData_LastModifiedByType_STATUS_Application,
+	"key":             SystemData_LastModifiedByType_STATUS_Key,
+	"managedidentity": SystemData_LastModifiedByType_STATUS_ManagedIdentity,
+	"user":            SystemData_LastModifiedByType_STATUS_User,
 }
 
 // +kubebuilder:validation:Enum={"Equals","GreaterThan","GreaterThanOrEqual","LessThan","LessThanOrEqual"}
@@ -3426,6 +3352,190 @@ var condition_TimeAggregation_STATUS_Values = map[string]Condition_TimeAggregati
 	"total":   Condition_TimeAggregation_STATUS_Total,
 }
 
+type ConditionFailingPeriods struct {
+	// MinFailingPeriodsToAlert: The number of violations to trigger an alert. Should be smaller or equal to
+	// numberOfEvaluationPeriods. Default value is 1
+	MinFailingPeriodsToAlert *int `json:"minFailingPeriodsToAlert,omitempty"`
+
+	// NumberOfEvaluationPeriods: The number of aggregated lookback points. The lookback time window is calculated based on the
+	// aggregation granularity (windowSize) and the selected number of aggregated points. Default value is 1
+	NumberOfEvaluationPeriods *int `json:"numberOfEvaluationPeriods,omitempty"`
+}
+
+var _ genruntime.ARMTransformer = &ConditionFailingPeriods{}
+
+// ConvertToARM converts from a Kubernetes CRD object to an ARM object
+func (periods *ConditionFailingPeriods) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+	if periods == nil {
+		return nil, nil
+	}
+	result := &arm.ConditionFailingPeriods{}
+
+	// Set property "MinFailingPeriodsToAlert":
+	if periods.MinFailingPeriodsToAlert != nil {
+		minFailingPeriodsToAlert := *periods.MinFailingPeriodsToAlert
+		result.MinFailingPeriodsToAlert = &minFailingPeriodsToAlert
+	}
+
+	// Set property "NumberOfEvaluationPeriods":
+	if periods.NumberOfEvaluationPeriods != nil {
+		numberOfEvaluationPeriods := *periods.NumberOfEvaluationPeriods
+		result.NumberOfEvaluationPeriods = &numberOfEvaluationPeriods
+	}
+	return result, nil
+}
+
+// NewEmptyARMValue returns an empty ARM value suitable for deserializing into
+func (periods *ConditionFailingPeriods) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.ConditionFailingPeriods{}
+}
+
+// PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
+func (periods *ConditionFailingPeriods) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.ConditionFailingPeriods)
+	if !ok {
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ConditionFailingPeriods, got %T", armInput)
+	}
+
+	// Set property "MinFailingPeriodsToAlert":
+	if typedInput.MinFailingPeriodsToAlert != nil {
+		minFailingPeriodsToAlert := *typedInput.MinFailingPeriodsToAlert
+		periods.MinFailingPeriodsToAlert = &minFailingPeriodsToAlert
+	}
+
+	// Set property "NumberOfEvaluationPeriods":
+	if typedInput.NumberOfEvaluationPeriods != nil {
+		numberOfEvaluationPeriods := *typedInput.NumberOfEvaluationPeriods
+		periods.NumberOfEvaluationPeriods = &numberOfEvaluationPeriods
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_From_ConditionFailingPeriods populates our ConditionFailingPeriods from the provided source ConditionFailingPeriods
+func (periods *ConditionFailingPeriods) AssignProperties_From_ConditionFailingPeriods(source *storage.ConditionFailingPeriods) error {
+
+	// MinFailingPeriodsToAlert
+	periods.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(source.MinFailingPeriodsToAlert)
+
+	// NumberOfEvaluationPeriods
+	periods.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(source.NumberOfEvaluationPeriods)
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ConditionFailingPeriods populates the provided destination ConditionFailingPeriods from our ConditionFailingPeriods
+func (periods *ConditionFailingPeriods) AssignProperties_To_ConditionFailingPeriods(destination *storage.ConditionFailingPeriods) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// MinFailingPeriodsToAlert
+	destination.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(periods.MinFailingPeriodsToAlert)
+
+	// NumberOfEvaluationPeriods
+	destination.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(periods.NumberOfEvaluationPeriods)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Initialize_From_ConditionFailingPeriods_STATUS populates our ConditionFailingPeriods from the provided source ConditionFailingPeriods_STATUS
+func (periods *ConditionFailingPeriods) Initialize_From_ConditionFailingPeriods_STATUS(source *ConditionFailingPeriods_STATUS) error {
+
+	// MinFailingPeriodsToAlert
+	periods.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(source.MinFailingPeriodsToAlert)
+
+	// NumberOfEvaluationPeriods
+	periods.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(source.NumberOfEvaluationPeriods)
+
+	// No error
+	return nil
+}
+
+type ConditionFailingPeriods_STATUS struct {
+	// MinFailingPeriodsToAlert: The number of violations to trigger an alert. Should be smaller or equal to
+	// numberOfEvaluationPeriods. Default value is 1
+	MinFailingPeriodsToAlert *int `json:"minFailingPeriodsToAlert,omitempty"`
+
+	// NumberOfEvaluationPeriods: The number of aggregated lookback points. The lookback time window is calculated based on the
+	// aggregation granularity (windowSize) and the selected number of aggregated points. Default value is 1
+	NumberOfEvaluationPeriods *int `json:"numberOfEvaluationPeriods,omitempty"`
+}
+
+var _ genruntime.FromARMConverter = &ConditionFailingPeriods_STATUS{}
+
+// NewEmptyARMValue returns an empty ARM value suitable for deserializing into
+func (periods *ConditionFailingPeriods_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.ConditionFailingPeriods_STATUS{}
+}
+
+// PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
+func (periods *ConditionFailingPeriods_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.ConditionFailingPeriods_STATUS)
+	if !ok {
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ConditionFailingPeriods_STATUS, got %T", armInput)
+	}
+
+	// Set property "MinFailingPeriodsToAlert":
+	if typedInput.MinFailingPeriodsToAlert != nil {
+		minFailingPeriodsToAlert := *typedInput.MinFailingPeriodsToAlert
+		periods.MinFailingPeriodsToAlert = &minFailingPeriodsToAlert
+	}
+
+	// Set property "NumberOfEvaluationPeriods":
+	if typedInput.NumberOfEvaluationPeriods != nil {
+		numberOfEvaluationPeriods := *typedInput.NumberOfEvaluationPeriods
+		periods.NumberOfEvaluationPeriods = &numberOfEvaluationPeriods
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_From_ConditionFailingPeriods_STATUS populates our ConditionFailingPeriods_STATUS from the provided source ConditionFailingPeriods_STATUS
+func (periods *ConditionFailingPeriods_STATUS) AssignProperties_From_ConditionFailingPeriods_STATUS(source *storage.ConditionFailingPeriods_STATUS) error {
+
+	// MinFailingPeriodsToAlert
+	periods.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(source.MinFailingPeriodsToAlert)
+
+	// NumberOfEvaluationPeriods
+	periods.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(source.NumberOfEvaluationPeriods)
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ConditionFailingPeriods_STATUS populates the provided destination ConditionFailingPeriods_STATUS from our ConditionFailingPeriods_STATUS
+func (periods *ConditionFailingPeriods_STATUS) AssignProperties_To_ConditionFailingPeriods_STATUS(destination *storage.ConditionFailingPeriods_STATUS) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// MinFailingPeriodsToAlert
+	destination.MinFailingPeriodsToAlert = genruntime.ClonePointerToInt(periods.MinFailingPeriodsToAlert)
+
+	// NumberOfEvaluationPeriods
+	destination.NumberOfEvaluationPeriods = genruntime.ClonePointerToInt(periods.NumberOfEvaluationPeriods)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
 // Dimension splitting and filtering definition
 type Dimension struct {
 	// +kubebuilder:validation:Required
@@ -3448,7 +3558,7 @@ func (dimension *Dimension) ConvertToARM(resolved genruntime.ConvertToARMResolve
 	if dimension == nil {
 		return nil, nil
 	}
-	result := &Dimension_ARM{}
+	result := &arm.Dimension{}
 
 	// Set property "Name":
 	if dimension.Name != nil {
@@ -3458,7 +3568,9 @@ func (dimension *Dimension) ConvertToARM(resolved genruntime.ConvertToARMResolve
 
 	// Set property "Operator":
 	if dimension.Operator != nil {
-		operator := *dimension.Operator
+		var temp string
+		temp = string(*dimension.Operator)
+		operator := arm.Dimension_Operator(temp)
 		result.Operator = &operator
 	}
 
@@ -3471,14 +3583,14 @@ func (dimension *Dimension) ConvertToARM(resolved genruntime.ConvertToARMResolve
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (dimension *Dimension) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Dimension_ARM{}
+	return &arm.Dimension{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (dimension *Dimension) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Dimension_ARM)
+	typedInput, ok := armInput.(arm.Dimension)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Dimension_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Dimension, got %T", armInput)
 	}
 
 	// Set property "Name":
@@ -3489,7 +3601,9 @@ func (dimension *Dimension) PopulateFromARM(owner genruntime.ArbitraryOwnerRefer
 
 	// Set property "Operator":
 	if typedInput.Operator != nil {
-		operator := *typedInput.Operator
+		var temp string
+		temp = string(*typedInput.Operator)
+		operator := Dimension_Operator(temp)
 		dimension.Operator = &operator
 	}
 
@@ -3591,14 +3705,14 @@ var _ genruntime.FromARMConverter = &Dimension_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (dimension *Dimension_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Dimension_STATUS_ARM{}
+	return &arm.Dimension_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (dimension *Dimension_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Dimension_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Dimension_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Dimension_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Dimension_STATUS, got %T", armInput)
 	}
 
 	// Set property "Name":
@@ -3609,7 +3723,9 @@ func (dimension *Dimension_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwn
 
 	// Set property "Operator":
 	if typedInput.Operator != nil {
-		operator := *typedInput.Operator
+		var temp string
+		temp = string(*typedInput.Operator)
+		operator := Dimension_Operator_STATUS(temp)
 		dimension.Operator = &operator
 	}
 

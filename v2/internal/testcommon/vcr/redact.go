@@ -16,7 +16,102 @@ import (
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon/creds"
 )
 
-var nilGuid = uuid.Nil.String()
+type Redactor struct {
+	redactions []redaction
+	policyTags *policyTagRedactor
+}
+
+type redaction struct {
+	pattern          *regexp.Regexp
+	replacementValue string
+}
+
+func NewRedactor(azureIDs creds.AzureIDs) *Redactor {
+	redactor := &Redactor{
+		redactions: []redaction{},
+		policyTags: newPolicyTagRedactor(azureIDs.ResourceGroupTags),
+	}
+
+	// Add AzureIDs redaction as default
+	if azureIDs.TenantID != "" {
+		redactor.AddLiteralRedaction(azureIDs.TenantID, nilGUID)
+	}
+
+	if azureIDs.SubscriptionID != "" {
+		redactor.AddLiteralRedaction(azureIDs.SubscriptionID, nilGUID)
+	}
+
+	if azureIDs.BillingInvoiceID != "" {
+		redactor.AddLiteralRedaction(azureIDs.BillingInvoiceID, creds.DummyBillingID)
+	}
+
+	if azureIDs.EntraAppID != "" {
+		redactor.AddLiteralRedaction(azureIDs.EntraAppID, nilGUID)
+	}
+
+	// OpenAI keys
+	redactor.AddRegexRedaction(
+		`"(?<key>key\d)":"[A-Za-z0-9]*"`,
+		`"$key":"{KEY}"`,
+	)
+
+	// Redis Enterprise Cache access keys
+	redactor.AddRegexRedaction(
+		`"(?<key>(primary|secondary)Key)":"[A-Za-z0-9=]*"`,
+		`"$key":"{KEY}"`,
+	)
+
+	// Connection String access keys (SignalR, Communication Services, etc.)
+	// Case-insensitive to handle both ";AccessKey=...;" and ";accesskey=..."
+	// Uses a named capture group to preserve the original casing of "accesskey"/"AccessKey".
+	redactor.AddRegexRedaction(
+		`(?i);(?P<accesskey>accesskey)=[A-Za-z0-9=+/]*`,
+		`;${accesskey}={KEY}`,
+	)
+
+	// Cassandra style gossip certificates
+	redactor.AddRegexRedaction(
+		`-----BEGIN CERTIFICATE-----[A-Za-z0-9\\+/=]+-----END CERTIFICATE-----`,
+		`-----BEGIN CERTIFICATE-----REDACTED-----END CERTIFICATE-----`,
+	)
+
+	// Entra Publisher Domain
+	redactor.AddRegexRedaction(
+		`[A-Za-z0-9-]+\.onmicrosoft\.com`,
+		`redactedtenant.onmicrosoft.com`,
+	)
+
+	// Whoever recorded the test. Azure records the identity that created a resource, and echoes the
+	// caller's Entra object ID back in a header, both of which name a person rather than a service
+	// principal when the recording wasn't made by CI.
+	redactor.AddRegexRedaction(
+		`"(?P<field>createdBy|lastModifiedBy)":"[^"\\]*@[^"\\]*"`,
+		`"${field}":"redacted@example.com"`,
+	)
+
+	redactor.AddRegexRedaction(
+		`objectId=[0-9a-fA-F-]{36}`,
+		`objectId=`+nilGUID,
+	)
+
+	return redactor
+}
+
+func (r *Redactor) AddLiteralRedaction(redactionValue string, replacementValue string) {
+	pattern := regexp.QuoteMeta(redactionValue)
+	r.AddRegexRedaction(pattern, replacementValue)
+}
+
+func (r *Redactor) AddRegexRedaction(regex string, replacementValue string) {
+	redact := redaction{
+		pattern:          regexp.MustCompile(regex),
+		replacementValue: replacementValue,
+	}
+
+	r.redactions = append(r.redactions, redact)
+}
+
+var nilGUID = uuid.Nil.String()
 
 // requestHeadersToRemove is the list of request headers to remove when recording or replaying.
 var requestHeadersToRemove = []string{
@@ -27,7 +122,7 @@ var requestHeadersToRemove = []string{
 	"User-Agent",
 }
 
-func RedactRequestHeaders(azureIDs creds.AzureIDs, headers http.Header) {
+func (r *Redactor) RedactRequestHeaders(headers http.Header) {
 	for _, header := range requestHeadersToRemove {
 		delete(headers, header)
 	}
@@ -35,11 +130,7 @@ func RedactRequestHeaders(azureIDs creds.AzureIDs, headers http.Header) {
 	// Hide sensitive request headers
 	for _, values := range headers {
 		for i := range values {
-			values[i] = strings.ReplaceAll(values[i], azureIDs.SubscriptionID, nilGuid)
-			values[i] = strings.ReplaceAll(values[i], azureIDs.TenantID, nilGuid)
-			if azureIDs.BillingInvoiceID != "" {
-				values[i] = strings.ReplaceAll(values[i], azureIDs.BillingInvoiceID, creds.DummyBillingId)
-			}
+			values[i] = r.hideRecordingDataWithCustomRedaction(values[i])
 		}
 	}
 }
@@ -53,6 +144,9 @@ var responseHeadersToRemove = []string{
 	"X-Ms-Routing-Request-Id",
 	"X-Ms-Client-Request-Id",
 	"Client-Request-Id",
+	"Request-Id",
+	"X-Ms-Ags-Diagnostic",
+	"X-Ms-Resource-Unit",
 
 	// Quota limits
 	"X-Ms-Ratelimit-Remaining-Subscription-Deletes",
@@ -63,7 +157,7 @@ var responseHeadersToRemove = []string{
 	"Date",
 }
 
-func RedactResponseHeaders(azureIDs creds.AzureIDs, headers http.Header) {
+func (r *Redactor) RedactResponseHeaders(headers http.Header) {
 	for _, header := range responseHeadersToRemove {
 		delete(headers, header)
 	}
@@ -71,33 +165,21 @@ func RedactResponseHeaders(azureIDs creds.AzureIDs, headers http.Header) {
 	// Hide sensitive response headers
 	for key, values := range headers {
 		for i := range values {
-			values[i] = strings.ReplaceAll(values[i], azureIDs.SubscriptionID, nilGuid)
-			values[i] = strings.ReplaceAll(values[i], azureIDs.TenantID, nilGuid)
-			if azureIDs.BillingInvoiceID != "" {
-				values[i] = strings.ReplaceAll(values[i], azureIDs.BillingInvoiceID, creds.DummyBillingId)
-			}
+			values[i] = r.hideRecordingDataWithCustomRedaction(values[i])
 		}
 
 		// Hide the base request URL in the AzureOperation and Location headers
 		if key == genericarmclient.AsyncOperationHeader || key == genericarmclient.LocationHeader {
 			for i := range values {
-				values[i] = HideURLData(azureIDs, values[i])
+				values[i] = r.HideURLData(values[i])
 			}
 		}
 	}
 }
 
-func HideRecordingData(azureIDs creds.AzureIDs, s string) string {
-	// Hide the subscription ID
-	s = strings.ReplaceAll(s, azureIDs.SubscriptionID, nilGuid)
-
-	// Hide the tenant ID
-	s = strings.ReplaceAll(s, azureIDs.TenantID, nilGuid)
-
-	// Hide the billing ID
-	if azureIDs.BillingInvoiceID != "" {
-		s = strings.ReplaceAll(s, azureIDs.BillingInvoiceID, creds.DummyBillingId)
-	}
+func (r *Redactor) HideRecordingData(s string) string {
+	// Hide custom redactions
+	s = r.hideRecordingDataWithCustomRedaction(s)
 
 	s = hideDates(s)
 	s = hideSSHKeys(s)
@@ -105,8 +187,21 @@ func HideRecordingData(azureIDs creds.AzureIDs, s string) string {
 	s = hideKubeConfigs(s)
 	s = hideKeys(s)
 	s = hideCustomKeys(s)
+	s = hideAppConfigurationKeySecrets(s)
 
 	return s
+}
+
+func (r *Redactor) hideRecordingDataWithCustomRedaction(s string) string {
+	// Policy tags are matched by value, so remove them before another redaction can rewrite one
+	res := r.policyTags.hide(s)
+
+	// Replace and hide all the custom data
+	for _, obj := range r.redactions {
+		res = obj.pattern.ReplaceAllString(res, obj.replacementValue)
+	}
+
+	return res
 }
 
 var dateMatcher = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
@@ -162,25 +257,31 @@ func hideCustomKeys(s string) string {
 	})
 }
 
-func HideURLData(azureIDs creds.AzureIDs, s string) string {
-	s = hideBaseRequestURL(s)
-
-	s = strings.ReplaceAll(s, azureIDs.SubscriptionID, nilGuid)
-
-	// Hide the tenant ID
-	s = strings.ReplaceAll(s, azureIDs.TenantID, nilGuid)
-
-	// Hide the billing ID
-	if azureIDs.BillingInvoiceID != "" {
-		s = strings.ReplaceAll(s, azureIDs.BillingInvoiceID, creds.DummyBillingId)
-	}
+func (r *Redactor) HideURLData(s string) string {
+	s = r.hideRecordingDataWithCustomRedaction(s)
 
 	return s
 }
 
-// baseURLMatcher matches the base part of a URL
-var baseURLMatcher = regexp.MustCompile(`^https://[^/]+/`)
+var appConfigKeySecretMatcher = regexp.MustCompile(`Secret=([A-Za-z0-9]+)`)
 
-func hideBaseRequestURL(s string) string {
-	return baseURLMatcher.ReplaceAllLiteralString(s, `https://management.azure.com/`)
+// hideAppConfigurationKeySecrets hides App Configuration key secrets
+// We can detect the secret in the connection string where it shows up as Secret=REDACTED
+// but also need to replace the bare value elsewhere in the body of the string.
+func hideAppConfigurationKeySecrets(s string) string {
+	// Get all the matches first
+	matches := appConfigKeySecretMatcher.FindAllStringSubmatch(s, -1)
+	if matches == nil {
+		return s
+	}
+
+	// Replace each match
+	for _, match := range matches {
+		if len(match) > 1 {
+			secretValue := match[1]
+			s = strings.ReplaceAll(s, secretValue, "{KEY}")
+		}
+	}
+
+	return s
 }

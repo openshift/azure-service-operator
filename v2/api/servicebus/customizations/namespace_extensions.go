@@ -8,45 +8,54 @@ package customizations
 import (
 	"context"
 
-	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
-
-	servicebus "github.com/Azure/azure-service-operator/v2/api/servicebus/v1api20211101/storage"
 	. "github.com/Azure/azure-service-operator/v2/internal/logging"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicebus/armservicebus"
+	"github.com/go-logr/logr"
+	"github.com/rotisserie/eris"
+	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicebus/armservicebus"
-
+	servicebus "github.com/Azure/azure-service-operator/v2/api/servicebus/v1api20240101/storage"
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
+	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/internal/util/to"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
 )
 
-var _ genruntime.KubernetesExporter = &NamespaceExtension{}
+const (
+	endpoint                  = "endpoint"
+	primaryKey                = "primaryKey"
+	primaryConnectionString   = "primaryConnectionString"
+	secondaryKey              = "secondaryKey"
+	secondaryConnectionString = "secondaryConnectionString"
+)
 
-func (ext *NamespaceExtension) ExportKubernetesResources(
+var _ genruntime.KubernetesSecretExporter = &NamespaceExtension{}
+
+func (ext *NamespaceExtension) ExportKubernetesSecrets(
 	ctx context.Context,
 	obj genruntime.MetaObject,
+	additionalSecrets set.Set[string],
 	armClient *genericarmclient.GenericClient,
 	log logr.Logger,
-) ([]client.Object, error) {
+) (*genruntime.KubernetesSecretExportResult, error) {
 	// This has to be the current hub storage version. It will need to be updated
 	// if the hub storage version changes.
 	namespace, ok := obj.(*servicebus.Namespace)
 	if !ok {
-		return nil, errors.Errorf("cannot run on unknown resource type %T, expected *servicebus.Namespace", obj)
+		return nil, eris.Errorf("cannot run on unknown resource type %T, expected *servicebus.Namespace", obj)
 	}
 
 	// Type assert that we are the hub type. This will fail to compile if
 	// the hub type has been changed but this extension has not
 	var _ conversion.Hub = namespace
 
-	hasSecrets := namespaceSecretsSpecified(namespace)
-	if !hasSecrets {
+	primarySecrets := namespaceSecretsSpecified(namespace)
+	requestedSecrets := set.Union(primarySecrets, additionalSecrets)
+
+	if len(requestedSecrets) == 0 {
 		log.V(Debug).Info("No secrets retrieval to perform as operatorSpec is empty")
 		return nil, nil
 	}
@@ -61,9 +70,10 @@ func (ext *NamespaceExtension) ExportKubernetesResources(
 	clientFactory, err := armservicebus.NewClientFactory(
 		id.SubscriptionID,
 		armClient.Creds(),
-		armClient.ClientOptions())
+		armClient.ClientOptions(),
+	)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create ARM servicebus client factory")
+		return nil, eris.Wrapf(err, "failed to create ARM servicebus client factory")
 	}
 
 	// This access rule always exists and provides management access to the namespace
@@ -77,12 +87,14 @@ func (ext *NamespaceExtension) ExportKubernetesResources(
 		id.ResourceGroupName,
 		id.Name,
 		rootRuleName,
-		&options)
+		&options,
+	)
 	if err != nil {
-		return nil, errors.Wrapf(
+		return nil, eris.Wrapf(
 			err,
 			"failed to retrieve namespace management keys from authorization rule %q",
-			rootRuleName)
+			rootRuleName,
+		)
 	}
 
 	secretSlice, err := namespaceSecretsToWrite(namespace, response)
@@ -90,38 +102,71 @@ func (ext *NamespaceExtension) ExportKubernetesResources(
 		return nil, err
 	}
 
-	return secrets.SliceToClientObjectSlice(secretSlice), nil
+	resolvedSecrets := map[string]string{}
+	if to.Value(namespace.Status.ServiceBusEndpoint) != "" {
+		resolvedSecrets[endpoint] = to.Value(namespace.Status.ServiceBusEndpoint)
+	}
+	if to.Value(response.PrimaryKey) != "" {
+		resolvedSecrets[primaryKey] = to.Value(response.PrimaryKey)
+	}
+	if to.Value(response.PrimaryConnectionString) != "" {
+		resolvedSecrets[primaryConnectionString] = to.Value(response.PrimaryConnectionString)
+	}
+	if to.Value(response.SecondaryKey) != "" {
+		resolvedSecrets[secondaryKey] = to.Value(response.SecondaryKey)
+	}
+	if to.Value(response.SecondaryConnectionString) != "" {
+		resolvedSecrets[secondaryConnectionString] = to.Value(response.SecondaryConnectionString)
+	}
+
+	return &genruntime.KubernetesSecretExportResult{
+		Objs:       secrets.SliceToClientObjectSlice(secretSlice),
+		RawSecrets: secrets.SelectSecrets(additionalSecrets, resolvedSecrets),
+	}, nil
 }
 
-func namespaceSecretsSpecified(obj *servicebus.Namespace) bool {
+func namespaceSecretsSpecified(obj *servicebus.Namespace) set.Set[string] {
 	if obj.Spec.OperatorSpec == nil || obj.Spec.OperatorSpec.Secrets == nil {
-		return false
+		return nil
 	}
 
 	specSecrets := obj.Spec.OperatorSpec.Secrets
 
-	return specSecrets.Endpoint != nil ||
-		specSecrets.PrimaryKey != nil ||
-		specSecrets.PrimaryConnectionString != nil ||
-		specSecrets.SecondaryKey != nil ||
-		specSecrets.SecondaryConnectionString != nil
+	result := make(set.Set[string])
+	if specSecrets.Endpoint != nil {
+		result.Add(endpoint)
+	}
+	if specSecrets.PrimaryKey != nil {
+		result.Add(primaryKey)
+	}
+	if specSecrets.PrimaryConnectionString != nil {
+		result.Add(primaryConnectionString)
+	}
+	if specSecrets.SecondaryKey != nil {
+		result.Add(secondaryKey)
+	}
+	if specSecrets.SecondaryConnectionString != nil {
+		result.Add(secondaryConnectionString)
+	}
+	return result
 }
 
 func namespaceSecretsToWrite(
 	obj *servicebus.Namespace,
 	response armservicebus.NamespacesClientListKeysResponse,
 ) ([]*v1.Secret, error) {
-	specSecrets := obj.Spec.OperatorSpec.Secrets
-	if specSecrets == nil {
-		return nil, errors.Errorf("unexpected nil operatorspec")
+	if obj.Spec.OperatorSpec == nil || obj.Spec.OperatorSpec.Secrets == nil {
+		return nil, nil
 	}
+
+	specSecrets := obj.Spec.OperatorSpec.Secrets
 
 	collector := secrets.NewCollector(obj.Namespace)
 	collector.AddValue(specSecrets.Endpoint, to.Value(obj.Status.ServiceBusEndpoint))
-	collector.AddValue(specSecrets.PrimaryKey, *response.PrimaryKey)
-	collector.AddValue(specSecrets.PrimaryConnectionString, *response.PrimaryConnectionString)
-	collector.AddValue(specSecrets.SecondaryKey, *response.SecondaryKey)
-	collector.AddValue(specSecrets.SecondaryConnectionString, *response.SecondaryConnectionString)
+	collector.AddValue(specSecrets.PrimaryKey, to.Value(response.PrimaryKey))
+	collector.AddValue(specSecrets.PrimaryConnectionString, to.Value(response.PrimaryConnectionString))
+	collector.AddValue(specSecrets.SecondaryKey, to.Value(response.SecondaryKey))
+	collector.AddValue(specSecrets.SecondaryConnectionString, to.Value(response.SecondaryConnectionString))
 
 	return collector.Values()
 }

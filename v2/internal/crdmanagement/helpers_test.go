@@ -5,10 +5,12 @@ package crdmanagement_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
-	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
+
+	"github.com/go-logr/logr"
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -18,6 +20,7 @@ import (
 	"github.com/Azure/azure-service-operator/v2/internal/controllers"
 	"github.com/Azure/azure-service-operator/v2/internal/crdmanagement"
 	"github.com/Azure/azure-service-operator/v2/internal/reconcilers/arm"
+	"github.com/Azure/azure-service-operator/v2/internal/reconcilers/entra"
 	"github.com/Azure/azure-service-operator/v2/internal/reconcilers/generic"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	"github.com/Azure/azure-service-operator/v2/internal/util/kubeclient"
@@ -39,9 +42,10 @@ func Test_AllCRDsReady_NoneAreFiltered(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	testData := testSetup(t)
+	g.Expect(testcommon.CheckBundledCRDsDirectory(testData.crdPath)).To(Succeed())
 
 	// load crds
-	goalCRDs, err := testData.crdManager.LoadOperatorCRDs(testData.crdPath, testData.namespace)
+	goalCRDs, err := testData.crdManager.LoadOperatorCRDs(testData.crdPath, testData.namespace, testData.crdManager.BuildCRDFileFilter("*", nil))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	readyResources := crdmanagement.MakeCRDMap(goalCRDs)
@@ -61,9 +65,10 @@ func Test_FiveCRDsReady_AllOthersAreFiltered(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	testData := testSetup(t)
+	g.Expect(testcommon.CheckBundledCRDsDirectory(testData.crdPath)).To(Succeed())
 
 	// load crds
-	goalCRDs, err := testData.crdManager.LoadOperatorCRDs(testData.crdPath, testData.namespace)
+	goalCRDs, err := testData.crdManager.LoadOperatorCRDs(testData.crdPath, testData.namespace, testData.crdManager.BuildCRDFileFilter("*", nil))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Filter all but the first 5 CRDs
@@ -84,6 +89,54 @@ func Test_FiveCRDsReady_AllOthersAreFiltered(t *testing.T) {
 	objs, err := crdmanagement.FilterStorageTypesByReadyCRDs(testData.logger, testData.s.GetScheme(), readyResources, knownTypes)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(objs).To(HaveLen(5))
+}
+
+// This test requires that the task target `bundle-crds` has been run
+func Test_ResourceGroupPattern_AllOthersAreFiltered(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	testData := testSetup(t)
+	g.Expect(testcommon.CheckBundledCRDsDirectory(testData.crdPath)).To(Succeed())
+
+	// load crds
+	shouldLoad := testData.crdManager.BuildCRDFileFilter("resources.azure.com/ResourceGroup", nil)
+	goalCRDs, err := testData.crdManager.LoadOperatorCRDs(testData.crdPath, testData.namespace, shouldLoad)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	readyResources := crdmanagement.MakeCRDMap(goalCRDs)
+
+	knownTypes, err := testData.getKnownStorageTypes()
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Filter the types to register
+	objs, err := crdmanagement.FilterStorageTypesByReadyCRDs(testData.logger, testData.s.GetScheme(), readyResources, knownTypes)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(objs).To(HaveLen(1))
+}
+
+// This test requires that the task target `bundle-crds` has been run
+func Test_AllCRDFilenames_MatchExpectedPattern(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	testData := testSetup(t)
+	g.Expect(testcommon.CheckBundledCRDsDirectory(testData.crdPath)).To(Succeed())
+
+	entries, err := os.ReadDir(testData.crdPath)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(entries).ToNot(BeEmpty())
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		filename := entry.Name()
+
+		// Every file should have the expected prefix and .yaml suffix
+		g.Expect(filename).To(HavePrefix(crdmanagement.CRDFilePrefix), "file %q missing expected prefix", filename)
+		g.Expect(filename).To(HaveSuffix(".yaml"), "file %q missing .yaml suffix", filename)
+	}
 }
 
 /*
@@ -113,7 +166,7 @@ func testSetup(t *testing.T) *testData {
 	logger := testcommon.NewTestLogger(t)
 	cfg := config.Values{}
 
-	crdManager := crdmanagement.NewManager(logger, kubeClient)
+	crdManager := crdmanagement.NewManager(logger, kubeClient, nil)
 
 	return &testData{
 		cfg:        cfg,
@@ -127,14 +180,21 @@ func testSetup(t *testing.T) *testData {
 }
 
 func (t *testData) getKnownStorageTypes() ([]*registration.StorageType, error) {
-	return controllers.GetKnownStorageTypes(
-		t.s,
-		func(ctx context.Context, object genruntime.ARMMetaObject) (arm.Connection, error) {
-			// For the purposes of this test, we're not really going to go to ARM so we can just do nothing here
+	clientsProvider := &controllers.ClientsProvider{
+		ARMConnectionFactory: func(ctx context.Context, obj genruntime.ARMMetaObject) (arm.Connection, error) {
 			return nil, nil
 		},
+		EntraConnectionFactory: func(ctx context.Context, obj genruntime.EntraMetaObject) (entra.Connection, error) {
+			return nil, nil
+		},
+	}
+
+	return controllers.GetKnownStorageTypes(
+		t.s,
+		clientsProvider,
 		nil, // Not used for this test
-		t.kubeClient,
 		nil, // Not used for this test
-		generic.Options{})
+		nil, // Not used for this test
+		generic.Options{},
+	)
 }

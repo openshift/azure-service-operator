@@ -8,9 +8,8 @@ package functions
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	"github.com/dave/dst"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -108,18 +107,20 @@ func (fn *ChainedConversionFunction) Name() string {
 
 func (fn *ChainedConversionFunction) RequiredPackageReferences() *astmodel.PackageReferenceSet {
 	return astmodel.NewPackageReferenceSet(
-		astmodel.GitHubErrorsReference,
+		astmodel.ErisReference,
 		astmodel.ControllerRuntimeConversion,
 		astmodel.FmtReference,
 		astmodel.GenRuntimeReference,
 		fn.parameterType.PackageReference(),
-		fn.propertyAssignmentParameterType.PackageReference())
+		fn.propertyAssignmentParameterType.PackageReference(),
+	)
 }
 
 func (fn *ChainedConversionFunction) References() astmodel.TypeNameSet {
 	return astmodel.NewTypeNameSet(
 		fn.parameterType,
-		fn.propertyAssignmentParameterType)
+		fn.propertyAssignmentParameterType,
+	)
 }
 
 func (fn *ChainedConversionFunction) AsFunc(
@@ -132,7 +133,7 @@ func (fn *ChainedConversionFunction) AsFunc(
 	// We always use a pointer receiver, so we can modify it
 	receiverExpr, err := astmodel.NewOptionalType(receiver).AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating receiver type expression for %s", receiver)
+		return nil, eris.Wrapf(err, "creating receiver type expression for %s", receiver)
 	}
 
 	funcDetails := &astbuilder.FuncDetails{
@@ -144,7 +145,7 @@ func (fn *ChainedConversionFunction) AsFunc(
 	parameterName := fn.direction.SelectString("source", "destination")
 	parameterTypeExpr, err := fn.parameterType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating parameter type expression for %s", parameterName)
+		return nil, eris.Wrapf(err, "creating parameter type expression for %s", parameterName)
 	}
 
 	funcDetails.AddParameter(parameterName, parameterTypeExpr)
@@ -181,11 +182,11 @@ func (fn *ChainedConversionFunction) AsFunc(
 func (fn *ChainedConversionFunction) bodyForConvert(
 	receiverName string, parameterName string, generationContext *astmodel.CodeGenerationContext,
 ) []dst.Stmt {
-	errorsPackage := generationContext.MustGetImportedPackageName(astmodel.GitHubErrorsReference)
+	errorsPackage := generationContext.MustGetImportedPackageName(astmodel.ErisReference)
 
 	receiver := dst.NewIdent(receiverName)
 	parameter := dst.NewIdent(parameterName)
-	local := dst.NewIdent(fn.localVariableId())
+	local := dst.NewIdent(fn.localVariableID())
 	errIdent := dst.NewIdent("err")
 
 	intermediateType, err := fn.propertyAssignmentParameterType.AsTypeExpr(generationContext)
@@ -199,21 +200,26 @@ func (fn *ChainedConversionFunction) bodyForConvert(
 
 	// return <receiver>.AssignProperties(From|To)(<local>)
 	directConversion := astbuilder.Returns(
-		astbuilder.CallExpr(receiver, fn.propertyAssignmentFunctionName, local))
+		astbuilder.CallExpr(receiver, fn.propertyAssignmentFunctionName, local),
+	)
 	astbuilder.AddComment(
 		&directConversion.Decorations().Start,
 		fn.direction.SelectString(
 			fmt.Sprintf("// Populate our instance from %s", parameter),
-			fmt.Sprintf("// Populate %s from our instance", parameter)))
+			fmt.Sprintf("// Populate %s from our instance", parameter),
+		),
+	)
 
 	// if ok { ...elided... }
 	returnDirectConversion := astbuilder.IfOk(
-		directConversion)
+		directConversion,
+	)
 
 	// <local> = &<intermediateType>{}
 	initializeLocal := astbuilder.SimpleAssignment(
 		local,
-		astbuilder.AddrOf(astbuilder.NewCompositeLiteralBuilder(intermediateType).Build()))
+		astbuilder.AddrOf(astbuilder.NewCompositeLiteralBuilder(intermediateType).Build()),
+	)
 	initializeLocal.Decs.Before = dst.EmptyLine
 	astbuilder.AddComment(&initializeLocal.Decs.Start, "// Convert to an intermediate form")
 
@@ -228,12 +234,15 @@ func (fn *ChainedConversionFunction) bodyForConvert(
 		"err",
 		fn.direction.SelectExpr(
 			astbuilder.CallExpr(local, fn.Name(), parameter),
-			astbuilder.CallExpr(receiver, fn.propertyAssignmentFunctionName, local)))
+			astbuilder.CallExpr(receiver, fn.propertyAssignmentFunctionName, local),
+		),
+	)
 
 	// if err != nil { ...elided...}
 	checkInitialStepForError := astbuilder.CheckErrorAndWrap(
 		errorsPackage,
-		fmt.Sprintf("initial step of conversion in %s()", fn.Name()))
+		fmt.Sprintf("initial step of conversion in %s()", fn.Name()),
+	)
 	checkInitialStepForError.Decorations().After = dst.EmptyLine
 
 	//
@@ -247,17 +256,22 @@ func (fn *ChainedConversionFunction) bodyForConvert(
 		errIdent,
 		fn.direction.SelectExpr(
 			astbuilder.CallExpr(receiver, fn.propertyAssignmentFunctionName, local),
-			astbuilder.CallExpr(local, fn.Name(), parameter)))
+			astbuilder.CallExpr(local, fn.Name(), parameter),
+		),
+	)
 	astbuilder.AddComment(
 		&finalStep.Decorations().Start,
 		fn.direction.SelectString(
 			fmt.Sprintf("// Update our instance from %s", local),
-			fmt.Sprintf("// Update %s from our instance", local)))
+			fmt.Sprintf("// Update %s from our instance", local),
+		),
+	)
 
 	// if err != nil { ...elided...}
 	checkFinalStepForError := astbuilder.CheckErrorAndWrap(
 		errorsPackage,
-		fmt.Sprintf("final step of conversion in %s()", fn.Name()))
+		fmt.Sprintf("final step of conversion in %s()", fn.Name()),
+	)
 	checkFinalStepForError.Decorations().After = dst.EmptyLine
 
 	returnNil := astbuilder.Returns(astbuilder.Nil())
@@ -270,19 +284,21 @@ func (fn *ChainedConversionFunction) bodyForConvert(
 		checkInitialStepForError,
 		finalStep,
 		checkFinalStepForError,
-		returnNil)
+		returnNil,
+	)
 }
 
-// localVariableId returns a good identifier to use for a local variable in our function,
+// localVariableID returns a good identifier to use for a local variable in our function,
 // based which direction we are converting
-func (fn *ChainedConversionFunction) localVariableId() string {
+func (fn *ChainedConversionFunction) localVariableID() string {
 	return fn.direction.SelectString("src", "dst")
 }
 
 func (fn *ChainedConversionFunction) declarationDocComment(receiver astmodel.TypeName, parameter string) string {
 	return fn.direction.SelectString(
 		fmt.Sprintf("populates our %s from the provided %s", receiver.Name(), parameter),
-		fmt.Sprintf("populates the provided %s from our %s", parameter, receiver.Name()))
+		fmt.Sprintf("populates the provided %s from our %s", parameter, receiver.Name()),
+	)
 }
 
 func (fn *ChainedConversionFunction) Equals(otherFn astmodel.Function, override astmodel.EqualityOverrides) bool {

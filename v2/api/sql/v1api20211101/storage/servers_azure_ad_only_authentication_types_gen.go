@@ -4,32 +4,34 @@
 package storage
 
 import (
+	storage "github.com/Azure/azure-service-operator/v2/api/sql/v20211101/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// +kubebuilder:rbac:groups=sql.azure.com,resources=serversazureadonlyauthentications,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=sql.azure.com,resources={serversazureadonlyauthentications/status,serversazureadonlyauthentications/finalizers},verbs=get;update;patch
-
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,sql}
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20211101.ServersAzureADOnlyAuthentication
 // Generator information:
-// - Generated from: /sql/resource-manager/Microsoft.Sql/stable/2021-11-01/ServerAzureADOnlyAuthentications.json
+// - Generated from: /sql/resource-manager/Microsoft.Sql/SQL/stable/2021-11-01/ServerAzureADOnlyAuthentications.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/azureADOnlyAuthentications/Default
 type ServersAzureADOnlyAuthentication struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Servers_AzureADOnlyAuthentication_Spec   `json:"spec,omitempty"`
-	Status            Servers_AzureADOnlyAuthentication_STATUS `json:"status,omitempty"`
+	Spec              ServersAzureADOnlyAuthentication_Spec   `json:"spec,omitempty"`
+	Status            ServersAzureADOnlyAuthentication_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &ServersAzureADOnlyAuthentication{}
@@ -44,6 +46,62 @@ func (authentication *ServersAzureADOnlyAuthentication) SetConditions(conditions
 	authentication.Status.Conditions = conditions
 }
 
+var _ conversion.Convertible = &ServersAzureADOnlyAuthentication{}
+
+// ConvertFrom populates our ServersAzureADOnlyAuthentication from the provided hub ServersAzureADOnlyAuthentication
+func (authentication *ServersAzureADOnlyAuthentication) ConvertFrom(hub conversion.Hub) error {
+	// intermediate variable for conversion
+	var source storage.ServersAzureADOnlyAuthentication
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
+	}
+
+	err = authentication.AssignProperties_From_ServersAzureADOnlyAuthentication(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to authentication")
+	}
+
+	return nil
+}
+
+// ConvertTo populates the provided hub ServersAzureADOnlyAuthentication from our ServersAzureADOnlyAuthentication
+func (authentication *ServersAzureADOnlyAuthentication) ConvertTo(hub conversion.Hub) error {
+	// intermediate variable for conversion
+	var destination storage.ServersAzureADOnlyAuthentication
+	err := authentication.AssignProperties_To_ServersAzureADOnlyAuthentication(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from authentication")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
+	}
+
+	return nil
+}
+
+var _ configmaps.Exporter = &ServersAzureADOnlyAuthentication{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (authentication *ServersAzureADOnlyAuthentication) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if authentication.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return authentication.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &ServersAzureADOnlyAuthentication{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (authentication *ServersAzureADOnlyAuthentication) SecretDestinationExpressions() []*core.DestinationExpression {
+	if authentication.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return authentication.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &ServersAzureADOnlyAuthentication{}
 
 // AzureName returns the Azure name of the resource (always "Default")
@@ -53,7 +111,7 @@ func (authentication *ServersAzureADOnlyAuthentication) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2021-11-01"
 func (authentication ServersAzureADOnlyAuthentication) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2021-11-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -87,11 +145,15 @@ func (authentication *ServersAzureADOnlyAuthentication) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (authentication *ServersAzureADOnlyAuthentication) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Servers_AzureADOnlyAuthentication_STATUS{}
+	return &ServersAzureADOnlyAuthentication_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (authentication *ServersAzureADOnlyAuthentication) Owner() *genruntime.ResourceReference {
+	if authentication.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(authentication.Spec)
 	return authentication.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -99,24 +161,91 @@ func (authentication *ServersAzureADOnlyAuthentication) Owner() *genruntime.Reso
 // SetStatus sets the status of this resource
 func (authentication *ServersAzureADOnlyAuthentication) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Servers_AzureADOnlyAuthentication_STATUS); ok {
+	if st, ok := status.(*ServersAzureADOnlyAuthentication_STATUS); ok {
 		authentication.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Servers_AzureADOnlyAuthentication_STATUS
+	var st ServersAzureADOnlyAuthentication_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	authentication.Status = st
 	return nil
 }
 
-// Hub marks that this ServersAzureADOnlyAuthentication is the hub type for conversion
-func (authentication *ServersAzureADOnlyAuthentication) Hub() {}
+// AssignProperties_From_ServersAzureADOnlyAuthentication populates our ServersAzureADOnlyAuthentication from the provided source ServersAzureADOnlyAuthentication
+func (authentication *ServersAzureADOnlyAuthentication) AssignProperties_From_ServersAzureADOnlyAuthentication(source *storage.ServersAzureADOnlyAuthentication) error {
+
+	// ObjectMeta
+	authentication.ObjectMeta = *source.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec ServersAzureADOnlyAuthentication_Spec
+	err := spec.AssignProperties_From_ServersAzureADOnlyAuthentication_Spec(&source.Spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_ServersAzureADOnlyAuthentication_Spec() to populate field Spec")
+	}
+	authentication.Spec = spec
+
+	// Status
+	var status ServersAzureADOnlyAuthentication_STATUS
+	err = status.AssignProperties_From_ServersAzureADOnlyAuthentication_STATUS(&source.Status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_ServersAzureADOnlyAuthentication_STATUS() to populate field Status")
+	}
+	authentication.Status = status
+
+	// Invoke the augmentConversionForServersAzureADOnlyAuthentication interface (if implemented) to customize the conversion
+	var authenticationAsAny any = authentication
+	if augmentedAuthentication, ok := authenticationAsAny.(augmentConversionForServersAzureADOnlyAuthentication); ok {
+		err := augmentedAuthentication.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ServersAzureADOnlyAuthentication populates the provided destination ServersAzureADOnlyAuthentication from our ServersAzureADOnlyAuthentication
+func (authentication *ServersAzureADOnlyAuthentication) AssignProperties_To_ServersAzureADOnlyAuthentication(destination *storage.ServersAzureADOnlyAuthentication) error {
+
+	// ObjectMeta
+	destination.ObjectMeta = *authentication.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec storage.ServersAzureADOnlyAuthentication_Spec
+	err := authentication.Spec.AssignProperties_To_ServersAzureADOnlyAuthentication_Spec(&spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_ServersAzureADOnlyAuthentication_Spec() to populate field Spec")
+	}
+	destination.Spec = spec
+
+	// Status
+	var status storage.ServersAzureADOnlyAuthentication_STATUS
+	err = authentication.Status.AssignProperties_To_ServersAzureADOnlyAuthentication_STATUS(&status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_ServersAzureADOnlyAuthentication_STATUS() to populate field Status")
+	}
+	destination.Status = status
+
+	// Invoke the augmentConversionForServersAzureADOnlyAuthentication interface (if implemented) to customize the conversion
+	var authenticationAsAny any = authentication
+	if augmentedAuthentication, ok := authenticationAsAny.(augmentConversionForServersAzureADOnlyAuthentication); ok {
+		err := augmentedAuthentication.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
 
 // OriginalGVK returns a GroupValueKind for the original API version used to create the resource
 func (authentication *ServersAzureADOnlyAuthentication) OriginalGVK() *schema.GroupVersionKind {
@@ -130,7 +259,7 @@ func (authentication *ServersAzureADOnlyAuthentication) OriginalGVK() *schema.Gr
 // +kubebuilder:object:root=true
 // Storage version of v1api20211101.ServersAzureADOnlyAuthentication
 // Generator information:
-// - Generated from: /sql/resource-manager/Microsoft.Sql/stable/2021-11-01/ServerAzureADOnlyAuthentications.json
+// - Generated from: /sql/resource-manager/Microsoft.Sql/SQL/stable/2021-11-01/ServerAzureADOnlyAuthentications.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/azureADOnlyAuthentications/Default
 type ServersAzureADOnlyAuthenticationList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -138,10 +267,16 @@ type ServersAzureADOnlyAuthenticationList struct {
 	Items           []ServersAzureADOnlyAuthentication `json:"items"`
 }
 
-// Storage version of v1api20211101.Servers_AzureADOnlyAuthentication_Spec
-type Servers_AzureADOnlyAuthentication_Spec struct {
-	AzureADOnlyAuthentication *bool  `json:"azureADOnlyAuthentication,omitempty"`
-	OriginalVersion           string `json:"originalVersion,omitempty"`
+type augmentConversionForServersAzureADOnlyAuthentication interface {
+	AssignPropertiesFrom(src *storage.ServersAzureADOnlyAuthentication) error
+	AssignPropertiesTo(dst *storage.ServersAzureADOnlyAuthentication) error
+}
+
+// Storage version of v1api20211101.ServersAzureADOnlyAuthentication_Spec
+type ServersAzureADOnlyAuthentication_Spec struct {
+	AzureADOnlyAuthentication *bool                                         `json:"azureADOnlyAuthentication,omitempty"`
+	OperatorSpec              *ServersAzureADOnlyAuthenticationOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion           string                                        `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -151,28 +286,170 @@ type Servers_AzureADOnlyAuthentication_Spec struct {
 	PropertyBag genruntime.PropertyBag             `json:"$propertyBag,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Servers_AzureADOnlyAuthentication_Spec{}
+var _ genruntime.ConvertibleSpec = &ServersAzureADOnlyAuthentication_Spec{}
 
-// ConvertSpecFrom populates our Servers_AzureADOnlyAuthentication_Spec from the provided source
-func (authentication *Servers_AzureADOnlyAuthentication_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == authentication {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our ServersAzureADOnlyAuthentication_Spec from the provided source
+func (authentication *ServersAzureADOnlyAuthentication_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.ServersAzureADOnlyAuthentication_Spec)
+	if ok {
+		// Populate our instance from source
+		return authentication.AssignProperties_From_ServersAzureADOnlyAuthentication_Spec(src)
 	}
 
-	return source.ConvertSpecTo(authentication)
-}
-
-// ConvertSpecTo populates the provided destination from our Servers_AzureADOnlyAuthentication_Spec
-func (authentication *Servers_AzureADOnlyAuthentication_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == authentication {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	// Convert to an intermediate form
+	src = &storage.ServersAzureADOnlyAuthentication_Spec{}
+	err := src.ConvertSpecFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
-	return destination.ConvertSpecFrom(authentication)
+	// Update our instance from src
+	err = authentication.AssignProperties_From_ServersAzureADOnlyAuthentication_Spec(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+	}
+
+	return nil
 }
 
-// Storage version of v1api20211101.Servers_AzureADOnlyAuthentication_STATUS
-type Servers_AzureADOnlyAuthentication_STATUS struct {
+// ConvertSpecTo populates the provided destination from our ServersAzureADOnlyAuthentication_Spec
+func (authentication *ServersAzureADOnlyAuthentication_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.ServersAzureADOnlyAuthentication_Spec)
+	if ok {
+		// Populate destination from our instance
+		return authentication.AssignProperties_To_ServersAzureADOnlyAuthentication_Spec(dst)
+	}
+
+	// Convert to an intermediate form
+	dst = &storage.ServersAzureADOnlyAuthentication_Spec{}
+	err := authentication.AssignProperties_To_ServersAzureADOnlyAuthentication_Spec(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertSpecTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_ServersAzureADOnlyAuthentication_Spec populates our ServersAzureADOnlyAuthentication_Spec from the provided source ServersAzureADOnlyAuthentication_Spec
+func (authentication *ServersAzureADOnlyAuthentication_Spec) AssignProperties_From_ServersAzureADOnlyAuthentication_Spec(source *storage.ServersAzureADOnlyAuthentication_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureADOnlyAuthentication
+	if source.AzureADOnlyAuthentication != nil {
+		azureADOnlyAuthentication := *source.AzureADOnlyAuthentication
+		authentication.AzureADOnlyAuthentication = &azureADOnlyAuthentication
+	} else {
+		authentication.AzureADOnlyAuthentication = nil
+	}
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec ServersAzureADOnlyAuthenticationOperatorSpec
+		err := operatorSpec.AssignProperties_From_ServersAzureADOnlyAuthenticationOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ServersAzureADOnlyAuthenticationOperatorSpec() to populate field OperatorSpec")
+		}
+		authentication.OperatorSpec = &operatorSpec
+	} else {
+		authentication.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	authentication.OriginalVersion = source.OriginalVersion
+
+	// Owner
+	if source.Owner != nil {
+		owner := source.Owner.Copy()
+		authentication.Owner = &owner
+	} else {
+		authentication.Owner = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		authentication.PropertyBag = propertyBag
+	} else {
+		authentication.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForServersAzureADOnlyAuthentication_Spec interface (if implemented) to customize the conversion
+	var authenticationAsAny any = authentication
+	if augmentedAuthentication, ok := authenticationAsAny.(augmentConversionForServersAzureADOnlyAuthentication_Spec); ok {
+		err := augmentedAuthentication.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ServersAzureADOnlyAuthentication_Spec populates the provided destination ServersAzureADOnlyAuthentication_Spec from our ServersAzureADOnlyAuthentication_Spec
+func (authentication *ServersAzureADOnlyAuthentication_Spec) AssignProperties_To_ServersAzureADOnlyAuthentication_Spec(destination *storage.ServersAzureADOnlyAuthentication_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(authentication.PropertyBag)
+
+	// AzureADOnlyAuthentication
+	if authentication.AzureADOnlyAuthentication != nil {
+		azureADOnlyAuthentication := *authentication.AzureADOnlyAuthentication
+		destination.AzureADOnlyAuthentication = &azureADOnlyAuthentication
+	} else {
+		destination.AzureADOnlyAuthentication = nil
+	}
+
+	// OperatorSpec
+	if authentication.OperatorSpec != nil {
+		var operatorSpec storage.ServersAzureADOnlyAuthenticationOperatorSpec
+		err := authentication.OperatorSpec.AssignProperties_To_ServersAzureADOnlyAuthenticationOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ServersAzureADOnlyAuthenticationOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	destination.OriginalVersion = authentication.OriginalVersion
+
+	// Owner
+	if authentication.Owner != nil {
+		owner := authentication.Owner.Copy()
+		destination.Owner = &owner
+	} else {
+		destination.Owner = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForServersAzureADOnlyAuthentication_Spec interface (if implemented) to customize the conversion
+	var authenticationAsAny any = authentication
+	if augmentedAuthentication, ok := authenticationAsAny.(augmentConversionForServersAzureADOnlyAuthentication_Spec); ok {
+		err := augmentedAuthentication.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20211101.ServersAzureADOnlyAuthentication_STATUS
+type ServersAzureADOnlyAuthentication_STATUS struct {
 	AzureADOnlyAuthentication *bool                  `json:"azureADOnlyAuthentication,omitempty"`
 	Conditions                []conditions.Condition `json:"conditions,omitempty"`
 	Id                        *string                `json:"id,omitempty"`
@@ -181,24 +458,281 @@ type Servers_AzureADOnlyAuthentication_STATUS struct {
 	Type                      *string                `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Servers_AzureADOnlyAuthentication_STATUS{}
+var _ genruntime.ConvertibleStatus = &ServersAzureADOnlyAuthentication_STATUS{}
 
-// ConvertStatusFrom populates our Servers_AzureADOnlyAuthentication_STATUS from the provided source
-func (authentication *Servers_AzureADOnlyAuthentication_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == authentication {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our ServersAzureADOnlyAuthentication_STATUS from the provided source
+func (authentication *ServersAzureADOnlyAuthentication_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.ServersAzureADOnlyAuthentication_STATUS)
+	if ok {
+		// Populate our instance from source
+		return authentication.AssignProperties_From_ServersAzureADOnlyAuthentication_STATUS(src)
 	}
 
-	return source.ConvertStatusTo(authentication)
+	// Convert to an intermediate form
+	src = &storage.ServersAzureADOnlyAuthentication_STATUS{}
+	err := src.ConvertStatusFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+	}
+
+	// Update our instance from src
+	err = authentication.AssignProperties_From_ServersAzureADOnlyAuthentication_STATUS(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+	}
+
+	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Servers_AzureADOnlyAuthentication_STATUS
-func (authentication *Servers_AzureADOnlyAuthentication_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == authentication {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our ServersAzureADOnlyAuthentication_STATUS
+func (authentication *ServersAzureADOnlyAuthentication_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.ServersAzureADOnlyAuthentication_STATUS)
+	if ok {
+		// Populate destination from our instance
+		return authentication.AssignProperties_To_ServersAzureADOnlyAuthentication_STATUS(dst)
 	}
 
-	return destination.ConvertStatusFrom(authentication)
+	// Convert to an intermediate form
+	dst = &storage.ServersAzureADOnlyAuthentication_STATUS{}
+	err := authentication.AssignProperties_To_ServersAzureADOnlyAuthentication_STATUS(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertStatusTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_ServersAzureADOnlyAuthentication_STATUS populates our ServersAzureADOnlyAuthentication_STATUS from the provided source ServersAzureADOnlyAuthentication_STATUS
+func (authentication *ServersAzureADOnlyAuthentication_STATUS) AssignProperties_From_ServersAzureADOnlyAuthentication_STATUS(source *storage.ServersAzureADOnlyAuthentication_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureADOnlyAuthentication
+	if source.AzureADOnlyAuthentication != nil {
+		azureADOnlyAuthentication := *source.AzureADOnlyAuthentication
+		authentication.AzureADOnlyAuthentication = &azureADOnlyAuthentication
+	} else {
+		authentication.AzureADOnlyAuthentication = nil
+	}
+
+	// Conditions
+	authentication.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
+
+	// Id
+	authentication.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Name
+	authentication.Name = genruntime.ClonePointerToString(source.Name)
+
+	// Type
+	authentication.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		authentication.PropertyBag = propertyBag
+	} else {
+		authentication.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForServersAzureADOnlyAuthentication_STATUS interface (if implemented) to customize the conversion
+	var authenticationAsAny any = authentication
+	if augmentedAuthentication, ok := authenticationAsAny.(augmentConversionForServersAzureADOnlyAuthentication_STATUS); ok {
+		err := augmentedAuthentication.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ServersAzureADOnlyAuthentication_STATUS populates the provided destination ServersAzureADOnlyAuthentication_STATUS from our ServersAzureADOnlyAuthentication_STATUS
+func (authentication *ServersAzureADOnlyAuthentication_STATUS) AssignProperties_To_ServersAzureADOnlyAuthentication_STATUS(destination *storage.ServersAzureADOnlyAuthentication_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(authentication.PropertyBag)
+
+	// AzureADOnlyAuthentication
+	if authentication.AzureADOnlyAuthentication != nil {
+		azureADOnlyAuthentication := *authentication.AzureADOnlyAuthentication
+		destination.AzureADOnlyAuthentication = &azureADOnlyAuthentication
+	} else {
+		destination.AzureADOnlyAuthentication = nil
+	}
+
+	// Conditions
+	destination.Conditions = genruntime.CloneSliceOfCondition(authentication.Conditions)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(authentication.Id)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(authentication.Name)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(authentication.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForServersAzureADOnlyAuthentication_STATUS interface (if implemented) to customize the conversion
+	var authenticationAsAny any = authentication
+	if augmentedAuthentication, ok := authenticationAsAny.(augmentConversionForServersAzureADOnlyAuthentication_STATUS); ok {
+		err := augmentedAuthentication.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForServersAzureADOnlyAuthentication_Spec interface {
+	AssignPropertiesFrom(src *storage.ServersAzureADOnlyAuthentication_Spec) error
+	AssignPropertiesTo(dst *storage.ServersAzureADOnlyAuthentication_Spec) error
+}
+
+type augmentConversionForServersAzureADOnlyAuthentication_STATUS interface {
+	AssignPropertiesFrom(src *storage.ServersAzureADOnlyAuthentication_STATUS) error
+	AssignPropertiesTo(dst *storage.ServersAzureADOnlyAuthentication_STATUS) error
+}
+
+// Storage version of v1api20211101.ServersAzureADOnlyAuthenticationOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type ServersAzureADOnlyAuthenticationOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_ServersAzureADOnlyAuthenticationOperatorSpec populates our ServersAzureADOnlyAuthenticationOperatorSpec from the provided source ServersAzureADOnlyAuthenticationOperatorSpec
+func (operator *ServersAzureADOnlyAuthenticationOperatorSpec) AssignProperties_From_ServersAzureADOnlyAuthenticationOperatorSpec(source *storage.ServersAzureADOnlyAuthenticationOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		operator.PropertyBag = propertyBag
+	} else {
+		operator.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForServersAzureADOnlyAuthenticationOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForServersAzureADOnlyAuthenticationOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ServersAzureADOnlyAuthenticationOperatorSpec populates the provided destination ServersAzureADOnlyAuthenticationOperatorSpec from our ServersAzureADOnlyAuthenticationOperatorSpec
+func (operator *ServersAzureADOnlyAuthenticationOperatorSpec) AssignProperties_To_ServersAzureADOnlyAuthenticationOperatorSpec(destination *storage.ServersAzureADOnlyAuthenticationOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForServersAzureADOnlyAuthenticationOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForServersAzureADOnlyAuthenticationOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForServersAzureADOnlyAuthenticationOperatorSpec interface {
+	AssignPropertiesFrom(src *storage.ServersAzureADOnlyAuthenticationOperatorSpec) error
+	AssignPropertiesTo(dst *storage.ServersAzureADOnlyAuthenticationOperatorSpec) error
 }
 
 func init() {

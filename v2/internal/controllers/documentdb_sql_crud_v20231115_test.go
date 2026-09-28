@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	documentdb "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20231115"
@@ -20,9 +21,12 @@ import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 )
 
-func Test_CosmosDB_SQLDatabase_v20231115_CRUD(t *testing.T) {
+func Test_DocumentDB_SQLDatabase_v20231115_CRUD(t *testing.T) {
 	t.Parallel()
 	tc := globalTestContext.ForTest(t)
+
+	// Capacity constraints
+	tc.AzureRegion = to.Ptr("australiaeast")
 
 	// Create our resource group
 	rg := tc.CreateTestResourceGroupAndWait()
@@ -33,13 +37,14 @@ func Test_CosmosDB_SQLDatabase_v20231115_CRUD(t *testing.T) {
 	// Declare a Cosmos DB account
 	offerType := documentdb.DatabaseAccountOfferType_Standard
 	kind := documentdb.DatabaseAccount_Kind_Spec_GlobalDocumentDB
-	acct := documentdb.DatabaseAccount{
+	acct := &documentdb.DatabaseAccount{
 		ObjectMeta: tc.MakeObjectMetaWithName(tc.NoSpaceNamer.GenerateName("sqlacct")),
 		Spec: documentdb.DatabaseAccount_Spec{
-			Location:                 to.Ptr("australiaeast"), // Capacity constraints // to.Ptr("australiaeast") // Capacity constraints // tc.AzureRegion
+			Location:                 tc.AzureRegion,
 			Owner:                    testcommon.AsOwner(rg),
 			Kind:                     &kind,
 			DatabaseAccountOfferType: &offerType,
+			DisableLocalAuth:         to.Ptr(true),
 			Locations: []documentdb.Location{
 				{
 					LocationName: to.Ptr("australiaeast"), // Capacity constraints // tc.AzureRegion
@@ -50,11 +55,11 @@ func Test_CosmosDB_SQLDatabase_v20231115_CRUD(t *testing.T) {
 
 	// Declare a SQL database
 	dbName := tc.Namer.GenerateName("sqldb")
-	db := documentdb.SqlDatabase{
+	db := &documentdb.SqlDatabase{
 		ObjectMeta: tc.MakeObjectMetaWithName(dbName),
-		Spec: documentdb.DatabaseAccounts_SqlDatabase_Spec{
+		Spec: documentdb.SqlDatabase_Spec{
 			Location: to.Ptr("australiaeast"), // Capacity constraints // tc.AzureRegion
-			Owner:    testcommon.AsOwner(&acct),
+			Owner:    testcommon.AsOwner(acct),
 			Options: &documentdb.CreateUpdateOptions{
 				AutoscaleSettings: &documentdb.AutoscaleSettings{
 					MaxThroughput: to.Ptr(4000),
@@ -66,31 +71,45 @@ func Test_CosmosDB_SQLDatabase_v20231115_CRUD(t *testing.T) {
 		},
 	}
 	tc.LogSectionf("Creating SQL account and database %q", dbName)
-	tc.CreateResourcesAndWait(&acct, &db)
+	tc.CreateResourcesAndWait(acct, db)
+
+	acctId := *acct.Status.Id
 
 	tc.T.Logf("SQL account and database successfully created")
 	tc.RunParallelSubtests(
 		testcommon.Subtest{
 			Name: "CosmosDB SQL RoleAssignment CRUD",
 			Test: func(tc *testcommon.KubePerTestContext) {
-				CosmosDB_SQL_RoleAssignment_v20231115_CRUD(tc, rg, &acct)
+				CosmosDB_SQL_RoleAssignment_v20231115_CRUD(tc, rg, acct)
 			},
 		},
 		testcommon.Subtest{
 			Name: "CosmosDB SQL Container CRUD",
 			Test: func(tc *testcommon.KubePerTestContext) {
-				CosmosDB_SQL_Container_v20231115_CRUD(tc, &db)
+				CosmosDB_SQL_Container_v20231115_CRUD(tc, db)
 			},
 		},
 		testcommon.Subtest{
 			Name: "CosmosDB SQL Database throughputsettings CRUD",
 			Test: func(tc *testcommon.KubePerTestContext) {
-				CosmosDB_SQL_Database_ThroughputSettings_v20231115_CRUD(tc, &db)
+				CosmosDB_SQL_Database_ThroughputSettings_v20231115_CRUD(tc, db)
 			},
-		})
+		},
+	)
 
 	// There aren't any attributes to update for databases, other than
 	// throughput settings once they're available.
+
+	tc.DeleteResourceAndWait(acct)
+
+	// Ensure that the resource was really deleted in Azure
+	exists, _, err := tc.AzureClient.CheckExistenceWithGetByID(
+		tc.Ctx,
+		acctId,
+		string(documentdb.APIVersion_Value),
+	)
+	tc.Expect(err).ToNot(HaveOccurred())
+	tc.Expect(exists).To(BeFalse())
 }
 
 func CosmosDB_SQL_Container_v20231115_CRUD(tc *testcommon.KubePerTestContext, db client.Object) {
@@ -101,9 +120,9 @@ func CosmosDB_SQL_Container_v20231115_CRUD(tc *testcommon.KubePerTestContext, db
 	lastWriterWins := documentdb.ConflictResolutionPolicy_Mode_LastWriterWins
 	consistent := documentdb.IndexingPolicy_IndexingMode_Consistent
 	hash := documentdb.ContainerPartitionKey_Kind_Hash
-	container := documentdb.SqlDatabaseContainer{
+	container := &documentdb.SqlDatabaseContainer{
 		ObjectMeta: tc.MakeObjectMetaWithName(name),
-		Spec: documentdb.DatabaseAccounts_SqlDatabases_Container_Spec{
+		Spec: documentdb.SqlDatabaseContainer_Spec{
 			Location: to.Ptr("australiaeast"), // Capacity constraints // tc.AzureRegion
 			Options: &documentdb.CreateUpdateOptions{
 				Throughput: to.Ptr(400),
@@ -132,37 +151,39 @@ func CosmosDB_SQL_Container_v20231115_CRUD(tc *testcommon.KubePerTestContext, db
 		},
 	}
 
-	tc.CreateResourceAndWait(&container)
+	tc.CreateResourceAndWait(container)
+
 	tc.RunParallelSubtests(
 		testcommon.Subtest{
 			Name: "CosmosDB SQL Trigger CRUD",
 			Test: func(tc *testcommon.KubePerTestContext) {
-				CosmosDB_SQL_Trigger_v20231115_CRUD(tc, &container)
+				CosmosDB_SQL_Trigger_v20231115_CRUD(tc, container)
 			},
 		},
 		testcommon.Subtest{
 			Name: "CosmosDB SQL Stored Procedure CRUD",
 			Test: func(tc *testcommon.KubePerTestContext) {
-				CosmosDB_SQL_StoredProcedure_v20231115_CRUD(tc, &container)
+				CosmosDB_SQL_StoredProcedure_v20231115_CRUD(tc, container)
 			},
 		},
 		testcommon.Subtest{
 			Name: "CosmosDB SQL User-defined Function CRUD",
 			Test: func(tc *testcommon.KubePerTestContext) {
-				CosmosDB_SQL_UserDefinedFunction_v20231115_CRUD(tc, &container)
+				CosmosDB_SQL_UserDefinedFunction_v20231115_CRUD(tc, container)
 			},
 		},
 		testcommon.Subtest{
 			Name: "CosmosDB SQL Container ThroughputSettings CRUD",
 			Test: func(tc *testcommon.KubePerTestContext) {
-				CosmosDB_SQL_Database_Container_ThroughputSettings_v20231115_CRUD(tc, &container)
+				CosmosDB_SQL_Database_Container_ThroughputSettings_v20231115_CRUD(tc, container)
 			},
-		})
+		},
+	)
 
 	tc.LogSubsectionf("Updating the default TTL on container %q", name)
 	old := container.DeepCopy()
 	container.Spec.Resource.DefaultTtl = to.Ptr(400)
-	tc.PatchResourceAndWait(old, &container)
+	tc.PatchResourceAndWait(old, container)
 	tc.Expect(container.Status.Resource).ToNot(BeNil())
 	tc.Expect(container.Status.Resource.DefaultTtl).ToNot(BeNil())
 	tc.Expect(*container.Status.Resource.DefaultTtl).To(Equal(400))
@@ -177,7 +198,7 @@ func CosmosDB_SQL_Trigger_v20231115_CRUD(tc *testcommon.KubePerTestContext, cont
 	create := documentdb.SqlTriggerResource_TriggerOperation_Create
 	trigger := documentdb.SqlDatabaseContainerTrigger{
 		ObjectMeta: tc.MakeObjectMetaWithName(name),
-		Spec: documentdb.DatabaseAccounts_SqlDatabases_Containers_Trigger_Spec{
+		Spec: documentdb.SqlDatabaseContainerTrigger_Spec{
 			Location: to.Ptr("australiaeast"), // Capacity constraints // tc.AzureRegion
 			Owner:    testcommon.AsOwner(container),
 			Resource: &documentdb.SqlTriggerResource{
@@ -220,7 +241,7 @@ func CosmosDB_SQL_StoredProcedure_v20231115_CRUD(tc *testcommon.KubePerTestConte
 	// Declare a stored procedure
 	storedProcedure := documentdb.SqlDatabaseContainerStoredProcedure{
 		ObjectMeta: tc.MakeObjectMetaWithName(name),
-		Spec: documentdb.DatabaseAccounts_SqlDatabases_Containers_StoredProcedure_Spec{
+		Spec: documentdb.SqlDatabaseContainerStoredProcedure_Spec{
 			Location: to.Ptr("australiaeast"), // Capacity constraints // tc.AzureRegion
 			Owner:    testcommon.AsOwner(container),
 			Resource: &documentdb.SqlStoredProcedureResource{
@@ -255,7 +276,7 @@ func CosmosDB_SQL_UserDefinedFunction_v20231115_CRUD(tc *testcommon.KubePerTestC
 	// Declare a user defined function
 	userDefinedFunction := documentdb.SqlDatabaseContainerUserDefinedFunction{
 		ObjectMeta: tc.MakeObjectMetaWithName(name),
-		Spec: documentdb.DatabaseAccounts_SqlDatabases_Containers_UserDefinedFunction_Spec{
+		Spec: documentdb.SqlDatabaseContainerUserDefinedFunction_Spec{
 			AzureName: name,
 			Location:  to.Ptr("australiaeast"), // Capacity constraints // tc.AzureRegion
 			Owner:     testcommon.AsOwner(container),
@@ -296,7 +317,7 @@ func CosmosDB_SQL_Database_ThroughputSettings_v20231115_CRUD(tc *testcommon.Kube
 	// Declare a throughput setting
 	throughputSettings := documentdb.SqlDatabaseThroughputSetting{
 		ObjectMeta: tc.MakeObjectMetaWithName(tc.Namer.GenerateName("throughput")),
-		Spec: documentdb.DatabaseAccounts_SqlDatabases_ThroughputSetting_Spec{
+		Spec: documentdb.SqlDatabaseThroughputSetting_Spec{
 			Owner: testcommon.AsOwner(db),
 			Resource: &documentdb.ThroughputSettingsResource{
 				// We cannot change this to be a fixed throughput as we already created the database using
@@ -308,9 +329,12 @@ func CosmosDB_SQL_Database_ThroughputSettings_v20231115_CRUD(tc *testcommon.Kube
 		},
 	}
 
+	// Don't try to delete directly, this is not a real resource - to delete it in Azure you must delete its parent.
+	// We can delete it from the cluster by applying this annotation, but this won't change anything in Azure.
+	tc.AddAnnotation(&throughputSettings.ObjectMeta, "serviceoperator.azure.com/reconcile-policy", "detach-on-delete")
+
 	// Create the resource
 	tc.CreateResourceAndWait(&throughputSettings)
-	// no DELETE, this is not a real resource - to delete it you must delete its parent
 
 	// Ensure that the status is what we expect
 	tc.Expect(throughputSettings.Status.Id).ToNot(BeNil())
@@ -333,7 +357,7 @@ func CosmosDB_SQL_Database_Container_ThroughputSettings_v20231115_CRUD(tc *testc
 	// Declare a throughput setting
 	throughputSettings := documentdb.SqlDatabaseContainerThroughputSetting{
 		ObjectMeta: tc.MakeObjectMetaWithName(tc.Namer.GenerateName("throughput")),
-		Spec: documentdb.DatabaseAccounts_SqlDatabases_Containers_ThroughputSetting_Spec{
+		Spec: documentdb.SqlDatabaseContainerThroughputSetting_Spec{
 			Owner: testcommon.AsOwner(container),
 			Resource: &documentdb.ThroughputSettingsResource{
 				Throughput: to.Ptr(500),
@@ -341,9 +365,12 @@ func CosmosDB_SQL_Database_Container_ThroughputSettings_v20231115_CRUD(tc *testc
 		},
 	}
 
+	// Don't try to delete directly, this is not a real resource - to delete it in Azure you must delete its parent.
+	// We can delete it from the cluster by applying this annotation, but this won't change anything in Azure.
+	tc.AddAnnotation(&throughputSettings.ObjectMeta, "serviceoperator.azure.com/reconcile-policy", "detach-on-delete")
+
 	// Create the resource
 	tc.CreateResourceAndWait(&throughputSettings)
-	// no DELETE, this is not a real resource - to delete it you must delete its parent
 
 	// Ensure that the status is what we expect
 	tc.Expect(throughputSettings.Status.Id).ToNot(BeNil())
@@ -392,7 +419,8 @@ func CosmosDB_SQL_RoleAssignment_v20231115_CRUD(tc *testcommon.KubePerTestContex
 		"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.DocumentDB/databaseAccounts/%s/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002",
 		tc.AzureSubscription,
 		rg.AzureName(),
-		acct.AzureName())
+		acct.AzureName(),
+	)
 
 	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.DocumentDB/databaseAccounts/%s",
 		tc.AzureSubscription,
@@ -402,7 +430,8 @@ func CosmosDB_SQL_RoleAssignment_v20231115_CRUD(tc *testcommon.KubePerTestContex
 	// Declare a role assignment
 	roleAssignment := &documentdb.SqlRoleAssignment{
 		ObjectMeta: tc.MakeObjectMeta("roleassignment"),
-		Spec: documentdb.DatabaseAccounts_SqlRoleAssignment_Spec{
+		Spec: documentdb.SqlRoleAssignment_Spec{
+			// Do not set AzureName here, it should be automatically set by webhook
 			Owner: testcommon.AsOwner(acct),
 			PrincipalIdFromConfig: &genruntime.ConfigMapReference{
 				Name: configMapName,

@@ -6,7 +6,10 @@ package storage
 import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -16,6 +19,7 @@ import (
 // +kubebuilder:rbac:groups=insights.azure.com,resources={metricalerts/status,metricalerts/finalizers},verbs=get;update;patch
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,insights}
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
@@ -24,7 +28,7 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20180301.MetricAlert
 // Generator information:
-// - Generated from: /monitor/resource-manager/Microsoft.Insights/stable/2018-03-01/metricAlert_API.json
+// - Generated from: /monitor/resource-manager/Microsoft.Insights/Insights/stable/2018-03-01/metricAlert_API.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Insights/metricAlerts/{ruleName}
 type MetricAlert struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -45,6 +49,26 @@ func (alert *MetricAlert) SetConditions(conditions conditions.Conditions) {
 	alert.Status.Conditions = conditions
 }
 
+var _ configmaps.Exporter = &MetricAlert{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (alert *MetricAlert) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if alert.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return alert.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &MetricAlert{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (alert *MetricAlert) SecretDestinationExpressions() []*core.DestinationExpression {
+	if alert.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return alert.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &MetricAlert{}
 
 // AzureName returns the Azure name of the resource
@@ -54,7 +78,7 @@ func (alert *MetricAlert) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2018-03-01"
 func (alert MetricAlert) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2018-03-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -93,6 +117,10 @@ func (alert *MetricAlert) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (alert *MetricAlert) Owner() *genruntime.ResourceReference {
+	if alert.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(alert.Spec)
 	return alert.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -109,7 +137,7 @@ func (alert *MetricAlert) SetStatus(status genruntime.ConvertibleStatus) error {
 	var st MetricAlert_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	alert.Status = st
@@ -131,7 +159,7 @@ func (alert *MetricAlert) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20180301.MetricAlert
 // Generator information:
-// - Generated from: /monitor/resource-manager/Microsoft.Insights/stable/2018-03-01/metricAlert_API.json
+// - Generated from: /monitor/resource-manager/Microsoft.Insights/Insights/stable/2018-03-01/metricAlert_API.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Insights/metricAlerts/{ruleName}
 type MetricAlertList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -152,13 +180,14 @@ type MetricAlert_Spec struct {
 
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName           string               `json:"azureName,omitempty"`
-	Criteria            *MetricAlertCriteria `json:"criteria,omitempty"`
-	Description         *string              `json:"description,omitempty"`
-	Enabled             *bool                `json:"enabled,omitempty"`
-	EvaluationFrequency *string              `json:"evaluationFrequency,omitempty"`
-	Location            *string              `json:"location,omitempty"`
-	OriginalVersion     string               `json:"originalVersion,omitempty"`
+	AzureName           string                   `json:"azureName,omitempty"`
+	Criteria            *MetricAlertCriteria     `json:"criteria,omitempty"`
+	Description         *string                  `json:"description,omitempty"`
+	Enabled             *bool                    `json:"enabled,omitempty"`
+	EvaluationFrequency *string                  `json:"evaluationFrequency,omitempty"`
+	Location            *string                  `json:"location,omitempty"`
+	OperatorSpec        *MetricAlertOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion     string                   `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -179,7 +208,7 @@ var _ genruntime.ConvertibleSpec = &MetricAlert_Spec{}
 // ConvertSpecFrom populates our MetricAlert_Spec from the provided source
 func (alert *MetricAlert_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
 	if source == alert {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
 	return source.ConvertSpecTo(alert)
@@ -188,7 +217,7 @@ func (alert *MetricAlert_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec
 // ConvertSpecTo populates the provided destination from our MetricAlert_Spec
 func (alert *MetricAlert_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
 	if destination == alert {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
 	return destination.ConvertSpecFrom(alert)
@@ -223,7 +252,7 @@ var _ genruntime.ConvertibleStatus = &MetricAlert_STATUS{}
 // ConvertStatusFrom populates our MetricAlert_STATUS from the provided source
 func (alert *MetricAlert_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
 	if source == alert {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return source.ConvertStatusTo(alert)
@@ -232,7 +261,7 @@ func (alert *MetricAlert_STATUS) ConvertStatusFrom(source genruntime.Convertible
 // ConvertStatusTo populates the provided destination from our MetricAlert_STATUS
 func (alert *MetricAlert_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
 	if destination == alert {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return destination.ConvertStatusFrom(alert)
@@ -241,9 +270,12 @@ func (alert *MetricAlert_STATUS) ConvertStatusTo(destination genruntime.Converti
 // Storage version of v1api20180301.MetricAlertAction
 // An alert action.
 type MetricAlertAction struct {
-	ActionGroupId     *string                `json:"actionGroupId,omitempty"`
-	PropertyBag       genruntime.PropertyBag `json:"$propertyBag,omitempty"`
-	WebHookProperties map[string]string      `json:"webHookProperties,omitempty"`
+	ActionGroupId *string `json:"actionGroupId,omitempty"`
+
+	// ActionGroupReference: the id of the action group to use.
+	ActionGroupReference *genruntime.ResourceReference `armReference:"ActionGroupId" json:"actionGroupReference,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	WebHookProperties    map[string]string             `json:"webHookProperties,omitempty"`
 }
 
 // Storage version of v1api20180301.MetricAlertAction_STATUS
@@ -268,6 +300,14 @@ type MetricAlertCriteria_STATUS struct {
 	MicrosoftAzureMonitorSingleResourceMultipleMetric   *MetricAlertSingleResourceMultipleMetricCriteria_STATUS   `json:"microsoftAzureMonitorSingleResourceMultipleMetricCriteria,omitempty"`
 	MicrosoftAzureMonitorWebtestLocationAvailability    *WebtestLocationAvailabilityCriteria_STATUS               `json:"microsoftAzureMonitorWebtestLocationAvailabilityCriteria,omitempty"`
 	PropertyBag                                         genruntime.PropertyBag                                    `json:"$propertyBag,omitempty"`
+}
+
+// Storage version of v1api20180301.MetricAlertOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type MetricAlertOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
 }
 
 // Storage version of v1api20180301.MetricAlertMultipleResourceMultipleMetricCriteria

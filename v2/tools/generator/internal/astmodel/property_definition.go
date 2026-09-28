@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/slices"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
@@ -50,7 +50,7 @@ type PropertyDefinition struct {
 	// originalName is the original name of this property, prior to any renames
 	originalName PropertyName
 
-	isSecret bool
+	secrecy  ImportSecretMode
 	readOnly bool
 
 	tags readonly.Map[string, []string] // Note: have to be careful about not mutating inner []string
@@ -100,7 +100,7 @@ func (property *PropertyDefinition) WithName(name PropertyName) *PropertyDefinit
 }
 
 // WithName returns a new PropertyDefinition with the JSON name
-func (property *PropertyDefinition) WithJsonName(jsonName string) *PropertyDefinition {
+func (property *PropertyDefinition) WithJSONName(jsonName string) *PropertyDefinition {
 	result := property.copy()
 	// TODO post-alpha: replace result.tags with structured types
 	jsonTag, _ := result.tags.Get("json")
@@ -146,14 +146,14 @@ func (property *PropertyDefinition) WithReadOnly(readOnly bool) *PropertyDefinit
 	return result
 }
 
-// WithIsSecret returns a new PropertyDefinition with IsSecret set to the specified value
-func (property *PropertyDefinition) WithIsSecret(secret bool) *PropertyDefinition {
-	if secret == property.isSecret {
+// WithSecrecy returns a new PropertyDefinition with the Secrecy classification set to the specified value
+func (property *PropertyDefinition) WithSecrecy(secrecy ImportSecretMode) *PropertyDefinition {
+	if secrecy == property.secrecy {
 		return property
 	}
 
 	result := property.copy()
-	result.isSecret = secret
+	result.secrecy = secrecy
 	return result
 }
 
@@ -178,7 +178,7 @@ func (property *PropertyDefinition) WithType(
 	newType Type,
 ) *PropertyDefinition {
 	if newType == nil {
-		panic(errors.New("nil type provided to WithType"))
+		panic(eris.New("nil type provided to WithType"))
 	}
 
 	if TypeEquals(property.propertyType, newType) {
@@ -286,10 +286,11 @@ func (property *PropertyDefinition) MakeRequired() *PropertyDefinition {
 	}
 
 	if !isTypeOptional(property.PropertyType()) {
-		panic(errors.Errorf(
+		panic(eris.Errorf(
 			"property %s with non-optional type %T cannot be marked kubebuilder:validation:Required.",
 			property.PropertyName(),
-			property.PropertyType()))
+			property.PropertyType(),
+		))
 	}
 
 	result := property.copy()
@@ -386,9 +387,9 @@ func (property *PropertyDefinition) ReadOnly() bool {
 	return property.readOnly
 }
 
-// IsSecret returns true iff the property is a secret.
-func (property *PropertyDefinition) IsSecret() bool {
-	return property.isSecret
+// Secrecy returns the secrecy classification of the property.
+func (property *PropertyDefinition) Secrecy() ImportSecretMode {
+	return property.secrecy
 }
 
 func (property *PropertyDefinition) renderedTags() string {
@@ -413,7 +414,7 @@ func (property *PropertyDefinition) AsField(
 	codeGenerationContext *CodeGenerationContext,
 ) (*dst.Field, error) {
 	if property.flatten {
-		return nil, errors.Errorf("property %s marked for flattening was not flattened", property.propertyName)
+		return nil, eris.Errorf("property %s marked for flattening was not flattened", property.propertyName)
 	}
 
 	tags := property.renderedTags()
@@ -438,7 +439,7 @@ func (property *PropertyDefinition) AsField(
 	// Some types opt out of codegen by returning nil
 	propTypeExpr, err := propType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to generate field for property %s", property.propertyName)
+		return nil, eris.Wrapf(err, "unable to generate field for property %s", property.propertyName)
 	}
 
 	typeExpr := propTypeExpr
@@ -481,7 +482,8 @@ func (property *PropertyDefinition) tagsEqual(f *PropertyDefinition) bool {
 		f.tags,
 		func(left []string, right []string) bool {
 			return slices.Equal(left, right)
-		})
+		},
+	)
 }
 
 // Equals tests to see if the specified PropertyDefinition specifies the same property
@@ -490,7 +492,7 @@ func (property *PropertyDefinition) Equals(o *PropertyDefinition, overrides Equa
 		property.propertyType.Equals(o.propertyType, overrides) &&
 		property.flatten == o.flatten &&
 		propertyNameSlicesEqual(property.flattenedFrom, o.flattenedFrom) &&
-		property.isSecret == o.isSecret &&
+		property.secrecy == o.secrecy &&
 		property.tagsEqual(o) &&
 		property.hasKubebuilderRequiredValidation == o.hasKubebuilderRequiredValidation &&
 		property.description == o.description)

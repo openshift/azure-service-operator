@@ -12,14 +12,23 @@ const (
 	AzureSubscriptionID = "AZURE_SUBSCRIPTION_ID"
 	// AzureTenantID is the AAD tenant that the subscription is in
 	AzureTenantID = "AZURE_TENANT_ID"
+	// AzureAdditionalTenants is the list of (comma-separated) additional tenants the operator can authenticate with.
+	// This is required when performing cross-tenant authentication. See
+	// https://learn.microsoft.com/entra/external-id/cross-tenant-access-overview for more details.
+	AzureAdditionalTenants = "AZURE_ADDITIONAL_TENANTS"
 	// AzureClientID is the client ID of the Azure Service Principal or Managed Identity to use to authenticate with Azure.
 	AzureClientID = "AZURE_CLIENT_ID"
 	// AzureClientCertificate is a PEM or PKCS12 certificate string including the private key for Azure Credential Authentication.
-	// If certificate is password protected,  use 'AzureClientCertificatePassword' for password.
+	// If the certificate is password protected,  use the 'AzureClientCertificatePassword' for password.
 	AzureClientCertificate = "AZURE_CLIENT_CERTIFICATE"
-	// AzureClientCertificatePassword is password used to protect the AzureClientCertificate.
+	// AzureClientCertificatePassword is the password used to protect the AzureClientCertificate.
 	// #nosec
 	AzureClientCertificatePassword = "AZURE_CLIENT_CERTIFICATE_PASSWORD"
+	// AzureUserAssignedIdentityCredentials is a string of the path to a JSON file exists containing the JSON format of
+	// a UserAssignedIdentityCredentials struct
+	// See the msi-dataplane for more details on UserAssignedIdentityCredentials - https://github.com/Azure/msi-dataplane/blob/63fb37d3a1aaac130120624674df795d2e088083/pkg/dataplane/internal/generated_client.go#L156C6-L156C37
+	// #nosec
+	AzureUserAssignedIdentityCredentials = "AZURE_USER_ASSIGNED_IDENTITY_CREDENTIALS"
 	// TargetNamespaces lists the namespaces the operator will watch
 	// for Azure resources (if the mode includes running watchers). If
 	// it's empty the operator will watch all namespaces.
@@ -58,14 +67,14 @@ const (
 	// UserAgentSuffix is appended to the default User-Agent for Azure HTTP clients.
 	UserAgentSuffix = "AZURE_USER_AGENT_SUFFIX"
 	// MaxConcurrentReconciles is the number of threads/goroutines dedicated to reconciling each resource type.
-	// If not specified, the default is 1.
+	// If not specified, the default is 4.
 	// IMPORTANT: Having MaxConcurrentReconciles set to N does not mean that ASO is limited to N interactions with
 	// Azure at any given time, because the control loop yields to another resource while it is not actively issuing HTTP
 	// calls to Azure. Any single resource only blocks the control-loop for its resource-type for as long as it takes to issue
 	// an HTTP call to Azure, view the result, and make a decision. In most cases the time taken to perform these actions
 	// (and thus how long the loop is blocked and preventing other resources from being acted upon) is a few hundred
-	// milliseconds to at most a second or two. In a typical 60s period, many hundreds or even thousands of resources
-	// can be managed with this set to 1.
+	// milliseconds to at most a second or two. In a typical 60s period, hundreds of resources
+	// for a given resource type can be managed with this set to 1.
 	// MaxConcurrentReconciles applies to every registered resource type being watched/managed by ASO.
 	MaxConcurrentReconciles = "MAX_CONCURRENT_RECONCILES"
 	// RateLimitMode configures the internal rate-limiting mode.
@@ -89,4 +98,19 @@ const (
 	RateLimitQPS = "RATE_LIMIT_QPS"
 	// RateLimitBucketSize is the size of the bucket. This value only has an effect if RateLimitMode is 'bucket'.
 	RateLimitBucketSize = "RATE_LIMIT_BUCKET_SIZE"
+	// DefaultReconcilePolicy allows to change default reconciliation policy to use when serviceoperator.azure.com/reconcile-policy annotation
+	// is not explicitly defined. If omitted, it will be automatically set to "manage"
+	DefaultReconcilePolicy = "DEFAULT_RECONCILE_POLICY"
+	// AllowMultiEnvManagement determines whether per-namespace and per-resource credentials can specify
+	// their own Azure cloud environment settings (AZURE_RESOURCE_MANAGER_ENDPOINT, AZURE_RESOURCE_MANAGER_AUDIENCE,
+	// and AZURE_AUTHORITY_HOST). When enabled, credentials must specify ALL three of these settings or NONE of them.
+	// When disabled, any attempt to specify these settings in a credential will cause reconciliation to fail.
+	// This defaults to false for security reasons.
+	AllowMultiEnvManagement = "ALLOW_MULTI_ENV_MANAGEMENT"
+	// EntraAppID is the client ID of the Entra application used to authenticate with Entra.
+	// NOTE: This is required when using Entra authentication, but optional otherwise.
+	EntraAppID = "ENTRA_APP_ID"
+	// TLSMinVersion is the minimum TLS version used by the webhook and metrics servers.
+	// If not specified, the default is "VersionTLS12". Valid values are "VersionTLS12" and "VersionTLS13".
+	TLSMinVersion = "TLS_MIN_VERSION"
 )

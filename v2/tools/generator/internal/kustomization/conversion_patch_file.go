@@ -6,9 +6,9 @@
 package kustomization
 
 import (
-	"io/ioutil"
+	"os"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,7 +38,7 @@ import (
 //	                name: webhook-service
 //	                path: /convert
 type ConversionPatchFile struct {
-	ApiVersion string                  `yaml:"apiVersion"`
+	APIVersion string                  `yaml:"apiVersion"`
 	Kind       string                  `yaml:"kind"`
 	Metadata   conversionPatchMetadata `yaml:"metadata"`
 	Spec       conversionPatchSpec     `yaml:"spec"`
@@ -46,7 +46,7 @@ type ConversionPatchFile struct {
 
 func NewConversionPatchFile(resourceName string) *ConversionPatchFile {
 	return &ConversionPatchFile{
-		ApiVersion: "apiextensions.k8s.io/v1",
+		APIVersion: "apiextensions.k8s.io/v1",
 		Kind:       "CustomResourceDefinition",
 		Metadata: conversionPatchMetadata{
 			Name: resourceName,
@@ -82,12 +82,12 @@ func NewConversionPatchFile(resourceName string) *ConversionPatchFile {
 func (p *ConversionPatchFile) Save(destination string) error {
 	data, err := yaml.Marshal(*p)
 	if err != nil {
-		return errors.Wrap(err, "serializing to yaml")
+		return eris.Wrap(err, "serializing to yaml")
 	}
 
-	err = ioutil.WriteFile(destination, data, 0o644) // #nosec G306
+	err = os.WriteFile(destination, data, 0o644) // #nosec G306
 	if err != nil {
-		return errors.Wrapf(err, "writing to %s", destination)
+		return eris.Wrapf(err, "writing to %s", destination)
 	}
 
 	return nil

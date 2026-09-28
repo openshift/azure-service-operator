@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/hbollon/go-edlib"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/internal/set"
 )
@@ -28,8 +28,19 @@ func NewAdvisor() *Advisor {
 	}
 }
 
-// AddTerm records that we saw the specified item
+// AddTerm records that we saw the specified item.
 func (advisor *Advisor) AddTerm(item string) {
+	// The advisor is consulted on every lookup made against the ObjectModelConfiguration, so the
+	// same terms are added many times over. We take a read lock first and only escalate to the
+	// exclusive write lock when the term is genuinely new; this keeps the hot lookup path free of
+	// serialization once each unique term has been observed at least once.
+	advisor.lock.RLock()
+	if advisor.terms.Contains(item) {
+		advisor.lock.RUnlock()
+		return
+	}
+	advisor.lock.RUnlock()
+
 	advisor.lock.Lock()
 	defer advisor.lock.Unlock()
 	advisor.terms.Add(item)
@@ -59,7 +70,7 @@ func (advisor *Advisor) Errorf(typo string, format string, args ...interface{}) 
 
 	if !advisor.HasTerms() || advisor.terms.Contains(typo) {
 		// Can't make any suggestions,
-		return errors.Errorf(format, args...)
+		return eris.Errorf(format, args...)
 	}
 
 	msg := fmt.Sprintf(format, args...)
@@ -67,19 +78,22 @@ func (advisor *Advisor) Errorf(typo string, format string, args ...interface{}) 
 	suggestion, err := edlib.FuzzySearch(
 		strings.ToLower(typo),
 		set.AsSortedSlice(advisor.terms),
-		edlib.Levenshtein)
+		edlib.Levenshtein,
+	)
 	if err != nil {
 		// Can't offer a suggestion
-		return errors.Errorf(
+		return eris.Errorf(
 			"%s (unable to provide suggestion: %s)",
 			msg,
-			err)
+			err,
+		)
 	}
 
-	return errors.Errorf(
+	return eris.Errorf(
 		"%s (did you mean %s?)",
 		msg,
-		suggestion)
+		suggestion,
+	)
 }
 
 // Wrapf adds any guidance to the provided error, if possible
@@ -97,19 +111,22 @@ func (advisor *Advisor) Wrapf(originalError error, typo string, format string, a
 	suggestion, err := edlib.FuzzySearch(
 		strings.ToLower(typo),
 		set.AsSortedSlice(advisor.terms),
-		edlib.Levenshtein)
+		edlib.Levenshtein,
+	)
 	if err != nil {
 		// Can't offer a suggestion
-		return errors.Wrapf(
+		return eris.Wrapf(
 			originalError,
 			"%s (unable to provide suggestion: %s)",
 			msg,
-			err)
+			err,
+		)
 	}
 
-	return errors.Wrapf(
+	return eris.Wrapf(
 		originalError,
 		"%s (did you mean %s?)",
 		msg,
-		suggestion)
+		suggestion,
+	)
 }

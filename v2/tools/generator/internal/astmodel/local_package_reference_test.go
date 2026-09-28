@@ -16,33 +16,50 @@ func makeTestLocalPackageReference(group string, version string) LocalPackageRef
 	// We use a fixed path and version prefixes to ensure consistency across testing
 	// For convenience, we tolerate the prefix already being present
 	version = strings.TrimPrefix(version, "v")
-	return MakeLocalPackageReference("github.com/Azure/azure-service-operator/v2/api", group, "v", version)
+	result := MakeVersionedLocalPackageReference("github.com/Azure/azure-service-operator/v2/api", group, version).
+		WithVersionPrefix("v")
+	return result
 }
 
 func TestMakeLocalPackageReference_GivenGroupAndPackage_ReturnsInstanceWithProperties(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name       string
+	cases := map[string]struct {
 		group      string
 		apiVersion string
 		pkg        string
 	}{
-		{"Networking", "network", "2020-09-01", "v20200901"},
-		{"Batch (new)", "batch", "2020-09-01", "v20200901"},
-		{"Batch (old)", "batch", "2015-01-01", "v20150101"},
-		{"Networking Frontdoor", "network.frontdoor", "2020-09-01", "v20200901"},
+		"Networking": {
+			group:      "network",
+			apiVersion: "2020-09-01",
+			pkg:        "v20200901",
+		},
+		"Batch (new)": {
+			group:      "batch",
+			apiVersion: "2020-09-01",
+			pkg:        "v20200901",
+		},
+		"Batch (old)": {
+			group:      "batch",
+			apiVersion: "2015-01-01",
+			pkg:        "v20150101",
+		},
+		"Networking Frontdoor": {
+			group:      "network.frontdoor",
+			apiVersion: "2020-09-01",
+			pkg:        "v20200901",
+		},
 	}
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
 			ref := makeTestLocalPackageReference(c.group, c.apiVersion)
 			g.Expect(ref.Group()).To(Equal(c.group))
 			g.Expect(ref.PackageName()).To(Equal(c.pkg))
-			g.Expect(ref.ApiVersion()).To(Equal(c.apiVersion))
+			g.Expect(ref.APIVersion()).To(Equal(c.apiVersion))
 		})
 	}
 }
@@ -50,50 +67,45 @@ func TestMakeLocalPackageReference_GivenGroupAndPackage_ReturnsInstanceWithPrope
 func TestLocalPackageReferences_ReturnExpectedProperties(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name        string
+	cases := map[string]struct {
 		group       string
 		version     string
 		pkg         string
 		packagePath string
 		folderPath  string
 	}{
-		{
-			"Network",
-			"network",
-			"2020-09-01",
-			"v20200901",
-			"github.com/Azure/azure-service-operator/v2/api/network/v20200901",
-			"network/v20200901",
+		"Network": {
+			group:       "network",
+			version:     "2020-09-01",
+			pkg:         "v20200901",
+			packagePath: "github.com/Azure/azure-service-operator/v2/api/network/v20200901",
+			folderPath:  "network/v20200901",
 		},
-		{
-			"Batch (new)",
-			"batch",
-			"2020-09-01",
-			"v20200901",
-			"github.com/Azure/azure-service-operator/v2/api/batch/v20200901",
-			"batch/v20200901",
+		"Batch (new)": {
+			group:       "batch",
+			version:     "2020-09-01",
+			pkg:         "v20200901",
+			packagePath: "github.com/Azure/azure-service-operator/v2/api/batch/v20200901",
+			folderPath:  "batch/v20200901",
 		},
-		{
-			"Batch (old)",
-			"batch",
-			"2015-01-01",
-			"v20150101",
-			"github.com/Azure/azure-service-operator/v2/api/batch/v20150101",
-			"batch/v20150101",
+		"Batch (old)": {
+			group:       "batch",
+			version:     "2015-01-01",
+			pkg:         "v20150101",
+			packagePath: "github.com/Azure/azure-service-operator/v2/api/batch/v20150101",
+			folderPath:  "batch/v20150101",
 		},
-		{
-			"Network Frontdoor",
-			"network.frontdoor",
-			"2020-09-01",
-			"v20200901",
-			"github.com/Azure/azure-service-operator/v2/api/network.frontdoor/v20200901",
-			"network.frontdoor/v20200901",
+		"Network Frontdoor": {
+			group:       "network.frontdoor",
+			version:     "2020-09-01",
+			pkg:         "v20200901",
+			packagePath: "github.com/Azure/azure-service-operator/v2/api/network.frontdoor/v20200901",
+			folderPath:  "network.frontdoor/v20200901",
 		},
 	}
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
@@ -115,25 +127,55 @@ func TestLocalPackageReferences_Equals_GivesExpectedResults(t *testing.T) {
 	networkRef := makeTestLocalPackageReference("network", "v20200901")
 	fmtRef := MakeExternalPackageReference("fmt")
 
-	cases := []struct {
-		name     string
+	cases := map[string]struct {
 		this     LocalPackageReference
 		other    PackageReference
 		areEqual bool
 	}{
-		{"Equal self", batchRef, batchRef, true},
-		{"Equal self", olderRef, olderRef, true},
-		{"Not equal other library name", batchRef, networkRef, false},
-		{"Not equal other library name", networkRef, batchRef, false},
-		{"Not equal other library version", batchRef, olderRef, false},
-		{"Not equal other library version", olderRef, batchRef, false},
-		{"Not equal other kind", batchRef, fmtRef, false},
-		{"Not equal other kind", networkRef, fmtRef, false},
+		"Equal self (batch)": {
+			this:     batchRef,
+			other:    batchRef,
+			areEqual: true,
+		},
+		"Equal self (older)": {
+			this:     olderRef,
+			other:    olderRef,
+			areEqual: true,
+		},
+		"Not equal other library name (batch vs network)": {
+			this:     batchRef,
+			other:    networkRef,
+			areEqual: false,
+		},
+		"Not equal other library name (network vs batch)": {
+			this:     networkRef,
+			other:    batchRef,
+			areEqual: false,
+		},
+		"Not equal other library version (batch vs older)": {
+			this:     batchRef,
+			other:    olderRef,
+			areEqual: false,
+		},
+		"Not equal other library version (older vs batch)": {
+			this:     olderRef,
+			other:    batchRef,
+			areEqual: false,
+		},
+		"Not equal other kind (batch vs fmt)": {
+			this:     batchRef,
+			other:    fmtRef,
+			areEqual: false,
+		},
+		"Not equal other kind (network vs fmt)": {
+			this:     networkRef,
+			other:    fmtRef,
+			areEqual: false,
+		},
 	}
 
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
@@ -146,26 +188,39 @@ func TestLocalPackageReferences_Equals_GivesExpectedResults(t *testing.T) {
 func TestLocalPackageReferenceIsPreview(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name      string
+	cases := map[string]struct {
 		version   string
 		isPreview bool
 	}{
-		{"GA Release is not preview", "v20200901", false},
-		{"Preview release is preview", "v20200901preview", true},
-		{"Preview rerelease is preview", "v20200901preview2", true},
-		{"Alpha release is preview", "v20200901alpha", true},
-		{"Beta release is preview", "v20200901beta", true},
+		"GA Release is not preview": {
+			version:   "v20200901",
+			isPreview: false,
+		},
+		"Preview release is preview": {
+			version:   "v20200901preview",
+			isPreview: true,
+		},
+		"Preview rerelease is preview": {
+			version:   "v20200901preview2",
+			isPreview: true,
+		},
+		"Alpha release is preview": {
+			version:   "v20200901alpha",
+			isPreview: true,
+		},
+		"Beta release is preview": {
+			version:   "v20200901beta",
+			isPreview: true,
+		},
 	}
 
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
 			// Using GeneratorVersion here to make sure IsPreview isn't fooled
-			ref := MakeLocalPackageReference("prefix", "storage", GeneratorVersion, c.version)
+			ref := MakeVersionedLocalPackageReference("prefix", "storage", c.version)
 
 			g.Expect(ref.IsPreview()).To(Equal(c.isPreview))
 		})
@@ -175,8 +230,7 @@ func TestLocalPackageReferenceIsPreview(t *testing.T) {
 func Test_LocalPackageReference_ImportAlias_ReturnsExpectedAlias(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name             string
+	cases := map[string]struct {
 		group            string
 		generatorVersion string
 		apiVersion       string
@@ -184,33 +238,99 @@ func Test_LocalPackageReference_ImportAlias_ReturnsExpectedAlias(t *testing.T) {
 		expected         string
 	}{
 		// Current generator version
-		{"GeneratorVersionOnly", "storage", GeneratorVersion, "20200901", VersionOnly, "v20200901"},
-		{"GeneratorGroupOnly", "storage", GeneratorVersion, "20200901", GroupOnly, "storage"},
-		{"GeneratorGroupAndVersion", "storage", GeneratorVersion, "20200901", GroupAndVersion, "storage_v20200901"},
-		{"GeneratorPreviewVersionOnly", "storage", GeneratorVersion, "20200901preview", VersionOnly, "v20200901p"},
-		{"GeneratorPreviewGroupOnly", "storage", GeneratorVersion, "20200901preview", GroupOnly, "storage"},
-		{"GeneratorPreviewGroupAndVersion", "storage", GeneratorVersion, "20200901preview", GroupAndVersion, "storage_v20200901p"},
+		"GeneratorVersionOnly": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      VersionOnly,
+			expected:   "v20200901",
+		},
+		"GeneratorGroupOnly": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      GroupOnly,
+			expected:   "storage",
+		},
+		"GeneratorGroupAndVersion": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      GroupAndVersion,
+			expected:   "storage_v20200901",
+		},
+		"GeneratorPreviewVersionOnly": {
+			group:      "storage",
+			apiVersion: "20200901preview",
+			style:      VersionOnly,
+			expected:   "v20200901p",
+		},
+		"GeneratorPreviewGroupOnly": {
+			group:      "storage",
+			apiVersion: "20200901preview",
+			style:      GroupOnly,
+			expected:   "storage",
+		},
+		"GeneratorPreviewGroupAndVersion": {
+			group:      "storage",
+			apiVersion: "20200901preview",
+			style:      GroupAndVersion,
+			expected:   "storage_v20200901p",
+		},
 		// Current generator version with dot in the group name
-		{"DotGroupGeneratorVersionOnly", "network.frontdoor", GeneratorVersion, "20200901", VersionOnly, "v20200901"},
-		{"DotGroupGeneratorGroupOnly", "network.frontdoor", GeneratorVersion, "20200901", GroupOnly, "networkfrontdoor"},
-		{"DotGroupGeneratorGroupAndVersion", "network.frontdoor", GeneratorVersion, "20200901", GroupAndVersion, "networkfrontdoor_v20200901"},
+		"DotGroupGeneratorVersionOnly": {
+			group:      "network.frontdoor",
+			apiVersion: "20200901",
+			style:      VersionOnly,
+			expected:   "v20200901",
+		},
+		"DotGroupGeneratorGroupOnly": {
+			group:      "network.frontdoor",
+			apiVersion: "20200901",
+			style:      GroupOnly,
+			expected:   "networkfrontdoor",
+		},
+		"DotGroupGeneratorGroupAndVersion": {
+			group:      "network.frontdoor",
+			apiVersion: "20200901",
+			style:      GroupAndVersion,
+			expected:   "networkfrontdoor_v20200901",
+		},
 		// Hard coded to v1api
-		{"v1apiVersionOnly", "storage", "v1api", "20200901", VersionOnly, "v20200901"},
-		{"v1apiGroupOnly", "storage", "v1api", "20200901", GroupOnly, "storage"},
-		{"v1apiGroupAndVersion", "storage", "v1api", "20200901", GroupAndVersion, "storage_v20200901"},
-		// Hard coded to v1beta
-		{"v1betaVersionOnly", "storage", "v1beta", "20200901", VersionOnly, "v1beta20200901"},
-		{"v1betaGroupOnly", "storage", "v1beta", "20200901", GroupOnly, "storage"},
-		{"v1betaGroupAndVersion", "storage", "v1beta", "20200901", GroupAndVersion, "storage_v1beta20200901"},
+		"v1apiVersionOnly": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      VersionOnly,
+			expected:   "v20200901",
+		},
+		"v1apiGroupOnly": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      GroupOnly,
+			expected:   "storage",
+		},
+		"v1apiGroupAndVersion": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      GroupAndVersion,
+			expected:   "storage_v20200901",
+		},
+		"v1apiGroupAndFullVersion": {
+			group:            "storage",
+			generatorVersion: "v1api",
+			apiVersion:       "20200901",
+			style:            GroupAndFullVersion,
+			expected:         "storage_v1api20200901",
+		},
 	}
 
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
-			ref := MakeLocalPackageReference("v", c.group, c.generatorVersion, c.apiVersion)
+			ref := MakeVersionedLocalPackageReference("v", c.group, c.apiVersion)
+			if c.generatorVersion != "" {
+				ref = ref.WithVersionPrefix(c.generatorVersion)
+			}
+
 			g.Expect(ref.ImportAlias(c.style)).To(Equal(c.expected))
 		})
 	}

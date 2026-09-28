@@ -58,6 +58,11 @@ func Statements(statements ...any) []dst.Stmt {
 	// Clone everything to avoid sharing nodes
 	result := make([]dst.Stmt, 0, len(stmts))
 	for _, st := range stmts {
+		if st == nil {
+			// Skip nils
+			continue
+		}
+
 		result = append(result, dst.Clone(st).(dst.Stmt))
 	}
 
@@ -73,6 +78,19 @@ func StatementBlock(statements ...dst.Stmt) *dst.BlockStmt {
 		if block, ok := stmts[0].(*dst.BlockStmt); ok {
 			return block
 		}
+	}
+
+	return &dst.BlockStmt{
+		List: stmts,
+	}
+}
+
+// StatementOrBlock returns a single statement if we have only one, or a StatementBlock if needed
+func StatementOrBlock(statements ...dst.Stmt) dst.Stmt {
+	stmts := Statements(statements)
+
+	if len(stmts) == 1 {
+		return stmts[0]
 	}
 
 	return &dst.BlockStmt{

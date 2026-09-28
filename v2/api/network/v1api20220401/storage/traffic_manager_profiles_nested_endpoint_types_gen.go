@@ -6,7 +6,10 @@ package storage
 import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -15,6 +18,7 @@ import (
 // +kubebuilder:rbac:groups=network.azure.com,resources={trafficmanagerprofilesnestedendpoints/status,trafficmanagerprofilesnestedendpoints/finalizers},verbs=get;update;patch
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,network}
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
@@ -23,13 +27,13 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20220401.TrafficManagerProfilesNestedEndpoint
 // Generator information:
-// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/stable/2022-04-01/trafficmanager.json
+// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/TrafficManager/stable/2022-04-01/trafficmanager.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficmanagerprofiles/{profileName}/NestedEndpoints/{endpointName}
 type TrafficManagerProfilesNestedEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Trafficmanagerprofiles_NestedEndpoint_Spec   `json:"spec,omitempty"`
-	Status            Trafficmanagerprofiles_NestedEndpoint_STATUS `json:"status,omitempty"`
+	Spec              TrafficManagerProfilesNestedEndpoint_Spec   `json:"spec,omitempty"`
+	Status            TrafficManagerProfilesNestedEndpoint_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &TrafficManagerProfilesNestedEndpoint{}
@@ -44,6 +48,26 @@ func (endpoint *TrafficManagerProfilesNestedEndpoint) SetConditions(conditions c
 	endpoint.Status.Conditions = conditions
 }
 
+var _ configmaps.Exporter = &TrafficManagerProfilesNestedEndpoint{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (endpoint *TrafficManagerProfilesNestedEndpoint) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if endpoint.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return endpoint.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &TrafficManagerProfilesNestedEndpoint{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (endpoint *TrafficManagerProfilesNestedEndpoint) SecretDestinationExpressions() []*core.DestinationExpression {
+	if endpoint.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return endpoint.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &TrafficManagerProfilesNestedEndpoint{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +77,7 @@ func (endpoint *TrafficManagerProfilesNestedEndpoint) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-04-01"
 func (endpoint TrafficManagerProfilesNestedEndpoint) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-04-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -87,11 +111,15 @@ func (endpoint *TrafficManagerProfilesNestedEndpoint) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (endpoint *TrafficManagerProfilesNestedEndpoint) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Trafficmanagerprofiles_NestedEndpoint_STATUS{}
+	return &TrafficManagerProfilesNestedEndpoint_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (endpoint *TrafficManagerProfilesNestedEndpoint) Owner() *genruntime.ResourceReference {
+	if endpoint.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(endpoint.Spec)
 	return endpoint.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -99,16 +127,16 @@ func (endpoint *TrafficManagerProfilesNestedEndpoint) Owner() *genruntime.Resour
 // SetStatus sets the status of this resource
 func (endpoint *TrafficManagerProfilesNestedEndpoint) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Trafficmanagerprofiles_NestedEndpoint_STATUS); ok {
+	if st, ok := status.(*TrafficManagerProfilesNestedEndpoint_STATUS); ok {
 		endpoint.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Trafficmanagerprofiles_NestedEndpoint_STATUS
+	var st TrafficManagerProfilesNestedEndpoint_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	endpoint.Status = st
@@ -130,7 +158,7 @@ func (endpoint *TrafficManagerProfilesNestedEndpoint) OriginalGVK() *schema.Grou
 // +kubebuilder:object:root=true
 // Storage version of v1api20220401.TrafficManagerProfilesNestedEndpoint
 // Generator information:
-// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/stable/2022-04-01/trafficmanager.json
+// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/TrafficManager/stable/2022-04-01/trafficmanager.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficmanagerprofiles/{profileName}/NestedEndpoints/{endpointName}
 type TrafficManagerProfilesNestedEndpointList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -138,22 +166,23 @@ type TrafficManagerProfilesNestedEndpointList struct {
 	Items           []TrafficManagerProfilesNestedEndpoint `json:"items"`
 }
 
-// Storage version of v1api20220401.Trafficmanagerprofiles_NestedEndpoint_Spec
-type Trafficmanagerprofiles_NestedEndpoint_Spec struct {
+// Storage version of v1api20220401.TrafficManagerProfilesNestedEndpoint_Spec
+type TrafficManagerProfilesNestedEndpoint_Spec struct {
 	AlwaysServe *string `json:"alwaysServe,omitempty"`
 
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName             string                             `json:"azureName,omitempty"`
-	CustomHeaders         []EndpointProperties_CustomHeaders `json:"customHeaders,omitempty"`
-	EndpointLocation      *string                            `json:"endpointLocation,omitempty"`
-	EndpointMonitorStatus *string                            `json:"endpointMonitorStatus,omitempty"`
-	EndpointStatus        *string                            `json:"endpointStatus,omitempty"`
-	GeoMapping            []string                           `json:"geoMapping,omitempty"`
-	MinChildEndpoints     *int                               `json:"minChildEndpoints,omitempty"`
-	MinChildEndpointsIPv4 *int                               `json:"minChildEndpointsIPv4,omitempty"`
-	MinChildEndpointsIPv6 *int                               `json:"minChildEndpointsIPv6,omitempty"`
-	OriginalVersion       string                             `json:"originalVersion,omitempty"`
+	AzureName             string                                            `json:"azureName,omitempty"`
+	CustomHeaders         []EndpointPropertiesCustomHeadersItem             `json:"customHeaders,omitempty"`
+	EndpointLocation      *string                                           `json:"endpointLocation,omitempty"`
+	EndpointMonitorStatus *string                                           `json:"endpointMonitorStatus,omitempty"`
+	EndpointStatus        *string                                           `json:"endpointStatus,omitempty"`
+	GeoMapping            []string                                          `json:"geoMapping,omitempty"`
+	MinChildEndpoints     *int                                              `json:"minChildEndpoints,omitempty"`
+	MinChildEndpointsIPv4 *int                                              `json:"minChildEndpointsIPv4,omitempty"`
+	MinChildEndpointsIPv6 *int                                              `json:"minChildEndpointsIPv6,omitempty"`
+	OperatorSpec          *TrafficManagerProfilesNestedEndpointOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion       string                                            `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -162,7 +191,7 @@ type Trafficmanagerprofiles_NestedEndpoint_Spec struct {
 	Owner       *genruntime.KnownResourceReference `group:"network.azure.com" json:"owner,omitempty" kind:"TrafficManagerProfile"`
 	Priority    *int                               `json:"priority,omitempty"`
 	PropertyBag genruntime.PropertyBag             `json:"$propertyBag,omitempty"`
-	Subnets     []EndpointProperties_Subnets       `json:"subnets,omitempty"`
+	Subnets     []EndpointPropertiesSubnetsItem    `json:"subnets,omitempty"`
 	Target      *string                            `json:"target,omitempty"`
 
 	// TargetResourceReference: The Azure Resource URI of the of the endpoint. Not applicable to endpoints of type
@@ -172,67 +201,75 @@ type Trafficmanagerprofiles_NestedEndpoint_Spec struct {
 	Weight                  *int                          `json:"weight,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Trafficmanagerprofiles_NestedEndpoint_Spec{}
+var _ genruntime.ConvertibleSpec = &TrafficManagerProfilesNestedEndpoint_Spec{}
 
-// ConvertSpecFrom populates our Trafficmanagerprofiles_NestedEndpoint_Spec from the provided source
-func (endpoint *Trafficmanagerprofiles_NestedEndpoint_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+// ConvertSpecFrom populates our TrafficManagerProfilesNestedEndpoint_Spec from the provided source
+func (endpoint *TrafficManagerProfilesNestedEndpoint_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
 	if source == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
 	return source.ConvertSpecTo(endpoint)
 }
 
-// ConvertSpecTo populates the provided destination from our Trafficmanagerprofiles_NestedEndpoint_Spec
-func (endpoint *Trafficmanagerprofiles_NestedEndpoint_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+// ConvertSpecTo populates the provided destination from our TrafficManagerProfilesNestedEndpoint_Spec
+func (endpoint *TrafficManagerProfilesNestedEndpoint_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
 	if destination == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
 	return destination.ConvertSpecFrom(endpoint)
 }
 
-// Storage version of v1api20220401.Trafficmanagerprofiles_NestedEndpoint_STATUS
-type Trafficmanagerprofiles_NestedEndpoint_STATUS struct {
-	AlwaysServe           *string                                   `json:"alwaysServe,omitempty"`
-	Conditions            []conditions.Condition                    `json:"conditions,omitempty"`
-	CustomHeaders         []EndpointProperties_CustomHeaders_STATUS `json:"customHeaders,omitempty"`
-	EndpointLocation      *string                                   `json:"endpointLocation,omitempty"`
-	EndpointMonitorStatus *string                                   `json:"endpointMonitorStatus,omitempty"`
-	EndpointStatus        *string                                   `json:"endpointStatus,omitempty"`
-	GeoMapping            []string                                  `json:"geoMapping,omitempty"`
-	Id                    *string                                   `json:"id,omitempty"`
-	MinChildEndpoints     *int                                      `json:"minChildEndpoints,omitempty"`
-	MinChildEndpointsIPv4 *int                                      `json:"minChildEndpointsIPv4,omitempty"`
-	MinChildEndpointsIPv6 *int                                      `json:"minChildEndpointsIPv6,omitempty"`
-	Name                  *string                                   `json:"name,omitempty"`
-	Priority              *int                                      `json:"priority,omitempty"`
-	PropertyBag           genruntime.PropertyBag                    `json:"$propertyBag,omitempty"`
-	Subnets               []EndpointProperties_Subnets_STATUS       `json:"subnets,omitempty"`
-	Target                *string                                   `json:"target,omitempty"`
-	TargetResourceId      *string                                   `json:"targetResourceId,omitempty"`
-	Type                  *string                                   `json:"type,omitempty"`
-	Weight                *int                                      `json:"weight,omitempty"`
+// Storage version of v1api20220401.TrafficManagerProfilesNestedEndpoint_STATUS
+type TrafficManagerProfilesNestedEndpoint_STATUS struct {
+	AlwaysServe           *string                                      `json:"alwaysServe,omitempty"`
+	Conditions            []conditions.Condition                       `json:"conditions,omitempty"`
+	CustomHeaders         []EndpointPropertiesCustomHeadersItem_STATUS `json:"customHeaders,omitempty"`
+	EndpointLocation      *string                                      `json:"endpointLocation,omitempty"`
+	EndpointMonitorStatus *string                                      `json:"endpointMonitorStatus,omitempty"`
+	EndpointStatus        *string                                      `json:"endpointStatus,omitempty"`
+	GeoMapping            []string                                     `json:"geoMapping,omitempty"`
+	Id                    *string                                      `json:"id,omitempty"`
+	MinChildEndpoints     *int                                         `json:"minChildEndpoints,omitempty"`
+	MinChildEndpointsIPv4 *int                                         `json:"minChildEndpointsIPv4,omitempty"`
+	MinChildEndpointsIPv6 *int                                         `json:"minChildEndpointsIPv6,omitempty"`
+	Name                  *string                                      `json:"name,omitempty"`
+	Priority              *int                                         `json:"priority,omitempty"`
+	PropertyBag           genruntime.PropertyBag                       `json:"$propertyBag,omitempty"`
+	Subnets               []EndpointPropertiesSubnetsItem_STATUS       `json:"subnets,omitempty"`
+	Target                *string                                      `json:"target,omitempty"`
+	TargetResourceId      *string                                      `json:"targetResourceId,omitempty"`
+	Type                  *string                                      `json:"type,omitempty"`
+	Weight                *int                                         `json:"weight,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Trafficmanagerprofiles_NestedEndpoint_STATUS{}
+var _ genruntime.ConvertibleStatus = &TrafficManagerProfilesNestedEndpoint_STATUS{}
 
-// ConvertStatusFrom populates our Trafficmanagerprofiles_NestedEndpoint_STATUS from the provided source
-func (endpoint *Trafficmanagerprofiles_NestedEndpoint_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+// ConvertStatusFrom populates our TrafficManagerProfilesNestedEndpoint_STATUS from the provided source
+func (endpoint *TrafficManagerProfilesNestedEndpoint_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
 	if source == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return source.ConvertStatusTo(endpoint)
 }
 
-// ConvertStatusTo populates the provided destination from our Trafficmanagerprofiles_NestedEndpoint_STATUS
-func (endpoint *Trafficmanagerprofiles_NestedEndpoint_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+// ConvertStatusTo populates the provided destination from our TrafficManagerProfilesNestedEndpoint_STATUS
+func (endpoint *TrafficManagerProfilesNestedEndpoint_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
 	if destination == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return destination.ConvertStatusFrom(endpoint)
+}
+
+// Storage version of v1api20220401.TrafficManagerProfilesNestedEndpointOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type TrafficManagerProfilesNestedEndpointOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
 }
 
 func init() {

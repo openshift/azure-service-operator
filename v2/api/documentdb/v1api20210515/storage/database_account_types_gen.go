@@ -4,17 +4,20 @@
 package storage
 
 import (
-	"fmt"
 	storage "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20231115/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,documentdb}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
@@ -22,7 +25,7 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20210515.DatabaseAccount
 // Generator information:
-// - Generated from: /cosmos-db/resource-manager/Microsoft.DocumentDB/stable/2021-05-15/cosmos-db.json
+// - Generated from: /cosmos-db/resource-manager/Microsoft.DocumentDB/DocumentDB/stable/2021-05-15/cosmos-db.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DocumentDB/databaseAccounts/{accountName}
 type DatabaseAccount struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -47,22 +50,56 @@ var _ conversion.Convertible = &DatabaseAccount{}
 
 // ConvertFrom populates our DatabaseAccount from the provided hub DatabaseAccount
 func (account *DatabaseAccount) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.DatabaseAccount)
-	if !ok {
-		return fmt.Errorf("expected documentdb/v1api20231115/storage/DatabaseAccount but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.DatabaseAccount
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return account.AssignProperties_From_DatabaseAccount(source)
+	err = account.AssignProperties_From_DatabaseAccount(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to account")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub DatabaseAccount from our DatabaseAccount
 func (account *DatabaseAccount) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.DatabaseAccount)
-	if !ok {
-		return fmt.Errorf("expected documentdb/v1api20231115/storage/DatabaseAccount but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.DatabaseAccount
+	err := account.AssignProperties_To_DatabaseAccount(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from account")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return account.AssignProperties_To_DatabaseAccount(destination)
+	return nil
+}
+
+var _ configmaps.Exporter = &DatabaseAccount{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (account *DatabaseAccount) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if account.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return account.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &DatabaseAccount{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (account *DatabaseAccount) SecretDestinationExpressions() []*core.DestinationExpression {
+	if account.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return account.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &DatabaseAccount{}
@@ -74,7 +111,7 @@ func (account *DatabaseAccount) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2021-05-15"
 func (account DatabaseAccount) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2021-05-15"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -113,6 +150,10 @@ func (account *DatabaseAccount) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (account *DatabaseAccount) Owner() *genruntime.ResourceReference {
+	if account.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(account.Spec)
 	return account.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -129,7 +170,7 @@ func (account *DatabaseAccount) SetStatus(status genruntime.ConvertibleStatus) e
 	var st DatabaseAccount_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	account.Status = st
@@ -146,7 +187,7 @@ func (account *DatabaseAccount) AssignProperties_From_DatabaseAccount(source *st
 	var spec DatabaseAccount_Spec
 	err := spec.AssignProperties_From_DatabaseAccount_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_DatabaseAccount_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_DatabaseAccount_Spec() to populate field Spec")
 	}
 	account.Spec = spec
 
@@ -154,7 +195,7 @@ func (account *DatabaseAccount) AssignProperties_From_DatabaseAccount(source *st
 	var status DatabaseAccount_STATUS
 	err = status.AssignProperties_From_DatabaseAccount_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_DatabaseAccount_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_DatabaseAccount_STATUS() to populate field Status")
 	}
 	account.Status = status
 
@@ -163,7 +204,7 @@ func (account *DatabaseAccount) AssignProperties_From_DatabaseAccount(source *st
 	if augmentedAccount, ok := accountAsAny.(augmentConversionForDatabaseAccount); ok {
 		err := augmentedAccount.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -181,7 +222,7 @@ func (account *DatabaseAccount) AssignProperties_To_DatabaseAccount(destination 
 	var spec storage.DatabaseAccount_Spec
 	err := account.Spec.AssignProperties_To_DatabaseAccount_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_DatabaseAccount_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_DatabaseAccount_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
@@ -189,7 +230,7 @@ func (account *DatabaseAccount) AssignProperties_To_DatabaseAccount(destination 
 	var status storage.DatabaseAccount_STATUS
 	err = account.Status.AssignProperties_To_DatabaseAccount_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_DatabaseAccount_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_DatabaseAccount_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -198,7 +239,7 @@ func (account *DatabaseAccount) AssignProperties_To_DatabaseAccount(destination 
 	if augmentedAccount, ok := accountAsAny.(augmentConversionForDatabaseAccount); ok {
 		err := augmentedAccount.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -218,7 +259,7 @@ func (account *DatabaseAccount) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20210515.DatabaseAccount
 // Generator information:
-// - Generated from: /cosmos-db/resource-manager/Microsoft.DocumentDB/stable/2021-05-15/cosmos-db.json
+// - Generated from: /cosmos-db/resource-manager/Microsoft.DocumentDB/DocumentDB/stable/2021-05-15/cosmos-db.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DocumentDB/databaseAccounts/{accountName}
 type DatabaseAccountList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -295,13 +336,13 @@ func (account *DatabaseAccount_Spec) ConvertSpecFrom(source genruntime.Convertib
 	src = &storage.DatabaseAccount_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
 	err = account.AssignProperties_From_DatabaseAccount_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
@@ -319,13 +360,13 @@ func (account *DatabaseAccount_Spec) ConvertSpecTo(destination genruntime.Conver
 	dst = &storage.DatabaseAccount_Spec{}
 	err := account.AssignProperties_To_DatabaseAccount_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
@@ -341,7 +382,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 		var analyticalStorageConfiguration AnalyticalStorageConfiguration
 		err := analyticalStorageConfiguration.AssignProperties_From_AnalyticalStorageConfiguration(source.AnalyticalStorageConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AnalyticalStorageConfiguration() to populate field AnalyticalStorageConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_From_AnalyticalStorageConfiguration() to populate field AnalyticalStorageConfiguration")
 		}
 		account.AnalyticalStorageConfiguration = &analyticalStorageConfiguration
 	} else {
@@ -353,7 +394,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 		var apiProperty ApiProperties
 		err := apiProperty.AssignProperties_From_ApiProperties(source.ApiProperties)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ApiProperties() to populate field ApiProperties")
+			return eris.Wrap(err, "calling AssignProperties_From_ApiProperties() to populate field ApiProperties")
 		}
 		account.ApiProperties = &apiProperty
 	} else {
@@ -368,7 +409,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 		var backupPolicy BackupPolicy
 		err := backupPolicy.AssignProperties_From_BackupPolicy(source.BackupPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BackupPolicy() to populate field BackupPolicy")
+			return eris.Wrap(err, "calling AssignProperties_From_BackupPolicy() to populate field BackupPolicy")
 		}
 		account.BackupPolicy = &backupPolicy
 	} else {
@@ -379,12 +420,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 	if source.Capabilities != nil {
 		capabilityList := make([]Capability, len(source.Capabilities))
 		for capabilityIndex, capabilityItem := range source.Capabilities {
-			// Shadow the loop variable to avoid aliasing
-			capabilityItem := capabilityItem
 			var capability Capability
 			err := capability.AssignProperties_From_Capability(&capabilityItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Capability() to populate field Capabilities")
+				return eris.Wrap(err, "calling AssignProperties_From_Capability() to populate field Capabilities")
 			}
 			capabilityList[capabilityIndex] = capability
 		}
@@ -408,7 +447,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 		var consistencyPolicy ConsistencyPolicy
 		err := consistencyPolicy.AssignProperties_From_ConsistencyPolicy(source.ConsistencyPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ConsistencyPolicy() to populate field ConsistencyPolicy")
+			return eris.Wrap(err, "calling AssignProperties_From_ConsistencyPolicy() to populate field ConsistencyPolicy")
 		}
 		account.ConsistencyPolicy = &consistencyPolicy
 	} else {
@@ -419,12 +458,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 	if source.Cors != nil {
 		corList := make([]CorsPolicy, len(source.Cors))
 		for corIndex, corItem := range source.Cors {
-			// Shadow the loop variable to avoid aliasing
-			corItem := corItem
 			var cor CorsPolicy
 			err := cor.AssignProperties_From_CorsPolicy(&corItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_CorsPolicy() to populate field Cors")
+				return eris.Wrap(err, "calling AssignProperties_From_CorsPolicy() to populate field Cors")
 			}
 			corList[corIndex] = cor
 		}
@@ -438,13 +475,6 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 		propertyBag.Add("CreateMode", *source.CreateMode)
 	} else {
 		propertyBag.Remove("CreateMode")
-	}
-
-	// CustomerManagedKeyStatus
-	if source.CustomerManagedKeyStatus != nil {
-		propertyBag.Add("CustomerManagedKeyStatus", *source.CustomerManagedKeyStatus)
-	} else {
-		propertyBag.Remove("CustomerManagedKeyStatus")
 	}
 
 	// DatabaseAccountOfferType
@@ -527,7 +557,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 		var identity ManagedServiceIdentity
 		err := identity.AssignProperties_From_ManagedServiceIdentity(source.Identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ManagedServiceIdentity() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_From_ManagedServiceIdentity() to populate field Identity")
 		}
 		account.Identity = &identity
 	} else {
@@ -538,12 +568,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 	if source.IpRules != nil {
 		ipRuleList := make([]IpAddressOrRange, len(source.IpRules))
 		for ipRuleIndex, ipRuleItem := range source.IpRules {
-			// Shadow the loop variable to avoid aliasing
-			ipRuleItem := ipRuleItem
 			var ipRule IpAddressOrRange
 			err := ipRule.AssignProperties_From_IpAddressOrRange(&ipRuleItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_IpAddressOrRange() to populate field IpRules")
+				return eris.Wrap(err, "calling AssignProperties_From_IpAddressOrRange() to populate field IpRules")
 			}
 			ipRuleList[ipRuleIndex] = ipRule
 		}
@@ -573,12 +601,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 	if source.Locations != nil {
 		locationList := make([]Location, len(source.Locations))
 		for locationIndex, locationItem := range source.Locations {
-			// Shadow the loop variable to avoid aliasing
-			locationItem := locationItem
 			var location Location
 			err := location.AssignProperties_From_Location(&locationItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Location() to populate field Locations")
+				return eris.Wrap(err, "calling AssignProperties_From_Location() to populate field Locations")
 			}
 			locationList[locationIndex] = location
 		}
@@ -602,7 +628,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 		var networkAclBypassResourceId []string
 		err := propertyBag.Pull("NetworkAclBypassResourceIds", &networkAclBypassResourceId)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'NetworkAclBypassResourceIds' from propertyBag")
+			return eris.Wrap(err, "pulling 'NetworkAclBypassResourceIds' from propertyBag")
 		}
 
 		account.NetworkAclBypassResourceIds = networkAclBypassResourceId
@@ -622,7 +648,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 		var operatorSpec DatabaseAccountOperatorSpec
 		err := operatorSpec.AssignProperties_From_DatabaseAccountOperatorSpec(source.OperatorSpec)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DatabaseAccountOperatorSpec() to populate field OperatorSpec")
+			return eris.Wrap(err, "calling AssignProperties_From_DatabaseAccountOperatorSpec() to populate field OperatorSpec")
 		}
 		account.OperatorSpec = &operatorSpec
 	} else {
@@ -657,12 +683,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 	if source.VirtualNetworkRules != nil {
 		virtualNetworkRuleList := make([]VirtualNetworkRule, len(source.VirtualNetworkRules))
 		for virtualNetworkRuleIndex, virtualNetworkRuleItem := range source.VirtualNetworkRules {
-			// Shadow the loop variable to avoid aliasing
-			virtualNetworkRuleItem := virtualNetworkRuleItem
 			var virtualNetworkRule VirtualNetworkRule
 			err := virtualNetworkRule.AssignProperties_From_VirtualNetworkRule(&virtualNetworkRuleItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_VirtualNetworkRule() to populate field VirtualNetworkRules")
+				return eris.Wrap(err, "calling AssignProperties_From_VirtualNetworkRule() to populate field VirtualNetworkRules")
 			}
 			virtualNetworkRuleList[virtualNetworkRuleIndex] = virtualNetworkRule
 		}
@@ -683,7 +707,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_From_DatabaseAccount_Spec(
 	if augmentedAccount, ok := accountAsAny.(augmentConversionForDatabaseAccount_Spec); ok {
 		err := augmentedAccount.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -701,7 +725,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var analyticalStorageConfiguration storage.AnalyticalStorageConfiguration
 		err := account.AnalyticalStorageConfiguration.AssignProperties_To_AnalyticalStorageConfiguration(&analyticalStorageConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AnalyticalStorageConfiguration() to populate field AnalyticalStorageConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_To_AnalyticalStorageConfiguration() to populate field AnalyticalStorageConfiguration")
 		}
 		destination.AnalyticalStorageConfiguration = &analyticalStorageConfiguration
 	} else {
@@ -713,7 +737,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var apiProperty storage.ApiProperties
 		err := account.ApiProperties.AssignProperties_To_ApiProperties(&apiProperty)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ApiProperties() to populate field ApiProperties")
+			return eris.Wrap(err, "calling AssignProperties_To_ApiProperties() to populate field ApiProperties")
 		}
 		destination.ApiProperties = &apiProperty
 	} else {
@@ -728,7 +752,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var backupPolicy storage.BackupPolicy
 		err := account.BackupPolicy.AssignProperties_To_BackupPolicy(&backupPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BackupPolicy() to populate field BackupPolicy")
+			return eris.Wrap(err, "calling AssignProperties_To_BackupPolicy() to populate field BackupPolicy")
 		}
 		destination.BackupPolicy = &backupPolicy
 	} else {
@@ -739,12 +763,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 	if account.Capabilities != nil {
 		capabilityList := make([]storage.Capability, len(account.Capabilities))
 		for capabilityIndex, capabilityItem := range account.Capabilities {
-			// Shadow the loop variable to avoid aliasing
-			capabilityItem := capabilityItem
 			var capability storage.Capability
 			err := capabilityItem.AssignProperties_To_Capability(&capability)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Capability() to populate field Capabilities")
+				return eris.Wrap(err, "calling AssignProperties_To_Capability() to populate field Capabilities")
 			}
 			capabilityList[capabilityIndex] = capability
 		}
@@ -758,7 +780,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var capacity storage.Capacity
 		err := propertyBag.Pull("Capacity", &capacity)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'Capacity' from propertyBag")
+			return eris.Wrap(err, "pulling 'Capacity' from propertyBag")
 		}
 
 		destination.Capacity = &capacity
@@ -774,7 +796,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var consistencyPolicy storage.ConsistencyPolicy
 		err := account.ConsistencyPolicy.AssignProperties_To_ConsistencyPolicy(&consistencyPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ConsistencyPolicy() to populate field ConsistencyPolicy")
+			return eris.Wrap(err, "calling AssignProperties_To_ConsistencyPolicy() to populate field ConsistencyPolicy")
 		}
 		destination.ConsistencyPolicy = &consistencyPolicy
 	} else {
@@ -785,12 +807,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 	if account.Cors != nil {
 		corList := make([]storage.CorsPolicy, len(account.Cors))
 		for corIndex, corItem := range account.Cors {
-			// Shadow the loop variable to avoid aliasing
-			corItem := corItem
 			var cor storage.CorsPolicy
 			err := corItem.AssignProperties_To_CorsPolicy(&cor)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_CorsPolicy() to populate field Cors")
+				return eris.Wrap(err, "calling AssignProperties_To_CorsPolicy() to populate field Cors")
 			}
 			corList[corIndex] = cor
 		}
@@ -804,25 +824,12 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var createMode string
 		err := propertyBag.Pull("CreateMode", &createMode)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'CreateMode' from propertyBag")
+			return eris.Wrap(err, "pulling 'CreateMode' from propertyBag")
 		}
 
 		destination.CreateMode = &createMode
 	} else {
 		destination.CreateMode = nil
-	}
-
-	// CustomerManagedKeyStatus
-	if propertyBag.Contains("CustomerManagedKeyStatus") {
-		var customerManagedKeyStatus string
-		err := propertyBag.Pull("CustomerManagedKeyStatus", &customerManagedKeyStatus)
-		if err != nil {
-			return errors.Wrap(err, "pulling 'CustomerManagedKeyStatus' from propertyBag")
-		}
-
-		destination.CustomerManagedKeyStatus = &customerManagedKeyStatus
-	} else {
-		destination.CustomerManagedKeyStatus = nil
 	}
 
 	// DatabaseAccountOfferType
@@ -844,7 +851,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var disableLocalAuth bool
 		err := propertyBag.Pull("DisableLocalAuth", &disableLocalAuth)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'DisableLocalAuth' from propertyBag")
+			return eris.Wrap(err, "pulling 'DisableLocalAuth' from propertyBag")
 		}
 
 		destination.DisableLocalAuth = &disableLocalAuth
@@ -873,7 +880,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var enableBurstCapacity bool
 		err := propertyBag.Pull("EnableBurstCapacity", &enableBurstCapacity)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'EnableBurstCapacity' from propertyBag")
+			return eris.Wrap(err, "pulling 'EnableBurstCapacity' from propertyBag")
 		}
 
 		destination.EnableBurstCapacity = &enableBurstCapacity
@@ -910,7 +917,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var enablePartitionMerge bool
 		err := propertyBag.Pull("EnablePartitionMerge", &enablePartitionMerge)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'EnablePartitionMerge' from propertyBag")
+			return eris.Wrap(err, "pulling 'EnablePartitionMerge' from propertyBag")
 		}
 
 		destination.EnablePartitionMerge = &enablePartitionMerge
@@ -923,7 +930,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var identity storage.ManagedServiceIdentity
 		err := account.Identity.AssignProperties_To_ManagedServiceIdentity(&identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ManagedServiceIdentity() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_To_ManagedServiceIdentity() to populate field Identity")
 		}
 		destination.Identity = &identity
 	} else {
@@ -934,12 +941,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 	if account.IpRules != nil {
 		ipRuleList := make([]storage.IpAddressOrRange, len(account.IpRules))
 		for ipRuleIndex, ipRuleItem := range account.IpRules {
-			// Shadow the loop variable to avoid aliasing
-			ipRuleItem := ipRuleItem
 			var ipRule storage.IpAddressOrRange
 			err := ipRuleItem.AssignProperties_To_IpAddressOrRange(&ipRule)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_IpAddressOrRange() to populate field IpRules")
+				return eris.Wrap(err, "calling AssignProperties_To_IpAddressOrRange() to populate field IpRules")
 			}
 			ipRuleList[ipRuleIndex] = ipRule
 		}
@@ -969,12 +974,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 	if account.Locations != nil {
 		locationList := make([]storage.Location, len(account.Locations))
 		for locationIndex, locationItem := range account.Locations {
-			// Shadow the loop variable to avoid aliasing
-			locationItem := locationItem
 			var location storage.Location
 			err := locationItem.AssignProperties_To_Location(&location)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Location() to populate field Locations")
+				return eris.Wrap(err, "calling AssignProperties_To_Location() to populate field Locations")
 			}
 			locationList[locationIndex] = location
 		}
@@ -988,7 +991,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var minimalTlsVersion string
 		err := propertyBag.Pull("MinimalTlsVersion", &minimalTlsVersion)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'MinimalTlsVersion' from propertyBag")
+			return eris.Wrap(err, "pulling 'MinimalTlsVersion' from propertyBag")
 		}
 
 		destination.MinimalTlsVersion = &minimalTlsVersion
@@ -1011,7 +1014,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var networkAclBypassResourceReference []genruntime.ResourceReference
 		err := propertyBag.Pull("NetworkAclBypassResourceReferences", &networkAclBypassResourceReference)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'NetworkAclBypassResourceReferences' from propertyBag")
+			return eris.Wrap(err, "pulling 'NetworkAclBypassResourceReferences' from propertyBag")
 		}
 
 		destination.NetworkAclBypassResourceReferences = networkAclBypassResourceReference
@@ -1024,7 +1027,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var operatorSpec storage.DatabaseAccountOperatorSpec
 		err := account.OperatorSpec.AssignProperties_To_DatabaseAccountOperatorSpec(&operatorSpec)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DatabaseAccountOperatorSpec() to populate field OperatorSpec")
+			return eris.Wrap(err, "calling AssignProperties_To_DatabaseAccountOperatorSpec() to populate field OperatorSpec")
 		}
 		destination.OperatorSpec = &operatorSpec
 	} else {
@@ -1050,7 +1053,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 		var restoreParameter storage.RestoreParameters
 		err := propertyBag.Pull("RestoreParameters", &restoreParameter)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'RestoreParameters' from propertyBag")
+			return eris.Wrap(err, "pulling 'RestoreParameters' from propertyBag")
 		}
 
 		destination.RestoreParameters = &restoreParameter
@@ -1065,12 +1068,10 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 	if account.VirtualNetworkRules != nil {
 		virtualNetworkRuleList := make([]storage.VirtualNetworkRule, len(account.VirtualNetworkRules))
 		for virtualNetworkRuleIndex, virtualNetworkRuleItem := range account.VirtualNetworkRules {
-			// Shadow the loop variable to avoid aliasing
-			virtualNetworkRuleItem := virtualNetworkRuleItem
 			var virtualNetworkRule storage.VirtualNetworkRule
 			err := virtualNetworkRuleItem.AssignProperties_To_VirtualNetworkRule(&virtualNetworkRule)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_VirtualNetworkRule() to populate field VirtualNetworkRules")
+				return eris.Wrap(err, "calling AssignProperties_To_VirtualNetworkRule() to populate field VirtualNetworkRules")
 			}
 			virtualNetworkRuleList[virtualNetworkRuleIndex] = virtualNetworkRule
 		}
@@ -1091,7 +1092,7 @@ func (account *DatabaseAccount_Spec) AssignProperties_To_DatabaseAccount_Spec(de
 	if augmentedAccount, ok := accountAsAny.(augmentConversionForDatabaseAccount_Spec); ok {
 		err := augmentedAccount.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1155,13 +1156,13 @@ func (account *DatabaseAccount_STATUS) ConvertStatusFrom(source genruntime.Conve
 	src = &storage.DatabaseAccount_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
 	err = account.AssignProperties_From_DatabaseAccount_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
@@ -1179,13 +1180,13 @@ func (account *DatabaseAccount_STATUS) ConvertStatusTo(destination genruntime.Co
 	dst = &storage.DatabaseAccount_STATUS{}
 	err := account.AssignProperties_To_DatabaseAccount_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
@@ -1201,7 +1202,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 		var analyticalStorageConfiguration AnalyticalStorageConfiguration_STATUS
 		err := analyticalStorageConfiguration.AssignProperties_From_AnalyticalStorageConfiguration_STATUS(source.AnalyticalStorageConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AnalyticalStorageConfiguration_STATUS() to populate field AnalyticalStorageConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_From_AnalyticalStorageConfiguration_STATUS() to populate field AnalyticalStorageConfiguration")
 		}
 		account.AnalyticalStorageConfiguration = &analyticalStorageConfiguration
 	} else {
@@ -1213,7 +1214,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 		var apiProperty ApiProperties_STATUS
 		err := apiProperty.AssignProperties_From_ApiProperties_STATUS(source.ApiProperties)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ApiProperties_STATUS() to populate field ApiProperties")
+			return eris.Wrap(err, "calling AssignProperties_From_ApiProperties_STATUS() to populate field ApiProperties")
 		}
 		account.ApiProperties = &apiProperty
 	} else {
@@ -1225,7 +1226,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 		var backupPolicy BackupPolicy_STATUS
 		err := backupPolicy.AssignProperties_From_BackupPolicy_STATUS(source.BackupPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BackupPolicy_STATUS() to populate field BackupPolicy")
+			return eris.Wrap(err, "calling AssignProperties_From_BackupPolicy_STATUS() to populate field BackupPolicy")
 		}
 		account.BackupPolicy = &backupPolicy
 	} else {
@@ -1236,12 +1237,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.Capabilities != nil {
 		capabilityList := make([]Capability_STATUS, len(source.Capabilities))
 		for capabilityIndex, capabilityItem := range source.Capabilities {
-			// Shadow the loop variable to avoid aliasing
-			capabilityItem := capabilityItem
 			var capability Capability_STATUS
 			err := capability.AssignProperties_From_Capability_STATUS(&capabilityItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Capability_STATUS() to populate field Capabilities")
+				return eris.Wrap(err, "calling AssignProperties_From_Capability_STATUS() to populate field Capabilities")
 			}
 			capabilityList[capabilityIndex] = capability
 		}
@@ -1268,7 +1267,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 		var consistencyPolicy ConsistencyPolicy_STATUS
 		err := consistencyPolicy.AssignProperties_From_ConsistencyPolicy_STATUS(source.ConsistencyPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ConsistencyPolicy_STATUS() to populate field ConsistencyPolicy")
+			return eris.Wrap(err, "calling AssignProperties_From_ConsistencyPolicy_STATUS() to populate field ConsistencyPolicy")
 		}
 		account.ConsistencyPolicy = &consistencyPolicy
 	} else {
@@ -1279,12 +1278,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.Cors != nil {
 		corList := make([]CorsPolicy_STATUS, len(source.Cors))
 		for corIndex, corItem := range source.Cors {
-			// Shadow the loop variable to avoid aliasing
-			corItem := corItem
 			var cor CorsPolicy_STATUS
 			err := cor.AssignProperties_From_CorsPolicy_STATUS(&corItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_CorsPolicy_STATUS() to populate field Cors")
+				return eris.Wrap(err, "calling AssignProperties_From_CorsPolicy_STATUS() to populate field Cors")
 			}
 			corList[corIndex] = cor
 		}
@@ -1389,12 +1386,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.FailoverPolicies != nil {
 		failoverPolicyList := make([]FailoverPolicy_STATUS, len(source.FailoverPolicies))
 		for failoverPolicyIndex, failoverPolicyItem := range source.FailoverPolicies {
-			// Shadow the loop variable to avoid aliasing
-			failoverPolicyItem := failoverPolicyItem
 			var failoverPolicy FailoverPolicy_STATUS
 			err := failoverPolicy.AssignProperties_From_FailoverPolicy_STATUS(&failoverPolicyItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_FailoverPolicy_STATUS() to populate field FailoverPolicies")
+				return eris.Wrap(err, "calling AssignProperties_From_FailoverPolicy_STATUS() to populate field FailoverPolicies")
 			}
 			failoverPolicyList[failoverPolicyIndex] = failoverPolicy
 		}
@@ -1411,7 +1406,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 		var identity ManagedServiceIdentity_STATUS
 		err := identity.AssignProperties_From_ManagedServiceIdentity_STATUS(source.Identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ManagedServiceIdentity_STATUS() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_From_ManagedServiceIdentity_STATUS() to populate field Identity")
 		}
 		account.Identity = &identity
 	} else {
@@ -1429,12 +1424,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.IpRules != nil {
 		ipRuleList := make([]IpAddressOrRange_STATUS, len(source.IpRules))
 		for ipRuleIndex, ipRuleItem := range source.IpRules {
-			// Shadow the loop variable to avoid aliasing
-			ipRuleItem := ipRuleItem
 			var ipRule IpAddressOrRange_STATUS
 			err := ipRule.AssignProperties_From_IpAddressOrRange_STATUS(&ipRuleItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_IpAddressOrRange_STATUS() to populate field IpRules")
+				return eris.Wrap(err, "calling AssignProperties_From_IpAddressOrRange_STATUS() to populate field IpRules")
 			}
 			ipRuleList[ipRuleIndex] = ipRule
 		}
@@ -1471,12 +1464,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.Locations != nil {
 		locationList := make([]Location_STATUS, len(source.Locations))
 		for locationIndex, locationItem := range source.Locations {
-			// Shadow the loop variable to avoid aliasing
-			locationItem := locationItem
 			var location Location_STATUS
 			err := location.AssignProperties_From_Location_STATUS(&locationItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Location_STATUS() to populate field Locations")
+				return eris.Wrap(err, "calling AssignProperties_From_Location_STATUS() to populate field Locations")
 			}
 			locationList[locationIndex] = location
 		}
@@ -1505,12 +1496,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.PrivateEndpointConnections != nil {
 		privateEndpointConnectionList := make([]PrivateEndpointConnection_STATUS, len(source.PrivateEndpointConnections))
 		for privateEndpointConnectionIndex, privateEndpointConnectionItem := range source.PrivateEndpointConnections {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointConnectionItem := privateEndpointConnectionItem
 			var privateEndpointConnection PrivateEndpointConnection_STATUS
 			err := privateEndpointConnection.AssignProperties_From_PrivateEndpointConnection_STATUS(&privateEndpointConnectionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
+				return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
 			}
 			privateEndpointConnectionList[privateEndpointConnectionIndex] = privateEndpointConnection
 		}
@@ -1529,12 +1518,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.ReadLocations != nil {
 		readLocationList := make([]Location_STATUS, len(source.ReadLocations))
 		for readLocationIndex, readLocationItem := range source.ReadLocations {
-			// Shadow the loop variable to avoid aliasing
-			readLocationItem := readLocationItem
 			var readLocation Location_STATUS
 			err := readLocation.AssignProperties_From_Location_STATUS(&readLocationItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Location_STATUS() to populate field ReadLocations")
+				return eris.Wrap(err, "calling AssignProperties_From_Location_STATUS() to populate field ReadLocations")
 			}
 			readLocationList[readLocationIndex] = readLocation
 		}
@@ -1567,12 +1554,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.VirtualNetworkRules != nil {
 		virtualNetworkRuleList := make([]VirtualNetworkRule_STATUS, len(source.VirtualNetworkRules))
 		for virtualNetworkRuleIndex, virtualNetworkRuleItem := range source.VirtualNetworkRules {
-			// Shadow the loop variable to avoid aliasing
-			virtualNetworkRuleItem := virtualNetworkRuleItem
 			var virtualNetworkRule VirtualNetworkRule_STATUS
 			err := virtualNetworkRule.AssignProperties_From_VirtualNetworkRule_STATUS(&virtualNetworkRuleItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_VirtualNetworkRule_STATUS() to populate field VirtualNetworkRules")
+				return eris.Wrap(err, "calling AssignProperties_From_VirtualNetworkRule_STATUS() to populate field VirtualNetworkRules")
 			}
 			virtualNetworkRuleList[virtualNetworkRuleIndex] = virtualNetworkRule
 		}
@@ -1585,12 +1570,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if source.WriteLocations != nil {
 		writeLocationList := make([]Location_STATUS, len(source.WriteLocations))
 		for writeLocationIndex, writeLocationItem := range source.WriteLocations {
-			// Shadow the loop variable to avoid aliasing
-			writeLocationItem := writeLocationItem
 			var writeLocation Location_STATUS
 			err := writeLocation.AssignProperties_From_Location_STATUS(&writeLocationItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Location_STATUS() to populate field WriteLocations")
+				return eris.Wrap(err, "calling AssignProperties_From_Location_STATUS() to populate field WriteLocations")
 			}
 			writeLocationList[writeLocationIndex] = writeLocation
 		}
@@ -1611,7 +1594,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_From_DatabaseAccount_STA
 	if augmentedAccount, ok := accountAsAny.(augmentConversionForDatabaseAccount_STATUS); ok {
 		err := augmentedAccount.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1629,7 +1612,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var analyticalStorageConfiguration storage.AnalyticalStorageConfiguration_STATUS
 		err := account.AnalyticalStorageConfiguration.AssignProperties_To_AnalyticalStorageConfiguration_STATUS(&analyticalStorageConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AnalyticalStorageConfiguration_STATUS() to populate field AnalyticalStorageConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_To_AnalyticalStorageConfiguration_STATUS() to populate field AnalyticalStorageConfiguration")
 		}
 		destination.AnalyticalStorageConfiguration = &analyticalStorageConfiguration
 	} else {
@@ -1641,7 +1624,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var apiProperty storage.ApiProperties_STATUS
 		err := account.ApiProperties.AssignProperties_To_ApiProperties_STATUS(&apiProperty)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ApiProperties_STATUS() to populate field ApiProperties")
+			return eris.Wrap(err, "calling AssignProperties_To_ApiProperties_STATUS() to populate field ApiProperties")
 		}
 		destination.ApiProperties = &apiProperty
 	} else {
@@ -1653,7 +1636,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var backupPolicy storage.BackupPolicy_STATUS
 		err := account.BackupPolicy.AssignProperties_To_BackupPolicy_STATUS(&backupPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BackupPolicy_STATUS() to populate field BackupPolicy")
+			return eris.Wrap(err, "calling AssignProperties_To_BackupPolicy_STATUS() to populate field BackupPolicy")
 		}
 		destination.BackupPolicy = &backupPolicy
 	} else {
@@ -1664,12 +1647,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.Capabilities != nil {
 		capabilityList := make([]storage.Capability_STATUS, len(account.Capabilities))
 		for capabilityIndex, capabilityItem := range account.Capabilities {
-			// Shadow the loop variable to avoid aliasing
-			capabilityItem := capabilityItem
 			var capability storage.Capability_STATUS
 			err := capabilityItem.AssignProperties_To_Capability_STATUS(&capability)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Capability_STATUS() to populate field Capabilities")
+				return eris.Wrap(err, "calling AssignProperties_To_Capability_STATUS() to populate field Capabilities")
 			}
 			capabilityList[capabilityIndex] = capability
 		}
@@ -1683,7 +1664,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var capacity storage.Capacity_STATUS
 		err := propertyBag.Pull("Capacity", &capacity)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'Capacity' from propertyBag")
+			return eris.Wrap(err, "pulling 'Capacity' from propertyBag")
 		}
 
 		destination.Capacity = &capacity
@@ -1702,7 +1683,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var consistencyPolicy storage.ConsistencyPolicy_STATUS
 		err := account.ConsistencyPolicy.AssignProperties_To_ConsistencyPolicy_STATUS(&consistencyPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ConsistencyPolicy_STATUS() to populate field ConsistencyPolicy")
+			return eris.Wrap(err, "calling AssignProperties_To_ConsistencyPolicy_STATUS() to populate field ConsistencyPolicy")
 		}
 		destination.ConsistencyPolicy = &consistencyPolicy
 	} else {
@@ -1713,12 +1694,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.Cors != nil {
 		corList := make([]storage.CorsPolicy_STATUS, len(account.Cors))
 		for corIndex, corItem := range account.Cors {
-			// Shadow the loop variable to avoid aliasing
-			corItem := corItem
 			var cor storage.CorsPolicy_STATUS
 			err := corItem.AssignProperties_To_CorsPolicy_STATUS(&cor)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_CorsPolicy_STATUS() to populate field Cors")
+				return eris.Wrap(err, "calling AssignProperties_To_CorsPolicy_STATUS() to populate field Cors")
 			}
 			corList[corIndex] = cor
 		}
@@ -1732,7 +1711,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var createMode string
 		err := propertyBag.Pull("CreateMode", &createMode)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'CreateMode' from propertyBag")
+			return eris.Wrap(err, "pulling 'CreateMode' from propertyBag")
 		}
 
 		destination.CreateMode = &createMode
@@ -1745,7 +1724,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var customerManagedKeyStatus string
 		err := propertyBag.Pull("CustomerManagedKeyStatus", &customerManagedKeyStatus)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'CustomerManagedKeyStatus' from propertyBag")
+			return eris.Wrap(err, "pulling 'CustomerManagedKeyStatus' from propertyBag")
 		}
 
 		destination.CustomerManagedKeyStatus = &customerManagedKeyStatus
@@ -1772,7 +1751,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var disableLocalAuth bool
 		err := propertyBag.Pull("DisableLocalAuth", &disableLocalAuth)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'DisableLocalAuth' from propertyBag")
+			return eris.Wrap(err, "pulling 'DisableLocalAuth' from propertyBag")
 		}
 
 		destination.DisableLocalAuth = &disableLocalAuth
@@ -1804,7 +1783,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var enableBurstCapacity bool
 		err := propertyBag.Pull("EnableBurstCapacity", &enableBurstCapacity)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'EnableBurstCapacity' from propertyBag")
+			return eris.Wrap(err, "pulling 'EnableBurstCapacity' from propertyBag")
 		}
 
 		destination.EnableBurstCapacity = &enableBurstCapacity
@@ -1841,7 +1820,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var enablePartitionMerge bool
 		err := propertyBag.Pull("EnablePartitionMerge", &enablePartitionMerge)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'EnablePartitionMerge' from propertyBag")
+			return eris.Wrap(err, "pulling 'EnablePartitionMerge' from propertyBag")
 		}
 
 		destination.EnablePartitionMerge = &enablePartitionMerge
@@ -1853,12 +1832,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.FailoverPolicies != nil {
 		failoverPolicyList := make([]storage.FailoverPolicy_STATUS, len(account.FailoverPolicies))
 		for failoverPolicyIndex, failoverPolicyItem := range account.FailoverPolicies {
-			// Shadow the loop variable to avoid aliasing
-			failoverPolicyItem := failoverPolicyItem
 			var failoverPolicy storage.FailoverPolicy_STATUS
 			err := failoverPolicyItem.AssignProperties_To_FailoverPolicy_STATUS(&failoverPolicy)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_FailoverPolicy_STATUS() to populate field FailoverPolicies")
+				return eris.Wrap(err, "calling AssignProperties_To_FailoverPolicy_STATUS() to populate field FailoverPolicies")
 			}
 			failoverPolicyList[failoverPolicyIndex] = failoverPolicy
 		}
@@ -1875,7 +1852,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var identity storage.ManagedServiceIdentity_STATUS
 		err := account.Identity.AssignProperties_To_ManagedServiceIdentity_STATUS(&identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ManagedServiceIdentity_STATUS() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_To_ManagedServiceIdentity_STATUS() to populate field Identity")
 		}
 		destination.Identity = &identity
 	} else {
@@ -1887,7 +1864,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var instanceId string
 		err := propertyBag.Pull("InstanceId", &instanceId)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'InstanceId' from propertyBag")
+			return eris.Wrap(err, "pulling 'InstanceId' from propertyBag")
 		}
 
 		destination.InstanceId = &instanceId
@@ -1899,12 +1876,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.IpRules != nil {
 		ipRuleList := make([]storage.IpAddressOrRange_STATUS, len(account.IpRules))
 		for ipRuleIndex, ipRuleItem := range account.IpRules {
-			// Shadow the loop variable to avoid aliasing
-			ipRuleItem := ipRuleItem
 			var ipRule storage.IpAddressOrRange_STATUS
 			err := ipRuleItem.AssignProperties_To_IpAddressOrRange_STATUS(&ipRule)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_IpAddressOrRange_STATUS() to populate field IpRules")
+				return eris.Wrap(err, "calling AssignProperties_To_IpAddressOrRange_STATUS() to populate field IpRules")
 			}
 			ipRuleList[ipRuleIndex] = ipRule
 		}
@@ -1929,7 +1904,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var keysMetadatum storage.DatabaseAccountKeysMetadata_STATUS
 		err := propertyBag.Pull("KeysMetadata", &keysMetadatum)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'KeysMetadata' from propertyBag")
+			return eris.Wrap(err, "pulling 'KeysMetadata' from propertyBag")
 		}
 
 		destination.KeysMetadata = &keysMetadatum
@@ -1947,12 +1922,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.Locations != nil {
 		locationList := make([]storage.Location_STATUS, len(account.Locations))
 		for locationIndex, locationItem := range account.Locations {
-			// Shadow the loop variable to avoid aliasing
-			locationItem := locationItem
 			var location storage.Location_STATUS
 			err := locationItem.AssignProperties_To_Location_STATUS(&location)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Location_STATUS() to populate field Locations")
+				return eris.Wrap(err, "calling AssignProperties_To_Location_STATUS() to populate field Locations")
 			}
 			locationList[locationIndex] = location
 		}
@@ -1966,7 +1939,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var minimalTlsVersion string
 		err := propertyBag.Pull("MinimalTlsVersion", &minimalTlsVersion)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'MinimalTlsVersion' from propertyBag")
+			return eris.Wrap(err, "pulling 'MinimalTlsVersion' from propertyBag")
 		}
 
 		destination.MinimalTlsVersion = &minimalTlsVersion
@@ -1987,12 +1960,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.PrivateEndpointConnections != nil {
 		privateEndpointConnectionList := make([]storage.PrivateEndpointConnection_STATUS, len(account.PrivateEndpointConnections))
 		for privateEndpointConnectionIndex, privateEndpointConnectionItem := range account.PrivateEndpointConnections {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointConnectionItem := privateEndpointConnectionItem
 			var privateEndpointConnection storage.PrivateEndpointConnection_STATUS
 			err := privateEndpointConnectionItem.AssignProperties_To_PrivateEndpointConnection_STATUS(&privateEndpointConnection)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
+				return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointConnection_STATUS() to populate field PrivateEndpointConnections")
 			}
 			privateEndpointConnectionList[privateEndpointConnectionIndex] = privateEndpointConnection
 		}
@@ -2011,12 +1982,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.ReadLocations != nil {
 		readLocationList := make([]storage.Location_STATUS, len(account.ReadLocations))
 		for readLocationIndex, readLocationItem := range account.ReadLocations {
-			// Shadow the loop variable to avoid aliasing
-			readLocationItem := readLocationItem
 			var readLocation storage.Location_STATUS
 			err := readLocationItem.AssignProperties_To_Location_STATUS(&readLocation)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Location_STATUS() to populate field ReadLocations")
+				return eris.Wrap(err, "calling AssignProperties_To_Location_STATUS() to populate field ReadLocations")
 			}
 			readLocationList[readLocationIndex] = readLocation
 		}
@@ -2030,7 +1999,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var restoreParameter storage.RestoreParameters_STATUS
 		err := propertyBag.Pull("RestoreParameters", &restoreParameter)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'RestoreParameters' from propertyBag")
+			return eris.Wrap(err, "pulling 'RestoreParameters' from propertyBag")
 		}
 
 		destination.RestoreParameters = &restoreParameter
@@ -2043,7 +2012,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 		var systemDatum storage.SystemData_STATUS
 		err := propertyBag.Pull("SystemData", &systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'SystemData' from propertyBag")
+			return eris.Wrap(err, "pulling 'SystemData' from propertyBag")
 		}
 
 		destination.SystemData = &systemDatum
@@ -2061,12 +2030,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.VirtualNetworkRules != nil {
 		virtualNetworkRuleList := make([]storage.VirtualNetworkRule_STATUS, len(account.VirtualNetworkRules))
 		for virtualNetworkRuleIndex, virtualNetworkRuleItem := range account.VirtualNetworkRules {
-			// Shadow the loop variable to avoid aliasing
-			virtualNetworkRuleItem := virtualNetworkRuleItem
 			var virtualNetworkRule storage.VirtualNetworkRule_STATUS
 			err := virtualNetworkRuleItem.AssignProperties_To_VirtualNetworkRule_STATUS(&virtualNetworkRule)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_VirtualNetworkRule_STATUS() to populate field VirtualNetworkRules")
+				return eris.Wrap(err, "calling AssignProperties_To_VirtualNetworkRule_STATUS() to populate field VirtualNetworkRules")
 			}
 			virtualNetworkRuleList[virtualNetworkRuleIndex] = virtualNetworkRule
 		}
@@ -2079,12 +2046,10 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if account.WriteLocations != nil {
 		writeLocationList := make([]storage.Location_STATUS, len(account.WriteLocations))
 		for writeLocationIndex, writeLocationItem := range account.WriteLocations {
-			// Shadow the loop variable to avoid aliasing
-			writeLocationItem := writeLocationItem
 			var writeLocation storage.Location_STATUS
 			err := writeLocationItem.AssignProperties_To_Location_STATUS(&writeLocation)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Location_STATUS() to populate field WriteLocations")
+				return eris.Wrap(err, "calling AssignProperties_To_Location_STATUS() to populate field WriteLocations")
 			}
 			writeLocationList[writeLocationIndex] = writeLocation
 		}
@@ -2105,7 +2070,7 @@ func (account *DatabaseAccount_STATUS) AssignProperties_To_DatabaseAccount_STATU
 	if augmentedAccount, ok := accountAsAny.(augmentConversionForDatabaseAccount_STATUS); ok {
 		err := augmentedAccount.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2140,7 +2105,7 @@ func (configuration *AnalyticalStorageConfiguration) AssignProperties_From_Analy
 	if augmentedConfiguration, ok := configurationAsAny.(augmentConversionForAnalyticalStorageConfiguration); ok {
 		err := augmentedConfiguration.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2168,7 +2133,7 @@ func (configuration *AnalyticalStorageConfiguration) AssignProperties_To_Analyti
 	if augmentedConfiguration, ok := configurationAsAny.(augmentConversionForAnalyticalStorageConfiguration); ok {
 		err := augmentedConfiguration.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2203,7 +2168,7 @@ func (configuration *AnalyticalStorageConfiguration_STATUS) AssignProperties_Fro
 	if augmentedConfiguration, ok := configurationAsAny.(augmentConversionForAnalyticalStorageConfiguration_STATUS); ok {
 		err := augmentedConfiguration.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2231,7 +2196,7 @@ func (configuration *AnalyticalStorageConfiguration_STATUS) AssignProperties_To_
 	if augmentedConfiguration, ok := configurationAsAny.(augmentConversionForAnalyticalStorageConfiguration_STATUS); ok {
 		err := augmentedConfiguration.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2265,7 +2230,7 @@ func (properties *ApiProperties) AssignProperties_From_ApiProperties(source *sto
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForApiProperties); ok {
 		err := augmentedProperties.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2293,7 +2258,7 @@ func (properties *ApiProperties) AssignProperties_To_ApiProperties(destination *
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForApiProperties); ok {
 		err := augmentedProperties.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2327,7 +2292,7 @@ func (properties *ApiProperties_STATUS) AssignProperties_From_ApiProperties_STAT
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForApiProperties_STATUS); ok {
 		err := augmentedProperties.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2355,7 +2320,7 @@ func (properties *ApiProperties_STATUS) AssignProperties_To_ApiProperties_STATUS
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForApiProperties_STATUS); ok {
 		err := augmentedProperties.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2390,7 +2355,7 @@ func (policy *BackupPolicy) AssignProperties_From_BackupPolicy(source *storage.B
 		var continuous ContinuousModeBackupPolicy
 		err := continuous.AssignProperties_From_ContinuousModeBackupPolicy(source.Continuous)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ContinuousModeBackupPolicy() to populate field Continuous")
+			return eris.Wrap(err, "calling AssignProperties_From_ContinuousModeBackupPolicy() to populate field Continuous")
 		}
 		policy.Continuous = &continuous
 	} else {
@@ -2402,7 +2367,7 @@ func (policy *BackupPolicy) AssignProperties_From_BackupPolicy(source *storage.B
 		var periodic PeriodicModeBackupPolicy
 		err := periodic.AssignProperties_From_PeriodicModeBackupPolicy(source.Periodic)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_PeriodicModeBackupPolicy() to populate field Periodic")
+			return eris.Wrap(err, "calling AssignProperties_From_PeriodicModeBackupPolicy() to populate field Periodic")
 		}
 		policy.Periodic = &periodic
 	} else {
@@ -2421,7 +2386,7 @@ func (policy *BackupPolicy) AssignProperties_From_BackupPolicy(source *storage.B
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForBackupPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2439,7 +2404,7 @@ func (policy *BackupPolicy) AssignProperties_To_BackupPolicy(destination *storag
 		var continuous storage.ContinuousModeBackupPolicy
 		err := policy.Continuous.AssignProperties_To_ContinuousModeBackupPolicy(&continuous)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ContinuousModeBackupPolicy() to populate field Continuous")
+			return eris.Wrap(err, "calling AssignProperties_To_ContinuousModeBackupPolicy() to populate field Continuous")
 		}
 		destination.Continuous = &continuous
 	} else {
@@ -2451,7 +2416,7 @@ func (policy *BackupPolicy) AssignProperties_To_BackupPolicy(destination *storag
 		var periodic storage.PeriodicModeBackupPolicy
 		err := policy.Periodic.AssignProperties_To_PeriodicModeBackupPolicy(&periodic)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_PeriodicModeBackupPolicy() to populate field Periodic")
+			return eris.Wrap(err, "calling AssignProperties_To_PeriodicModeBackupPolicy() to populate field Periodic")
 		}
 		destination.Periodic = &periodic
 	} else {
@@ -2470,7 +2435,7 @@ func (policy *BackupPolicy) AssignProperties_To_BackupPolicy(destination *storag
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForBackupPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2495,7 +2460,7 @@ func (policy *BackupPolicy_STATUS) AssignProperties_From_BackupPolicy_STATUS(sou
 		var continuous ContinuousModeBackupPolicy_STATUS
 		err := continuous.AssignProperties_From_ContinuousModeBackupPolicy_STATUS(source.Continuous)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ContinuousModeBackupPolicy_STATUS() to populate field Continuous")
+			return eris.Wrap(err, "calling AssignProperties_From_ContinuousModeBackupPolicy_STATUS() to populate field Continuous")
 		}
 		policy.Continuous = &continuous
 	} else {
@@ -2507,7 +2472,7 @@ func (policy *BackupPolicy_STATUS) AssignProperties_From_BackupPolicy_STATUS(sou
 		var periodic PeriodicModeBackupPolicy_STATUS
 		err := periodic.AssignProperties_From_PeriodicModeBackupPolicy_STATUS(source.Periodic)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_PeriodicModeBackupPolicy_STATUS() to populate field Periodic")
+			return eris.Wrap(err, "calling AssignProperties_From_PeriodicModeBackupPolicy_STATUS() to populate field Periodic")
 		}
 		policy.Periodic = &periodic
 	} else {
@@ -2526,7 +2491,7 @@ func (policy *BackupPolicy_STATUS) AssignProperties_From_BackupPolicy_STATUS(sou
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForBackupPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2544,7 +2509,7 @@ func (policy *BackupPolicy_STATUS) AssignProperties_To_BackupPolicy_STATUS(desti
 		var continuous storage.ContinuousModeBackupPolicy_STATUS
 		err := policy.Continuous.AssignProperties_To_ContinuousModeBackupPolicy_STATUS(&continuous)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ContinuousModeBackupPolicy_STATUS() to populate field Continuous")
+			return eris.Wrap(err, "calling AssignProperties_To_ContinuousModeBackupPolicy_STATUS() to populate field Continuous")
 		}
 		destination.Continuous = &continuous
 	} else {
@@ -2556,7 +2521,7 @@ func (policy *BackupPolicy_STATUS) AssignProperties_To_BackupPolicy_STATUS(desti
 		var periodic storage.PeriodicModeBackupPolicy_STATUS
 		err := policy.Periodic.AssignProperties_To_PeriodicModeBackupPolicy_STATUS(&periodic)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_PeriodicModeBackupPolicy_STATUS() to populate field Periodic")
+			return eris.Wrap(err, "calling AssignProperties_To_PeriodicModeBackupPolicy_STATUS() to populate field Periodic")
 		}
 		destination.Periodic = &periodic
 	} else {
@@ -2575,7 +2540,7 @@ func (policy *BackupPolicy_STATUS) AssignProperties_To_BackupPolicy_STATUS(desti
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForBackupPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2610,7 +2575,7 @@ func (capability *Capability) AssignProperties_From_Capability(source *storage.C
 	if augmentedCapability, ok := capabilityAsAny.(augmentConversionForCapability); ok {
 		err := augmentedCapability.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2638,7 +2603,7 @@ func (capability *Capability) AssignProperties_To_Capability(destination *storag
 	if augmentedCapability, ok := capabilityAsAny.(augmentConversionForCapability); ok {
 		err := augmentedCapability.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2673,7 +2638,7 @@ func (capability *Capability_STATUS) AssignProperties_From_Capability_STATUS(sou
 	if augmentedCapability, ok := capabilityAsAny.(augmentConversionForCapability_STATUS); ok {
 		err := augmentedCapability.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2701,7 +2666,7 @@ func (capability *Capability_STATUS) AssignProperties_To_Capability_STATUS(desti
 	if augmentedCapability, ok := capabilityAsAny.(augmentConversionForCapability_STATUS); ok {
 		err := augmentedCapability.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2744,7 +2709,7 @@ func (policy *ConsistencyPolicy) AssignProperties_From_ConsistencyPolicy(source 
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForConsistencyPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2778,7 +2743,7 @@ func (policy *ConsistencyPolicy) AssignProperties_To_ConsistencyPolicy(destinati
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForConsistencyPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2821,7 +2786,7 @@ func (policy *ConsistencyPolicy_STATUS) AssignProperties_From_ConsistencyPolicy_
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForConsistencyPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2855,7 +2820,7 @@ func (policy *ConsistencyPolicy_STATUS) AssignProperties_To_ConsistencyPolicy_ST
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForConsistencyPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2906,7 +2871,7 @@ func (policy *CorsPolicy) AssignProperties_From_CorsPolicy(source *storage.CorsP
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForCorsPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2946,7 +2911,7 @@ func (policy *CorsPolicy) AssignProperties_To_CorsPolicy(destination *storage.Co
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForCorsPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2997,7 +2962,7 @@ func (policy *CorsPolicy_STATUS) AssignProperties_From_CorsPolicy_STATUS(source 
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForCorsPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3037,7 +3002,7 @@ func (policy *CorsPolicy_STATUS) AssignProperties_To_CorsPolicy_STATUS(destinati
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForCorsPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3048,8 +3013,10 @@ func (policy *CorsPolicy_STATUS) AssignProperties_To_CorsPolicy_STATUS(destinati
 // Storage version of v1api20210515.DatabaseAccountOperatorSpec
 // Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
 type DatabaseAccountOperatorSpec struct {
-	PropertyBag genruntime.PropertyBag          `json:"$propertyBag,omitempty"`
-	Secrets     *DatabaseAccountOperatorSecrets `json:"secrets,omitempty"`
+	ConfigMapExpressions []*core.DestinationExpression   `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag          `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression   `json:"secretExpressions,omitempty"`
+	Secrets              *DatabaseAccountOperatorSecrets `json:"secrets,omitempty"`
 }
 
 // AssignProperties_From_DatabaseAccountOperatorSpec populates our DatabaseAccountOperatorSpec from the provided source DatabaseAccountOperatorSpec
@@ -3057,12 +3024,44 @@ func (operator *DatabaseAccountOperatorSpec) AssignProperties_From_DatabaseAccou
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
 	// Secrets
 	if source.Secrets != nil {
 		var secret DatabaseAccountOperatorSecrets
 		err := secret.AssignProperties_From_DatabaseAccountOperatorSecrets(source.Secrets)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DatabaseAccountOperatorSecrets() to populate field Secrets")
+			return eris.Wrap(err, "calling AssignProperties_From_DatabaseAccountOperatorSecrets() to populate field Secrets")
 		}
 		operator.Secrets = &secret
 	} else {
@@ -3081,7 +3080,7 @@ func (operator *DatabaseAccountOperatorSpec) AssignProperties_From_DatabaseAccou
 	if augmentedOperator, ok := operatorAsAny.(augmentConversionForDatabaseAccountOperatorSpec); ok {
 		err := augmentedOperator.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3094,12 +3093,44 @@ func (operator *DatabaseAccountOperatorSpec) AssignProperties_To_DatabaseAccount
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
 
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
 	// Secrets
 	if operator.Secrets != nil {
 		var secret storage.DatabaseAccountOperatorSecrets
 		err := operator.Secrets.AssignProperties_To_DatabaseAccountOperatorSecrets(&secret)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DatabaseAccountOperatorSecrets() to populate field Secrets")
+			return eris.Wrap(err, "calling AssignProperties_To_DatabaseAccountOperatorSecrets() to populate field Secrets")
 		}
 		destination.Secrets = &secret
 	} else {
@@ -3118,7 +3149,7 @@ func (operator *DatabaseAccountOperatorSpec) AssignProperties_To_DatabaseAccount
 	if augmentedOperator, ok := operatorAsAny.(augmentConversionForDatabaseAccountOperatorSpec); ok {
 		err := augmentedOperator.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3161,7 +3192,7 @@ func (policy *FailoverPolicy_STATUS) AssignProperties_From_FailoverPolicy_STATUS
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForFailoverPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3195,7 +3226,7 @@ func (policy *FailoverPolicy_STATUS) AssignProperties_To_FailoverPolicy_STATUS(d
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForFailoverPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3230,7 +3261,7 @@ func (orRange *IpAddressOrRange) AssignProperties_From_IpAddressOrRange(source *
 	if augmentedOrRange, ok := orRangeAsAny.(augmentConversionForIpAddressOrRange); ok {
 		err := augmentedOrRange.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3258,7 +3289,7 @@ func (orRange *IpAddressOrRange) AssignProperties_To_IpAddressOrRange(destinatio
 	if augmentedOrRange, ok := orRangeAsAny.(augmentConversionForIpAddressOrRange); ok {
 		err := augmentedOrRange.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3293,7 +3324,7 @@ func (orRange *IpAddressOrRange_STATUS) AssignProperties_From_IpAddressOrRange_S
 	if augmentedOrRange, ok := orRangeAsAny.(augmentConversionForIpAddressOrRange_STATUS); ok {
 		err := augmentedOrRange.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3321,7 +3352,7 @@ func (orRange *IpAddressOrRange_STATUS) AssignProperties_To_IpAddressOrRange_STA
 	if augmentedOrRange, ok := orRangeAsAny.(augmentConversionForIpAddressOrRange_STATUS); ok {
 		err := augmentedOrRange.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3369,7 +3400,7 @@ func (location *Location) AssignProperties_From_Location(source *storage.Locatio
 	if augmentedLocation, ok := locationAsAny.(augmentConversionForLocation); ok {
 		err := augmentedLocation.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3408,7 +3439,7 @@ func (location *Location) AssignProperties_To_Location(destination *storage.Loca
 	if augmentedLocation, ok := locationAsAny.(augmentConversionForLocation); ok {
 		err := augmentedLocation.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3468,7 +3499,7 @@ func (location *Location_STATUS) AssignProperties_From_Location_STATUS(source *s
 	if augmentedLocation, ok := locationAsAny.(augmentConversionForLocation_STATUS); ok {
 		err := augmentedLocation.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3516,7 +3547,7 @@ func (location *Location_STATUS) AssignProperties_To_Location_STATUS(destination
 	if augmentedLocation, ok := locationAsAny.(augmentConversionForLocation_STATUS); ok {
 		err := augmentedLocation.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3544,12 +3575,10 @@ func (identity *ManagedServiceIdentity) AssignProperties_From_ManagedServiceIden
 	if source.UserAssignedIdentities != nil {
 		userAssignedIdentityList := make([]UserAssignedIdentityDetails, len(source.UserAssignedIdentities))
 		for userAssignedIdentityIndex, userAssignedIdentityItem := range source.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityItem := userAssignedIdentityItem
 			var userAssignedIdentity UserAssignedIdentityDetails
 			err := userAssignedIdentity.AssignProperties_From_UserAssignedIdentityDetails(&userAssignedIdentityItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityList[userAssignedIdentityIndex] = userAssignedIdentity
 		}
@@ -3570,7 +3599,7 @@ func (identity *ManagedServiceIdentity) AssignProperties_From_ManagedServiceIden
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForManagedServiceIdentity); ok {
 		err := augmentedIdentity.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3590,12 +3619,10 @@ func (identity *ManagedServiceIdentity) AssignProperties_To_ManagedServiceIdenti
 	if identity.UserAssignedIdentities != nil {
 		userAssignedIdentityList := make([]storage.UserAssignedIdentityDetails, len(identity.UserAssignedIdentities))
 		for userAssignedIdentityIndex, userAssignedIdentityItem := range identity.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityItem := userAssignedIdentityItem
 			var userAssignedIdentity storage.UserAssignedIdentityDetails
 			err := userAssignedIdentityItem.AssignProperties_To_UserAssignedIdentityDetails(&userAssignedIdentity)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityList[userAssignedIdentityIndex] = userAssignedIdentity
 		}
@@ -3616,7 +3643,7 @@ func (identity *ManagedServiceIdentity) AssignProperties_To_ManagedServiceIdenti
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForManagedServiceIdentity); ok {
 		err := augmentedIdentity.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3652,12 +3679,10 @@ func (identity *ManagedServiceIdentity_STATUS) AssignProperties_From_ManagedServ
 	if source.UserAssignedIdentities != nil {
 		userAssignedIdentityMap := make(map[string]ManagedServiceIdentity_UserAssignedIdentities_STATUS, len(source.UserAssignedIdentities))
 		for userAssignedIdentityKey, userAssignedIdentityValue := range source.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityValue := userAssignedIdentityValue
 			var userAssignedIdentity ManagedServiceIdentity_UserAssignedIdentities_STATUS
 			err := userAssignedIdentity.AssignProperties_From_ManagedServiceIdentity_UserAssignedIdentities_STATUS(&userAssignedIdentityValue)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_ManagedServiceIdentity_UserAssignedIdentities_STATUS() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_From_ManagedServiceIdentity_UserAssignedIdentities_STATUS() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityMap[userAssignedIdentityKey] = userAssignedIdentity
 		}
@@ -3678,7 +3703,7 @@ func (identity *ManagedServiceIdentity_STATUS) AssignProperties_From_ManagedServ
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForManagedServiceIdentity_STATUS); ok {
 		err := augmentedIdentity.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3704,12 +3729,10 @@ func (identity *ManagedServiceIdentity_STATUS) AssignProperties_To_ManagedServic
 	if identity.UserAssignedIdentities != nil {
 		userAssignedIdentityMap := make(map[string]storage.ManagedServiceIdentity_UserAssignedIdentities_STATUS, len(identity.UserAssignedIdentities))
 		for userAssignedIdentityKey, userAssignedIdentityValue := range identity.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityValue := userAssignedIdentityValue
 			var userAssignedIdentity storage.ManagedServiceIdentity_UserAssignedIdentities_STATUS
 			err := userAssignedIdentityValue.AssignProperties_To_ManagedServiceIdentity_UserAssignedIdentities_STATUS(&userAssignedIdentity)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_ManagedServiceIdentity_UserAssignedIdentities_STATUS() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_To_ManagedServiceIdentity_UserAssignedIdentities_STATUS() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityMap[userAssignedIdentityKey] = userAssignedIdentity
 		}
@@ -3730,7 +3753,7 @@ func (identity *ManagedServiceIdentity_STATUS) AssignProperties_To_ManagedServic
 	if augmentedIdentity, ok := identityAsAny.(augmentConversionForManagedServiceIdentity_STATUS); ok {
 		err := augmentedIdentity.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3765,7 +3788,7 @@ func (connection *PrivateEndpointConnection_STATUS) AssignProperties_From_Privat
 	if augmentedConnection, ok := connectionAsAny.(augmentConversionForPrivateEndpointConnection_STATUS); ok {
 		err := augmentedConnection.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3793,7 +3816,7 @@ func (connection *PrivateEndpointConnection_STATUS) AssignProperties_To_PrivateE
 	if augmentedConnection, ok := connectionAsAny.(augmentConversionForPrivateEndpointConnection_STATUS); ok {
 		err := augmentedConnection.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3845,7 +3868,7 @@ func (rule *VirtualNetworkRule) AssignProperties_From_VirtualNetworkRule(source 
 	if augmentedRule, ok := ruleAsAny.(augmentConversionForVirtualNetworkRule); ok {
 		err := augmentedRule.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3886,7 +3909,7 @@ func (rule *VirtualNetworkRule) AssignProperties_To_VirtualNetworkRule(destinati
 	if augmentedRule, ok := ruleAsAny.(augmentConversionForVirtualNetworkRule); ok {
 		err := augmentedRule.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3930,7 +3953,7 @@ func (rule *VirtualNetworkRule_STATUS) AssignProperties_From_VirtualNetworkRule_
 	if augmentedRule, ok := ruleAsAny.(augmentConversionForVirtualNetworkRule_STATUS); ok {
 		err := augmentedRule.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3966,7 +3989,7 @@ func (rule *VirtualNetworkRule_STATUS) AssignProperties_To_VirtualNetworkRule_ST
 	if augmentedRule, ok := ruleAsAny.(augmentConversionForVirtualNetworkRule_STATUS); ok {
 		err := augmentedRule.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4129,7 +4152,7 @@ func (policy *ContinuousModeBackupPolicy) AssignProperties_From_ContinuousModeBa
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForContinuousModeBackupPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4147,7 +4170,7 @@ func (policy *ContinuousModeBackupPolicy) AssignProperties_To_ContinuousModeBack
 		var continuousModeProperty storage.ContinuousModeProperties
 		err := propertyBag.Pull("ContinuousModeProperties", &continuousModeProperty)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'ContinuousModeProperties' from propertyBag")
+			return eris.Wrap(err, "pulling 'ContinuousModeProperties' from propertyBag")
 		}
 
 		destination.ContinuousModeProperties = &continuousModeProperty
@@ -4160,7 +4183,7 @@ func (policy *ContinuousModeBackupPolicy) AssignProperties_To_ContinuousModeBack
 		var migrationState storage.BackupPolicyMigrationState
 		err := propertyBag.Pull("MigrationState", &migrationState)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'MigrationState' from propertyBag")
+			return eris.Wrap(err, "pulling 'MigrationState' from propertyBag")
 		}
 
 		destination.MigrationState = &migrationState
@@ -4183,7 +4206,7 @@ func (policy *ContinuousModeBackupPolicy) AssignProperties_To_ContinuousModeBack
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForContinuousModeBackupPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4231,7 +4254,7 @@ func (policy *ContinuousModeBackupPolicy_STATUS) AssignProperties_From_Continuou
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForContinuousModeBackupPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4249,7 +4272,7 @@ func (policy *ContinuousModeBackupPolicy_STATUS) AssignProperties_To_ContinuousM
 		var continuousModeProperty storage.ContinuousModeProperties_STATUS
 		err := propertyBag.Pull("ContinuousModeProperties", &continuousModeProperty)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'ContinuousModeProperties' from propertyBag")
+			return eris.Wrap(err, "pulling 'ContinuousModeProperties' from propertyBag")
 		}
 
 		destination.ContinuousModeProperties = &continuousModeProperty
@@ -4262,7 +4285,7 @@ func (policy *ContinuousModeBackupPolicy_STATUS) AssignProperties_To_ContinuousM
 		var migrationState storage.BackupPolicyMigrationState_STATUS
 		err := propertyBag.Pull("MigrationState", &migrationState)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'MigrationState' from propertyBag")
+			return eris.Wrap(err, "pulling 'MigrationState' from propertyBag")
 		}
 
 		destination.MigrationState = &migrationState
@@ -4285,7 +4308,7 @@ func (policy *ContinuousModeBackupPolicy_STATUS) AssignProperties_To_ContinuousM
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForContinuousModeBackupPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4310,7 +4333,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_From_DatabaseAcc
 
 	// DocumentEndpoint
 	if source.DocumentEndpoint != nil {
-		documentEndpoint := source.DocumentEndpoint.Copy()
+		documentEndpoint := *source.DocumentEndpoint.DeepCopy()
 		secrets.DocumentEndpoint = &documentEndpoint
 	} else {
 		secrets.DocumentEndpoint = nil
@@ -4318,7 +4341,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_From_DatabaseAcc
 
 	// PrimaryMasterKey
 	if source.PrimaryMasterKey != nil {
-		primaryMasterKey := source.PrimaryMasterKey.Copy()
+		primaryMasterKey := *source.PrimaryMasterKey.DeepCopy()
 		secrets.PrimaryMasterKey = &primaryMasterKey
 	} else {
 		secrets.PrimaryMasterKey = nil
@@ -4326,7 +4349,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_From_DatabaseAcc
 
 	// PrimaryReadonlyMasterKey
 	if source.PrimaryReadonlyMasterKey != nil {
-		primaryReadonlyMasterKey := source.PrimaryReadonlyMasterKey.Copy()
+		primaryReadonlyMasterKey := *source.PrimaryReadonlyMasterKey.DeepCopy()
 		secrets.PrimaryReadonlyMasterKey = &primaryReadonlyMasterKey
 	} else {
 		secrets.PrimaryReadonlyMasterKey = nil
@@ -4334,7 +4357,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_From_DatabaseAcc
 
 	// SecondaryMasterKey
 	if source.SecondaryMasterKey != nil {
-		secondaryMasterKey := source.SecondaryMasterKey.Copy()
+		secondaryMasterKey := *source.SecondaryMasterKey.DeepCopy()
 		secrets.SecondaryMasterKey = &secondaryMasterKey
 	} else {
 		secrets.SecondaryMasterKey = nil
@@ -4342,7 +4365,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_From_DatabaseAcc
 
 	// SecondaryReadonlyMasterKey
 	if source.SecondaryReadonlyMasterKey != nil {
-		secondaryReadonlyMasterKey := source.SecondaryReadonlyMasterKey.Copy()
+		secondaryReadonlyMasterKey := *source.SecondaryReadonlyMasterKey.DeepCopy()
 		secrets.SecondaryReadonlyMasterKey = &secondaryReadonlyMasterKey
 	} else {
 		secrets.SecondaryReadonlyMasterKey = nil
@@ -4360,7 +4383,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_From_DatabaseAcc
 	if augmentedSecrets, ok := secretsAsAny.(augmentConversionForDatabaseAccountOperatorSecrets); ok {
 		err := augmentedSecrets.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4375,7 +4398,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_To_DatabaseAccou
 
 	// DocumentEndpoint
 	if secrets.DocumentEndpoint != nil {
-		documentEndpoint := secrets.DocumentEndpoint.Copy()
+		documentEndpoint := *secrets.DocumentEndpoint.DeepCopy()
 		destination.DocumentEndpoint = &documentEndpoint
 	} else {
 		destination.DocumentEndpoint = nil
@@ -4383,7 +4406,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_To_DatabaseAccou
 
 	// PrimaryMasterKey
 	if secrets.PrimaryMasterKey != nil {
-		primaryMasterKey := secrets.PrimaryMasterKey.Copy()
+		primaryMasterKey := *secrets.PrimaryMasterKey.DeepCopy()
 		destination.PrimaryMasterKey = &primaryMasterKey
 	} else {
 		destination.PrimaryMasterKey = nil
@@ -4391,7 +4414,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_To_DatabaseAccou
 
 	// PrimaryReadonlyMasterKey
 	if secrets.PrimaryReadonlyMasterKey != nil {
-		primaryReadonlyMasterKey := secrets.PrimaryReadonlyMasterKey.Copy()
+		primaryReadonlyMasterKey := *secrets.PrimaryReadonlyMasterKey.DeepCopy()
 		destination.PrimaryReadonlyMasterKey = &primaryReadonlyMasterKey
 	} else {
 		destination.PrimaryReadonlyMasterKey = nil
@@ -4399,7 +4422,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_To_DatabaseAccou
 
 	// SecondaryMasterKey
 	if secrets.SecondaryMasterKey != nil {
-		secondaryMasterKey := secrets.SecondaryMasterKey.Copy()
+		secondaryMasterKey := *secrets.SecondaryMasterKey.DeepCopy()
 		destination.SecondaryMasterKey = &secondaryMasterKey
 	} else {
 		destination.SecondaryMasterKey = nil
@@ -4407,7 +4430,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_To_DatabaseAccou
 
 	// SecondaryReadonlyMasterKey
 	if secrets.SecondaryReadonlyMasterKey != nil {
-		secondaryReadonlyMasterKey := secrets.SecondaryReadonlyMasterKey.Copy()
+		secondaryReadonlyMasterKey := *secrets.SecondaryReadonlyMasterKey.DeepCopy()
 		destination.SecondaryReadonlyMasterKey = &secondaryReadonlyMasterKey
 	} else {
 		destination.SecondaryReadonlyMasterKey = nil
@@ -4425,7 +4448,7 @@ func (secrets *DatabaseAccountOperatorSecrets) AssignProperties_To_DatabaseAccou
 	if augmentedSecrets, ok := secretsAsAny.(augmentConversionForDatabaseAccountOperatorSecrets); ok {
 		err := augmentedSecrets.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4463,7 +4486,7 @@ func (identities *ManagedServiceIdentity_UserAssignedIdentities_STATUS) AssignPr
 	if augmentedIdentities, ok := identitiesAsAny.(augmentConversionForManagedServiceIdentity_UserAssignedIdentities_STATUS); ok {
 		err := augmentedIdentities.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4494,7 +4517,7 @@ func (identities *ManagedServiceIdentity_UserAssignedIdentities_STATUS) AssignPr
 	if augmentedIdentities, ok := identitiesAsAny.(augmentConversionForManagedServiceIdentity_UserAssignedIdentities_STATUS); ok {
 		err := augmentedIdentities.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4526,7 +4549,7 @@ func (policy *PeriodicModeBackupPolicy) AssignProperties_From_PeriodicModeBackup
 		var periodicModeProperty PeriodicModeProperties
 		err := periodicModeProperty.AssignProperties_From_PeriodicModeProperties(source.PeriodicModeProperties)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_PeriodicModeProperties() to populate field PeriodicModeProperties")
+			return eris.Wrap(err, "calling AssignProperties_From_PeriodicModeProperties() to populate field PeriodicModeProperties")
 		}
 		policy.PeriodicModeProperties = &periodicModeProperty
 	} else {
@@ -4548,7 +4571,7 @@ func (policy *PeriodicModeBackupPolicy) AssignProperties_From_PeriodicModeBackup
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForPeriodicModeBackupPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4566,7 +4589,7 @@ func (policy *PeriodicModeBackupPolicy) AssignProperties_To_PeriodicModeBackupPo
 		var migrationState storage.BackupPolicyMigrationState
 		err := propertyBag.Pull("MigrationState", &migrationState)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'MigrationState' from propertyBag")
+			return eris.Wrap(err, "pulling 'MigrationState' from propertyBag")
 		}
 
 		destination.MigrationState = &migrationState
@@ -4579,7 +4602,7 @@ func (policy *PeriodicModeBackupPolicy) AssignProperties_To_PeriodicModeBackupPo
 		var periodicModeProperty storage.PeriodicModeProperties
 		err := policy.PeriodicModeProperties.AssignProperties_To_PeriodicModeProperties(&periodicModeProperty)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_PeriodicModeProperties() to populate field PeriodicModeProperties")
+			return eris.Wrap(err, "calling AssignProperties_To_PeriodicModeProperties() to populate field PeriodicModeProperties")
 		}
 		destination.PeriodicModeProperties = &periodicModeProperty
 	} else {
@@ -4601,7 +4624,7 @@ func (policy *PeriodicModeBackupPolicy) AssignProperties_To_PeriodicModeBackupPo
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForPeriodicModeBackupPolicy); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4633,7 +4656,7 @@ func (policy *PeriodicModeBackupPolicy_STATUS) AssignProperties_From_PeriodicMod
 		var periodicModeProperty PeriodicModeProperties_STATUS
 		err := periodicModeProperty.AssignProperties_From_PeriodicModeProperties_STATUS(source.PeriodicModeProperties)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_PeriodicModeProperties_STATUS() to populate field PeriodicModeProperties")
+			return eris.Wrap(err, "calling AssignProperties_From_PeriodicModeProperties_STATUS() to populate field PeriodicModeProperties")
 		}
 		policy.PeriodicModeProperties = &periodicModeProperty
 	} else {
@@ -4655,7 +4678,7 @@ func (policy *PeriodicModeBackupPolicy_STATUS) AssignProperties_From_PeriodicMod
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForPeriodicModeBackupPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4673,7 +4696,7 @@ func (policy *PeriodicModeBackupPolicy_STATUS) AssignProperties_To_PeriodicModeB
 		var migrationState storage.BackupPolicyMigrationState_STATUS
 		err := propertyBag.Pull("MigrationState", &migrationState)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'MigrationState' from propertyBag")
+			return eris.Wrap(err, "pulling 'MigrationState' from propertyBag")
 		}
 
 		destination.MigrationState = &migrationState
@@ -4686,7 +4709,7 @@ func (policy *PeriodicModeBackupPolicy_STATUS) AssignProperties_To_PeriodicModeB
 		var periodicModeProperty storage.PeriodicModeProperties_STATUS
 		err := policy.PeriodicModeProperties.AssignProperties_To_PeriodicModeProperties_STATUS(&periodicModeProperty)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_PeriodicModeProperties_STATUS() to populate field PeriodicModeProperties")
+			return eris.Wrap(err, "calling AssignProperties_To_PeriodicModeProperties_STATUS() to populate field PeriodicModeProperties")
 		}
 		destination.PeriodicModeProperties = &periodicModeProperty
 	} else {
@@ -4708,7 +4731,7 @@ func (policy *PeriodicModeBackupPolicy_STATUS) AssignProperties_To_PeriodicModeB
 	if augmentedPolicy, ok := policyAsAny.(augmentConversionForPeriodicModeBackupPolicy_STATUS); ok {
 		err := augmentedPolicy.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4743,7 +4766,7 @@ func (details *UserAssignedIdentityDetails) AssignProperties_From_UserAssignedId
 	if augmentedDetails, ok := detailsAsAny.(augmentConversionForUserAssignedIdentityDetails); ok {
 		err := augmentedDetails.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4771,7 +4794,7 @@ func (details *UserAssignedIdentityDetails) AssignProperties_To_UserAssignedIden
 	if augmentedDetails, ok := detailsAsAny.(augmentConversionForUserAssignedIdentityDetails); ok {
 		err := augmentedDetails.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4852,7 +4875,7 @@ func (properties *PeriodicModeProperties) AssignProperties_From_PeriodicModeProp
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForPeriodicModeProperties); ok {
 		err := augmentedProperties.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4876,7 +4899,7 @@ func (properties *PeriodicModeProperties) AssignProperties_To_PeriodicModeProper
 		var backupStorageRedundancy string
 		err := propertyBag.Pull("BackupStorageRedundancy", &backupStorageRedundancy)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'BackupStorageRedundancy' from propertyBag")
+			return eris.Wrap(err, "pulling 'BackupStorageRedundancy' from propertyBag")
 		}
 
 		destination.BackupStorageRedundancy = &backupStorageRedundancy
@@ -4896,7 +4919,7 @@ func (properties *PeriodicModeProperties) AssignProperties_To_PeriodicModeProper
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForPeriodicModeProperties); ok {
 		err := augmentedProperties.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4942,7 +4965,7 @@ func (properties *PeriodicModeProperties_STATUS) AssignProperties_From_PeriodicM
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForPeriodicModeProperties_STATUS); ok {
 		err := augmentedProperties.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4966,7 +4989,7 @@ func (properties *PeriodicModeProperties_STATUS) AssignProperties_To_PeriodicMod
 		var backupStorageRedundancy string
 		err := propertyBag.Pull("BackupStorageRedundancy", &backupStorageRedundancy)
 		if err != nil {
-			return errors.Wrap(err, "pulling 'BackupStorageRedundancy' from propertyBag")
+			return eris.Wrap(err, "pulling 'BackupStorageRedundancy' from propertyBag")
 		}
 
 		destination.BackupStorageRedundancy = &backupStorageRedundancy
@@ -4986,7 +5009,7 @@ func (properties *PeriodicModeProperties_STATUS) AssignProperties_To_PeriodicMod
 	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForPeriodicModeProperties_STATUS); ok {
 		err := augmentedProperties.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 

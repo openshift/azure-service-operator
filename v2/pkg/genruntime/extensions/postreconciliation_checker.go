@@ -8,30 +8,38 @@ package extensions
 import (
 	"context"
 
-	"github.com/Azure/azure-service-operator/v2/internal/resolver"
+	. "github.com/Azure/azure-service-operator/v2/internal/logging"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
-	. "github.com/Azure/azure-service-operator/v2/internal/logging"
+	"github.com/Azure/azure-service-operator/v2/internal/resolver"
+	"github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 )
 
 // PostReconciliationChecker is implemented by resources that want to do extra status checks after
-// a full ARM reconcile.
+// a full ARM reconcile. This extension is invoked after Azure operations succeed but before the Ready
+// condition is marked successful, allowing resources to defer readiness until additional conditions are met.
+// Implement this extension when:
+// - The Azure resource continues initializing after ARM operations complete
+// - Manual approval or external processes must complete before the resource is ready
+// - Complex validation is needed to determine true readiness
 type PostReconciliationChecker interface {
 	// PostReconcileCheck does a post-reconcile check to see if the resource is in a state to set 'Ready' condition.
 	// ARM resources should implement this if they need to defer the Ready condition until later.
 	// Returns PostReconcileCheckResultSuccess if the reconciliation is successful.
 	// Returns PostReconcileCheckResultFailure and a human-readable reason if the reconciliation should put a condition on resource.
 	// ctx is the current operation context.
-	// obj is the resource about to be reconciled. The resource's State will be freshly updated.
+	// obj is the resource that was reconciled. The resource's status will be freshly updated.
 	// owner is the parent resource of obj. This can be nil in some cases like `ResourceGroups` and `Alias`.
-	// kubeClient allows access to the cluster for any required queries.
+	// resourceResolver helps resolve resource references.
 	// armClient allows access to ARM for any required queries.
 	// log is the logger for the current operation.
+	// reconcilePolicies are the reconcile policies in effect during the current reconcile.
+	// next is the default check implementation (usually returns success).
 	PostReconcileCheck(
 		ctx context.Context,
 		obj genruntime.MetaObject,
@@ -39,6 +47,7 @@ type PostReconciliationChecker interface {
 		resourceResolver *resolver.Resolver,
 		armClient *genericarmclient.GenericClient,
 		log logr.Logger,
+		reconcilePolicies annotations.ResolvedReconcilePolicies,
 		next PostReconcileCheckFunc,
 	) (PostReconcileCheckResult, error)
 }
@@ -50,6 +59,7 @@ type PostReconcileCheckFunc func(
 	resourceResolver *resolver.Resolver,
 	armClient *genericarmclient.GenericClient,
 	log logr.Logger,
+	reconcilePolicies annotations.ResolvedReconcilePolicies,
 ) (PostReconcileCheckResult, error)
 
 type PostReconcileCheckResult struct {
@@ -94,9 +104,10 @@ func (r PostReconcileCheckResult) Message() string {
 // CreateConditionError returns an error that can be used to set a condition on the resource.
 func (r PostReconcileCheckResult) CreateConditionError() error {
 	return conditions.NewReadyConditionImpactingError(
-		errors.New(r.message),
+		eris.New(r.message),
 		r.severity,
-		r.reason)
+		r.reason,
+	)
 }
 
 // postReconcileCheckResultType is the type of result returned by PreReconcileCheck.
@@ -127,14 +138,25 @@ func CreatePostReconciliationChecker(
 		resourceResolver *resolver.Resolver,
 		armClient *genericarmclient.GenericClient,
 		log logr.Logger,
+		reconcilePolicies annotations.ResolvedReconcilePolicies,
 	) (PostReconcileCheckResult, error) {
 		log.V(Status).Info("Extension post-reconcile check running")
 
-		result, err := impl.PostReconcileCheck(ctx, obj, owner, resourceResolver, armClient, log, alwaysSucceed)
+		result, err := impl.PostReconcileCheck(
+			ctx,
+			obj,
+			owner,
+			resourceResolver,
+			armClient,
+			log,
+			reconcilePolicies,
+			alwaysSucceed,
+		)
 		if err != nil {
 			log.V(Status).Info(
 				"Extension post-reconcile check failed",
-				"Error", err.Error())
+				"Error", err.Error(),
+			)
 
 			// We choose to skip here so that things are definitely broken and the user will notice
 			// If we defaulted to always reconciling, the user might not notice that something is wrong
@@ -156,6 +178,7 @@ func alwaysSucceed(
 	_ *resolver.Resolver,
 	_ *genericarmclient.GenericClient,
 	_ logr.Logger,
+	_ annotations.ResolvedReconcilePolicies,
 ) (PostReconcileCheckResult, error) {
 	return PostReconcileCheckResultSuccess(), nil
 }

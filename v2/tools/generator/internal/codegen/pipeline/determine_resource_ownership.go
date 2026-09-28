@@ -10,32 +10,33 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
 )
 
 const resourcesPropertyName = astmodel.PropertyName("Resources")
 
-const DetermineResourceOwnershipStageId = "determineResourceOwnership"
+const DetermineResourceOwnershipStageID = "determineResourceOwnership"
 
 func DetermineResourceOwnership(
 	configuration *config.Configuration,
 ) *Stage {
 	return NewStage(
-		DetermineResourceOwnershipStageId,
+		DetermineResourceOwnershipStageID,
 		"Determine ARM resource relationships",
 		func(ctx context.Context, state *State) (*State, error) {
 			determiner := newOwnershipStage(configuration, state.Definitions())
 			defs, err := determiner.assignOwners()
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to determine resource ownership")
+				return nil, eris.Wrapf(err, "failed to determine resource ownership")
 			}
 
 			return state.WithOverlaidDefinitions(defs), nil
-		})
+		},
+	)
 }
 
 type ownershipStage struct {
@@ -59,10 +60,8 @@ func newOwnershipStage(
 }
 
 func (o *ownershipStage) indexByParent() {
-	resources := astmodel.FindResourceDefinitions(o.definitions)
-
 	// Index all resources by canonical URL of their parent
-	for _, def := range resources {
+	for _, def := range o.definitions.AllResources() {
 		rt, _ := astmodel.AsResourceType(def.Type())
 		canonical := o.canonicalizeURI(rt.ARMURI())
 		parent := o.uriOfParentResource(canonical)
@@ -74,14 +73,13 @@ func (o *ownershipStage) indexByParent() {
 
 func (o *ownershipStage) assignOwners() (astmodel.TypeDefinitionSet, error) {
 	updatedDefs := make(astmodel.TypeDefinitionSet)
-	resources := astmodel.FindResourceDefinitions(o.definitions)
 
 	// Loop through and associate children with parents, if found
 	var errs []error
-	for _, def := range resources {
+	for _, def := range o.definitions.AllResources() {
 		resolved, err := o.definitions.ResolveResourceSpecAndStatus(def)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to find resource %s spec and status", def.Name())
+			return nil, eris.Wrapf(err, "unable to find resource %s spec and status", def.Name())
 		}
 
 		childResourceTypeNames := o.findChildren(def)
@@ -90,20 +88,34 @@ func (o *ownershipStage) assignOwners() (astmodel.TypeDefinitionSet, error) {
 		if err != nil {
 			errs = append(
 				errs,
-				errors.Wrapf(err, "failed to update ownership for resource %s", def.Name()))
+				eris.Wrapf(err, "failed to update ownership for resource %s", def.Name()),
+			)
 			continue
 		}
 
 		// Remove the resources property from the owning resource spec
 		// TODO: Can delete this once we drop JSON schema golden files
-		newDef := resolved.SpecDef.WithType(resolved.SpecType.WithoutProperty(resourcesPropertyName))
-		updatedDefs[resolved.SpecDef.Name()] = newDef
+		if _, ok := resolved.SpecType.Property(resourcesPropertyName); ok {
+			// Remove the property from the Spec while preserving the structure of the original type
+			remover := astmodel.NewPropertyRemover()
+			newDef, err := remover.Remove(resolved.SpecDef, resourcesPropertyName)
+			if err != nil {
+				errs = append(
+					errs,
+					eris.Wrapf(err, "failed to remove resources property from resource %s", def.Name()),
+				)
+				continue
+			}
+
+			updatedDefs[resolved.SpecDef.Name()] = newDef
+		}
 	}
 
 	if len(errs) > 0 {
-		return nil, errors.Wrapf(
+		return nil, eris.Wrapf(
 			kerrors.NewAggregate(errs),
-			"failed to update ownership for some resources")
+			"failed to update ownership for some resources",
+		)
 	}
 
 	o.setDefaultOwner(updatedDefs)
@@ -148,50 +160,82 @@ func (o *ownershipStage) updateChildResourceDefinitionsWithOwner(
 	owningResourceName astmodel.InternalTypeName,
 	updatedDefs astmodel.TypeDefinitionSet,
 ) error {
+	applyOwnerToChild := func(
+		owner astmodel.InternalTypeName,
+		def astmodel.TypeDefinition,
+		rsrc *astmodel.ResourceType,
+	) {
+		// Update the child resource to have the requested owner
+		rsrc = rsrc.WithOwner(owner)
+		def = def.WithType(rsrc)
+
+		// We update the definition set with overwrite semantics, as we may have already added this child
+		// with a worse choice for owner
+		updatedDefs[def.Name()] = def
+	}
+
 	for _, typeName := range childResourceTypeNames {
 		// Use the singular form of the name
 		typeName = typeName.Singular()
 
-		// Confirm the type really exists
-		childResourceDef, ok := o.definitions[typeName]
+		// Confirm the child type really exists by finding its definition.
+		// Look in updatedDefs first, as we may have already modified it
+		childResourceDef, ok := updatedDefs[typeName]
 		if !ok {
-			return errors.Errorf("couldn't find child resource type %s", typeName)
+			// If not found, look in the original definitions
+			childResourceDef, ok = o.definitions[typeName]
+			if !ok {
+				return eris.Errorf("couldn't find child resource type %s", typeName)
+			}
 		}
 
-		// TODO: If it ever arises that we have a resource whose owner doesn't exist in the same API
-		// TODO: version this might be an issue.
+		childResource, ok := childResourceDef.Type().(*astmodel.ResourceType)
+		if !ok {
+			return eris.Errorf("child resource %s not of type *astmodel.ResourceType, instead %T", typeName, childResourceDef.Type())
+		}
+
 		// Ownership transcends APIVersion, but in order for things like $exportAs to work, it's best if
 		// ownership for each resource points to the owner in the same package. This ensures that standard tools
 		// like renamingVisitor work.
-		if !typeName.InternalPackageReference().Equals(owningResourceName.InternalPackageReference()) {
-			continue // Don't own if in a different package
+		//
+		// Thus, we prefer to set owners within the same package as the child if we can.
+		// If we must have an owner in a different package, we need to disambiguate by choosing the one in the
+		// newest package so that our order of processing produces a consistent result.
+		//
+		// Two examples for why we need to do this:
+		//  (i) StorSimple has the ame URIs on "different" types (different potential parents for
+		//     the same child), so we disambiguate in favour of the one with the same package.
+		// (ii) Insights don't publish all resources in all versions, so we have parents from
+		//      different versions than their children (e.g. Component vs PricingPlan)
+
+		// If the child doesn't have an owner, set it to the candidate we have
+		existingOwner := childResource.Owner()
+		if existingOwner.IsEmpty() {
+			applyOwnerToChild(owningResourceName, childResourceDef, childResource)
+			continue
 		}
 
-		// Update the definition of the child resource type to point to its owner
-		childResource, ok := childResourceDef.Type().(*astmodel.ResourceType)
-		if !ok {
-			return errors.Errorf("child resource %s not of type *astmodel.ResourceType, instead %T", typeName, childResourceDef.Type())
+		// if the child already has an owner in the same package as the child,
+		// keep that owner unchanged
+		if existingOwner.PackageReference().Equals(typeName.PackageReference()) {
+			continue
 		}
 
-		childResourceDef = childResourceDef.WithType(childResource.WithOwner(owningResourceName))
-		err := updatedDefs.AddAllowDuplicates(childResourceDef)
-		if err != nil {
-			// workaround: StorSimple has the same URIs on multiple "different" types
-			// resolve in favour of the one that has a matching package
-			if childResourceDef.Name().PackageReference().Equals(owningResourceName.PackageReference()) {
-				// override
-				updatedDefs[childResourceDef.Name()] = childResourceDef
-				continue // okay!
-			} else {
-				// double-check that existing one matches
-				existingDef := updatedDefs[childResourceDef.Name()]
-				rt := existingDef.Type().(*astmodel.ResourceType)
-				if existingDef.Name().PackageReference().Equals(rt.Owner().PackageReference()) {
-					continue // okay!
-				}
-			}
+		// If the candidate new owner is in the same package as the child, use that
+		if owningResourceName.InternalPackageReference().Equals(typeName.InternalPackageReference()) {
+			applyOwnerToChild(owningResourceName, childResourceDef, childResource)
+			continue
+		}
 
-			return errors.Wrapf(err, "conflicting child resource already defined for %s [%s]", typeName, childResource.ARMURI())
+		// Given two candidate owners, neither of which is in the same package as the child,
+		// we need to choose the one with the most recent package reference.
+		if astmodel.ComparePathAndVersion(
+			existingOwner.InternalPackageReference().ImportPath(),
+			owningResourceName.InternalPackageReference().ImportPath(),
+		) < 0 {
+			// New owner is more recent, so use it
+			applyOwnerToChild(owningResourceName, childResourceDef, childResource)
+			continue
 		}
 	}
 
@@ -220,7 +264,8 @@ func (o *ownershipStage) setDefaultOwner(
 				// Note that the version doesn't really matter here -- it's removed later. We just need to refer to the logical
 				// resource group really
 				o.configuration.MakeLocalPackageReference("resources", "v20191001"),
-				"ResourceGroup")
+				"ResourceGroup",
+			)
 			updatedType := resourceType.WithOwner(ownerTypeName) // TODO: Note that right now... this type doesn't actually exist...
 			// This can overwrite because a resource with no owner may have had child resources,
 			// and earlier on in this process we removed the resources property from the parent resource,

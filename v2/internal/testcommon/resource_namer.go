@@ -6,7 +6,9 @@ Licensed under the MIT license.
 package testcommon
 
 import (
+	crypto "crypto/rand"
 	"hash/fnv"
+	"math/big"
 	"math/rand"
 	"strings"
 	"time"
@@ -35,35 +37,34 @@ type ResourceNamer struct {
 }
 
 // WithTestName returns a new ResourceNamer configured based on the provided test name.
-// If the original ResourceNamer was entirely random (mode == ResourceNamerModeRandom),
-// the returned namer is not actually based on the test name and is instead still entirely random
+// The mode of the original resource namer is preserved.
 func (n ResourceNamer) WithTestName(testName string) ResourceNamer {
-	// Short circuit for the case we're supposed to be totally random, as we already are
-	if n.mode == ResourceNamerModeRandom {
-		return n
-	}
-
 	return n.NewResourceNamer(testName)
 }
 
 // NewResourceNamer returns a ResourceNamer that generates random
 // suffixes based upon the test name
 func (rnc ResourceNameConfig) NewResourceNamer(testName string) ResourceNamer {
-	var r *rand.Rand
-	if rnc.mode == ResourceNamerModeRandom {
-		//nolint:gosec // do not want cryptographic randomness here
-		r = rand.New(rand.NewSource(time.Now().UnixNano()))
-	} else {
-		hasher := fnv.New64()
-		n, err := hasher.Write([]byte(testName))
-		if n != len(testName) || err != nil {
-			panic("failed to write hash")
-		}
-
-		seed := hasher.Sum64()
-		//nolint:gosec // do not want cryptographic randomness here
-		r = rand.New(rand.NewSource(int64(seed)))
+	// Calculate an initial seed based on the test name
+	hasher := fnv.New64()
+	n, err := hasher.Write([]byte(testName))
+	if n != len(testName) || err != nil {
+		panic("failed to write hash")
 	}
+
+	//nolint:gosec // don't care about int overflow
+	seed := int64(hasher.Sum64())
+
+	// This seed is enough to get the same sequence of "random" values every time.
+	// If we want a different sequence every time, include time as part of the seed too
+	if rnc.mode == ResourceNamerModeRandom {
+		t := time.Now().UnixNano()
+		seed = seed ^ t
+	}
+
+	src := rand.NewSource(seed)
+	//nolint:gosec // do not need/want cryptographic randomness here
+	r := rand.New(src)
 
 	return ResourceNamer{
 		ResourceNameConfig: rnc,
@@ -103,6 +104,18 @@ func (n ResourceNamer) makeRandomStringOfLength(num int, runes []rune) string {
 	return string(result)
 }
 
+func (n ResourceNamer) makeSecureStringOfLength(num int, runes []rune) string {
+	result := make([]rune, num)
+	for i := range result {
+		// Ignoring error here since big.NewInt does not return `0 <= x < length`
+		idx, _ := crypto.Int(crypto.Reader, big.NewInt(int64(len(runes))))
+
+		result[i] = runes[idx.Int64()]
+	}
+
+	return string(result)
+}
+
 func (n ResourceNamer) generateName(prefix string, num int) string {
 	result := n.makeRandomStringOfLength(num, n.runes)
 
@@ -123,16 +136,29 @@ func (n ResourceNamer) GenerateName(prefix string) string {
 	return n.generateName(prefix, n.randomChars)
 }
 
+func (n ResourceNamer) GenerateNameOfLength(length int) string {
+	return n.generateName("", length)
+}
+
 func (n ResourceNamer) GeneratePassword() string {
 	return n.GeneratePasswordOfLength(n.randomChars)
 }
 
+var runes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789~!@#$%^*()._-")
+
+// GeneratePasswordOfLength generates and returns a non-deterministic password.
+// This method does not use any seed value, so the returned password is never stable.
 func (n ResourceNamer) GeneratePasswordOfLength(length int) string {
-	runes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789~!@#$%^&*()")
 	// This pass + <content> + pass pattern is to make it so that matchers can reliably find and prune
 	// generated passwords from the recordings. If you change it make sure to change the passwordMatcher
 	// in test_context.go as well.
-	return "pass" + n.makeRandomStringOfLength(length, runes) + "pass"
+	return "pass" + n.makeSecureStringOfLength(length, runes) + "pass"
+}
+
+// GenerateSecretOfLength generates and returns a non-deterministic secret.
+// This method does not use any seed value, so the returned password is never stable.
+func (n ResourceNamer) GenerateSecretOfLength(length int) string {
+	return n.makeSecureStringOfLength(length, runes)
 }
 
 func (n ResourceNamer) GenerateUUID() (uuid.UUID, error) {

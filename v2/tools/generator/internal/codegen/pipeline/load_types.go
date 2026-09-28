@@ -11,14 +11,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/go-openapi/spec"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/sync/errgroup"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -42,26 +42,28 @@ func LoadTypes(
 	config *config.Configuration,
 	log logr.Logger,
 ) *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		LoadTypesStageID,
 		"Load all types from Swagger files",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
 			log.V(1).Info(
 				"Loading Swagger data",
-				"source", config.SchemaRoot)
+				"source", config.SchemaRoot,
+			)
 
 			swaggerTypes, err := loadSwaggerData(ctx, idFactory, config, log)
 			if err != nil {
-				return nil, errors.Wrapf(err, "unable to load Swagger data")
+				return nil, eris.Wrapf(err, "unable to load Swagger data")
 			}
 
 			log.V(1).Info(
 				"Loaded Swagger data",
 				"resources", len(swaggerTypes.ResourceDefinitions),
-				"otherDefinitions", len(swaggerTypes.OtherDefinitions))
+				"otherDefinitions", len(swaggerTypes.OtherDefinitions),
+			)
 
 			if len(swaggerTypes.ResourceDefinitions) == 0 || len(swaggerTypes.OtherDefinitions) == 0 {
-				return nil, errors.Errorf("Failed to load swagger information")
+				return nil, eris.Errorf("Failed to load swagger information")
 			}
 
 			resourceToStatus, statusTypes, err := generateStatusTypes(swaggerTypes)
@@ -91,8 +93,7 @@ func LoadTypes(
 
 				// add on ARM Type, URI, and supported operations
 				resourceType = resourceType.WithARMType(resourceInfo.ARMType).WithARMURI(resourceInfo.ARMURI)
-				scope := categorizeResourceScope(resourceInfo.ARMURI)
-				resourceType = resourceType.WithScope(scope)
+				resourceType = resourceType.WithScope(resourceInfo.Scope)
 				resourceType = resourceType.WithSupportedOperations(resourceInfo.SupportedOperations)
 
 				resourceDefinition := astmodel.MakeTypeDefinition(resourceName, resourceType)
@@ -113,45 +114,22 @@ func LoadTypes(
 
 				err = addObjectResourceLinkIfNeeded(defs, spec, resourceName)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed to add resource link to %s", spec.Name())
+					return nil, eris.Wrapf(err, "failed to add resource link to %s", spec.Name())
 				}
 				err = addObjectResourceLinkIfNeeded(defs, status, resourceName)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed to add resource link to %s", status.Name())
+					return nil, eris.Wrapf(err, "failed to add resource link to %s", status.Name())
 				}
 			}
 
-			return defs, nil
-		})
-}
-
-var (
-	resourceGroupScopeRegex = regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourcegroups/[^/]+/.*`)
-	locationScopeRegex      = regexp.MustCompile(`(?i)^/subscriptions/[^/]+/.*`)
-)
-
-func categorizeResourceScope(armURI string) astmodel.ResourceScope {
-	// this is a bit of a hack, eventually we should have better scope support.
-	// at the moment we assume that a resource is an extension if it can be applied to
-	// any scope or if armURI contains more than 1 provider:
-	if strings.HasPrefix(armURI, "/{scope}/") || strings.Count(armURI, "providers") > 1 {
-		return astmodel.ResourceScopeExtension
-	}
-
-	if resourceGroupScopeRegex.MatchString(armURI) {
-		return astmodel.ResourceScopeResourceGroup
-	}
-
-	if locationScopeRegex.MatchString(armURI) {
-		return astmodel.ResourceScopeLocation
-	}
-
-	// TODO: Not currently possible to generate a resource with scope Location, we should fix that
-	return astmodel.ResourceScopeTenant
+			return state.WithDefinitions(defs), nil
+		},
+	)
 }
 
 var requiredSpecFields = astmodel.NewObjectType().WithProperties(
-	astmodel.NewPropertyDefinition(astmodel.NameProperty, "name", astmodel.StringType))
+	astmodel.NewPropertyDefinition(astmodel.NameProperty, "name", astmodel.StringType),
+)
 
 func addRequiredSpecFields(t astmodel.Type) astmodel.Type {
 	return astmodel.BuildAllOfType(t, requiredSpecFields)
@@ -160,7 +138,9 @@ func addRequiredSpecFields(t astmodel.Type) astmodel.Type {
 // generateStatusTypes returns the statusTypes for the input Swagger types
 // all types (apart from Resources) are renamed to have "_STATUS" as a
 // suffix, to avoid name clashes.
-func generateStatusTypes(swaggerTypes jsonast.SwaggerTypes) (astmodel.TypeDefinitionSet, astmodel.TypeDefinitionSet, error) {
+func generateStatusTypes(
+	swaggerTypes jsonast.SwaggerTypes,
+) (astmodel.TypeDefinitionSet, astmodel.TypeDefinitionSet, error) {
 	resourceLookup, otherTypes, err := renamed(swaggerTypes, true, astmodel.StatusSuffix)
 	if err != nil {
 		return nil, nil, err
@@ -181,6 +161,13 @@ func generateStatusTypes(swaggerTypes jsonast.SwaggerTypes) (astmodel.TypeDefini
 		targetType, err := otherTypes.FullyResolve(statusTypeName)
 		if err != nil {
 			panic("didn't find type in set after renaming; shouldn't be possible")
+		}
+
+		if _, isOneOf := astmodel.AsOneOfType(targetType); isOneOf {
+			// We must avoid copying the body of a OneOf type into the status of the
+			// resource because they are currently partially formed - they won't be
+			// standalone independent types until after conversion to objects.
+			targetType = statusTypeName
 		}
 
 		err = otherTypes.AddAllowDuplicates(astmodel.MakeTypeDefinition(desiredStatusName, targetType))
@@ -205,7 +192,8 @@ func renamed(
 	renamer := astmodel.NewRenamingVisitorFromLambda(
 		func(typeName astmodel.InternalTypeName) astmodel.InternalTypeName {
 			return typeName.WithName(typeName.Name() + suffix)
-		})
+		},
+	)
 
 	var errs []error
 	otherTypes := make(astmodel.TypeDefinitionSet)
@@ -241,7 +229,9 @@ func renamed(
 	return resources, otherTypes, nil
 }
 
-func generateSpecTypes(swaggerTypes jsonast.SwaggerTypes) (astmodel.TypeDefinitionSet, astmodel.TypeDefinitionSet, error) {
+func generateSpecTypes(
+	swaggerTypes jsonast.SwaggerTypes,
+) (astmodel.TypeDefinitionSet, astmodel.TypeDefinitionSet, error) {
 	// TODO: I think this should be renamed to "_Spec" for consistency, but will do in a separate PR for cleanliness #Naming
 	// the alternative is that we place them in their own package
 	resources, otherTypes, err := renamed(swaggerTypes, false, "")
@@ -317,7 +307,8 @@ func loadSwaggerData(
 		ctx,
 		idFactory,
 		config,
-		log)
+		log,
+	)
 	if err != nil {
 		return jsonast.SwaggerTypes{}, err
 	}
@@ -331,7 +322,8 @@ func loadSwaggerData(
 			log,
 			"Loading Swagger files",
 			"loaded", countLoaded,
-			"total", len(schemas))
+			"total", len(schemas),
+		)
 		countLoaded++
 
 		extractor := jsonast.NewSwaggerTypeExtractor(
@@ -341,11 +333,12 @@ func loadSwaggerData(
 			schemaPath,
 			*schema.Package, // always set during generation
 			loader,
-			log)
+			log,
+		)
 
 		types, err := extractor.ExtractTypes(ctx)
 		if err != nil {
-			return jsonast.SwaggerTypes{}, errors.Wrapf(err, "error processing %q", schemaPath)
+			return jsonast.SwaggerTypes{}, eris.Wrapf(err, "error processing %q", schemaPath)
 		}
 
 		typesByGroup[*schema.Package] = append(typesByGroup[*schema.Package], typesFromFile{types, schemaPath})
@@ -354,9 +347,10 @@ func loadSwaggerData(
 	log.Info(
 		"Loaded Swagger files",
 		"loaded", countLoaded,
-		"total", len(schemas))
+		"total", len(schemas),
+	)
 
-	return mergeSwaggerTypesByGroup(idFactory, typesByGroup)
+	return mergeSwaggerTypesByGroup(idFactory, typesByGroup, config)
 }
 
 var (
@@ -376,14 +370,22 @@ func logInfoSparse(log logr.Logger, message string, keysAndValues ...interface{}
 	}
 }
 
-func mergeSwaggerTypesByGroup(idFactory astmodel.IdentifierFactory, m map[astmodel.LocalPackageReference][]typesFromFile) (jsonast.SwaggerTypes, error) {
+func mergeSwaggerTypesByGroup(
+	idFactory astmodel.IdentifierFactory,
+	m map[astmodel.LocalPackageReference][]typesFromFile,
+	cfg *config.Configuration,
+) (jsonast.SwaggerTypes, error) {
 	result := jsonast.SwaggerTypes{
 		ResourceDefinitions: make(jsonast.ResourceDefinitionSet),
 		OtherDefinitions:    make(astmodel.TypeDefinitionSet),
 	}
 
 	for pkg, group := range m {
-		merged := mergeTypesForPackage(idFactory, group)
+		merged, err := mergeTypesForPackage(group, idFactory, cfg)
+		if err != nil {
+			return result, eris.Wrapf(err, "merging swagger types for %s", pkg)
+		}
+
 		for rn, rt := range merged.ResourceDefinitions {
 			if _, ok := result.ResourceDefinitions[rn]; ok {
 				panic("duplicate resource generated")
@@ -392,9 +394,9 @@ func mergeSwaggerTypesByGroup(idFactory astmodel.IdentifierFactory, m map[astmod
 			result.ResourceDefinitions[rn] = rt
 		}
 
-		err := result.OtherDefinitions.AddTypesAllowDuplicates(merged.OtherDefinitions)
+		err = result.OtherDefinitions.AddTypesAllowDuplicates(merged.OtherDefinitions)
 		if err != nil {
-			return result, errors.Wrapf(err, "when combining swagger types for %s", pkg)
+			return result, eris.Wrapf(err, "when combining swagger types for %s", pkg)
 		}
 	}
 
@@ -406,21 +408,39 @@ type typesFromFile struct {
 	filePath string
 }
 
-type typesFromFilesSorter struct{ x []typesFromFile }
-
-var _ sort.Interface = typesFromFilesSorter{}
-
-func (s typesFromFilesSorter) Len() int           { return len(s.x) }
-func (s typesFromFilesSorter) Swap(i, j int)      { s.x[i], s.x[j] = s.x[j], s.x[i] }
-func (s typesFromFilesSorter) Less(i, j int) bool { return s.x[i].filePath < s.x[j].filePath }
-
-// mergeTypesForPackage merges the types for a single package from multiple files
-func mergeTypesForPackage(idFactory astmodel.IdentifierFactory, typesFromFiles []typesFromFile) jsonast.SwaggerTypes {
-	sort.Sort(typesFromFilesSorter{typesFromFiles})
+// mergeTypesForPackage merges the types for a single package from multiple files into our master set.
+// typesFromFiles is a slice of typesFromFile, each of which contains the types for a single file.
+// idFactory is used to generate new identifiers for types that collide.
+func mergeTypesForPackage(
+	typesFromFiles []typesFromFile,
+	idFactory astmodel.IdentifierFactory,
+	cfg *config.Configuration,
+) (*jsonast.SwaggerTypes, error) {
+	// Sort into order by filePath so we're deterministic
+	slices.SortFunc(
+		typesFromFiles,
+		func(left typesFromFile, right typesFromFile) int {
+			return strings.Compare(left.filePath, right.filePath)
+		},
+	)
 
 	typeNameCounts := make(map[astmodel.InternalTypeName]int)
 	for _, typesFromFile := range typesFromFiles {
 		for name := range typesFromFile.OtherDefinitions {
+			// TODO: This is very hacky
+			if strings.Contains(name.String(), "network/v1api20220701/SubResource") {
+				def := typesFromFile.OtherDefinitions[name]
+				ot, ok := def.Type().(*astmodel.ObjectType)
+				if ok {
+					prop, foundProp := ot.Property("Id")
+					if foundProp {
+						ot = ot.WithProperty(prop.MakeOptional())
+						def = def.WithType(ot)
+					}
+				}
+				typesFromFile.OtherDefinitions[name] = def
+			}
+
 			typeNameCounts[name] += 1
 		}
 	}
@@ -452,7 +472,7 @@ func mergeTypesForPackage(idFactory astmodel.IdentifierFactory, typesFromFiles [
 		}
 	}
 
-	mergedResult := jsonast.SwaggerTypes{
+	mergedResult := &jsonast.SwaggerTypes{
 		ResourceDefinitions: make(jsonast.ResourceDefinitionSet),
 		OtherDefinitions:    make(astmodel.TypeDefinitionSet),
 	}
@@ -467,17 +487,100 @@ func mergeTypesForPackage(idFactory astmodel.IdentifierFactory, typesFromFiles [
 			// but they might be structurally equal
 		}
 
+		defs := mergedResult.OtherDefinitions
 		for rn, rt := range typesFromFile.ResourceDefinitions {
-			if foundRT, ok := mergedResult.ResourceDefinitions[rn]; ok &&
-				!(astmodel.TypeEquals(foundRT.SpecType, rt.SpecType) && astmodel.TypeEquals(foundRT.StatusType, rt.StatusType)) {
-				panic(fmt.Sprintf("While merging file %s: duplicate resource types generated", typesFromFile.filePath))
+			if foundRT, ok := mergedResult.ResourceDefinitions[rn]; ok {
+				// We have two resources with the same name, if they have exact same structure, they're the same
+				scopesEqual := foundRT.Scope == rt.Scope
+				specsEqual := structurallyIdentical(foundRT.SpecType, defs, rt.SpecType, defs)
+				statusesEqual := structurallyIdentical(foundRT.StatusType, defs, rt.StatusType, defs)
+				if scopesEqual && specsEqual && statusesEqual {
+					// They're the same resource, we're good.
+					continue
+				}
+
+				// Check for renames and apply them if available
+				delete(mergedResult.ResourceDefinitions, rn)
+				newNameA, renamedA := tryRename(rn, rt, cfg)
+				newNameB, renamedB := tryRename(rn, foundRT, cfg)
+
+				if _, collides := mergedResult.ResourceDefinitions[newNameA]; collides {
+					err := eris.Errorf(
+						"merging file %s: renaming %s to %s resulted in a collision with an existing type",
+						typesFromFile.filePath,
+						rn.Name(),
+						newNameA.Name(),
+					)
+
+					return nil, err
+				}
+
+				if _, collides := mergedResult.ResourceDefinitions[newNameB]; collides {
+					err := eris.Errorf(
+						"merging file %s: renaming %s to %s resulted in a collision with an existing type",
+						typesFromFile.filePath,
+						rn.Name(),
+						newNameB.Name(),
+					)
+
+					return nil, err
+				}
+
+				if newNameA != newNameB && (renamedA || renamedB) {
+					// One or other or both was successfully renamed, we can keep going
+					mergedResult.ResourceDefinitions[newNameA] = rt
+					mergedResult.ResourceDefinitions[newNameB] = foundRT
+					continue
+				}
+
+				// Names are still the same. We have a collision.
+				err := eris.Errorf(
+					"merging file %s: duplicate resource types generated with name %s",
+					typesFromFile.filePath,
+					rn.Name(),
+				)
+
+				return nil, err
 			}
 
 			mergedResult.ResourceDefinitions[rn] = rt
 		}
 	}
 
-	return mergedResult
+	return mergedResult, nil
+}
+
+func tryRename(
+	name astmodel.InternalTypeName,
+	rsrc jsonast.ResourceDefinition,
+	cfg *config.Configuration,
+) (astmodel.InternalTypeName, bool) {
+	if cfg == nil {
+		// No renames configured
+		return name, false
+	}
+
+	for _, ren := range cfg.TypeLoaderRenames {
+		if !ren.AppliesToType(name) {
+			// Doesn't apply to us, not our name
+			continue
+		}
+
+		if ren.Scope != nil &&
+			!strings.EqualFold(*ren.Scope, string(rsrc.Scope)) {
+			// Doesn't apply to us, not our scope
+			continue
+		}
+
+		if ren.RenameTo == nil {
+			// No rename configured
+			return name, false
+		}
+
+		return name.WithName(*ren.RenameTo), true
+	}
+
+	return name, false
 }
 
 type typeAndSource struct {
@@ -549,7 +652,8 @@ func generateRenaming(
 	// Prefix the typename with the filename
 	result := astmodel.MakeInternalTypeName(
 		original.InternalPackageReference(),
-		idFactory.CreateIdentifier(name+original.Name(), astmodel.Exported))
+		idFactory.CreateIdentifier(name+original.Name(), astmodel.Exported),
+	)
 
 	// see if there are any collisions: add Xs until there are no collisions
 	// TODO: this might result in non-determinism depending on iteration order
@@ -596,6 +700,7 @@ func applyRenames(
 			ARMURI:              rt.ARMURI,
 			ARMType:             rt.ARMType,
 			SupportedOperations: rt.SupportedOperations,
+			Scope:               rt.Scope,
 		}
 	}
 
@@ -650,7 +755,8 @@ func structurallyIdentical(
 		if !astmodel.TypeEquals(
 			leftDefinitions[next.left].Type(),
 			rightDefinitions[next.right].Type(),
-			override) {
+			override,
+		) {
 			return false
 		}
 	}
@@ -672,6 +778,20 @@ func shouldSkipDir(filePath string) bool {
 
 	for _, skipDir := range skipDirectories {
 		if strings.Contains(p, skipDir) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// shouldSkipFile returns true if a legacy *_API.json file should be skipped because a
+// TypeSpec-generated openapi.json exists in the same directory and supersedes it.
+func shouldSkipFile(filePath string) bool {
+	base := filepath.Base(filePath)
+	if strings.HasSuffix(base, "_API.json") {
+		openapiPath := filepath.Join(filepath.Dir(filePath), "openapi.json")
+		if _, err := os.Stat(openapiPath); err == nil {
 			return true
 		}
 	}
@@ -716,17 +836,21 @@ func loadAllSchemas(
 		if !fileInfo.IsDir() &&
 			filepath.Ext(filePath) == ".json" {
 
+			if shouldSkipFile(filePath) {
+				return nil
+			}
+
 			group := groupFromPath(filePath, rootPath, overrides)
 			version := versionFromPath(filePath, rootPath)
 			if group == "" || version == "" {
 				return nil
 			}
 
-			pkg := astmodel.MakeLocalPackageReference(
+			pkg := astmodel.MakeVersionedLocalPackageReference(
 				localPathPrefix,
 				idFactory.CreateGroupName(group),
-				astmodel.GeneratorVersion,
-				version)
+				version,
+			)
 
 			// We need the file if the version is short (e.g. "v1") because those are often shared between
 			// resource providers.
@@ -741,7 +865,8 @@ func loadAllSchemas(
 			logInfoSparse(
 				log,
 				"Scanning for schemas",
-				"found", countFound)
+				"found", countFound,
+			)
 			countFound++
 
 			eg.Go(func() error {
@@ -749,16 +874,17 @@ func loadAllSchemas(
 
 				log.V(1).Info(
 					"Loading OpenAPI spec",
-					"file", filePath)
+					"file", filePath,
+				)
 
 				fileContent, err := os.ReadFile(filePath)
 				if err != nil {
-					return errors.Wrapf(err, "unable to read swagger file %q", filePath)
+					return eris.Wrapf(err, "unable to read swagger file %q", filePath)
 				}
 
 				err = swagger.UnmarshalJSON(fileContent)
 				if err != nil {
-					return errors.Wrapf(err, "unable to parse swagger file %q", filePath)
+					return eris.Wrapf(err, "unable to parse swagger file %q", filePath)
 				}
 
 				mutex.Lock()
@@ -775,7 +901,8 @@ func loadAllSchemas(
 	egErr := eg.Wait() // for files to finish loading
 	log.Info(
 		"Scanning for schemas",
-		"found", countFound)
+		"found", countFound,
+	)
 
 	if err != nil {
 		return nil, err

@@ -10,11 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/pkg/errors"
-
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
 	"github.com/dave/dst"
+	"github.com/rotisserie/eris"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/readonly"
@@ -74,7 +72,8 @@ func (i *InterfaceType) References() TypeNameSet {
 	i.functions.ForEach(
 		func(name string, method Function) {
 			result.AddAll(method.References())
-		})
+		},
+	)
 	return result
 }
 
@@ -117,7 +116,7 @@ func (i *InterfaceType) AsDeclarations(
 ) ([]dst.Decl, error) {
 	iExpr, err := i.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for interface %s", declContext.Name)
+		return nil, eris.Wrapf(err, "creating type expression for interface %s", declContext.Name)
 	}
 
 	declaration := &dst.GenDecl{
@@ -155,7 +154,8 @@ func (i *InterfaceType) RequiredPackageReferences() *PackageReferenceSet {
 	i.functions.ForEach(
 		func(_ string, method Function) {
 			result.Merge(method.RequiredPackageReferences())
-		})
+		},
+	)
 
 	return result
 }
@@ -173,11 +173,8 @@ func (i *InterfaceType) Equals(t Type, overrides EqualityOverrides) bool {
 	equalityFunc := func(l, r Function) bool {
 		return l.Equals(r, overrides)
 	}
-	if !i.functions.Equals(other.functions, equalityFunc) {
-		return false
-	}
 
-	return true
+	return i.functions.Equals(other.functions, equalityFunc)
 }
 
 // String implements fmt.Stringer
@@ -234,7 +231,7 @@ func functionToField(
 	// Populate Type
 	f, err := function.AsFunc(codeGenerationContext, InternalTypeName{}) // Empty typename here because we have no receiver
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to determiine type of function %s", function.Name())
+		return nil, eris.Wrapf(err, "unable to determiine type of function %s", function.Name())
 	}
 
 	result.Type = f.Type

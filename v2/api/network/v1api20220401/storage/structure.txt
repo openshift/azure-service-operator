@@ -3,6 +3,7 @@ github.com/Azure/azure-service-operator/v2/api/network/v1api20220401/storage
 ----------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2022-04-01"
+
 TrafficManagerProfile: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
 ├── Spec: Object (15 properties)
@@ -31,11 +32,13 @@ TrafficManagerProfile: Resource
 │   │   ├── Protocol: *string
 │   │   ├── TimeoutInSeconds: *int
 │   │   └── ToleratedNumberOfFailures: *int
-│   ├── OperatorSpec: *Object (2 properties)
+│   ├── OperatorSpec: *Object (4 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
 │   │   ├── ConfigMaps: *Object (2 properties)
 │   │   │   ├── DnsConfigFqdn: *genruntime.ConfigMapDestination
 │   │   │   └── PropertyBag: genruntime.PropertyBag
-│   │   └── PropertyBag: genruntime.PropertyBag
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── ProfileStatus: *string
@@ -52,9 +55,32 @@ TrafficManagerProfile: Resource
     │   ├── PropertyBag: genruntime.PropertyBag
     │   ├── RelativeName: *string
     │   └── Ttl: *int
-    ├── Endpoints: Object (2 properties)[]
+    ├── Endpoints: Object (18 properties)[]
+    │   ├── AlwaysServe: *string
+    │   ├── CustomHeaders: Object (3 properties)[]
+    │   │   ├── Name: *string
+    │   │   ├── PropertyBag: genruntime.PropertyBag
+    │   │   └── Value: *string
+    │   ├── EndpointLocation: *string
+    │   ├── EndpointMonitorStatus: *string
+    │   ├── EndpointStatus: *string
+    │   ├── GeoMapping: string[]
     │   ├── Id: *string
-    │   └── PropertyBag: genruntime.PropertyBag
+    │   ├── MinChildEndpoints: *int
+    │   ├── MinChildEndpointsIPv4: *int
+    │   ├── MinChildEndpointsIPv6: *int
+    │   ├── Name: *string
+    │   ├── Priority: *int
+    │   ├── PropertyBag: genruntime.PropertyBag
+    │   ├── Subnets: Object (4 properties)[]
+    │   │   ├── First: *string
+    │   │   ├── Last: *string
+    │   │   ├── PropertyBag: genruntime.PropertyBag
+    │   │   └── Scope: *int
+    │   ├── Target: *string
+    │   ├── TargetResourceId: *string
+    │   ├── Type: *string
+    │   └── Weight: *int
     ├── Id: *string
     ├── Location: *string
     ├── MaxReturn: *int
@@ -82,9 +108,10 @@ TrafficManagerProfile: Resource
     ├── TrafficRoutingMethod: *string
     ├── TrafficViewEnrollmentStatus: *string
     └── Type: *string
+
 TrafficManagerProfilesAzureEndpoint: Resource
 ├── Owner: network/v1api20220401.TrafficManagerProfile
-├── Spec: Object (19 properties)
+├── Spec: Object (20 properties)
 │   ├── AlwaysServe: *string
 │   ├── AzureName: string
 │   ├── CustomHeaders: Object (3 properties)[]
@@ -98,6 +125,10 @@ TrafficManagerProfilesAzureEndpoint: Resource
 │   ├── MinChildEndpoints: *int
 │   ├── MinChildEndpointsIPv4: *int
 │   ├── MinChildEndpointsIPv6: *int
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── Priority: *int
@@ -138,9 +169,10 @@ TrafficManagerProfilesAzureEndpoint: Resource
     ├── TargetResourceId: *string
     ├── Type: *string
     └── Weight: *int
+
 TrafficManagerProfilesExternalEndpoint: Resource
 ├── Owner: network/v1api20220401.TrafficManagerProfile
-├── Spec: Object (19 properties)
+├── Spec: Object (20 properties)
 │   ├── AlwaysServe: *string
 │   ├── AzureName: string
 │   ├── CustomHeaders: Object (3 properties)[]
@@ -154,6 +186,10 @@ TrafficManagerProfilesExternalEndpoint: Resource
 │   ├── MinChildEndpoints: *int
 │   ├── MinChildEndpointsIPv4: *int
 │   ├── MinChildEndpointsIPv6: *int
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── Priority: *int
@@ -194,9 +230,10 @@ TrafficManagerProfilesExternalEndpoint: Resource
     ├── TargetResourceId: *string
     ├── Type: *string
     └── Weight: *int
+
 TrafficManagerProfilesNestedEndpoint: Resource
 ├── Owner: network/v1api20220401.TrafficManagerProfile
-├── Spec: Object (19 properties)
+├── Spec: Object (20 properties)
 │   ├── AlwaysServe: *string
 │   ├── AzureName: string
 │   ├── CustomHeaders: Object (3 properties)[]
@@ -210,6 +247,10 @@ TrafficManagerProfilesNestedEndpoint: Resource
 │   ├── MinChildEndpoints: *int
 │   ├── MinChildEndpointsIPv4: *int
 │   ├── MinChildEndpointsIPv6: *int
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── Priority: *int
@@ -250,3 +291,4 @@ TrafficManagerProfilesNestedEndpoint: Resource
     ├── TargetResourceId: *string
     ├── Type: *string
     └── Weight: *int
+

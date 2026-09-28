@@ -5,32 +5,34 @@ package v1api20230501preview
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/apimanagement/v1api20230501preview/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/apimanagement/v1api20230501preview/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,apimanagement}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /apimanagement/resource-manager/Microsoft.ApiManagement/preview/2023-05-01-preview/apimauthorizationproviders.json
+// - Generated from: /apimanagement/resource-manager/Microsoft.ApiManagement/ApiManagement/preview/2023-05-01-preview/apimauthorizationproviders.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ApiManagement/service/{serviceName}/authorizationProviders/{authorizationProviderId}/authorizations/{authorizationId}/accessPolicies/{authorizationAccessPolicyId}
 type AuthorizationProvidersAuthorizationsAccessPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec   `json:"spec,omitempty"`
-	Status            Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS `json:"status,omitempty"`
+	Spec              AuthorizationProvidersAuthorizationsAccessPolicy_Spec   `json:"spec,omitempty"`
+	Status            AuthorizationProvidersAuthorizationsAccessPolicy_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &AuthorizationProvidersAuthorizationsAccessPolicy{}
@@ -54,12 +56,12 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) ConvertFrom(hub 
 
 	err := source.ConvertFrom(hub)
 	if err != nil {
-		return errors.Wrap(err, "converting from hub to source")
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
 	err = policy.AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy(&source)
 	if err != nil {
-		return errors.Wrap(err, "converting from source to policy")
+		return eris.Wrap(err, "converting from source to policy")
 	}
 
 	return nil
@@ -71,39 +73,34 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) ConvertTo(hub co
 	var destination storage.AuthorizationProvidersAuthorizationsAccessPolicy
 	err := policy.AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy(&destination)
 	if err != nil {
-		return errors.Wrap(err, "converting to destination from policy")
+		return eris.Wrap(err, "converting to destination from policy")
 	}
 	err = destination.ConvertTo(hub)
 	if err != nil {
-		return errors.Wrap(err, "converting from destination to hub")
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
 	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-authorizationprovidersauthorizationsaccesspolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=authorizationprovidersauthorizationsaccesspolicies,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.authorizationprovidersauthorizationsaccesspolicies.apimanagement.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &AuthorizationProvidersAuthorizationsAccessPolicy{}
 
-var _ admission.Defaulter = &AuthorizationProvidersAuthorizationsAccessPolicy{}
-
-// Default applies defaults to the AuthorizationProvidersAuthorizationsAccessPolicy resource
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) Default() {
-	policy.defaultImpl()
-	var temp any = policy
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if policy.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return policy.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) defaultAzureName() {
-	if policy.Spec.AzureName == "" {
-		policy.Spec.AzureName = policy.Name
-	}
-}
+var _ secrets.Exporter = &AuthorizationProvidersAuthorizationsAccessPolicy{}
 
-// defaultImpl applies the code generated defaults to the AuthorizationProvidersAuthorizationsAccessPolicy resource
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) defaultImpl() {
-	policy.defaultAzureName()
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) SecretDestinationExpressions() []*core.DestinationExpression {
+	if policy.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return policy.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &AuthorizationProvidersAuthorizationsAccessPolicy{}
@@ -115,7 +112,7 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) AzureName() stri
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-05-01-preview"
 func (policy AuthorizationProvidersAuthorizationsAccessPolicy) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-05-01-preview"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -149,11 +146,15 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) GetType() string
 
 // NewEmptyStatus returns a new empty (blank) status
 func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS{}
+	return &AuthorizationProvidersAuthorizationsAccessPolicy_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) Owner() *genruntime.ResourceReference {
+	if policy.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(policy.Spec)
 	return policy.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -161,113 +162,20 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) Owner() *genrunt
 // SetStatus sets the status of this resource
 func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS); ok {
+	if st, ok := status.(*AuthorizationProvidersAuthorizationsAccessPolicy_STATUS); ok {
 		policy.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS
+	var st AuthorizationProvidersAuthorizationsAccessPolicy_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	policy.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-authorizationprovidersauthorizationsaccesspolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=authorizationprovidersauthorizationsaccesspolicies,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.authorizationprovidersauthorizationsaccesspolicies.apimanagement.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &AuthorizationProvidersAuthorizationsAccessPolicy{}
-
-// ValidateCreate validates the creation of the resource
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) ValidateCreate() (admission.Warnings, error) {
-	validations := policy.createValidations()
-	var temp any = policy
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) ValidateDelete() (admission.Warnings, error) {
-	validations := policy.deleteValidations()
-	var temp any = policy
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := policy.updateValidations()
-	var temp any = policy
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){policy.validateResourceReferences, policy.validateOwnerReference, policy.validateOptionalConfigMapReferences}
-}
-
-// deleteValidations validates the deletion of the resource
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return policy.validateResourceReferences()
-		},
-		policy.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return policy.validateOwnerReference()
-		},
-		func(old runtime.Object) (admission.Warnings, error) {
-			return policy.validateOptionalConfigMapReferences()
-		},
-	}
-}
-
-// validateOptionalConfigMapReferences validates all optional configmap reference pairs to ensure that at most 1 is set
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) validateOptionalConfigMapReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindOptionalConfigMapReferences(&policy.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateOptionalConfigMapReferences(refs)
-}
-
-// validateOwnerReference validates the owner field
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(policy)
-}
-
-// validateResourceReferences validates all resource references
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&policy.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*AuthorizationProvidersAuthorizationsAccessPolicy)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, policy)
 }
 
 // AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy populates our AuthorizationProvidersAuthorizationsAccessPolicy from the provided source AuthorizationProvidersAuthorizationsAccessPolicy
@@ -277,18 +185,18 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) AssignProperties
 	policy.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec
-	err := spec.AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec(&source.Spec)
+	var spec AuthorizationProvidersAuthorizationsAccessPolicy_Spec
+	err := spec.AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_Spec() to populate field Spec")
 	}
 	policy.Spec = spec
 
 	// Status
-	var status Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS
-	err = status.AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS(&source.Status)
+	var status AuthorizationProvidersAuthorizationsAccessPolicy_STATUS
+	err = status.AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS() to populate field Status")
 	}
 	policy.Status = status
 
@@ -303,18 +211,18 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) AssignProperties
 	destination.ObjectMeta = *policy.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec
-	err := policy.Spec.AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec(&spec)
+	var spec storage.AuthorizationProvidersAuthorizationsAccessPolicy_Spec
+	err := policy.Spec.AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS
-	err = policy.Status.AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS(&status)
+	var status storage.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS
+	err = policy.Status.AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -333,7 +241,7 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) OriginalGVK() *s
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /apimanagement/resource-manager/Microsoft.ApiManagement/preview/2023-05-01-preview/apimauthorizationproviders.json
+// - Generated from: /apimanagement/resource-manager/Microsoft.ApiManagement/ApiManagement/preview/2023-05-01-preview/apimauthorizationproviders.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ApiManagement/service/{serviceName}/authorizationProviders/{authorizationProviderId}/authorizations/{authorizationId}/accessPolicies/{authorizationAccessPolicyId}
 type AuthorizationProvidersAuthorizationsAccessPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -341,7 +249,7 @@ type AuthorizationProvidersAuthorizationsAccessPolicyList struct {
 	Items           []AuthorizationProvidersAuthorizationsAccessPolicy `json:"items"`
 }
 
-type Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec struct {
+type AuthorizationProvidersAuthorizationsAccessPolicy_Spec struct {
 	// AppIds: The allowed Azure Active Directory Application IDs
 	AppIds []string `json:"appIds,omitempty"`
 
@@ -358,6 +266,10 @@ type Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec struct {
 	// ObjectIdFromConfig: The Object Id
 	ObjectIdFromConfig *genruntime.ConfigMapReference `json:"objectIdFromConfig,omitempty" optionalConfigMapPair:"ObjectId"`
 
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec `json:"operatorSpec,omitempty"`
+
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
 	// controls the resources lifecycle. When the owner is deleted the resource will also be deleted. Owner is expected to be a
@@ -371,14 +283,14 @@ type Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec struct {
 	TenantIdFromConfig *genruntime.ConfigMapReference `json:"tenantIdFromConfig,omitempty" optionalConfigMapPair:"TenantId"`
 }
 
-var _ genruntime.ARMTransformer = &Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec{}
+var _ genruntime.ARMTransformer = &AuthorizationProvidersAuthorizationsAccessPolicy_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if policy == nil {
 		return nil, nil
 	}
-	result := &Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec_ARM{}
+	result := &arm.AuthorizationProvidersAuthorizationsAccessPolicy_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
@@ -389,7 +301,7 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) C
 		policy.ObjectIdFromConfig != nil ||
 		policy.TenantId != nil ||
 		policy.TenantIdFromConfig != nil {
-		result.Properties = &AuthorizationAccessPolicyContractProperties_ARM{}
+		result.Properties = &arm.AuthorizationAccessPolicyContractProperties{}
 	}
 	for _, item := range policy.AppIds {
 		result.Properties.AppIds = append(result.Properties.AppIds, item)
@@ -401,7 +313,7 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) C
 	if policy.ObjectIdFromConfig != nil {
 		objectIdValue, err := resolved.ResolvedConfigMaps.Lookup(*policy.ObjectIdFromConfig)
 		if err != nil {
-			return nil, errors.Wrap(err, "looking up configmap for property ObjectId")
+			return nil, eris.Wrap(err, "looking up configmap for property ObjectId")
 		}
 		objectId := objectIdValue
 		result.Properties.ObjectId = &objectId
@@ -413,7 +325,7 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) C
 	if policy.TenantIdFromConfig != nil {
 		tenantIdValue, err := resolved.ResolvedConfigMaps.Lookup(*policy.TenantIdFromConfig)
 		if err != nil {
-			return nil, errors.Wrap(err, "looking up configmap for property TenantId")
+			return nil, eris.Wrap(err, "looking up configmap for property TenantId")
 		}
 		tenantId := tenantIdValue
 		result.Properties.TenantId = &tenantId
@@ -422,15 +334,15 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) C
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec_ARM{}
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.AuthorizationProvidersAuthorizationsAccessPolicy_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec_ARM)
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.AuthorizationProvidersAuthorizationsAccessPolicy_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AuthorizationProvidersAuthorizationsAccessPolicy_Spec, got %T", armInput)
 	}
 
 	// Set property "AppIds":
@@ -455,6 +367,8 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) P
 
 	// no assignment for property "ObjectIdFromConfig"
 
+	// no assignment for property "OperatorSpec"
+
 	// Set property "Owner":
 	policy.Owner = &genruntime.KnownResourceReference{
 		Name:  owner.Name,
@@ -476,58 +390,58 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) P
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec{}
+var _ genruntime.ConvertibleSpec = &AuthorizationProvidersAuthorizationsAccessPolicy_Spec{}
 
-// ConvertSpecFrom populates our Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec from the provided source
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec)
+// ConvertSpecFrom populates our AuthorizationProvidersAuthorizationsAccessPolicy_Spec from the provided source
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.AuthorizationProvidersAuthorizationsAccessPolicy_Spec)
 	if ok {
 		// Populate our instance from source
-		return policy.AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec(src)
+		return policy.AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec{}
+	src = &storage.AuthorizationProvidersAuthorizationsAccessPolicy_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = policy.AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec(src)
+	err = policy.AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec)
+// ConvertSpecTo populates the provided destination from our AuthorizationProvidersAuthorizationsAccessPolicy_Spec
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.AuthorizationProvidersAuthorizationsAccessPolicy_Spec)
 	if ok {
 		// Populate destination from our instance
-		return policy.AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec(dst)
+		return policy.AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec{}
-	err := policy.AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec(dst)
+	dst = &storage.AuthorizationProvidersAuthorizationsAccessPolicy_Spec{}
+	err := policy.AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec populates our Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec from the provided source Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec(source *storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) error {
+// AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_Spec populates our AuthorizationProvidersAuthorizationsAccessPolicy_Spec from the provided source AuthorizationProvidersAuthorizationsAccessPolicy_Spec
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_Spec(source *storage.AuthorizationProvidersAuthorizationsAccessPolicy_Spec) error {
 
 	// AppIds
 	policy.AppIds = genruntime.CloneSliceOfString(source.AppIds)
@@ -544,6 +458,18 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) A
 		policy.ObjectIdFromConfig = &objectIdFromConfig
 	} else {
 		policy.ObjectIdFromConfig = nil
+	}
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec
+		err := operatorSpec.AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec() to populate field OperatorSpec")
+		}
+		policy.OperatorSpec = &operatorSpec
+	} else {
+		policy.OperatorSpec = nil
 	}
 
 	// Owner
@@ -569,8 +495,8 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) A
 	return nil
 }
 
-// AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec populates the provided destination Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec from our Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec(destination *storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) error {
+// AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_Spec populates the provided destination AuthorizationProvidersAuthorizationsAccessPolicy_Spec from our AuthorizationProvidersAuthorizationsAccessPolicy_Spec
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_Spec(destination *storage.AuthorizationProvidersAuthorizationsAccessPolicy_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -589,6 +515,18 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) A
 		destination.ObjectIdFromConfig = &objectIdFromConfig
 	} else {
 		destination.ObjectIdFromConfig = nil
+	}
+
+	// OperatorSpec
+	if policy.OperatorSpec != nil {
+		var operatorSpec storage.AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec
+		err := policy.OperatorSpec.AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
 	}
 
 	// OriginalVersion
@@ -625,16 +563,16 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) A
 }
 
 // OriginalVersion returns the original API version used to create the resource.
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) OriginalVersion() string {
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
 // SetAzureName sets the Azure name of the resource
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_Spec) SetAzureName(azureName string) {
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_Spec) SetAzureName(azureName string) {
 	policy.AzureName = azureName
 }
 
-type Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS struct {
+type AuthorizationProvidersAuthorizationsAccessPolicy_STATUS struct {
 	// AppIds: The allowed Azure Active Directory Application IDs
 	AppIds []string `json:"appIds,omitempty"`
 
@@ -658,68 +596,68 @@ type Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS struct {
 	Type *string `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS{}
+var _ genruntime.ConvertibleStatus = &AuthorizationProvidersAuthorizationsAccessPolicy_STATUS{}
 
-// ConvertStatusFrom populates our Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS from the provided source
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS)
+// ConvertStatusFrom populates our AuthorizationProvidersAuthorizationsAccessPolicy_STATUS from the provided source
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS)
 	if ok {
 		// Populate our instance from source
-		return policy.AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS(src)
+		return policy.AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS{}
+	src = &storage.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = policy.AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS(src)
+	err = policy.AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS)
+// ConvertStatusTo populates the provided destination from our AuthorizationProvidersAuthorizationsAccessPolicy_STATUS
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return policy.AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS(dst)
+		return policy.AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS{}
-	err := policy.AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS(dst)
+	dst = &storage.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS{}
+	err := policy.AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS{}
+var _ genruntime.FromARMConverter = &AuthorizationProvidersAuthorizationsAccessPolicy_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS_ARM{}
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS_ARM)
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS, got %T", armInput)
 	}
 
 	// Set property "AppIds":
@@ -772,8 +710,8 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS)
 	return nil
 }
 
-// AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS populates our Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS from the provided source Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS) AssignProperties_From_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS(source *storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS) error {
+// AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS populates our AuthorizationProvidersAuthorizationsAccessPolicy_STATUS from the provided source AuthorizationProvidersAuthorizationsAccessPolicy_STATUS
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_STATUS) AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS(source *storage.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS) error {
 
 	// AppIds
 	policy.AppIds = genruntime.CloneSliceOfString(source.AppIds)
@@ -800,8 +738,8 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS)
 	return nil
 }
 
-// AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS populates the provided destination Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS from our Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS
-func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS) AssignProperties_To_Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS(destination *storage.Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS) error {
+// AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS populates the provided destination AuthorizationProvidersAuthorizationsAccessPolicy_STATUS from our AuthorizationProvidersAuthorizationsAccessPolicy_STATUS
+func (policy *AuthorizationProvidersAuthorizationsAccessPolicy_STATUS) AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicy_STATUS(destination *storage.AuthorizationProvidersAuthorizationsAccessPolicy_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -825,6 +763,102 @@ func (policy *Service_AuthorizationProviders_Authorizations_AccessPolicy_STATUS)
 
 	// Type
 	destination.Type = genruntime.ClonePointerToString(policy.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec populates our AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec from the provided source AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec
+func (operator *AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec) AssignProperties_From_AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec(source *storage.AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec populates the provided destination AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec from our AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec
+func (operator *AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec) AssignProperties_To_AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec(destination *storage.AuthorizationProvidersAuthorizationsAccessPolicyOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
 
 	// Update the property bag
 	if len(propertyBag) > 0 {

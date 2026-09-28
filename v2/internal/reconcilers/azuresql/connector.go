@@ -8,11 +8,11 @@ package sql
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	ctrlconversion "sigs.k8s.io/controller-runtime/pkg/conversion"
 
 	asosql "github.com/Azure/azure-service-operator/v2/api/sql/v1"
-	sql "github.com/Azure/azure-service-operator/v2/api/sql/v1api20211101/storage"
+	sql "github.com/Azure/azure-service-operator/v2/api/sql/v20250101/storage"
 	"github.com/Azure/azure-service-operator/v2/internal/resolver"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 )
@@ -38,7 +38,7 @@ func getOwnerDetails(ctx context.Context, resourceResolver *resolver.Resolver, u
 	// Note that this is not actually possible for this type because we don't allow ARMID references for these owners,
 	// but protecting against it here anyway.
 	if !owner.FoundKubernetesOwner() {
-		return ownerDetails{}, errors.Errorf("user owner must exist in Kubernetes for user %s", user.Name)
+		return ownerDetails{}, eris.Errorf("user owner must exist in Kubernetes for user %s", user.Name)
 	}
 
 	hierarchy, err := resourceResolver.ResolveResourceHierarchy(ctx, owner.Owner)
@@ -46,21 +46,24 @@ func getOwnerDetails(ctx context.Context, resourceResolver *resolver.Resolver, u
 		return ownerDetails{}, err
 	}
 
-	if len(hierarchy) != 3 {
-		return ownerDetails{}, errors.Errorf("failed to look up ownerDetails: expected resource hierarchy len=3 but was %d", len(hierarchy))
+	var server *sql.Server
+	var database *sql.ServersDatabase
+	for _, object := range hierarchy {
+		switch object.(type) {
+		case *sql.Server:
+			server = object.(*sql.Server)
+		case *sql.ServersDatabase:
+			database = object.(*sql.ServersDatabase)
+		default:
+		}
 	}
 
-	genericServer := hierarchy[1]
-	genericDatabase := hierarchy[2]
-
-	server, ok := genericServer.(*sql.Server)
-	if !ok {
-		return ownerDetails{}, errors.Errorf("owner's owner was not type Server, instead: %T", genericServer)
+	if server == nil {
+		return ownerDetails{}, eris.New("could not find a value of type Server in the hierarchy")
 	}
 
-	database, ok := genericDatabase.(*sql.ServersDatabase)
-	if !ok {
-		return ownerDetails{}, errors.Errorf("owner was not type ServersDatabase, instead: %T", genericDatabase)
+	if database == nil {
+		return ownerDetails{}, eris.New("could not find a value of type ServersDatabase in the hierarchy")
 	}
 
 	// Assertion to ensure that this is still the storage type
@@ -77,7 +80,7 @@ func getOwnerDetails(ctx context.Context, resourceResolver *resolver.Resolver, u
 	// TODO: owners.
 	if server.Status.FullyQualifiedDomainName == nil {
 		// This possibly means that the server hasn't finished deploying yet
-		err = errors.Errorf("owning Server %q '.status.fullyQualifiedDomainName' not set. Has the server been provisioned successfully?", server.Name)
+		err = eris.Errorf("owning Server %q '.status.fullyQualifiedDomainName' not set. Has the server been provisioned successfully?", server.Name)
 		return ownerDetails{}, conditions.NewReadyConditionImpactingError(err, conditions.ConditionSeverityWarning, conditions.ReasonWaitingForOwner)
 	}
 	serverFQDN := *server.Status.FullyQualifiedDomainName

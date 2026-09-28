@@ -5,32 +5,34 @@ package v1api20231101
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/dataprotection/v1api20231101/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/dataprotection/v1api20231101/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,dataprotection}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /dataprotection/resource-manager/Microsoft.DataProtection/stable/2023-11-01/dataprotection.json
+// - Generated from: /dataprotection/resource-manager/Microsoft.DataProtection/DataProtection/stable/2023-11-01/dataprotection.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DataProtection/backupVaults/{vaultName}/backupPolicies/{backupPolicyName}
 type BackupVaultsBackupPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              BackupVaults_BackupPolicy_Spec   `json:"spec,omitempty"`
-	Status            BackupVaults_BackupPolicy_STATUS `json:"status,omitempty"`
+	Spec              BackupVaultsBackupPolicy_Spec   `json:"spec,omitempty"`
+	Status            BackupVaultsBackupPolicy_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &BackupVaultsBackupPolicy{}
@@ -49,56 +51,56 @@ var _ conversion.Convertible = &BackupVaultsBackupPolicy{}
 
 // ConvertFrom populates our BackupVaultsBackupPolicy from the provided hub BackupVaultsBackupPolicy
 func (policy *BackupVaultsBackupPolicy) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.BackupVaultsBackupPolicy)
-	if !ok {
-		return fmt.Errorf("expected dataprotection/v1api20231101/storage/BackupVaultsBackupPolicy but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.BackupVaultsBackupPolicy
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return policy.AssignProperties_From_BackupVaultsBackupPolicy(source)
+	err = policy.AssignProperties_From_BackupVaultsBackupPolicy(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to policy")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub BackupVaultsBackupPolicy from our BackupVaultsBackupPolicy
 func (policy *BackupVaultsBackupPolicy) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.BackupVaultsBackupPolicy)
-	if !ok {
-		return fmt.Errorf("expected dataprotection/v1api20231101/storage/BackupVaultsBackupPolicy but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.BackupVaultsBackupPolicy
+	err := policy.AssignProperties_To_BackupVaultsBackupPolicy(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from policy")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return policy.AssignProperties_To_BackupVaultsBackupPolicy(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-dataprotection-azure-com-v1api20231101-backupvaultsbackuppolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dataprotection.azure.com,resources=backupvaultsbackuppolicies,verbs=create;update,versions=v1api20231101,name=default.v1api20231101.backupvaultsbackuppolicies.dataprotection.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &BackupVaultsBackupPolicy{}
 
-var _ admission.Defaulter = &BackupVaultsBackupPolicy{}
-
-// Default applies defaults to the BackupVaultsBackupPolicy resource
-func (policy *BackupVaultsBackupPolicy) Default() {
-	policy.defaultImpl()
-	var temp any = policy
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (policy *BackupVaultsBackupPolicy) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if policy.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return policy.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (policy *BackupVaultsBackupPolicy) defaultAzureName() {
-	if policy.Spec.AzureName == "" {
-		policy.Spec.AzureName = policy.Name
+var _ secrets.Exporter = &BackupVaultsBackupPolicy{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (policy *BackupVaultsBackupPolicy) SecretDestinationExpressions() []*core.DestinationExpression {
+	if policy.Spec.OperatorSpec == nil {
+		return nil
 	}
-}
-
-// defaultImpl applies the code generated defaults to the BackupVaultsBackupPolicy resource
-func (policy *BackupVaultsBackupPolicy) defaultImpl() { policy.defaultAzureName() }
-
-var _ genruntime.ImportableResource = &BackupVaultsBackupPolicy{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (policy *BackupVaultsBackupPolicy) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*BackupVaults_BackupPolicy_STATUS); ok {
-		return policy.Spec.Initialize_From_BackupVaults_BackupPolicy_STATUS(s)
-	}
-
-	return fmt.Errorf("expected Status of type BackupVaults_BackupPolicy_STATUS but received %T instead", status)
+	return policy.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &BackupVaultsBackupPolicy{}
@@ -110,7 +112,7 @@ func (policy *BackupVaultsBackupPolicy) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-11-01"
 func (policy BackupVaultsBackupPolicy) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-11-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -144,11 +146,15 @@ func (policy *BackupVaultsBackupPolicy) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (policy *BackupVaultsBackupPolicy) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &BackupVaults_BackupPolicy_STATUS{}
+	return &BackupVaultsBackupPolicy_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (policy *BackupVaultsBackupPolicy) Owner() *genruntime.ResourceReference {
+	if policy.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(policy.Spec)
 	return policy.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -156,101 +162,20 @@ func (policy *BackupVaultsBackupPolicy) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (policy *BackupVaultsBackupPolicy) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*BackupVaults_BackupPolicy_STATUS); ok {
+	if st, ok := status.(*BackupVaultsBackupPolicy_STATUS); ok {
 		policy.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st BackupVaults_BackupPolicy_STATUS
+	var st BackupVaultsBackupPolicy_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	policy.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-dataprotection-azure-com-v1api20231101-backupvaultsbackuppolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dataprotection.azure.com,resources=backupvaultsbackuppolicies,verbs=create;update,versions=v1api20231101,name=validate.v1api20231101.backupvaultsbackuppolicies.dataprotection.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &BackupVaultsBackupPolicy{}
-
-// ValidateCreate validates the creation of the resource
-func (policy *BackupVaultsBackupPolicy) ValidateCreate() (admission.Warnings, error) {
-	validations := policy.createValidations()
-	var temp any = policy
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (policy *BackupVaultsBackupPolicy) ValidateDelete() (admission.Warnings, error) {
-	validations := policy.deleteValidations()
-	var temp any = policy
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (policy *BackupVaultsBackupPolicy) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := policy.updateValidations()
-	var temp any = policy
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (policy *BackupVaultsBackupPolicy) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){policy.validateResourceReferences, policy.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (policy *BackupVaultsBackupPolicy) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (policy *BackupVaultsBackupPolicy) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return policy.validateResourceReferences()
-		},
-		policy.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return policy.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (policy *BackupVaultsBackupPolicy) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(policy)
-}
-
-// validateResourceReferences validates all resource references
-func (policy *BackupVaultsBackupPolicy) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&policy.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (policy *BackupVaultsBackupPolicy) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*BackupVaultsBackupPolicy)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, policy)
 }
 
 // AssignProperties_From_BackupVaultsBackupPolicy populates our BackupVaultsBackupPolicy from the provided source BackupVaultsBackupPolicy
@@ -260,18 +185,18 @@ func (policy *BackupVaultsBackupPolicy) AssignProperties_From_BackupVaultsBackup
 	policy.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec BackupVaults_BackupPolicy_Spec
-	err := spec.AssignProperties_From_BackupVaults_BackupPolicy_Spec(&source.Spec)
+	var spec BackupVaultsBackupPolicy_Spec
+	err := spec.AssignProperties_From_BackupVaultsBackupPolicy_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_BackupVaults_BackupPolicy_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_BackupVaultsBackupPolicy_Spec() to populate field Spec")
 	}
 	policy.Spec = spec
 
 	// Status
-	var status BackupVaults_BackupPolicy_STATUS
-	err = status.AssignProperties_From_BackupVaults_BackupPolicy_STATUS(&source.Status)
+	var status BackupVaultsBackupPolicy_STATUS
+	err = status.AssignProperties_From_BackupVaultsBackupPolicy_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_BackupVaults_BackupPolicy_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_BackupVaultsBackupPolicy_STATUS() to populate field Status")
 	}
 	policy.Status = status
 
@@ -286,18 +211,18 @@ func (policy *BackupVaultsBackupPolicy) AssignProperties_To_BackupVaultsBackupPo
 	destination.ObjectMeta = *policy.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.BackupVaults_BackupPolicy_Spec
-	err := policy.Spec.AssignProperties_To_BackupVaults_BackupPolicy_Spec(&spec)
+	var spec storage.BackupVaultsBackupPolicy_Spec
+	err := policy.Spec.AssignProperties_To_BackupVaultsBackupPolicy_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_BackupVaults_BackupPolicy_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_BackupVaultsBackupPolicy_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.BackupVaults_BackupPolicy_STATUS
-	err = policy.Status.AssignProperties_To_BackupVaults_BackupPolicy_STATUS(&status)
+	var status storage.BackupVaultsBackupPolicy_STATUS
+	err = policy.Status.AssignProperties_To_BackupVaultsBackupPolicy_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_BackupVaults_BackupPolicy_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_BackupVaultsBackupPolicy_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +241,7 @@ func (policy *BackupVaultsBackupPolicy) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /dataprotection/resource-manager/Microsoft.DataProtection/stable/2023-11-01/dataprotection.json
+// - Generated from: /dataprotection/resource-manager/Microsoft.DataProtection/DataProtection/stable/2023-11-01/dataprotection.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DataProtection/backupVaults/{vaultName}/backupPolicies/{backupPolicyName}
 type BackupVaultsBackupPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -324,10 +249,14 @@ type BackupVaultsBackupPolicyList struct {
 	Items           []BackupVaultsBackupPolicy `json:"items"`
 }
 
-type BackupVaults_BackupPolicy_Spec struct {
+type BackupVaultsBackupPolicy_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
 	AzureName string `json:"azureName,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *BackupVaultsBackupPolicyOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -339,44 +268,46 @@ type BackupVaults_BackupPolicy_Spec struct {
 	Properties *BaseBackupPolicy `json:"properties,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &BackupVaults_BackupPolicy_Spec{}
+var _ genruntime.ARMTransformer = &BackupVaultsBackupPolicy_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (policy *BackupVaults_BackupPolicy_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (policy *BackupVaultsBackupPolicy_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if policy == nil {
 		return nil, nil
 	}
-	result := &BackupVaults_BackupPolicy_Spec_ARM{}
+	result := &arm.BackupVaultsBackupPolicy_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
 
 	// Set property "Properties":
 	if policy.Properties != nil {
-		properties_ARM, err := (*policy.Properties).ConvertToARM(resolved)
+		properties_ARM, err := policy.Properties.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		properties := *properties_ARM.(*BaseBackupPolicy_ARM)
+		properties := *properties_ARM.(*arm.BaseBackupPolicy)
 		result.Properties = &properties
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (policy *BackupVaults_BackupPolicy_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupVaults_BackupPolicy_Spec_ARM{}
+func (policy *BackupVaultsBackupPolicy_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.BackupVaultsBackupPolicy_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (policy *BackupVaults_BackupPolicy_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupVaults_BackupPolicy_Spec_ARM)
+func (policy *BackupVaultsBackupPolicy_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.BackupVaultsBackupPolicy_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupVaults_BackupPolicy_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupVaultsBackupPolicy_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
 	policy.SetAzureName(genruntime.ExtractKubernetesResourceNameFromARMName(typedInput.Name))
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "Owner":
 	policy.Owner = &genruntime.KnownResourceReference{
@@ -399,61 +330,73 @@ func (policy *BackupVaults_BackupPolicy_Spec) PopulateFromARM(owner genruntime.A
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &BackupVaults_BackupPolicy_Spec{}
+var _ genruntime.ConvertibleSpec = &BackupVaultsBackupPolicy_Spec{}
 
-// ConvertSpecFrom populates our BackupVaults_BackupPolicy_Spec from the provided source
-func (policy *BackupVaults_BackupPolicy_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.BackupVaults_BackupPolicy_Spec)
+// ConvertSpecFrom populates our BackupVaultsBackupPolicy_Spec from the provided source
+func (policy *BackupVaultsBackupPolicy_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.BackupVaultsBackupPolicy_Spec)
 	if ok {
 		// Populate our instance from source
-		return policy.AssignProperties_From_BackupVaults_BackupPolicy_Spec(src)
+		return policy.AssignProperties_From_BackupVaultsBackupPolicy_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.BackupVaults_BackupPolicy_Spec{}
+	src = &storage.BackupVaultsBackupPolicy_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = policy.AssignProperties_From_BackupVaults_BackupPolicy_Spec(src)
+	err = policy.AssignProperties_From_BackupVaultsBackupPolicy_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our BackupVaults_BackupPolicy_Spec
-func (policy *BackupVaults_BackupPolicy_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.BackupVaults_BackupPolicy_Spec)
+// ConvertSpecTo populates the provided destination from our BackupVaultsBackupPolicy_Spec
+func (policy *BackupVaultsBackupPolicy_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.BackupVaultsBackupPolicy_Spec)
 	if ok {
 		// Populate destination from our instance
-		return policy.AssignProperties_To_BackupVaults_BackupPolicy_Spec(dst)
+		return policy.AssignProperties_To_BackupVaultsBackupPolicy_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.BackupVaults_BackupPolicy_Spec{}
-	err := policy.AssignProperties_To_BackupVaults_BackupPolicy_Spec(dst)
+	dst = &storage.BackupVaultsBackupPolicy_Spec{}
+	err := policy.AssignProperties_To_BackupVaultsBackupPolicy_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_BackupVaults_BackupPolicy_Spec populates our BackupVaults_BackupPolicy_Spec from the provided source BackupVaults_BackupPolicy_Spec
-func (policy *BackupVaults_BackupPolicy_Spec) AssignProperties_From_BackupVaults_BackupPolicy_Spec(source *storage.BackupVaults_BackupPolicy_Spec) error {
+// AssignProperties_From_BackupVaultsBackupPolicy_Spec populates our BackupVaultsBackupPolicy_Spec from the provided source BackupVaultsBackupPolicy_Spec
+func (policy *BackupVaultsBackupPolicy_Spec) AssignProperties_From_BackupVaultsBackupPolicy_Spec(source *storage.BackupVaultsBackupPolicy_Spec) error {
 
 	// AzureName
 	policy.AzureName = source.AzureName
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec BackupVaultsBackupPolicyOperatorSpec
+		err := operatorSpec.AssignProperties_From_BackupVaultsBackupPolicyOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_BackupVaultsBackupPolicyOperatorSpec() to populate field OperatorSpec")
+		}
+		policy.OperatorSpec = &operatorSpec
+	} else {
+		policy.OperatorSpec = nil
+	}
 
 	// Owner
 	if source.Owner != nil {
@@ -468,7 +411,7 @@ func (policy *BackupVaults_BackupPolicy_Spec) AssignProperties_From_BackupVaults
 		var property BaseBackupPolicy
 		err := property.AssignProperties_From_BaseBackupPolicy(source.Properties)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BaseBackupPolicy() to populate field Properties")
+			return eris.Wrap(err, "calling AssignProperties_From_BaseBackupPolicy() to populate field Properties")
 		}
 		policy.Properties = &property
 	} else {
@@ -479,13 +422,25 @@ func (policy *BackupVaults_BackupPolicy_Spec) AssignProperties_From_BackupVaults
 	return nil
 }
 
-// AssignProperties_To_BackupVaults_BackupPolicy_Spec populates the provided destination BackupVaults_BackupPolicy_Spec from our BackupVaults_BackupPolicy_Spec
-func (policy *BackupVaults_BackupPolicy_Spec) AssignProperties_To_BackupVaults_BackupPolicy_Spec(destination *storage.BackupVaults_BackupPolicy_Spec) error {
+// AssignProperties_To_BackupVaultsBackupPolicy_Spec populates the provided destination BackupVaultsBackupPolicy_Spec from our BackupVaultsBackupPolicy_Spec
+func (policy *BackupVaultsBackupPolicy_Spec) AssignProperties_To_BackupVaultsBackupPolicy_Spec(destination *storage.BackupVaultsBackupPolicy_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
 	// AzureName
 	destination.AzureName = policy.AzureName
+
+	// OperatorSpec
+	if policy.OperatorSpec != nil {
+		var operatorSpec storage.BackupVaultsBackupPolicyOperatorSpec
+		err := policy.OperatorSpec.AssignProperties_To_BackupVaultsBackupPolicyOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_BackupVaultsBackupPolicyOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
 
 	// OriginalVersion
 	destination.OriginalVersion = policy.OriginalVersion()
@@ -503,7 +458,7 @@ func (policy *BackupVaults_BackupPolicy_Spec) AssignProperties_To_BackupVaults_B
 		var property storage.BaseBackupPolicy
 		err := policy.Properties.AssignProperties_To_BaseBackupPolicy(&property)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BaseBackupPolicy() to populate field Properties")
+			return eris.Wrap(err, "calling AssignProperties_To_BaseBackupPolicy() to populate field Properties")
 		}
 		destination.Properties = &property
 	} else {
@@ -521,36 +476,17 @@ func (policy *BackupVaults_BackupPolicy_Spec) AssignProperties_To_BackupVaults_B
 	return nil
 }
 
-// Initialize_From_BackupVaults_BackupPolicy_STATUS populates our BackupVaults_BackupPolicy_Spec from the provided source BackupVaults_BackupPolicy_STATUS
-func (policy *BackupVaults_BackupPolicy_Spec) Initialize_From_BackupVaults_BackupPolicy_STATUS(source *BackupVaults_BackupPolicy_STATUS) error {
-
-	// Properties
-	if source.Properties != nil {
-		var property BaseBackupPolicy
-		err := property.Initialize_From_BaseBackupPolicy_STATUS(source.Properties)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_BaseBackupPolicy_STATUS() to populate field Properties")
-		}
-		policy.Properties = &property
-	} else {
-		policy.Properties = nil
-	}
-
-	// No error
-	return nil
-}
-
 // OriginalVersion returns the original API version used to create the resource.
-func (policy *BackupVaults_BackupPolicy_Spec) OriginalVersion() string {
+func (policy *BackupVaultsBackupPolicy_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
 // SetAzureName sets the Azure name of the resource
-func (policy *BackupVaults_BackupPolicy_Spec) SetAzureName(azureName string) {
+func (policy *BackupVaultsBackupPolicy_Spec) SetAzureName(azureName string) {
 	policy.AzureName = azureName
 }
 
-type BackupVaults_BackupPolicy_STATUS struct {
+type BackupVaultsBackupPolicy_STATUS struct {
 	// Conditions: The observed state of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty"`
 
@@ -570,68 +506,68 @@ type BackupVaults_BackupPolicy_STATUS struct {
 	Type *string `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &BackupVaults_BackupPolicy_STATUS{}
+var _ genruntime.ConvertibleStatus = &BackupVaultsBackupPolicy_STATUS{}
 
-// ConvertStatusFrom populates our BackupVaults_BackupPolicy_STATUS from the provided source
-func (policy *BackupVaults_BackupPolicy_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.BackupVaults_BackupPolicy_STATUS)
+// ConvertStatusFrom populates our BackupVaultsBackupPolicy_STATUS from the provided source
+func (policy *BackupVaultsBackupPolicy_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.BackupVaultsBackupPolicy_STATUS)
 	if ok {
 		// Populate our instance from source
-		return policy.AssignProperties_From_BackupVaults_BackupPolicy_STATUS(src)
+		return policy.AssignProperties_From_BackupVaultsBackupPolicy_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.BackupVaults_BackupPolicy_STATUS{}
+	src = &storage.BackupVaultsBackupPolicy_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = policy.AssignProperties_From_BackupVaults_BackupPolicy_STATUS(src)
+	err = policy.AssignProperties_From_BackupVaultsBackupPolicy_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our BackupVaults_BackupPolicy_STATUS
-func (policy *BackupVaults_BackupPolicy_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.BackupVaults_BackupPolicy_STATUS)
+// ConvertStatusTo populates the provided destination from our BackupVaultsBackupPolicy_STATUS
+func (policy *BackupVaultsBackupPolicy_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.BackupVaultsBackupPolicy_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return policy.AssignProperties_To_BackupVaults_BackupPolicy_STATUS(dst)
+		return policy.AssignProperties_To_BackupVaultsBackupPolicy_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.BackupVaults_BackupPolicy_STATUS{}
-	err := policy.AssignProperties_To_BackupVaults_BackupPolicy_STATUS(dst)
+	dst = &storage.BackupVaultsBackupPolicy_STATUS{}
+	err := policy.AssignProperties_To_BackupVaultsBackupPolicy_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &BackupVaults_BackupPolicy_STATUS{}
+var _ genruntime.FromARMConverter = &BackupVaultsBackupPolicy_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (policy *BackupVaults_BackupPolicy_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupVaults_BackupPolicy_STATUS_ARM{}
+func (policy *BackupVaultsBackupPolicy_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.BackupVaultsBackupPolicy_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (policy *BackupVaults_BackupPolicy_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupVaults_BackupPolicy_STATUS_ARM)
+func (policy *BackupVaultsBackupPolicy_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.BackupVaultsBackupPolicy_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupVaults_BackupPolicy_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupVaultsBackupPolicy_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -680,8 +616,8 @@ func (policy *BackupVaults_BackupPolicy_STATUS) PopulateFromARM(owner genruntime
 	return nil
 }
 
-// AssignProperties_From_BackupVaults_BackupPolicy_STATUS populates our BackupVaults_BackupPolicy_STATUS from the provided source BackupVaults_BackupPolicy_STATUS
-func (policy *BackupVaults_BackupPolicy_STATUS) AssignProperties_From_BackupVaults_BackupPolicy_STATUS(source *storage.BackupVaults_BackupPolicy_STATUS) error {
+// AssignProperties_From_BackupVaultsBackupPolicy_STATUS populates our BackupVaultsBackupPolicy_STATUS from the provided source BackupVaultsBackupPolicy_STATUS
+func (policy *BackupVaultsBackupPolicy_STATUS) AssignProperties_From_BackupVaultsBackupPolicy_STATUS(source *storage.BackupVaultsBackupPolicy_STATUS) error {
 
 	// Conditions
 	policy.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
@@ -697,7 +633,7 @@ func (policy *BackupVaults_BackupPolicy_STATUS) AssignProperties_From_BackupVaul
 		var property BaseBackupPolicy_STATUS
 		err := property.AssignProperties_From_BaseBackupPolicy_STATUS(source.Properties)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BaseBackupPolicy_STATUS() to populate field Properties")
+			return eris.Wrap(err, "calling AssignProperties_From_BaseBackupPolicy_STATUS() to populate field Properties")
 		}
 		policy.Properties = &property
 	} else {
@@ -709,7 +645,7 @@ func (policy *BackupVaults_BackupPolicy_STATUS) AssignProperties_From_BackupVaul
 		var systemDatum SystemData_STATUS
 		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
 		}
 		policy.SystemData = &systemDatum
 	} else {
@@ -723,8 +659,8 @@ func (policy *BackupVaults_BackupPolicy_STATUS) AssignProperties_From_BackupVaul
 	return nil
 }
 
-// AssignProperties_To_BackupVaults_BackupPolicy_STATUS populates the provided destination BackupVaults_BackupPolicy_STATUS from our BackupVaults_BackupPolicy_STATUS
-func (policy *BackupVaults_BackupPolicy_STATUS) AssignProperties_To_BackupVaults_BackupPolicy_STATUS(destination *storage.BackupVaults_BackupPolicy_STATUS) error {
+// AssignProperties_To_BackupVaultsBackupPolicy_STATUS populates the provided destination BackupVaultsBackupPolicy_STATUS from our BackupVaultsBackupPolicy_STATUS
+func (policy *BackupVaultsBackupPolicy_STATUS) AssignProperties_To_BackupVaultsBackupPolicy_STATUS(destination *storage.BackupVaultsBackupPolicy_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -742,7 +678,7 @@ func (policy *BackupVaults_BackupPolicy_STATUS) AssignProperties_To_BackupVaults
 		var property storage.BaseBackupPolicy_STATUS
 		err := policy.Properties.AssignProperties_To_BaseBackupPolicy_STATUS(&property)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BaseBackupPolicy_STATUS() to populate field Properties")
+			return eris.Wrap(err, "calling AssignProperties_To_BaseBackupPolicy_STATUS() to populate field Properties")
 		}
 		destination.Properties = &property
 	} else {
@@ -754,7 +690,7 @@ func (policy *BackupVaults_BackupPolicy_STATUS) AssignProperties_To_BackupVaults
 		var systemDatum storage.SystemData_STATUS
 		err := policy.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
 		}
 		destination.SystemData = &systemDatum
 	} else {
@@ -763,6 +699,102 @@ func (policy *BackupVaults_BackupPolicy_STATUS) AssignProperties_To_BackupVaults
 
 	// Type
 	destination.Type = genruntime.ClonePointerToString(policy.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type BackupVaultsBackupPolicyOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_BackupVaultsBackupPolicyOperatorSpec populates our BackupVaultsBackupPolicyOperatorSpec from the provided source BackupVaultsBackupPolicyOperatorSpec
+func (operator *BackupVaultsBackupPolicyOperatorSpec) AssignProperties_From_BackupVaultsBackupPolicyOperatorSpec(source *storage.BackupVaultsBackupPolicyOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_BackupVaultsBackupPolicyOperatorSpec populates the provided destination BackupVaultsBackupPolicyOperatorSpec from our BackupVaultsBackupPolicyOperatorSpec
+func (operator *BackupVaultsBackupPolicyOperatorSpec) AssignProperties_To_BackupVaultsBackupPolicyOperatorSpec(destination *storage.BackupVaultsBackupPolicyOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
@@ -787,15 +819,15 @@ func (policy *BaseBackupPolicy) ConvertToARM(resolved genruntime.ConvertToARMRes
 	if policy == nil {
 		return nil, nil
 	}
-	result := &BaseBackupPolicy_ARM{}
+	result := &arm.BaseBackupPolicy{}
 
 	// Set property "BackupPolicy":
 	if policy.BackupPolicy != nil {
-		backupPolicy_ARM, err := (*policy.BackupPolicy).ConvertToARM(resolved)
+		backupPolicy_ARM, err := policy.BackupPolicy.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		backupPolicy := *backupPolicy_ARM.(*BackupPolicy_ARM)
+		backupPolicy := *backupPolicy_ARM.(*arm.BackupPolicy)
 		result.BackupPolicy = &backupPolicy
 	}
 	return result, nil
@@ -803,14 +835,14 @@ func (policy *BaseBackupPolicy) ConvertToARM(resolved genruntime.ConvertToARMRes
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (policy *BaseBackupPolicy) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BaseBackupPolicy_ARM{}
+	return &arm.BaseBackupPolicy{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (policy *BaseBackupPolicy) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BaseBackupPolicy_ARM)
+	typedInput, ok := armInput.(arm.BaseBackupPolicy)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BaseBackupPolicy_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BaseBackupPolicy, got %T", armInput)
 	}
 
 	// Set property "BackupPolicy":
@@ -836,7 +868,7 @@ func (policy *BaseBackupPolicy) AssignProperties_From_BaseBackupPolicy(source *s
 		var backupPolicy BackupPolicy
 		err := backupPolicy.AssignProperties_From_BackupPolicy(source.BackupPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BackupPolicy() to populate field BackupPolicy")
+			return eris.Wrap(err, "calling AssignProperties_From_BackupPolicy() to populate field BackupPolicy")
 		}
 		policy.BackupPolicy = &backupPolicy
 	} else {
@@ -857,7 +889,7 @@ func (policy *BaseBackupPolicy) AssignProperties_To_BaseBackupPolicy(destination
 		var backupPolicy storage.BackupPolicy
 		err := policy.BackupPolicy.AssignProperties_To_BackupPolicy(&backupPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BackupPolicy() to populate field BackupPolicy")
+			return eris.Wrap(err, "calling AssignProperties_To_BackupPolicy() to populate field BackupPolicy")
 		}
 		destination.BackupPolicy = &backupPolicy
 	} else {
@@ -875,25 +907,6 @@ func (policy *BaseBackupPolicy) AssignProperties_To_BaseBackupPolicy(destination
 	return nil
 }
 
-// Initialize_From_BaseBackupPolicy_STATUS populates our BaseBackupPolicy from the provided source BaseBackupPolicy_STATUS
-func (policy *BaseBackupPolicy) Initialize_From_BaseBackupPolicy_STATUS(source *BaseBackupPolicy_STATUS) error {
-
-	// BackupPolicy
-	if source.BackupPolicy != nil {
-		var backupPolicy BackupPolicy
-		err := backupPolicy.Initialize_From_BackupPolicy_STATUS(source.BackupPolicy)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_BackupPolicy_STATUS() to populate field BackupPolicy")
-		}
-		policy.BackupPolicy = &backupPolicy
-	} else {
-		policy.BackupPolicy = nil
-	}
-
-	// No error
-	return nil
-}
-
 type BaseBackupPolicy_STATUS struct {
 	// BackupPolicy: Mutually exclusive with all other properties
 	BackupPolicy *BackupPolicy_STATUS `json:"backupPolicy,omitempty"`
@@ -903,14 +916,14 @@ var _ genruntime.FromARMConverter = &BaseBackupPolicy_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (policy *BaseBackupPolicy_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BaseBackupPolicy_STATUS_ARM{}
+	return &arm.BaseBackupPolicy_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (policy *BaseBackupPolicy_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BaseBackupPolicy_STATUS_ARM)
+	typedInput, ok := armInput.(arm.BaseBackupPolicy_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BaseBackupPolicy_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BaseBackupPolicy_STATUS, got %T", armInput)
 	}
 
 	// Set property "BackupPolicy":
@@ -936,7 +949,7 @@ func (policy *BaseBackupPolicy_STATUS) AssignProperties_From_BaseBackupPolicy_ST
 		var backupPolicy BackupPolicy_STATUS
 		err := backupPolicy.AssignProperties_From_BackupPolicy_STATUS(source.BackupPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BackupPolicy_STATUS() to populate field BackupPolicy")
+			return eris.Wrap(err, "calling AssignProperties_From_BackupPolicy_STATUS() to populate field BackupPolicy")
 		}
 		policy.BackupPolicy = &backupPolicy
 	} else {
@@ -957,7 +970,7 @@ func (policy *BaseBackupPolicy_STATUS) AssignProperties_To_BaseBackupPolicy_STAT
 		var backupPolicy storage.BackupPolicy_STATUS
 		err := policy.BackupPolicy.AssignProperties_To_BackupPolicy_STATUS(&backupPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BackupPolicy_STATUS() to populate field BackupPolicy")
+			return eris.Wrap(err, "calling AssignProperties_To_BackupPolicy_STATUS() to populate field BackupPolicy")
 		}
 		destination.BackupPolicy = &backupPolicy
 	} else {
@@ -995,7 +1008,7 @@ func (policy *BackupPolicy) ConvertToARM(resolved genruntime.ConvertToARMResolve
 	if policy == nil {
 		return nil, nil
 	}
-	result := &BackupPolicy_ARM{}
+	result := &arm.BackupPolicy{}
 
 	// Set property "DatasourceTypes":
 	for _, item := range policy.DatasourceTypes {
@@ -1004,7 +1017,11 @@ func (policy *BackupPolicy) ConvertToARM(resolved genruntime.ConvertToARMResolve
 
 	// Set property "ObjectType":
 	if policy.ObjectType != nil {
-		result.ObjectType = *policy.ObjectType
+		var temp arm.BackupPolicy_ObjectType
+		var temp1 string
+		temp1 = string(*policy.ObjectType)
+		temp = arm.BackupPolicy_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 
 	// Set property "PolicyRules":
@@ -1013,21 +1030,21 @@ func (policy *BackupPolicy) ConvertToARM(resolved genruntime.ConvertToARMResolve
 		if err != nil {
 			return nil, err
 		}
-		result.PolicyRules = append(result.PolicyRules, *item_ARM.(*BasePolicyRule_ARM))
+		result.PolicyRules = append(result.PolicyRules, *item_ARM.(*arm.BasePolicyRule))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (policy *BackupPolicy) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupPolicy_ARM{}
+	return &arm.BackupPolicy{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (policy *BackupPolicy) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupPolicy_ARM)
+	typedInput, ok := armInput.(arm.BackupPolicy)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupPolicy_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupPolicy, got %T", armInput)
 	}
 
 	// Set property "DatasourceTypes":
@@ -1036,7 +1053,11 @@ func (policy *BackupPolicy) PopulateFromARM(owner genruntime.ArbitraryOwnerRefer
 	}
 
 	// Set property "ObjectType":
-	policy.ObjectType = &typedInput.ObjectType
+	var temp BackupPolicy_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = BackupPolicy_ObjectType(temp1)
+	policy.ObjectType = &temp
 
 	// Set property "PolicyRules":
 	for _, item := range typedInput.PolicyRules {
@@ -1071,12 +1092,10 @@ func (policy *BackupPolicy) AssignProperties_From_BackupPolicy(source *storage.B
 	if source.PolicyRules != nil {
 		policyRuleList := make([]BasePolicyRule, len(source.PolicyRules))
 		for policyRuleIndex, policyRuleItem := range source.PolicyRules {
-			// Shadow the loop variable to avoid aliasing
-			policyRuleItem := policyRuleItem
 			var policyRule BasePolicyRule
 			err := policyRule.AssignProperties_From_BasePolicyRule(&policyRuleItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_BasePolicyRule() to populate field PolicyRules")
+				return eris.Wrap(err, "calling AssignProperties_From_BasePolicyRule() to populate field PolicyRules")
 			}
 			policyRuleList[policyRuleIndex] = policyRule
 		}
@@ -1109,12 +1128,10 @@ func (policy *BackupPolicy) AssignProperties_To_BackupPolicy(destination *storag
 	if policy.PolicyRules != nil {
 		policyRuleList := make([]storage.BasePolicyRule, len(policy.PolicyRules))
 		for policyRuleIndex, policyRuleItem := range policy.PolicyRules {
-			// Shadow the loop variable to avoid aliasing
-			policyRuleItem := policyRuleItem
 			var policyRule storage.BasePolicyRule
 			err := policyRuleItem.AssignProperties_To_BasePolicyRule(&policyRule)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_BasePolicyRule() to populate field PolicyRules")
+				return eris.Wrap(err, "calling AssignProperties_To_BasePolicyRule() to populate field PolicyRules")
 			}
 			policyRuleList[policyRuleIndex] = policyRule
 		}
@@ -1134,42 +1151,6 @@ func (policy *BackupPolicy) AssignProperties_To_BackupPolicy(destination *storag
 	return nil
 }
 
-// Initialize_From_BackupPolicy_STATUS populates our BackupPolicy from the provided source BackupPolicy_STATUS
-func (policy *BackupPolicy) Initialize_From_BackupPolicy_STATUS(source *BackupPolicy_STATUS) error {
-
-	// DatasourceTypes
-	policy.DatasourceTypes = genruntime.CloneSliceOfString(source.DatasourceTypes)
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), backupPolicy_ObjectType_Values)
-		policy.ObjectType = &objectType
-	} else {
-		policy.ObjectType = nil
-	}
-
-	// PolicyRules
-	if source.PolicyRules != nil {
-		policyRuleList := make([]BasePolicyRule, len(source.PolicyRules))
-		for policyRuleIndex, policyRuleItem := range source.PolicyRules {
-			// Shadow the loop variable to avoid aliasing
-			policyRuleItem := policyRuleItem
-			var policyRule BasePolicyRule
-			err := policyRule.Initialize_From_BasePolicyRule_STATUS(&policyRuleItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_BasePolicyRule_STATUS() to populate field PolicyRules")
-			}
-			policyRuleList[policyRuleIndex] = policyRule
-		}
-		policy.PolicyRules = policyRuleList
-	} else {
-		policy.PolicyRules = nil
-	}
-
-	// No error
-	return nil
-}
-
 type BackupPolicy_STATUS struct {
 	// DatasourceTypes: Type of datasource for the backup management
 	DatasourceTypes []string                        `json:"datasourceTypes,omitempty"`
@@ -1183,14 +1164,14 @@ var _ genruntime.FromARMConverter = &BackupPolicy_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (policy *BackupPolicy_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupPolicy_STATUS_ARM{}
+	return &arm.BackupPolicy_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (policy *BackupPolicy_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupPolicy_STATUS_ARM)
+	typedInput, ok := armInput.(arm.BackupPolicy_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupPolicy_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupPolicy_STATUS, got %T", armInput)
 	}
 
 	// Set property "DatasourceTypes":
@@ -1199,7 +1180,11 @@ func (policy *BackupPolicy_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwn
 	}
 
 	// Set property "ObjectType":
-	policy.ObjectType = &typedInput.ObjectType
+	var temp BackupPolicy_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = BackupPolicy_ObjectType_STATUS(temp1)
+	policy.ObjectType = &temp
 
 	// Set property "PolicyRules":
 	for _, item := range typedInput.PolicyRules {
@@ -1234,12 +1219,10 @@ func (policy *BackupPolicy_STATUS) AssignProperties_From_BackupPolicy_STATUS(sou
 	if source.PolicyRules != nil {
 		policyRuleList := make([]BasePolicyRule_STATUS, len(source.PolicyRules))
 		for policyRuleIndex, policyRuleItem := range source.PolicyRules {
-			// Shadow the loop variable to avoid aliasing
-			policyRuleItem := policyRuleItem
 			var policyRule BasePolicyRule_STATUS
 			err := policyRule.AssignProperties_From_BasePolicyRule_STATUS(&policyRuleItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_BasePolicyRule_STATUS() to populate field PolicyRules")
+				return eris.Wrap(err, "calling AssignProperties_From_BasePolicyRule_STATUS() to populate field PolicyRules")
 			}
 			policyRuleList[policyRuleIndex] = policyRule
 		}
@@ -1272,12 +1255,10 @@ func (policy *BackupPolicy_STATUS) AssignProperties_To_BackupPolicy_STATUS(desti
 	if policy.PolicyRules != nil {
 		policyRuleList := make([]storage.BasePolicyRule_STATUS, len(policy.PolicyRules))
 		for policyRuleIndex, policyRuleItem := range policy.PolicyRules {
-			// Shadow the loop variable to avoid aliasing
-			policyRuleItem := policyRuleItem
 			var policyRule storage.BasePolicyRule_STATUS
 			err := policyRuleItem.AssignProperties_To_BasePolicyRule_STATUS(&policyRule)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_BasePolicyRule_STATUS() to populate field PolicyRules")
+				return eris.Wrap(err, "calling AssignProperties_To_BasePolicyRule_STATUS() to populate field PolicyRules")
 			}
 			policyRuleList[policyRuleIndex] = policyRule
 		}
@@ -1297,6 +1278,25 @@ func (policy *BackupPolicy_STATUS) AssignProperties_To_BackupPolicy_STATUS(desti
 	return nil
 }
 
+// +kubebuilder:validation:Enum={"BackupPolicy"}
+type BackupPolicy_ObjectType string
+
+const BackupPolicy_ObjectType_BackupPolicy = BackupPolicy_ObjectType("BackupPolicy")
+
+// Mapping from string to BackupPolicy_ObjectType
+var backupPolicy_ObjectType_Values = map[string]BackupPolicy_ObjectType{
+	"backuppolicy": BackupPolicy_ObjectType_BackupPolicy,
+}
+
+type BackupPolicy_ObjectType_STATUS string
+
+const BackupPolicy_ObjectType_STATUS_BackupPolicy = BackupPolicy_ObjectType_STATUS("BackupPolicy")
+
+// Mapping from string to BackupPolicy_ObjectType_STATUS
+var backupPolicy_ObjectType_STATUS_Values = map[string]BackupPolicy_ObjectType_STATUS{
+	"backuppolicy": BackupPolicy_ObjectType_STATUS_BackupPolicy,
+}
+
 type BasePolicyRule struct {
 	// AzureBackup: Mutually exclusive with all other properties
 	AzureBackup *AzureBackupRule `json:"azureBackupRule,omitempty"`
@@ -1312,25 +1312,25 @@ func (rule *BasePolicyRule) ConvertToARM(resolved genruntime.ConvertToARMResolve
 	if rule == nil {
 		return nil, nil
 	}
-	result := &BasePolicyRule_ARM{}
+	result := &arm.BasePolicyRule{}
 
 	// Set property "AzureBackup":
 	if rule.AzureBackup != nil {
-		azureBackup_ARM, err := (*rule.AzureBackup).ConvertToARM(resolved)
+		azureBackup_ARM, err := rule.AzureBackup.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		azureBackup := *azureBackup_ARM.(*AzureBackupRule_ARM)
+		azureBackup := *azureBackup_ARM.(*arm.AzureBackupRule)
 		result.AzureBackup = &azureBackup
 	}
 
 	// Set property "AzureRetention":
 	if rule.AzureRetention != nil {
-		azureRetention_ARM, err := (*rule.AzureRetention).ConvertToARM(resolved)
+		azureRetention_ARM, err := rule.AzureRetention.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		azureRetention := *azureRetention_ARM.(*AzureRetentionRule_ARM)
+		azureRetention := *azureRetention_ARM.(*arm.AzureRetentionRule)
 		result.AzureRetention = &azureRetention
 	}
 	return result, nil
@@ -1338,14 +1338,14 @@ func (rule *BasePolicyRule) ConvertToARM(resolved genruntime.ConvertToARMResolve
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (rule *BasePolicyRule) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BasePolicyRule_ARM{}
+	return &arm.BasePolicyRule{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (rule *BasePolicyRule) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BasePolicyRule_ARM)
+	typedInput, ok := armInput.(arm.BasePolicyRule)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BasePolicyRule_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BasePolicyRule, got %T", armInput)
 	}
 
 	// Set property "AzureBackup":
@@ -1382,7 +1382,7 @@ func (rule *BasePolicyRule) AssignProperties_From_BasePolicyRule(source *storage
 		var azureBackup AzureBackupRule
 		err := azureBackup.AssignProperties_From_AzureBackupRule(source.AzureBackup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AzureBackupRule() to populate field AzureBackup")
+			return eris.Wrap(err, "calling AssignProperties_From_AzureBackupRule() to populate field AzureBackup")
 		}
 		rule.AzureBackup = &azureBackup
 	} else {
@@ -1394,7 +1394,7 @@ func (rule *BasePolicyRule) AssignProperties_From_BasePolicyRule(source *storage
 		var azureRetention AzureRetentionRule
 		err := azureRetention.AssignProperties_From_AzureRetentionRule(source.AzureRetention)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AzureRetentionRule() to populate field AzureRetention")
+			return eris.Wrap(err, "calling AssignProperties_From_AzureRetentionRule() to populate field AzureRetention")
 		}
 		rule.AzureRetention = &azureRetention
 	} else {
@@ -1415,7 +1415,7 @@ func (rule *BasePolicyRule) AssignProperties_To_BasePolicyRule(destination *stor
 		var azureBackup storage.AzureBackupRule
 		err := rule.AzureBackup.AssignProperties_To_AzureBackupRule(&azureBackup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AzureBackupRule() to populate field AzureBackup")
+			return eris.Wrap(err, "calling AssignProperties_To_AzureBackupRule() to populate field AzureBackup")
 		}
 		destination.AzureBackup = &azureBackup
 	} else {
@@ -1427,7 +1427,7 @@ func (rule *BasePolicyRule) AssignProperties_To_BasePolicyRule(destination *stor
 		var azureRetention storage.AzureRetentionRule
 		err := rule.AzureRetention.AssignProperties_To_AzureRetentionRule(&azureRetention)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AzureRetentionRule() to populate field AzureRetention")
+			return eris.Wrap(err, "calling AssignProperties_To_AzureRetentionRule() to populate field AzureRetention")
 		}
 		destination.AzureRetention = &azureRetention
 	} else {
@@ -1439,37 +1439,6 @@ func (rule *BasePolicyRule) AssignProperties_To_BasePolicyRule(destination *stor
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_BasePolicyRule_STATUS populates our BasePolicyRule from the provided source BasePolicyRule_STATUS
-func (rule *BasePolicyRule) Initialize_From_BasePolicyRule_STATUS(source *BasePolicyRule_STATUS) error {
-
-	// AzureBackup
-	if source.AzureBackup != nil {
-		var azureBackup AzureBackupRule
-		err := azureBackup.Initialize_From_AzureBackupRule_STATUS(source.AzureBackup)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_AzureBackupRule_STATUS() to populate field AzureBackup")
-		}
-		rule.AzureBackup = &azureBackup
-	} else {
-		rule.AzureBackup = nil
-	}
-
-	// AzureRetention
-	if source.AzureRetention != nil {
-		var azureRetention AzureRetentionRule
-		err := azureRetention.Initialize_From_AzureRetentionRule_STATUS(source.AzureRetention)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_AzureRetentionRule_STATUS() to populate field AzureRetention")
-		}
-		rule.AzureRetention = &azureRetention
-	} else {
-		rule.AzureRetention = nil
 	}
 
 	// No error
@@ -1488,14 +1457,14 @@ var _ genruntime.FromARMConverter = &BasePolicyRule_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (rule *BasePolicyRule_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BasePolicyRule_STATUS_ARM{}
+	return &arm.BasePolicyRule_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (rule *BasePolicyRule_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BasePolicyRule_STATUS_ARM)
+	typedInput, ok := armInput.(arm.BasePolicyRule_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BasePolicyRule_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BasePolicyRule_STATUS, got %T", armInput)
 	}
 
 	// Set property "AzureBackup":
@@ -1532,7 +1501,7 @@ func (rule *BasePolicyRule_STATUS) AssignProperties_From_BasePolicyRule_STATUS(s
 		var azureBackup AzureBackupRule_STATUS
 		err := azureBackup.AssignProperties_From_AzureBackupRule_STATUS(source.AzureBackup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AzureBackupRule_STATUS() to populate field AzureBackup")
+			return eris.Wrap(err, "calling AssignProperties_From_AzureBackupRule_STATUS() to populate field AzureBackup")
 		}
 		rule.AzureBackup = &azureBackup
 	} else {
@@ -1544,7 +1513,7 @@ func (rule *BasePolicyRule_STATUS) AssignProperties_From_BasePolicyRule_STATUS(s
 		var azureRetention AzureRetentionRule_STATUS
 		err := azureRetention.AssignProperties_From_AzureRetentionRule_STATUS(source.AzureRetention)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AzureRetentionRule_STATUS() to populate field AzureRetention")
+			return eris.Wrap(err, "calling AssignProperties_From_AzureRetentionRule_STATUS() to populate field AzureRetention")
 		}
 		rule.AzureRetention = &azureRetention
 	} else {
@@ -1565,7 +1534,7 @@ func (rule *BasePolicyRule_STATUS) AssignProperties_To_BasePolicyRule_STATUS(des
 		var azureBackup storage.AzureBackupRule_STATUS
 		err := rule.AzureBackup.AssignProperties_To_AzureBackupRule_STATUS(&azureBackup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AzureBackupRule_STATUS() to populate field AzureBackup")
+			return eris.Wrap(err, "calling AssignProperties_To_AzureBackupRule_STATUS() to populate field AzureBackup")
 		}
 		destination.AzureBackup = &azureBackup
 	} else {
@@ -1577,7 +1546,7 @@ func (rule *BasePolicyRule_STATUS) AssignProperties_To_BasePolicyRule_STATUS(des
 		var azureRetention storage.AzureRetentionRule_STATUS
 		err := rule.AzureRetention.AssignProperties_To_AzureRetentionRule_STATUS(&azureRetention)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AzureRetentionRule_STATUS() to populate field AzureRetention")
+			return eris.Wrap(err, "calling AssignProperties_To_AzureRetentionRule_STATUS() to populate field AzureRetention")
 		}
 		destination.AzureRetention = &azureRetention
 	} else {
@@ -1619,25 +1588,25 @@ func (rule *AzureBackupRule) ConvertToARM(resolved genruntime.ConvertToARMResolv
 	if rule == nil {
 		return nil, nil
 	}
-	result := &AzureBackupRule_ARM{}
+	result := &arm.AzureBackupRule{}
 
 	// Set property "BackupParameters":
 	if rule.BackupParameters != nil {
-		backupParameters_ARM, err := (*rule.BackupParameters).ConvertToARM(resolved)
+		backupParameters_ARM, err := rule.BackupParameters.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		backupParameters := *backupParameters_ARM.(*BackupParameters_ARM)
+		backupParameters := *backupParameters_ARM.(*arm.BackupParameters)
 		result.BackupParameters = &backupParameters
 	}
 
 	// Set property "DataStore":
 	if rule.DataStore != nil {
-		dataStore_ARM, err := (*rule.DataStore).ConvertToARM(resolved)
+		dataStore_ARM, err := rule.DataStore.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		dataStore := *dataStore_ARM.(*DataStoreInfoBase_ARM)
+		dataStore := *dataStore_ARM.(*arm.DataStoreInfoBase)
 		result.DataStore = &dataStore
 	}
 
@@ -1649,16 +1618,20 @@ func (rule *AzureBackupRule) ConvertToARM(resolved genruntime.ConvertToARMResolv
 
 	// Set property "ObjectType":
 	if rule.ObjectType != nil {
-		result.ObjectType = *rule.ObjectType
+		var temp arm.AzureBackupRule_ObjectType
+		var temp1 string
+		temp1 = string(*rule.ObjectType)
+		temp = arm.AzureBackupRule_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 
 	// Set property "Trigger":
 	if rule.Trigger != nil {
-		trigger_ARM, err := (*rule.Trigger).ConvertToARM(resolved)
+		trigger_ARM, err := rule.Trigger.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		trigger := *trigger_ARM.(*TriggerContext_ARM)
+		trigger := *trigger_ARM.(*arm.TriggerContext)
 		result.Trigger = &trigger
 	}
 	return result, nil
@@ -1666,14 +1639,14 @@ func (rule *AzureBackupRule) ConvertToARM(resolved genruntime.ConvertToARMResolv
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (rule *AzureBackupRule) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AzureBackupRule_ARM{}
+	return &arm.AzureBackupRule{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (rule *AzureBackupRule) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AzureBackupRule_ARM)
+	typedInput, ok := armInput.(arm.AzureBackupRule)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AzureBackupRule_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AzureBackupRule, got %T", armInput)
 	}
 
 	// Set property "BackupParameters":
@@ -1705,7 +1678,11 @@ func (rule *AzureBackupRule) PopulateFromARM(owner genruntime.ArbitraryOwnerRefe
 	}
 
 	// Set property "ObjectType":
-	rule.ObjectType = &typedInput.ObjectType
+	var temp AzureBackupRule_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AzureBackupRule_ObjectType(temp1)
+	rule.ObjectType = &temp
 
 	// Set property "Trigger":
 	if typedInput.Trigger != nil {
@@ -1730,7 +1707,7 @@ func (rule *AzureBackupRule) AssignProperties_From_AzureBackupRule(source *stora
 		var backupParameter BackupParameters
 		err := backupParameter.AssignProperties_From_BackupParameters(source.BackupParameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BackupParameters() to populate field BackupParameters")
+			return eris.Wrap(err, "calling AssignProperties_From_BackupParameters() to populate field BackupParameters")
 		}
 		rule.BackupParameters = &backupParameter
 	} else {
@@ -1742,7 +1719,7 @@ func (rule *AzureBackupRule) AssignProperties_From_AzureBackupRule(source *stora
 		var dataStore DataStoreInfoBase
 		err := dataStore.AssignProperties_From_DataStoreInfoBase(source.DataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase() to populate field DataStore")
+			return eris.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase() to populate field DataStore")
 		}
 		rule.DataStore = &dataStore
 	} else {
@@ -1766,7 +1743,7 @@ func (rule *AzureBackupRule) AssignProperties_From_AzureBackupRule(source *stora
 		var trigger TriggerContext
 		err := trigger.AssignProperties_From_TriggerContext(source.Trigger)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_TriggerContext() to populate field Trigger")
+			return eris.Wrap(err, "calling AssignProperties_From_TriggerContext() to populate field Trigger")
 		}
 		rule.Trigger = &trigger
 	} else {
@@ -1787,7 +1764,7 @@ func (rule *AzureBackupRule) AssignProperties_To_AzureBackupRule(destination *st
 		var backupParameter storage.BackupParameters
 		err := rule.BackupParameters.AssignProperties_To_BackupParameters(&backupParameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BackupParameters() to populate field BackupParameters")
+			return eris.Wrap(err, "calling AssignProperties_To_BackupParameters() to populate field BackupParameters")
 		}
 		destination.BackupParameters = &backupParameter
 	} else {
@@ -1799,7 +1776,7 @@ func (rule *AzureBackupRule) AssignProperties_To_AzureBackupRule(destination *st
 		var dataStore storage.DataStoreInfoBase
 		err := rule.DataStore.AssignProperties_To_DataStoreInfoBase(&dataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase() to populate field DataStore")
+			return eris.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase() to populate field DataStore")
 		}
 		destination.DataStore = &dataStore
 	} else {
@@ -1822,7 +1799,7 @@ func (rule *AzureBackupRule) AssignProperties_To_AzureBackupRule(destination *st
 		var trigger storage.TriggerContext
 		err := rule.Trigger.AssignProperties_To_TriggerContext(&trigger)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_TriggerContext() to populate field Trigger")
+			return eris.Wrap(err, "calling AssignProperties_To_TriggerContext() to populate field Trigger")
 		}
 		destination.Trigger = &trigger
 	} else {
@@ -1834,60 +1811,6 @@ func (rule *AzureBackupRule) AssignProperties_To_AzureBackupRule(destination *st
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_AzureBackupRule_STATUS populates our AzureBackupRule from the provided source AzureBackupRule_STATUS
-func (rule *AzureBackupRule) Initialize_From_AzureBackupRule_STATUS(source *AzureBackupRule_STATUS) error {
-
-	// BackupParameters
-	if source.BackupParameters != nil {
-		var backupParameter BackupParameters
-		err := backupParameter.Initialize_From_BackupParameters_STATUS(source.BackupParameters)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_BackupParameters_STATUS() to populate field BackupParameters")
-		}
-		rule.BackupParameters = &backupParameter
-	} else {
-		rule.BackupParameters = nil
-	}
-
-	// DataStore
-	if source.DataStore != nil {
-		var dataStore DataStoreInfoBase
-		err := dataStore.Initialize_From_DataStoreInfoBase_STATUS(source.DataStore)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_DataStoreInfoBase_STATUS() to populate field DataStore")
-		}
-		rule.DataStore = &dataStore
-	} else {
-		rule.DataStore = nil
-	}
-
-	// Name
-	rule.Name = genruntime.ClonePointerToString(source.Name)
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), azureBackupRule_ObjectType_Values)
-		rule.ObjectType = &objectType
-	} else {
-		rule.ObjectType = nil
-	}
-
-	// Trigger
-	if source.Trigger != nil {
-		var trigger TriggerContext
-		err := trigger.Initialize_From_TriggerContext_STATUS(source.Trigger)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_TriggerContext_STATUS() to populate field Trigger")
-		}
-		rule.Trigger = &trigger
-	} else {
-		rule.Trigger = nil
 	}
 
 	// No error
@@ -1908,14 +1831,14 @@ var _ genruntime.FromARMConverter = &AzureBackupRule_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (rule *AzureBackupRule_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AzureBackupRule_STATUS_ARM{}
+	return &arm.AzureBackupRule_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (rule *AzureBackupRule_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AzureBackupRule_STATUS_ARM)
+	typedInput, ok := armInput.(arm.AzureBackupRule_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AzureBackupRule_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AzureBackupRule_STATUS, got %T", armInput)
 	}
 
 	// Set property "BackupParameters":
@@ -1947,7 +1870,11 @@ func (rule *AzureBackupRule_STATUS) PopulateFromARM(owner genruntime.ArbitraryOw
 	}
 
 	// Set property "ObjectType":
-	rule.ObjectType = &typedInput.ObjectType
+	var temp AzureBackupRule_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AzureBackupRule_ObjectType_STATUS(temp1)
+	rule.ObjectType = &temp
 
 	// Set property "Trigger":
 	if typedInput.Trigger != nil {
@@ -1972,7 +1899,7 @@ func (rule *AzureBackupRule_STATUS) AssignProperties_From_AzureBackupRule_STATUS
 		var backupParameter BackupParameters_STATUS
 		err := backupParameter.AssignProperties_From_BackupParameters_STATUS(source.BackupParameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BackupParameters_STATUS() to populate field BackupParameters")
+			return eris.Wrap(err, "calling AssignProperties_From_BackupParameters_STATUS() to populate field BackupParameters")
 		}
 		rule.BackupParameters = &backupParameter
 	} else {
@@ -1984,7 +1911,7 @@ func (rule *AzureBackupRule_STATUS) AssignProperties_From_AzureBackupRule_STATUS
 		var dataStore DataStoreInfoBase_STATUS
 		err := dataStore.AssignProperties_From_DataStoreInfoBase_STATUS(source.DataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase_STATUS() to populate field DataStore")
+			return eris.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase_STATUS() to populate field DataStore")
 		}
 		rule.DataStore = &dataStore
 	} else {
@@ -2008,7 +1935,7 @@ func (rule *AzureBackupRule_STATUS) AssignProperties_From_AzureBackupRule_STATUS
 		var trigger TriggerContext_STATUS
 		err := trigger.AssignProperties_From_TriggerContext_STATUS(source.Trigger)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_TriggerContext_STATUS() to populate field Trigger")
+			return eris.Wrap(err, "calling AssignProperties_From_TriggerContext_STATUS() to populate field Trigger")
 		}
 		rule.Trigger = &trigger
 	} else {
@@ -2029,7 +1956,7 @@ func (rule *AzureBackupRule_STATUS) AssignProperties_To_AzureBackupRule_STATUS(d
 		var backupParameter storage.BackupParameters_STATUS
 		err := rule.BackupParameters.AssignProperties_To_BackupParameters_STATUS(&backupParameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BackupParameters_STATUS() to populate field BackupParameters")
+			return eris.Wrap(err, "calling AssignProperties_To_BackupParameters_STATUS() to populate field BackupParameters")
 		}
 		destination.BackupParameters = &backupParameter
 	} else {
@@ -2041,7 +1968,7 @@ func (rule *AzureBackupRule_STATUS) AssignProperties_To_AzureBackupRule_STATUS(d
 		var dataStore storage.DataStoreInfoBase_STATUS
 		err := rule.DataStore.AssignProperties_To_DataStoreInfoBase_STATUS(&dataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase_STATUS() to populate field DataStore")
+			return eris.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase_STATUS() to populate field DataStore")
 		}
 		destination.DataStore = &dataStore
 	} else {
@@ -2064,7 +1991,7 @@ func (rule *AzureBackupRule_STATUS) AssignProperties_To_AzureBackupRule_STATUS(d
 		var trigger storage.TriggerContext_STATUS
 		err := rule.Trigger.AssignProperties_To_TriggerContext_STATUS(&trigger)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_TriggerContext_STATUS() to populate field Trigger")
+			return eris.Wrap(err, "calling AssignProperties_To_TriggerContext_STATUS() to populate field Trigger")
 		}
 		destination.Trigger = &trigger
 	} else {
@@ -2102,7 +2029,7 @@ func (rule *AzureRetentionRule) ConvertToARM(resolved genruntime.ConvertToARMRes
 	if rule == nil {
 		return nil, nil
 	}
-	result := &AzureRetentionRule_ARM{}
+	result := &arm.AzureRetentionRule{}
 
 	// Set property "IsDefault":
 	if rule.IsDefault != nil {
@@ -2116,7 +2043,7 @@ func (rule *AzureRetentionRule) ConvertToARM(resolved genruntime.ConvertToARMRes
 		if err != nil {
 			return nil, err
 		}
-		result.Lifecycles = append(result.Lifecycles, *item_ARM.(*SourceLifeCycle_ARM))
+		result.Lifecycles = append(result.Lifecycles, *item_ARM.(*arm.SourceLifeCycle))
 	}
 
 	// Set property "Name":
@@ -2127,21 +2054,25 @@ func (rule *AzureRetentionRule) ConvertToARM(resolved genruntime.ConvertToARMRes
 
 	// Set property "ObjectType":
 	if rule.ObjectType != nil {
-		result.ObjectType = *rule.ObjectType
+		var temp arm.AzureRetentionRule_ObjectType
+		var temp1 string
+		temp1 = string(*rule.ObjectType)
+		temp = arm.AzureRetentionRule_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (rule *AzureRetentionRule) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AzureRetentionRule_ARM{}
+	return &arm.AzureRetentionRule{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (rule *AzureRetentionRule) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AzureRetentionRule_ARM)
+	typedInput, ok := armInput.(arm.AzureRetentionRule)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AzureRetentionRule_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AzureRetentionRule, got %T", armInput)
 	}
 
 	// Set property "IsDefault":
@@ -2167,7 +2098,11 @@ func (rule *AzureRetentionRule) PopulateFromARM(owner genruntime.ArbitraryOwnerR
 	}
 
 	// Set property "ObjectType":
-	rule.ObjectType = &typedInput.ObjectType
+	var temp AzureRetentionRule_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AzureRetentionRule_ObjectType(temp1)
+	rule.ObjectType = &temp
 
 	// No error
 	return nil
@@ -2188,12 +2123,10 @@ func (rule *AzureRetentionRule) AssignProperties_From_AzureRetentionRule(source 
 	if source.Lifecycles != nil {
 		lifecycleList := make([]SourceLifeCycle, len(source.Lifecycles))
 		for lifecycleIndex, lifecycleItem := range source.Lifecycles {
-			// Shadow the loop variable to avoid aliasing
-			lifecycleItem := lifecycleItem
 			var lifecycle SourceLifeCycle
 			err := lifecycle.AssignProperties_From_SourceLifeCycle(&lifecycleItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SourceLifeCycle() to populate field Lifecycles")
+				return eris.Wrap(err, "calling AssignProperties_From_SourceLifeCycle() to populate field Lifecycles")
 			}
 			lifecycleList[lifecycleIndex] = lifecycle
 		}
@@ -2235,12 +2168,10 @@ func (rule *AzureRetentionRule) AssignProperties_To_AzureRetentionRule(destinati
 	if rule.Lifecycles != nil {
 		lifecycleList := make([]storage.SourceLifeCycle, len(rule.Lifecycles))
 		for lifecycleIndex, lifecycleItem := range rule.Lifecycles {
-			// Shadow the loop variable to avoid aliasing
-			lifecycleItem := lifecycleItem
 			var lifecycle storage.SourceLifeCycle
 			err := lifecycleItem.AssignProperties_To_SourceLifeCycle(&lifecycle)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SourceLifeCycle() to populate field Lifecycles")
+				return eris.Wrap(err, "calling AssignProperties_To_SourceLifeCycle() to populate field Lifecycles")
 			}
 			lifecycleList[lifecycleIndex] = lifecycle
 		}
@@ -2271,50 +2202,6 @@ func (rule *AzureRetentionRule) AssignProperties_To_AzureRetentionRule(destinati
 	return nil
 }
 
-// Initialize_From_AzureRetentionRule_STATUS populates our AzureRetentionRule from the provided source AzureRetentionRule_STATUS
-func (rule *AzureRetentionRule) Initialize_From_AzureRetentionRule_STATUS(source *AzureRetentionRule_STATUS) error {
-
-	// IsDefault
-	if source.IsDefault != nil {
-		isDefault := *source.IsDefault
-		rule.IsDefault = &isDefault
-	} else {
-		rule.IsDefault = nil
-	}
-
-	// Lifecycles
-	if source.Lifecycles != nil {
-		lifecycleList := make([]SourceLifeCycle, len(source.Lifecycles))
-		for lifecycleIndex, lifecycleItem := range source.Lifecycles {
-			// Shadow the loop variable to avoid aliasing
-			lifecycleItem := lifecycleItem
-			var lifecycle SourceLifeCycle
-			err := lifecycle.Initialize_From_SourceLifeCycle_STATUS(&lifecycleItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_SourceLifeCycle_STATUS() to populate field Lifecycles")
-			}
-			lifecycleList[lifecycleIndex] = lifecycle
-		}
-		rule.Lifecycles = lifecycleList
-	} else {
-		rule.Lifecycles = nil
-	}
-
-	// Name
-	rule.Name = genruntime.ClonePointerToString(source.Name)
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), azureRetentionRule_ObjectType_Values)
-		rule.ObjectType = &objectType
-	} else {
-		rule.ObjectType = nil
-	}
-
-	// No error
-	return nil
-}
-
 type AzureRetentionRule_STATUS struct {
 	IsDefault  *bool                                 `json:"isDefault,omitempty"`
 	Lifecycles []SourceLifeCycle_STATUS              `json:"lifecycles,omitempty"`
@@ -2326,14 +2213,14 @@ var _ genruntime.FromARMConverter = &AzureRetentionRule_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (rule *AzureRetentionRule_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AzureRetentionRule_STATUS_ARM{}
+	return &arm.AzureRetentionRule_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (rule *AzureRetentionRule_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AzureRetentionRule_STATUS_ARM)
+	typedInput, ok := armInput.(arm.AzureRetentionRule_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AzureRetentionRule_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AzureRetentionRule_STATUS, got %T", armInput)
 	}
 
 	// Set property "IsDefault":
@@ -2359,7 +2246,11 @@ func (rule *AzureRetentionRule_STATUS) PopulateFromARM(owner genruntime.Arbitrar
 	}
 
 	// Set property "ObjectType":
-	rule.ObjectType = &typedInput.ObjectType
+	var temp AzureRetentionRule_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AzureRetentionRule_ObjectType_STATUS(temp1)
+	rule.ObjectType = &temp
 
 	// No error
 	return nil
@@ -2380,12 +2271,10 @@ func (rule *AzureRetentionRule_STATUS) AssignProperties_From_AzureRetentionRule_
 	if source.Lifecycles != nil {
 		lifecycleList := make([]SourceLifeCycle_STATUS, len(source.Lifecycles))
 		for lifecycleIndex, lifecycleItem := range source.Lifecycles {
-			// Shadow the loop variable to avoid aliasing
-			lifecycleItem := lifecycleItem
 			var lifecycle SourceLifeCycle_STATUS
 			err := lifecycle.AssignProperties_From_SourceLifeCycle_STATUS(&lifecycleItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SourceLifeCycle_STATUS() to populate field Lifecycles")
+				return eris.Wrap(err, "calling AssignProperties_From_SourceLifeCycle_STATUS() to populate field Lifecycles")
 			}
 			lifecycleList[lifecycleIndex] = lifecycle
 		}
@@ -2427,12 +2316,10 @@ func (rule *AzureRetentionRule_STATUS) AssignProperties_To_AzureRetentionRule_ST
 	if rule.Lifecycles != nil {
 		lifecycleList := make([]storage.SourceLifeCycle_STATUS, len(rule.Lifecycles))
 		for lifecycleIndex, lifecycleItem := range rule.Lifecycles {
-			// Shadow the loop variable to avoid aliasing
-			lifecycleItem := lifecycleItem
 			var lifecycle storage.SourceLifeCycle_STATUS
 			err := lifecycleItem.AssignProperties_To_SourceLifeCycle_STATUS(&lifecycle)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SourceLifeCycle_STATUS() to populate field Lifecycles")
+				return eris.Wrap(err, "calling AssignProperties_To_SourceLifeCycle_STATUS() to populate field Lifecycles")
 			}
 			lifecycleList[lifecycleIndex] = lifecycle
 		}
@@ -2463,6 +2350,44 @@ func (rule *AzureRetentionRule_STATUS) AssignProperties_To_AzureRetentionRule_ST
 	return nil
 }
 
+// +kubebuilder:validation:Enum={"AzureBackupRule"}
+type AzureBackupRule_ObjectType string
+
+const AzureBackupRule_ObjectType_AzureBackupRule = AzureBackupRule_ObjectType("AzureBackupRule")
+
+// Mapping from string to AzureBackupRule_ObjectType
+var azureBackupRule_ObjectType_Values = map[string]AzureBackupRule_ObjectType{
+	"azurebackuprule": AzureBackupRule_ObjectType_AzureBackupRule,
+}
+
+type AzureBackupRule_ObjectType_STATUS string
+
+const AzureBackupRule_ObjectType_STATUS_AzureBackupRule = AzureBackupRule_ObjectType_STATUS("AzureBackupRule")
+
+// Mapping from string to AzureBackupRule_ObjectType_STATUS
+var azureBackupRule_ObjectType_STATUS_Values = map[string]AzureBackupRule_ObjectType_STATUS{
+	"azurebackuprule": AzureBackupRule_ObjectType_STATUS_AzureBackupRule,
+}
+
+// +kubebuilder:validation:Enum={"AzureRetentionRule"}
+type AzureRetentionRule_ObjectType string
+
+const AzureRetentionRule_ObjectType_AzureRetentionRule = AzureRetentionRule_ObjectType("AzureRetentionRule")
+
+// Mapping from string to AzureRetentionRule_ObjectType
+var azureRetentionRule_ObjectType_Values = map[string]AzureRetentionRule_ObjectType{
+	"azureretentionrule": AzureRetentionRule_ObjectType_AzureRetentionRule,
+}
+
+type AzureRetentionRule_ObjectType_STATUS string
+
+const AzureRetentionRule_ObjectType_STATUS_AzureRetentionRule = AzureRetentionRule_ObjectType_STATUS("AzureRetentionRule")
+
+// Mapping from string to AzureRetentionRule_ObjectType_STATUS
+var azureRetentionRule_ObjectType_STATUS_Values = map[string]AzureRetentionRule_ObjectType_STATUS{
+	"azureretentionrule": AzureRetentionRule_ObjectType_STATUS_AzureRetentionRule,
+}
+
 type BackupParameters struct {
 	// AzureBackupParams: Mutually exclusive with all other properties
 	AzureBackupParams *AzureBackupParams `json:"azureBackupParams,omitempty"`
@@ -2475,15 +2400,15 @@ func (parameters *BackupParameters) ConvertToARM(resolved genruntime.ConvertToAR
 	if parameters == nil {
 		return nil, nil
 	}
-	result := &BackupParameters_ARM{}
+	result := &arm.BackupParameters{}
 
 	// Set property "AzureBackupParams":
 	if parameters.AzureBackupParams != nil {
-		azureBackupParams_ARM, err := (*parameters.AzureBackupParams).ConvertToARM(resolved)
+		azureBackupParams_ARM, err := parameters.AzureBackupParams.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		azureBackupParams := *azureBackupParams_ARM.(*AzureBackupParams_ARM)
+		azureBackupParams := *azureBackupParams_ARM.(*arm.AzureBackupParams)
 		result.AzureBackupParams = &azureBackupParams
 	}
 	return result, nil
@@ -2491,14 +2416,14 @@ func (parameters *BackupParameters) ConvertToARM(resolved genruntime.ConvertToAR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (parameters *BackupParameters) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupParameters_ARM{}
+	return &arm.BackupParameters{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (parameters *BackupParameters) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupParameters_ARM)
+	typedInput, ok := armInput.(arm.BackupParameters)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupParameters_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupParameters, got %T", armInput)
 	}
 
 	// Set property "AzureBackupParams":
@@ -2524,7 +2449,7 @@ func (parameters *BackupParameters) AssignProperties_From_BackupParameters(sourc
 		var azureBackupParam AzureBackupParams
 		err := azureBackupParam.AssignProperties_From_AzureBackupParams(source.AzureBackupParams)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AzureBackupParams() to populate field AzureBackupParams")
+			return eris.Wrap(err, "calling AssignProperties_From_AzureBackupParams() to populate field AzureBackupParams")
 		}
 		parameters.AzureBackupParams = &azureBackupParam
 	} else {
@@ -2545,7 +2470,7 @@ func (parameters *BackupParameters) AssignProperties_To_BackupParameters(destina
 		var azureBackupParam storage.AzureBackupParams
 		err := parameters.AzureBackupParams.AssignProperties_To_AzureBackupParams(&azureBackupParam)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AzureBackupParams() to populate field AzureBackupParams")
+			return eris.Wrap(err, "calling AssignProperties_To_AzureBackupParams() to populate field AzureBackupParams")
 		}
 		destination.AzureBackupParams = &azureBackupParam
 	} else {
@@ -2563,25 +2488,6 @@ func (parameters *BackupParameters) AssignProperties_To_BackupParameters(destina
 	return nil
 }
 
-// Initialize_From_BackupParameters_STATUS populates our BackupParameters from the provided source BackupParameters_STATUS
-func (parameters *BackupParameters) Initialize_From_BackupParameters_STATUS(source *BackupParameters_STATUS) error {
-
-	// AzureBackupParams
-	if source.AzureBackupParams != nil {
-		var azureBackupParam AzureBackupParams
-		err := azureBackupParam.Initialize_From_AzureBackupParams_STATUS(source.AzureBackupParams)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_AzureBackupParams_STATUS() to populate field AzureBackupParams")
-		}
-		parameters.AzureBackupParams = &azureBackupParam
-	} else {
-		parameters.AzureBackupParams = nil
-	}
-
-	// No error
-	return nil
-}
-
 type BackupParameters_STATUS struct {
 	// AzureBackupParams: Mutually exclusive with all other properties
 	AzureBackupParams *AzureBackupParams_STATUS `json:"azureBackupParams,omitempty"`
@@ -2591,14 +2497,14 @@ var _ genruntime.FromARMConverter = &BackupParameters_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (parameters *BackupParameters_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupParameters_STATUS_ARM{}
+	return &arm.BackupParameters_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (parameters *BackupParameters_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupParameters_STATUS_ARM)
+	typedInput, ok := armInput.(arm.BackupParameters_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupParameters_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupParameters_STATUS, got %T", armInput)
 	}
 
 	// Set property "AzureBackupParams":
@@ -2624,7 +2530,7 @@ func (parameters *BackupParameters_STATUS) AssignProperties_From_BackupParameter
 		var azureBackupParam AzureBackupParams_STATUS
 		err := azureBackupParam.AssignProperties_From_AzureBackupParams_STATUS(source.AzureBackupParams)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AzureBackupParams_STATUS() to populate field AzureBackupParams")
+			return eris.Wrap(err, "calling AssignProperties_From_AzureBackupParams_STATUS() to populate field AzureBackupParams")
 		}
 		parameters.AzureBackupParams = &azureBackupParam
 	} else {
@@ -2645,7 +2551,7 @@ func (parameters *BackupParameters_STATUS) AssignProperties_To_BackupParameters_
 		var azureBackupParam storage.AzureBackupParams_STATUS
 		err := parameters.AzureBackupParams.AssignProperties_To_AzureBackupParams_STATUS(&azureBackupParam)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AzureBackupParams_STATUS() to populate field AzureBackupParams")
+			return eris.Wrap(err, "calling AssignProperties_To_AzureBackupParams_STATUS() to populate field AzureBackupParams")
 		}
 		destination.AzureBackupParams = &azureBackupParam
 	} else {
@@ -2681,11 +2587,13 @@ func (base *DataStoreInfoBase) ConvertToARM(resolved genruntime.ConvertToARMReso
 	if base == nil {
 		return nil, nil
 	}
-	result := &DataStoreInfoBase_ARM{}
+	result := &arm.DataStoreInfoBase{}
 
 	// Set property "DataStoreType":
 	if base.DataStoreType != nil {
-		dataStoreType := *base.DataStoreType
+		var temp string
+		temp = string(*base.DataStoreType)
+		dataStoreType := arm.DataStoreInfoBase_DataStoreType(temp)
 		result.DataStoreType = &dataStoreType
 	}
 
@@ -2699,19 +2607,21 @@ func (base *DataStoreInfoBase) ConvertToARM(resolved genruntime.ConvertToARMReso
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (base *DataStoreInfoBase) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &DataStoreInfoBase_ARM{}
+	return &arm.DataStoreInfoBase{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (base *DataStoreInfoBase) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(DataStoreInfoBase_ARM)
+	typedInput, ok := armInput.(arm.DataStoreInfoBase)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected DataStoreInfoBase_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.DataStoreInfoBase, got %T", armInput)
 	}
 
 	// Set property "DataStoreType":
 	if typedInput.DataStoreType != nil {
-		dataStoreType := *typedInput.DataStoreType
+		var temp string
+		temp = string(*typedInput.DataStoreType)
+		dataStoreType := DataStoreInfoBase_DataStoreType(temp)
 		base.DataStoreType = &dataStoreType
 	}
 
@@ -2771,24 +2681,6 @@ func (base *DataStoreInfoBase) AssignProperties_To_DataStoreInfoBase(destination
 	return nil
 }
 
-// Initialize_From_DataStoreInfoBase_STATUS populates our DataStoreInfoBase from the provided source DataStoreInfoBase_STATUS
-func (base *DataStoreInfoBase) Initialize_From_DataStoreInfoBase_STATUS(source *DataStoreInfoBase_STATUS) error {
-
-	// DataStoreType
-	if source.DataStoreType != nil {
-		dataStoreType := genruntime.ToEnum(string(*source.DataStoreType), dataStoreInfoBase_DataStoreType_Values)
-		base.DataStoreType = &dataStoreType
-	} else {
-		base.DataStoreType = nil
-	}
-
-	// ObjectType
-	base.ObjectType = genruntime.ClonePointerToString(source.ObjectType)
-
-	// No error
-	return nil
-}
-
 // DataStoreInfo base
 type DataStoreInfoBase_STATUS struct {
 	// DataStoreType: type of datastore; Operational/Vault/Archive
@@ -2802,19 +2694,21 @@ var _ genruntime.FromARMConverter = &DataStoreInfoBase_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (base *DataStoreInfoBase_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &DataStoreInfoBase_STATUS_ARM{}
+	return &arm.DataStoreInfoBase_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (base *DataStoreInfoBase_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(DataStoreInfoBase_STATUS_ARM)
+	typedInput, ok := armInput.(arm.DataStoreInfoBase_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected DataStoreInfoBase_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.DataStoreInfoBase_STATUS, got %T", armInput)
 	}
 
 	// Set property "DataStoreType":
 	if typedInput.DataStoreType != nil {
-		dataStoreType := *typedInput.DataStoreType
+		var temp string
+		temp = string(*typedInput.DataStoreType)
+		dataStoreType := DataStoreInfoBase_DataStoreType_STATUS(temp)
 		base.DataStoreType = &dataStoreType
 	}
 
@@ -2892,25 +2786,25 @@ func (cycle *SourceLifeCycle) ConvertToARM(resolved genruntime.ConvertToARMResol
 	if cycle == nil {
 		return nil, nil
 	}
-	result := &SourceLifeCycle_ARM{}
+	result := &arm.SourceLifeCycle{}
 
 	// Set property "DeleteAfter":
 	if cycle.DeleteAfter != nil {
-		deleteAfter_ARM, err := (*cycle.DeleteAfter).ConvertToARM(resolved)
+		deleteAfter_ARM, err := cycle.DeleteAfter.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		deleteAfter := *deleteAfter_ARM.(*DeleteOption_ARM)
+		deleteAfter := *deleteAfter_ARM.(*arm.DeleteOption)
 		result.DeleteAfter = &deleteAfter
 	}
 
 	// Set property "SourceDataStore":
 	if cycle.SourceDataStore != nil {
-		sourceDataStore_ARM, err := (*cycle.SourceDataStore).ConvertToARM(resolved)
+		sourceDataStore_ARM, err := cycle.SourceDataStore.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		sourceDataStore := *sourceDataStore_ARM.(*DataStoreInfoBase_ARM)
+		sourceDataStore := *sourceDataStore_ARM.(*arm.DataStoreInfoBase)
 		result.SourceDataStore = &sourceDataStore
 	}
 
@@ -2920,21 +2814,21 @@ func (cycle *SourceLifeCycle) ConvertToARM(resolved genruntime.ConvertToARMResol
 		if err != nil {
 			return nil, err
 		}
-		result.TargetDataStoreCopySettings = append(result.TargetDataStoreCopySettings, *item_ARM.(*TargetCopySetting_ARM))
+		result.TargetDataStoreCopySettings = append(result.TargetDataStoreCopySettings, *item_ARM.(*arm.TargetCopySetting))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (cycle *SourceLifeCycle) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SourceLifeCycle_ARM{}
+	return &arm.SourceLifeCycle{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (cycle *SourceLifeCycle) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SourceLifeCycle_ARM)
+	typedInput, ok := armInput.(arm.SourceLifeCycle)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SourceLifeCycle_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SourceLifeCycle, got %T", armInput)
 	}
 
 	// Set property "DeleteAfter":
@@ -2981,7 +2875,7 @@ func (cycle *SourceLifeCycle) AssignProperties_From_SourceLifeCycle(source *stor
 		var deleteAfter DeleteOption
 		err := deleteAfter.AssignProperties_From_DeleteOption(source.DeleteAfter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeleteOption() to populate field DeleteAfter")
+			return eris.Wrap(err, "calling AssignProperties_From_DeleteOption() to populate field DeleteAfter")
 		}
 		cycle.DeleteAfter = &deleteAfter
 	} else {
@@ -2993,7 +2887,7 @@ func (cycle *SourceLifeCycle) AssignProperties_From_SourceLifeCycle(source *stor
 		var sourceDataStore DataStoreInfoBase
 		err := sourceDataStore.AssignProperties_From_DataStoreInfoBase(source.SourceDataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase() to populate field SourceDataStore")
+			return eris.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase() to populate field SourceDataStore")
 		}
 		cycle.SourceDataStore = &sourceDataStore
 	} else {
@@ -3004,12 +2898,10 @@ func (cycle *SourceLifeCycle) AssignProperties_From_SourceLifeCycle(source *stor
 	if source.TargetDataStoreCopySettings != nil {
 		targetDataStoreCopySettingList := make([]TargetCopySetting, len(source.TargetDataStoreCopySettings))
 		for targetDataStoreCopySettingIndex, targetDataStoreCopySettingItem := range source.TargetDataStoreCopySettings {
-			// Shadow the loop variable to avoid aliasing
-			targetDataStoreCopySettingItem := targetDataStoreCopySettingItem
 			var targetDataStoreCopySetting TargetCopySetting
 			err := targetDataStoreCopySetting.AssignProperties_From_TargetCopySetting(&targetDataStoreCopySettingItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_TargetCopySetting() to populate field TargetDataStoreCopySettings")
+				return eris.Wrap(err, "calling AssignProperties_From_TargetCopySetting() to populate field TargetDataStoreCopySettings")
 			}
 			targetDataStoreCopySettingList[targetDataStoreCopySettingIndex] = targetDataStoreCopySetting
 		}
@@ -3032,7 +2924,7 @@ func (cycle *SourceLifeCycle) AssignProperties_To_SourceLifeCycle(destination *s
 		var deleteAfter storage.DeleteOption
 		err := cycle.DeleteAfter.AssignProperties_To_DeleteOption(&deleteAfter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeleteOption() to populate field DeleteAfter")
+			return eris.Wrap(err, "calling AssignProperties_To_DeleteOption() to populate field DeleteAfter")
 		}
 		destination.DeleteAfter = &deleteAfter
 	} else {
@@ -3044,7 +2936,7 @@ func (cycle *SourceLifeCycle) AssignProperties_To_SourceLifeCycle(destination *s
 		var sourceDataStore storage.DataStoreInfoBase
 		err := cycle.SourceDataStore.AssignProperties_To_DataStoreInfoBase(&sourceDataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase() to populate field SourceDataStore")
+			return eris.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase() to populate field SourceDataStore")
 		}
 		destination.SourceDataStore = &sourceDataStore
 	} else {
@@ -3055,12 +2947,10 @@ func (cycle *SourceLifeCycle) AssignProperties_To_SourceLifeCycle(destination *s
 	if cycle.TargetDataStoreCopySettings != nil {
 		targetDataStoreCopySettingList := make([]storage.TargetCopySetting, len(cycle.TargetDataStoreCopySettings))
 		for targetDataStoreCopySettingIndex, targetDataStoreCopySettingItem := range cycle.TargetDataStoreCopySettings {
-			// Shadow the loop variable to avoid aliasing
-			targetDataStoreCopySettingItem := targetDataStoreCopySettingItem
 			var targetDataStoreCopySetting storage.TargetCopySetting
 			err := targetDataStoreCopySettingItem.AssignProperties_To_TargetCopySetting(&targetDataStoreCopySetting)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_TargetCopySetting() to populate field TargetDataStoreCopySettings")
+				return eris.Wrap(err, "calling AssignProperties_To_TargetCopySetting() to populate field TargetDataStoreCopySettings")
 			}
 			targetDataStoreCopySettingList[targetDataStoreCopySettingIndex] = targetDataStoreCopySetting
 		}
@@ -3080,55 +2970,6 @@ func (cycle *SourceLifeCycle) AssignProperties_To_SourceLifeCycle(destination *s
 	return nil
 }
 
-// Initialize_From_SourceLifeCycle_STATUS populates our SourceLifeCycle from the provided source SourceLifeCycle_STATUS
-func (cycle *SourceLifeCycle) Initialize_From_SourceLifeCycle_STATUS(source *SourceLifeCycle_STATUS) error {
-
-	// DeleteAfter
-	if source.DeleteAfter != nil {
-		var deleteAfter DeleteOption
-		err := deleteAfter.Initialize_From_DeleteOption_STATUS(source.DeleteAfter)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_DeleteOption_STATUS() to populate field DeleteAfter")
-		}
-		cycle.DeleteAfter = &deleteAfter
-	} else {
-		cycle.DeleteAfter = nil
-	}
-
-	// SourceDataStore
-	if source.SourceDataStore != nil {
-		var sourceDataStore DataStoreInfoBase
-		err := sourceDataStore.Initialize_From_DataStoreInfoBase_STATUS(source.SourceDataStore)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_DataStoreInfoBase_STATUS() to populate field SourceDataStore")
-		}
-		cycle.SourceDataStore = &sourceDataStore
-	} else {
-		cycle.SourceDataStore = nil
-	}
-
-	// TargetDataStoreCopySettings
-	if source.TargetDataStoreCopySettings != nil {
-		targetDataStoreCopySettingList := make([]TargetCopySetting, len(source.TargetDataStoreCopySettings))
-		for targetDataStoreCopySettingIndex, targetDataStoreCopySettingItem := range source.TargetDataStoreCopySettings {
-			// Shadow the loop variable to avoid aliasing
-			targetDataStoreCopySettingItem := targetDataStoreCopySettingItem
-			var targetDataStoreCopySetting TargetCopySetting
-			err := targetDataStoreCopySetting.Initialize_From_TargetCopySetting_STATUS(&targetDataStoreCopySettingItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_TargetCopySetting_STATUS() to populate field TargetDataStoreCopySettings")
-			}
-			targetDataStoreCopySettingList[targetDataStoreCopySettingIndex] = targetDataStoreCopySetting
-		}
-		cycle.TargetDataStoreCopySettings = targetDataStoreCopySettingList
-	} else {
-		cycle.TargetDataStoreCopySettings = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Source LifeCycle
 type SourceLifeCycle_STATUS struct {
 	DeleteAfter *DeleteOption_STATUS `json:"deleteAfter,omitempty"`
@@ -3142,14 +2983,14 @@ var _ genruntime.FromARMConverter = &SourceLifeCycle_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (cycle *SourceLifeCycle_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SourceLifeCycle_STATUS_ARM{}
+	return &arm.SourceLifeCycle_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (cycle *SourceLifeCycle_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SourceLifeCycle_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SourceLifeCycle_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SourceLifeCycle_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SourceLifeCycle_STATUS, got %T", armInput)
 	}
 
 	// Set property "DeleteAfter":
@@ -3196,7 +3037,7 @@ func (cycle *SourceLifeCycle_STATUS) AssignProperties_From_SourceLifeCycle_STATU
 		var deleteAfter DeleteOption_STATUS
 		err := deleteAfter.AssignProperties_From_DeleteOption_STATUS(source.DeleteAfter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeleteOption_STATUS() to populate field DeleteAfter")
+			return eris.Wrap(err, "calling AssignProperties_From_DeleteOption_STATUS() to populate field DeleteAfter")
 		}
 		cycle.DeleteAfter = &deleteAfter
 	} else {
@@ -3208,7 +3049,7 @@ func (cycle *SourceLifeCycle_STATUS) AssignProperties_From_SourceLifeCycle_STATU
 		var sourceDataStore DataStoreInfoBase_STATUS
 		err := sourceDataStore.AssignProperties_From_DataStoreInfoBase_STATUS(source.SourceDataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase_STATUS() to populate field SourceDataStore")
+			return eris.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase_STATUS() to populate field SourceDataStore")
 		}
 		cycle.SourceDataStore = &sourceDataStore
 	} else {
@@ -3219,12 +3060,10 @@ func (cycle *SourceLifeCycle_STATUS) AssignProperties_From_SourceLifeCycle_STATU
 	if source.TargetDataStoreCopySettings != nil {
 		targetDataStoreCopySettingList := make([]TargetCopySetting_STATUS, len(source.TargetDataStoreCopySettings))
 		for targetDataStoreCopySettingIndex, targetDataStoreCopySettingItem := range source.TargetDataStoreCopySettings {
-			// Shadow the loop variable to avoid aliasing
-			targetDataStoreCopySettingItem := targetDataStoreCopySettingItem
 			var targetDataStoreCopySetting TargetCopySetting_STATUS
 			err := targetDataStoreCopySetting.AssignProperties_From_TargetCopySetting_STATUS(&targetDataStoreCopySettingItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_TargetCopySetting_STATUS() to populate field TargetDataStoreCopySettings")
+				return eris.Wrap(err, "calling AssignProperties_From_TargetCopySetting_STATUS() to populate field TargetDataStoreCopySettings")
 			}
 			targetDataStoreCopySettingList[targetDataStoreCopySettingIndex] = targetDataStoreCopySetting
 		}
@@ -3247,7 +3086,7 @@ func (cycle *SourceLifeCycle_STATUS) AssignProperties_To_SourceLifeCycle_STATUS(
 		var deleteAfter storage.DeleteOption_STATUS
 		err := cycle.DeleteAfter.AssignProperties_To_DeleteOption_STATUS(&deleteAfter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeleteOption_STATUS() to populate field DeleteAfter")
+			return eris.Wrap(err, "calling AssignProperties_To_DeleteOption_STATUS() to populate field DeleteAfter")
 		}
 		destination.DeleteAfter = &deleteAfter
 	} else {
@@ -3259,7 +3098,7 @@ func (cycle *SourceLifeCycle_STATUS) AssignProperties_To_SourceLifeCycle_STATUS(
 		var sourceDataStore storage.DataStoreInfoBase_STATUS
 		err := cycle.SourceDataStore.AssignProperties_To_DataStoreInfoBase_STATUS(&sourceDataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase_STATUS() to populate field SourceDataStore")
+			return eris.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase_STATUS() to populate field SourceDataStore")
 		}
 		destination.SourceDataStore = &sourceDataStore
 	} else {
@@ -3270,12 +3109,10 @@ func (cycle *SourceLifeCycle_STATUS) AssignProperties_To_SourceLifeCycle_STATUS(
 	if cycle.TargetDataStoreCopySettings != nil {
 		targetDataStoreCopySettingList := make([]storage.TargetCopySetting_STATUS, len(cycle.TargetDataStoreCopySettings))
 		for targetDataStoreCopySettingIndex, targetDataStoreCopySettingItem := range cycle.TargetDataStoreCopySettings {
-			// Shadow the loop variable to avoid aliasing
-			targetDataStoreCopySettingItem := targetDataStoreCopySettingItem
 			var targetDataStoreCopySetting storage.TargetCopySetting_STATUS
 			err := targetDataStoreCopySettingItem.AssignProperties_To_TargetCopySetting_STATUS(&targetDataStoreCopySetting)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_TargetCopySetting_STATUS() to populate field TargetDataStoreCopySettings")
+				return eris.Wrap(err, "calling AssignProperties_To_TargetCopySetting_STATUS() to populate field TargetDataStoreCopySettings")
 			}
 			targetDataStoreCopySettingList[targetDataStoreCopySettingIndex] = targetDataStoreCopySetting
 		}
@@ -3310,25 +3147,25 @@ func (context *TriggerContext) ConvertToARM(resolved genruntime.ConvertToARMReso
 	if context == nil {
 		return nil, nil
 	}
-	result := &TriggerContext_ARM{}
+	result := &arm.TriggerContext{}
 
 	// Set property "Adhoc":
 	if context.Adhoc != nil {
-		adhoc_ARM, err := (*context.Adhoc).ConvertToARM(resolved)
+		adhoc_ARM, err := context.Adhoc.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		adhoc := *adhoc_ARM.(*AdhocBasedTriggerContext_ARM)
+		adhoc := *adhoc_ARM.(*arm.AdhocBasedTriggerContext)
 		result.Adhoc = &adhoc
 	}
 
 	// Set property "Schedule":
 	if context.Schedule != nil {
-		schedule_ARM, err := (*context.Schedule).ConvertToARM(resolved)
+		schedule_ARM, err := context.Schedule.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		schedule := *schedule_ARM.(*ScheduleBasedTriggerContext_ARM)
+		schedule := *schedule_ARM.(*arm.ScheduleBasedTriggerContext)
 		result.Schedule = &schedule
 	}
 	return result, nil
@@ -3336,14 +3173,14 @@ func (context *TriggerContext) ConvertToARM(resolved genruntime.ConvertToARMReso
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (context *TriggerContext) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &TriggerContext_ARM{}
+	return &arm.TriggerContext{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (context *TriggerContext) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(TriggerContext_ARM)
+	typedInput, ok := armInput.(arm.TriggerContext)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected TriggerContext_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.TriggerContext, got %T", armInput)
 	}
 
 	// Set property "Adhoc":
@@ -3380,7 +3217,7 @@ func (context *TriggerContext) AssignProperties_From_TriggerContext(source *stor
 		var adhoc AdhocBasedTriggerContext
 		err := adhoc.AssignProperties_From_AdhocBasedTriggerContext(source.Adhoc)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AdhocBasedTriggerContext() to populate field Adhoc")
+			return eris.Wrap(err, "calling AssignProperties_From_AdhocBasedTriggerContext() to populate field Adhoc")
 		}
 		context.Adhoc = &adhoc
 	} else {
@@ -3392,7 +3229,7 @@ func (context *TriggerContext) AssignProperties_From_TriggerContext(source *stor
 		var schedule ScheduleBasedTriggerContext
 		err := schedule.AssignProperties_From_ScheduleBasedTriggerContext(source.Schedule)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ScheduleBasedTriggerContext() to populate field Schedule")
+			return eris.Wrap(err, "calling AssignProperties_From_ScheduleBasedTriggerContext() to populate field Schedule")
 		}
 		context.Schedule = &schedule
 	} else {
@@ -3413,7 +3250,7 @@ func (context *TriggerContext) AssignProperties_To_TriggerContext(destination *s
 		var adhoc storage.AdhocBasedTriggerContext
 		err := context.Adhoc.AssignProperties_To_AdhocBasedTriggerContext(&adhoc)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AdhocBasedTriggerContext() to populate field Adhoc")
+			return eris.Wrap(err, "calling AssignProperties_To_AdhocBasedTriggerContext() to populate field Adhoc")
 		}
 		destination.Adhoc = &adhoc
 	} else {
@@ -3425,7 +3262,7 @@ func (context *TriggerContext) AssignProperties_To_TriggerContext(destination *s
 		var schedule storage.ScheduleBasedTriggerContext
 		err := context.Schedule.AssignProperties_To_ScheduleBasedTriggerContext(&schedule)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ScheduleBasedTriggerContext() to populate field Schedule")
+			return eris.Wrap(err, "calling AssignProperties_To_ScheduleBasedTriggerContext() to populate field Schedule")
 		}
 		destination.Schedule = &schedule
 	} else {
@@ -3437,37 +3274,6 @@ func (context *TriggerContext) AssignProperties_To_TriggerContext(destination *s
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_TriggerContext_STATUS populates our TriggerContext from the provided source TriggerContext_STATUS
-func (context *TriggerContext) Initialize_From_TriggerContext_STATUS(source *TriggerContext_STATUS) error {
-
-	// Adhoc
-	if source.Adhoc != nil {
-		var adhoc AdhocBasedTriggerContext
-		err := adhoc.Initialize_From_AdhocBasedTriggerContext_STATUS(source.Adhoc)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_AdhocBasedTriggerContext_STATUS() to populate field Adhoc")
-		}
-		context.Adhoc = &adhoc
-	} else {
-		context.Adhoc = nil
-	}
-
-	// Schedule
-	if source.Schedule != nil {
-		var schedule ScheduleBasedTriggerContext
-		err := schedule.Initialize_From_ScheduleBasedTriggerContext_STATUS(source.Schedule)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ScheduleBasedTriggerContext_STATUS() to populate field Schedule")
-		}
-		context.Schedule = &schedule
-	} else {
-		context.Schedule = nil
 	}
 
 	// No error
@@ -3486,14 +3292,14 @@ var _ genruntime.FromARMConverter = &TriggerContext_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (context *TriggerContext_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &TriggerContext_STATUS_ARM{}
+	return &arm.TriggerContext_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (context *TriggerContext_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(TriggerContext_STATUS_ARM)
+	typedInput, ok := armInput.(arm.TriggerContext_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected TriggerContext_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.TriggerContext_STATUS, got %T", armInput)
 	}
 
 	// Set property "Adhoc":
@@ -3530,7 +3336,7 @@ func (context *TriggerContext_STATUS) AssignProperties_From_TriggerContext_STATU
 		var adhoc AdhocBasedTriggerContext_STATUS
 		err := adhoc.AssignProperties_From_AdhocBasedTriggerContext_STATUS(source.Adhoc)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AdhocBasedTriggerContext_STATUS() to populate field Adhoc")
+			return eris.Wrap(err, "calling AssignProperties_From_AdhocBasedTriggerContext_STATUS() to populate field Adhoc")
 		}
 		context.Adhoc = &adhoc
 	} else {
@@ -3542,7 +3348,7 @@ func (context *TriggerContext_STATUS) AssignProperties_From_TriggerContext_STATU
 		var schedule ScheduleBasedTriggerContext_STATUS
 		err := schedule.AssignProperties_From_ScheduleBasedTriggerContext_STATUS(source.Schedule)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ScheduleBasedTriggerContext_STATUS() to populate field Schedule")
+			return eris.Wrap(err, "calling AssignProperties_From_ScheduleBasedTriggerContext_STATUS() to populate field Schedule")
 		}
 		context.Schedule = &schedule
 	} else {
@@ -3563,7 +3369,7 @@ func (context *TriggerContext_STATUS) AssignProperties_To_TriggerContext_STATUS(
 		var adhoc storage.AdhocBasedTriggerContext_STATUS
 		err := context.Adhoc.AssignProperties_To_AdhocBasedTriggerContext_STATUS(&adhoc)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AdhocBasedTriggerContext_STATUS() to populate field Adhoc")
+			return eris.Wrap(err, "calling AssignProperties_To_AdhocBasedTriggerContext_STATUS() to populate field Adhoc")
 		}
 		destination.Adhoc = &adhoc
 	} else {
@@ -3575,7 +3381,7 @@ func (context *TriggerContext_STATUS) AssignProperties_To_TriggerContext_STATUS(
 		var schedule storage.ScheduleBasedTriggerContext_STATUS
 		err := context.Schedule.AssignProperties_To_ScheduleBasedTriggerContext_STATUS(&schedule)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ScheduleBasedTriggerContext_STATUS() to populate field Schedule")
+			return eris.Wrap(err, "calling AssignProperties_To_ScheduleBasedTriggerContext_STATUS() to populate field Schedule")
 		}
 		destination.Schedule = &schedule
 	} else {
@@ -3610,20 +3416,24 @@ func (context *AdhocBasedTriggerContext) ConvertToARM(resolved genruntime.Conver
 	if context == nil {
 		return nil, nil
 	}
-	result := &AdhocBasedTriggerContext_ARM{}
+	result := &arm.AdhocBasedTriggerContext{}
 
 	// Set property "ObjectType":
 	if context.ObjectType != nil {
-		result.ObjectType = *context.ObjectType
+		var temp arm.AdhocBasedTriggerContext_ObjectType
+		var temp1 string
+		temp1 = string(*context.ObjectType)
+		temp = arm.AdhocBasedTriggerContext_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 
 	// Set property "TaggingCriteria":
 	if context.TaggingCriteria != nil {
-		taggingCriteria_ARM, err := (*context.TaggingCriteria).ConvertToARM(resolved)
+		taggingCriteria_ARM, err := context.TaggingCriteria.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		taggingCriteria := *taggingCriteria_ARM.(*AdhocBasedTaggingCriteria_ARM)
+		taggingCriteria := *taggingCriteria_ARM.(*arm.AdhocBasedTaggingCriteria)
 		result.TaggingCriteria = &taggingCriteria
 	}
 	return result, nil
@@ -3631,18 +3441,22 @@ func (context *AdhocBasedTriggerContext) ConvertToARM(resolved genruntime.Conver
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (context *AdhocBasedTriggerContext) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AdhocBasedTriggerContext_ARM{}
+	return &arm.AdhocBasedTriggerContext{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (context *AdhocBasedTriggerContext) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AdhocBasedTriggerContext_ARM)
+	typedInput, ok := armInput.(arm.AdhocBasedTriggerContext)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AdhocBasedTriggerContext_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AdhocBasedTriggerContext, got %T", armInput)
 	}
 
 	// Set property "ObjectType":
-	context.ObjectType = &typedInput.ObjectType
+	var temp AdhocBasedTriggerContext_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AdhocBasedTriggerContext_ObjectType(temp1)
+	context.ObjectType = &temp
 
 	// Set property "TaggingCriteria":
 	if typedInput.TaggingCriteria != nil {
@@ -3676,7 +3490,7 @@ func (context *AdhocBasedTriggerContext) AssignProperties_From_AdhocBasedTrigger
 		var taggingCriterion AdhocBasedTaggingCriteria
 		err := taggingCriterion.AssignProperties_From_AdhocBasedTaggingCriteria(source.TaggingCriteria)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AdhocBasedTaggingCriteria() to populate field TaggingCriteria")
+			return eris.Wrap(err, "calling AssignProperties_From_AdhocBasedTaggingCriteria() to populate field TaggingCriteria")
 		}
 		context.TaggingCriteria = &taggingCriterion
 	} else {
@@ -3705,7 +3519,7 @@ func (context *AdhocBasedTriggerContext) AssignProperties_To_AdhocBasedTriggerCo
 		var taggingCriterion storage.AdhocBasedTaggingCriteria
 		err := context.TaggingCriteria.AssignProperties_To_AdhocBasedTaggingCriteria(&taggingCriterion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AdhocBasedTaggingCriteria() to populate field TaggingCriteria")
+			return eris.Wrap(err, "calling AssignProperties_To_AdhocBasedTaggingCriteria() to populate field TaggingCriteria")
 		}
 		destination.TaggingCriteria = &taggingCriterion
 	} else {
@@ -3717,33 +3531,6 @@ func (context *AdhocBasedTriggerContext) AssignProperties_To_AdhocBasedTriggerCo
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_AdhocBasedTriggerContext_STATUS populates our AdhocBasedTriggerContext from the provided source AdhocBasedTriggerContext_STATUS
-func (context *AdhocBasedTriggerContext) Initialize_From_AdhocBasedTriggerContext_STATUS(source *AdhocBasedTriggerContext_STATUS) error {
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), adhocBasedTriggerContext_ObjectType_Values)
-		context.ObjectType = &objectType
-	} else {
-		context.ObjectType = nil
-	}
-
-	// TaggingCriteria
-	if source.TaggingCriteria != nil {
-		var taggingCriterion AdhocBasedTaggingCriteria
-		err := taggingCriterion.Initialize_From_AdhocBasedTaggingCriteria_STATUS(source.TaggingCriteria)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_AdhocBasedTaggingCriteria_STATUS() to populate field TaggingCriteria")
-		}
-		context.TaggingCriteria = &taggingCriterion
-	} else {
-		context.TaggingCriteria = nil
 	}
 
 	// No error
@@ -3762,18 +3549,22 @@ var _ genruntime.FromARMConverter = &AdhocBasedTriggerContext_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (context *AdhocBasedTriggerContext_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AdhocBasedTriggerContext_STATUS_ARM{}
+	return &arm.AdhocBasedTriggerContext_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (context *AdhocBasedTriggerContext_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AdhocBasedTriggerContext_STATUS_ARM)
+	typedInput, ok := armInput.(arm.AdhocBasedTriggerContext_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AdhocBasedTriggerContext_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AdhocBasedTriggerContext_STATUS, got %T", armInput)
 	}
 
 	// Set property "ObjectType":
-	context.ObjectType = &typedInput.ObjectType
+	var temp AdhocBasedTriggerContext_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AdhocBasedTriggerContext_ObjectType_STATUS(temp1)
+	context.ObjectType = &temp
 
 	// Set property "TaggingCriteria":
 	if typedInput.TaggingCriteria != nil {
@@ -3807,7 +3598,7 @@ func (context *AdhocBasedTriggerContext_STATUS) AssignProperties_From_AdhocBased
 		var taggingCriterion AdhocBasedTaggingCriteria_STATUS
 		err := taggingCriterion.AssignProperties_From_AdhocBasedTaggingCriteria_STATUS(source.TaggingCriteria)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AdhocBasedTaggingCriteria_STATUS() to populate field TaggingCriteria")
+			return eris.Wrap(err, "calling AssignProperties_From_AdhocBasedTaggingCriteria_STATUS() to populate field TaggingCriteria")
 		}
 		context.TaggingCriteria = &taggingCriterion
 	} else {
@@ -3836,7 +3627,7 @@ func (context *AdhocBasedTriggerContext_STATUS) AssignProperties_To_AdhocBasedTr
 		var taggingCriterion storage.AdhocBasedTaggingCriteria_STATUS
 		err := context.TaggingCriteria.AssignProperties_To_AdhocBasedTaggingCriteria_STATUS(&taggingCriterion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AdhocBasedTaggingCriteria_STATUS() to populate field TaggingCriteria")
+			return eris.Wrap(err, "calling AssignProperties_To_AdhocBasedTaggingCriteria_STATUS() to populate field TaggingCriteria")
 		}
 		destination.TaggingCriteria = &taggingCriterion
 	} else {
@@ -3871,7 +3662,7 @@ func (params *AzureBackupParams) ConvertToARM(resolved genruntime.ConvertToARMRe
 	if params == nil {
 		return nil, nil
 	}
-	result := &AzureBackupParams_ARM{}
+	result := &arm.AzureBackupParams{}
 
 	// Set property "BackupType":
 	if params.BackupType != nil {
@@ -3881,21 +3672,25 @@ func (params *AzureBackupParams) ConvertToARM(resolved genruntime.ConvertToARMRe
 
 	// Set property "ObjectType":
 	if params.ObjectType != nil {
-		result.ObjectType = *params.ObjectType
+		var temp arm.AzureBackupParams_ObjectType
+		var temp1 string
+		temp1 = string(*params.ObjectType)
+		temp = arm.AzureBackupParams_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (params *AzureBackupParams) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AzureBackupParams_ARM{}
+	return &arm.AzureBackupParams{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (params *AzureBackupParams) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AzureBackupParams_ARM)
+	typedInput, ok := armInput.(arm.AzureBackupParams)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AzureBackupParams_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AzureBackupParams, got %T", armInput)
 	}
 
 	// Set property "BackupType":
@@ -3905,7 +3700,11 @@ func (params *AzureBackupParams) PopulateFromARM(owner genruntime.ArbitraryOwner
 	}
 
 	// Set property "ObjectType":
-	params.ObjectType = &typedInput.ObjectType
+	var temp AzureBackupParams_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AzureBackupParams_ObjectType(temp1)
+	params.ObjectType = &temp
 
 	// No error
 	return nil
@@ -3957,24 +3756,6 @@ func (params *AzureBackupParams) AssignProperties_To_AzureBackupParams(destinati
 	return nil
 }
 
-// Initialize_From_AzureBackupParams_STATUS populates our AzureBackupParams from the provided source AzureBackupParams_STATUS
-func (params *AzureBackupParams) Initialize_From_AzureBackupParams_STATUS(source *AzureBackupParams_STATUS) error {
-
-	// BackupType
-	params.BackupType = genruntime.ClonePointerToString(source.BackupType)
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), azureBackupParams_ObjectType_Values)
-		params.ObjectType = &objectType
-	} else {
-		params.ObjectType = nil
-	}
-
-	// No error
-	return nil
-}
-
 type AzureBackupParams_STATUS struct {
 	// BackupType: BackupType ; Full/Incremental etc
 	BackupType *string `json:"backupType,omitempty"`
@@ -3987,14 +3768,14 @@ var _ genruntime.FromARMConverter = &AzureBackupParams_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (params *AzureBackupParams_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AzureBackupParams_STATUS_ARM{}
+	return &arm.AzureBackupParams_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (params *AzureBackupParams_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AzureBackupParams_STATUS_ARM)
+	typedInput, ok := armInput.(arm.AzureBackupParams_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AzureBackupParams_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AzureBackupParams_STATUS, got %T", armInput)
 	}
 
 	// Set property "BackupType":
@@ -4004,7 +3785,11 @@ func (params *AzureBackupParams_STATUS) PopulateFromARM(owner genruntime.Arbitra
 	}
 
 	// Set property "ObjectType":
-	params.ObjectType = &typedInput.ObjectType
+	var temp AzureBackupParams_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AzureBackupParams_ObjectType_STATUS(temp1)
+	params.ObjectType = &temp
 
 	// No error
 	return nil
@@ -4056,6 +3841,37 @@ func (params *AzureBackupParams_STATUS) AssignProperties_To_AzureBackupParams_ST
 	return nil
 }
 
+// +kubebuilder:validation:Enum={"ArchiveStore","OperationalStore","VaultStore"}
+type DataStoreInfoBase_DataStoreType string
+
+const (
+	DataStoreInfoBase_DataStoreType_ArchiveStore     = DataStoreInfoBase_DataStoreType("ArchiveStore")
+	DataStoreInfoBase_DataStoreType_OperationalStore = DataStoreInfoBase_DataStoreType("OperationalStore")
+	DataStoreInfoBase_DataStoreType_VaultStore       = DataStoreInfoBase_DataStoreType("VaultStore")
+)
+
+// Mapping from string to DataStoreInfoBase_DataStoreType
+var dataStoreInfoBase_DataStoreType_Values = map[string]DataStoreInfoBase_DataStoreType{
+	"archivestore":     DataStoreInfoBase_DataStoreType_ArchiveStore,
+	"operationalstore": DataStoreInfoBase_DataStoreType_OperationalStore,
+	"vaultstore":       DataStoreInfoBase_DataStoreType_VaultStore,
+}
+
+type DataStoreInfoBase_DataStoreType_STATUS string
+
+const (
+	DataStoreInfoBase_DataStoreType_STATUS_ArchiveStore     = DataStoreInfoBase_DataStoreType_STATUS("ArchiveStore")
+	DataStoreInfoBase_DataStoreType_STATUS_OperationalStore = DataStoreInfoBase_DataStoreType_STATUS("OperationalStore")
+	DataStoreInfoBase_DataStoreType_STATUS_VaultStore       = DataStoreInfoBase_DataStoreType_STATUS("VaultStore")
+)
+
+// Mapping from string to DataStoreInfoBase_DataStoreType_STATUS
+var dataStoreInfoBase_DataStoreType_STATUS_Values = map[string]DataStoreInfoBase_DataStoreType_STATUS{
+	"archivestore":     DataStoreInfoBase_DataStoreType_STATUS_ArchiveStore,
+	"operationalstore": DataStoreInfoBase_DataStoreType_STATUS_OperationalStore,
+	"vaultstore":       DataStoreInfoBase_DataStoreType_STATUS_VaultStore,
+}
+
 type DeleteOption struct {
 	// AbsoluteDeleteOption: Mutually exclusive with all other properties
 	AbsoluteDeleteOption *AbsoluteDeleteOption `json:"absoluteDeleteOption,omitempty"`
@@ -4068,15 +3884,15 @@ func (option *DeleteOption) ConvertToARM(resolved genruntime.ConvertToARMResolve
 	if option == nil {
 		return nil, nil
 	}
-	result := &DeleteOption_ARM{}
+	result := &arm.DeleteOption{}
 
 	// Set property "AbsoluteDeleteOption":
 	if option.AbsoluteDeleteOption != nil {
-		absoluteDeleteOption_ARM, err := (*option.AbsoluteDeleteOption).ConvertToARM(resolved)
+		absoluteDeleteOption_ARM, err := option.AbsoluteDeleteOption.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		absoluteDeleteOption := *absoluteDeleteOption_ARM.(*AbsoluteDeleteOption_ARM)
+		absoluteDeleteOption := *absoluteDeleteOption_ARM.(*arm.AbsoluteDeleteOption)
 		result.AbsoluteDeleteOption = &absoluteDeleteOption
 	}
 	return result, nil
@@ -4084,14 +3900,14 @@ func (option *DeleteOption) ConvertToARM(resolved genruntime.ConvertToARMResolve
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *DeleteOption) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &DeleteOption_ARM{}
+	return &arm.DeleteOption{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *DeleteOption) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(DeleteOption_ARM)
+	typedInput, ok := armInput.(arm.DeleteOption)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected DeleteOption_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.DeleteOption, got %T", armInput)
 	}
 
 	// Set property "AbsoluteDeleteOption":
@@ -4117,7 +3933,7 @@ func (option *DeleteOption) AssignProperties_From_DeleteOption(source *storage.D
 		var absoluteDeleteOption AbsoluteDeleteOption
 		err := absoluteDeleteOption.AssignProperties_From_AbsoluteDeleteOption(source.AbsoluteDeleteOption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AbsoluteDeleteOption() to populate field AbsoluteDeleteOption")
+			return eris.Wrap(err, "calling AssignProperties_From_AbsoluteDeleteOption() to populate field AbsoluteDeleteOption")
 		}
 		option.AbsoluteDeleteOption = &absoluteDeleteOption
 	} else {
@@ -4138,7 +3954,7 @@ func (option *DeleteOption) AssignProperties_To_DeleteOption(destination *storag
 		var absoluteDeleteOption storage.AbsoluteDeleteOption
 		err := option.AbsoluteDeleteOption.AssignProperties_To_AbsoluteDeleteOption(&absoluteDeleteOption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AbsoluteDeleteOption() to populate field AbsoluteDeleteOption")
+			return eris.Wrap(err, "calling AssignProperties_To_AbsoluteDeleteOption() to populate field AbsoluteDeleteOption")
 		}
 		destination.AbsoluteDeleteOption = &absoluteDeleteOption
 	} else {
@@ -4156,25 +3972,6 @@ func (option *DeleteOption) AssignProperties_To_DeleteOption(destination *storag
 	return nil
 }
 
-// Initialize_From_DeleteOption_STATUS populates our DeleteOption from the provided source DeleteOption_STATUS
-func (option *DeleteOption) Initialize_From_DeleteOption_STATUS(source *DeleteOption_STATUS) error {
-
-	// AbsoluteDeleteOption
-	if source.AbsoluteDeleteOption != nil {
-		var absoluteDeleteOption AbsoluteDeleteOption
-		err := absoluteDeleteOption.Initialize_From_AbsoluteDeleteOption_STATUS(source.AbsoluteDeleteOption)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_AbsoluteDeleteOption_STATUS() to populate field AbsoluteDeleteOption")
-		}
-		option.AbsoluteDeleteOption = &absoluteDeleteOption
-	} else {
-		option.AbsoluteDeleteOption = nil
-	}
-
-	// No error
-	return nil
-}
-
 type DeleteOption_STATUS struct {
 	// AbsoluteDeleteOption: Mutually exclusive with all other properties
 	AbsoluteDeleteOption *AbsoluteDeleteOption_STATUS `json:"absoluteDeleteOption,omitempty"`
@@ -4184,14 +3981,14 @@ var _ genruntime.FromARMConverter = &DeleteOption_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *DeleteOption_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &DeleteOption_STATUS_ARM{}
+	return &arm.DeleteOption_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *DeleteOption_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(DeleteOption_STATUS_ARM)
+	typedInput, ok := armInput.(arm.DeleteOption_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected DeleteOption_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.DeleteOption_STATUS, got %T", armInput)
 	}
 
 	// Set property "AbsoluteDeleteOption":
@@ -4217,7 +4014,7 @@ func (option *DeleteOption_STATUS) AssignProperties_From_DeleteOption_STATUS(sou
 		var absoluteDeleteOption AbsoluteDeleteOption_STATUS
 		err := absoluteDeleteOption.AssignProperties_From_AbsoluteDeleteOption_STATUS(source.AbsoluteDeleteOption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_AbsoluteDeleteOption_STATUS() to populate field AbsoluteDeleteOption")
+			return eris.Wrap(err, "calling AssignProperties_From_AbsoluteDeleteOption_STATUS() to populate field AbsoluteDeleteOption")
 		}
 		option.AbsoluteDeleteOption = &absoluteDeleteOption
 	} else {
@@ -4238,7 +4035,7 @@ func (option *DeleteOption_STATUS) AssignProperties_To_DeleteOption_STATUS(desti
 		var absoluteDeleteOption storage.AbsoluteDeleteOption_STATUS
 		err := option.AbsoluteDeleteOption.AssignProperties_To_AbsoluteDeleteOption_STATUS(&absoluteDeleteOption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_AbsoluteDeleteOption_STATUS() to populate field AbsoluteDeleteOption")
+			return eris.Wrap(err, "calling AssignProperties_To_AbsoluteDeleteOption_STATUS() to populate field AbsoluteDeleteOption")
 		}
 		destination.AbsoluteDeleteOption = &absoluteDeleteOption
 	} else {
@@ -4277,20 +4074,24 @@ func (context *ScheduleBasedTriggerContext) ConvertToARM(resolved genruntime.Con
 	if context == nil {
 		return nil, nil
 	}
-	result := &ScheduleBasedTriggerContext_ARM{}
+	result := &arm.ScheduleBasedTriggerContext{}
 
 	// Set property "ObjectType":
 	if context.ObjectType != nil {
-		result.ObjectType = *context.ObjectType
+		var temp arm.ScheduleBasedTriggerContext_ObjectType
+		var temp1 string
+		temp1 = string(*context.ObjectType)
+		temp = arm.ScheduleBasedTriggerContext_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 
 	// Set property "Schedule":
 	if context.Schedule != nil {
-		schedule_ARM, err := (*context.Schedule).ConvertToARM(resolved)
+		schedule_ARM, err := context.Schedule.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		schedule := *schedule_ARM.(*BackupSchedule_ARM)
+		schedule := *schedule_ARM.(*arm.BackupSchedule)
 		result.Schedule = &schedule
 	}
 
@@ -4300,25 +4101,29 @@ func (context *ScheduleBasedTriggerContext) ConvertToARM(resolved genruntime.Con
 		if err != nil {
 			return nil, err
 		}
-		result.TaggingCriteria = append(result.TaggingCriteria, *item_ARM.(*TaggingCriteria_ARM))
+		result.TaggingCriteria = append(result.TaggingCriteria, *item_ARM.(*arm.TaggingCriteria))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (context *ScheduleBasedTriggerContext) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ScheduleBasedTriggerContext_ARM{}
+	return &arm.ScheduleBasedTriggerContext{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (context *ScheduleBasedTriggerContext) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ScheduleBasedTriggerContext_ARM)
+	typedInput, ok := armInput.(arm.ScheduleBasedTriggerContext)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ScheduleBasedTriggerContext_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ScheduleBasedTriggerContext, got %T", armInput)
 	}
 
 	// Set property "ObjectType":
-	context.ObjectType = &typedInput.ObjectType
+	var temp ScheduleBasedTriggerContext_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = ScheduleBasedTriggerContext_ObjectType(temp1)
+	context.ObjectType = &temp
 
 	// Set property "Schedule":
 	if typedInput.Schedule != nil {
@@ -4362,7 +4167,7 @@ func (context *ScheduleBasedTriggerContext) AssignProperties_From_ScheduleBasedT
 		var schedule BackupSchedule
 		err := schedule.AssignProperties_From_BackupSchedule(source.Schedule)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BackupSchedule() to populate field Schedule")
+			return eris.Wrap(err, "calling AssignProperties_From_BackupSchedule() to populate field Schedule")
 		}
 		context.Schedule = &schedule
 	} else {
@@ -4373,12 +4178,10 @@ func (context *ScheduleBasedTriggerContext) AssignProperties_From_ScheduleBasedT
 	if source.TaggingCriteria != nil {
 		taggingCriterionList := make([]TaggingCriteria, len(source.TaggingCriteria))
 		for taggingCriterionIndex, taggingCriterionItem := range source.TaggingCriteria {
-			// Shadow the loop variable to avoid aliasing
-			taggingCriterionItem := taggingCriterionItem
 			var taggingCriterion TaggingCriteria
 			err := taggingCriterion.AssignProperties_From_TaggingCriteria(&taggingCriterionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_TaggingCriteria() to populate field TaggingCriteria")
+				return eris.Wrap(err, "calling AssignProperties_From_TaggingCriteria() to populate field TaggingCriteria")
 			}
 			taggingCriterionList[taggingCriterionIndex] = taggingCriterion
 		}
@@ -4409,7 +4212,7 @@ func (context *ScheduleBasedTriggerContext) AssignProperties_To_ScheduleBasedTri
 		var schedule storage.BackupSchedule
 		err := context.Schedule.AssignProperties_To_BackupSchedule(&schedule)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BackupSchedule() to populate field Schedule")
+			return eris.Wrap(err, "calling AssignProperties_To_BackupSchedule() to populate field Schedule")
 		}
 		destination.Schedule = &schedule
 	} else {
@@ -4420,12 +4223,10 @@ func (context *ScheduleBasedTriggerContext) AssignProperties_To_ScheduleBasedTri
 	if context.TaggingCriteria != nil {
 		taggingCriterionList := make([]storage.TaggingCriteria, len(context.TaggingCriteria))
 		for taggingCriterionIndex, taggingCriterionItem := range context.TaggingCriteria {
-			// Shadow the loop variable to avoid aliasing
-			taggingCriterionItem := taggingCriterionItem
 			var taggingCriterion storage.TaggingCriteria
 			err := taggingCriterionItem.AssignProperties_To_TaggingCriteria(&taggingCriterion)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_TaggingCriteria() to populate field TaggingCriteria")
+				return eris.Wrap(err, "calling AssignProperties_To_TaggingCriteria() to populate field TaggingCriteria")
 			}
 			taggingCriterionList[taggingCriterionIndex] = taggingCriterion
 		}
@@ -4439,51 +4240,6 @@ func (context *ScheduleBasedTriggerContext) AssignProperties_To_ScheduleBasedTri
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_ScheduleBasedTriggerContext_STATUS populates our ScheduleBasedTriggerContext from the provided source ScheduleBasedTriggerContext_STATUS
-func (context *ScheduleBasedTriggerContext) Initialize_From_ScheduleBasedTriggerContext_STATUS(source *ScheduleBasedTriggerContext_STATUS) error {
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), scheduleBasedTriggerContext_ObjectType_Values)
-		context.ObjectType = &objectType
-	} else {
-		context.ObjectType = nil
-	}
-
-	// Schedule
-	if source.Schedule != nil {
-		var schedule BackupSchedule
-		err := schedule.Initialize_From_BackupSchedule_STATUS(source.Schedule)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_BackupSchedule_STATUS() to populate field Schedule")
-		}
-		context.Schedule = &schedule
-	} else {
-		context.Schedule = nil
-	}
-
-	// TaggingCriteria
-	if source.TaggingCriteria != nil {
-		taggingCriterionList := make([]TaggingCriteria, len(source.TaggingCriteria))
-		for taggingCriterionIndex, taggingCriterionItem := range source.TaggingCriteria {
-			// Shadow the loop variable to avoid aliasing
-			taggingCriterionItem := taggingCriterionItem
-			var taggingCriterion TaggingCriteria
-			err := taggingCriterion.Initialize_From_TaggingCriteria_STATUS(&taggingCriterionItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_TaggingCriteria_STATUS() to populate field TaggingCriteria")
-			}
-			taggingCriterionList[taggingCriterionIndex] = taggingCriterion
-		}
-		context.TaggingCriteria = taggingCriterionList
-	} else {
-		context.TaggingCriteria = nil
 	}
 
 	// No error
@@ -4505,18 +4261,22 @@ var _ genruntime.FromARMConverter = &ScheduleBasedTriggerContext_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (context *ScheduleBasedTriggerContext_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ScheduleBasedTriggerContext_STATUS_ARM{}
+	return &arm.ScheduleBasedTriggerContext_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (context *ScheduleBasedTriggerContext_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ScheduleBasedTriggerContext_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ScheduleBasedTriggerContext_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ScheduleBasedTriggerContext_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ScheduleBasedTriggerContext_STATUS, got %T", armInput)
 	}
 
 	// Set property "ObjectType":
-	context.ObjectType = &typedInput.ObjectType
+	var temp ScheduleBasedTriggerContext_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = ScheduleBasedTriggerContext_ObjectType_STATUS(temp1)
+	context.ObjectType = &temp
 
 	// Set property "Schedule":
 	if typedInput.Schedule != nil {
@@ -4560,7 +4320,7 @@ func (context *ScheduleBasedTriggerContext_STATUS) AssignProperties_From_Schedul
 		var schedule BackupSchedule_STATUS
 		err := schedule.AssignProperties_From_BackupSchedule_STATUS(source.Schedule)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_BackupSchedule_STATUS() to populate field Schedule")
+			return eris.Wrap(err, "calling AssignProperties_From_BackupSchedule_STATUS() to populate field Schedule")
 		}
 		context.Schedule = &schedule
 	} else {
@@ -4571,12 +4331,10 @@ func (context *ScheduleBasedTriggerContext_STATUS) AssignProperties_From_Schedul
 	if source.TaggingCriteria != nil {
 		taggingCriterionList := make([]TaggingCriteria_STATUS, len(source.TaggingCriteria))
 		for taggingCriterionIndex, taggingCriterionItem := range source.TaggingCriteria {
-			// Shadow the loop variable to avoid aliasing
-			taggingCriterionItem := taggingCriterionItem
 			var taggingCriterion TaggingCriteria_STATUS
 			err := taggingCriterion.AssignProperties_From_TaggingCriteria_STATUS(&taggingCriterionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_TaggingCriteria_STATUS() to populate field TaggingCriteria")
+				return eris.Wrap(err, "calling AssignProperties_From_TaggingCriteria_STATUS() to populate field TaggingCriteria")
 			}
 			taggingCriterionList[taggingCriterionIndex] = taggingCriterion
 		}
@@ -4607,7 +4365,7 @@ func (context *ScheduleBasedTriggerContext_STATUS) AssignProperties_To_ScheduleB
 		var schedule storage.BackupSchedule_STATUS
 		err := context.Schedule.AssignProperties_To_BackupSchedule_STATUS(&schedule)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_BackupSchedule_STATUS() to populate field Schedule")
+			return eris.Wrap(err, "calling AssignProperties_To_BackupSchedule_STATUS() to populate field Schedule")
 		}
 		destination.Schedule = &schedule
 	} else {
@@ -4618,12 +4376,10 @@ func (context *ScheduleBasedTriggerContext_STATUS) AssignProperties_To_ScheduleB
 	if context.TaggingCriteria != nil {
 		taggingCriterionList := make([]storage.TaggingCriteria_STATUS, len(context.TaggingCriteria))
 		for taggingCriterionIndex, taggingCriterionItem := range context.TaggingCriteria {
-			// Shadow the loop variable to avoid aliasing
-			taggingCriterionItem := taggingCriterionItem
 			var taggingCriterion storage.TaggingCriteria_STATUS
 			err := taggingCriterionItem.AssignProperties_To_TaggingCriteria_STATUS(&taggingCriterion)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_TaggingCriteria_STATUS() to populate field TaggingCriteria")
+				return eris.Wrap(err, "calling AssignProperties_To_TaggingCriteria_STATUS() to populate field TaggingCriteria")
 			}
 			taggingCriterionList[taggingCriterionIndex] = taggingCriterion
 		}
@@ -4661,25 +4417,25 @@ func (setting *TargetCopySetting) ConvertToARM(resolved genruntime.ConvertToARMR
 	if setting == nil {
 		return nil, nil
 	}
-	result := &TargetCopySetting_ARM{}
+	result := &arm.TargetCopySetting{}
 
 	// Set property "CopyAfter":
 	if setting.CopyAfter != nil {
-		copyAfter_ARM, err := (*setting.CopyAfter).ConvertToARM(resolved)
+		copyAfter_ARM, err := setting.CopyAfter.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		copyAfter := *copyAfter_ARM.(*CopyOption_ARM)
+		copyAfter := *copyAfter_ARM.(*arm.CopyOption)
 		result.CopyAfter = &copyAfter
 	}
 
 	// Set property "DataStore":
 	if setting.DataStore != nil {
-		dataStore_ARM, err := (*setting.DataStore).ConvertToARM(resolved)
+		dataStore_ARM, err := setting.DataStore.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		dataStore := *dataStore_ARM.(*DataStoreInfoBase_ARM)
+		dataStore := *dataStore_ARM.(*arm.DataStoreInfoBase)
 		result.DataStore = &dataStore
 	}
 	return result, nil
@@ -4687,14 +4443,14 @@ func (setting *TargetCopySetting) ConvertToARM(resolved genruntime.ConvertToARMR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (setting *TargetCopySetting) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &TargetCopySetting_ARM{}
+	return &arm.TargetCopySetting{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (setting *TargetCopySetting) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(TargetCopySetting_ARM)
+	typedInput, ok := armInput.(arm.TargetCopySetting)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected TargetCopySetting_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.TargetCopySetting, got %T", armInput)
 	}
 
 	// Set property "CopyAfter":
@@ -4731,7 +4487,7 @@ func (setting *TargetCopySetting) AssignProperties_From_TargetCopySetting(source
 		var copyAfter CopyOption
 		err := copyAfter.AssignProperties_From_CopyOption(source.CopyAfter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CopyOption() to populate field CopyAfter")
+			return eris.Wrap(err, "calling AssignProperties_From_CopyOption() to populate field CopyAfter")
 		}
 		setting.CopyAfter = &copyAfter
 	} else {
@@ -4743,7 +4499,7 @@ func (setting *TargetCopySetting) AssignProperties_From_TargetCopySetting(source
 		var dataStore DataStoreInfoBase
 		err := dataStore.AssignProperties_From_DataStoreInfoBase(source.DataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase() to populate field DataStore")
+			return eris.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase() to populate field DataStore")
 		}
 		setting.DataStore = &dataStore
 	} else {
@@ -4764,7 +4520,7 @@ func (setting *TargetCopySetting) AssignProperties_To_TargetCopySetting(destinat
 		var copyAfter storage.CopyOption
 		err := setting.CopyAfter.AssignProperties_To_CopyOption(&copyAfter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CopyOption() to populate field CopyAfter")
+			return eris.Wrap(err, "calling AssignProperties_To_CopyOption() to populate field CopyAfter")
 		}
 		destination.CopyAfter = &copyAfter
 	} else {
@@ -4776,7 +4532,7 @@ func (setting *TargetCopySetting) AssignProperties_To_TargetCopySetting(destinat
 		var dataStore storage.DataStoreInfoBase
 		err := setting.DataStore.AssignProperties_To_DataStoreInfoBase(&dataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase() to populate field DataStore")
+			return eris.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase() to populate field DataStore")
 		}
 		destination.DataStore = &dataStore
 	} else {
@@ -4788,37 +4544,6 @@ func (setting *TargetCopySetting) AssignProperties_To_TargetCopySetting(destinat
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_TargetCopySetting_STATUS populates our TargetCopySetting from the provided source TargetCopySetting_STATUS
-func (setting *TargetCopySetting) Initialize_From_TargetCopySetting_STATUS(source *TargetCopySetting_STATUS) error {
-
-	// CopyAfter
-	if source.CopyAfter != nil {
-		var copyAfter CopyOption
-		err := copyAfter.Initialize_From_CopyOption_STATUS(source.CopyAfter)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_CopyOption_STATUS() to populate field CopyAfter")
-		}
-		setting.CopyAfter = &copyAfter
-	} else {
-		setting.CopyAfter = nil
-	}
-
-	// DataStore
-	if source.DataStore != nil {
-		var dataStore DataStoreInfoBase
-		err := dataStore.Initialize_From_DataStoreInfoBase_STATUS(source.DataStore)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_DataStoreInfoBase_STATUS() to populate field DataStore")
-		}
-		setting.DataStore = &dataStore
-	} else {
-		setting.DataStore = nil
 	}
 
 	// No error
@@ -4838,14 +4563,14 @@ var _ genruntime.FromARMConverter = &TargetCopySetting_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (setting *TargetCopySetting_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &TargetCopySetting_STATUS_ARM{}
+	return &arm.TargetCopySetting_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (setting *TargetCopySetting_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(TargetCopySetting_STATUS_ARM)
+	typedInput, ok := armInput.(arm.TargetCopySetting_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected TargetCopySetting_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.TargetCopySetting_STATUS, got %T", armInput)
 	}
 
 	// Set property "CopyAfter":
@@ -4882,7 +4607,7 @@ func (setting *TargetCopySetting_STATUS) AssignProperties_From_TargetCopySetting
 		var copyAfter CopyOption_STATUS
 		err := copyAfter.AssignProperties_From_CopyOption_STATUS(source.CopyAfter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CopyOption_STATUS() to populate field CopyAfter")
+			return eris.Wrap(err, "calling AssignProperties_From_CopyOption_STATUS() to populate field CopyAfter")
 		}
 		setting.CopyAfter = &copyAfter
 	} else {
@@ -4894,7 +4619,7 @@ func (setting *TargetCopySetting_STATUS) AssignProperties_From_TargetCopySetting
 		var dataStore DataStoreInfoBase_STATUS
 		err := dataStore.AssignProperties_From_DataStoreInfoBase_STATUS(source.DataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase_STATUS() to populate field DataStore")
+			return eris.Wrap(err, "calling AssignProperties_From_DataStoreInfoBase_STATUS() to populate field DataStore")
 		}
 		setting.DataStore = &dataStore
 	} else {
@@ -4915,7 +4640,7 @@ func (setting *TargetCopySetting_STATUS) AssignProperties_To_TargetCopySetting_S
 		var copyAfter storage.CopyOption_STATUS
 		err := setting.CopyAfter.AssignProperties_To_CopyOption_STATUS(&copyAfter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CopyOption_STATUS() to populate field CopyAfter")
+			return eris.Wrap(err, "calling AssignProperties_To_CopyOption_STATUS() to populate field CopyAfter")
 		}
 		destination.CopyAfter = &copyAfter
 	} else {
@@ -4927,7 +4652,7 @@ func (setting *TargetCopySetting_STATUS) AssignProperties_To_TargetCopySetting_S
 		var dataStore storage.DataStoreInfoBase_STATUS
 		err := setting.DataStore.AssignProperties_To_DataStoreInfoBase_STATUS(&dataStore)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase_STATUS() to populate field DataStore")
+			return eris.Wrap(err, "calling AssignProperties_To_DataStoreInfoBase_STATUS() to populate field DataStore")
 		}
 		destination.DataStore = &dataStore
 	} else {
@@ -4962,7 +4687,7 @@ func (option *AbsoluteDeleteOption) ConvertToARM(resolved genruntime.ConvertToAR
 	if option == nil {
 		return nil, nil
 	}
-	result := &AbsoluteDeleteOption_ARM{}
+	result := &arm.AbsoluteDeleteOption{}
 
 	// Set property "Duration":
 	if option.Duration != nil {
@@ -4972,21 +4697,25 @@ func (option *AbsoluteDeleteOption) ConvertToARM(resolved genruntime.ConvertToAR
 
 	// Set property "ObjectType":
 	if option.ObjectType != nil {
-		result.ObjectType = *option.ObjectType
+		var temp arm.AbsoluteDeleteOption_ObjectType
+		var temp1 string
+		temp1 = string(*option.ObjectType)
+		temp = arm.AbsoluteDeleteOption_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *AbsoluteDeleteOption) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AbsoluteDeleteOption_ARM{}
+	return &arm.AbsoluteDeleteOption{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *AbsoluteDeleteOption) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AbsoluteDeleteOption_ARM)
+	typedInput, ok := armInput.(arm.AbsoluteDeleteOption)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AbsoluteDeleteOption_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AbsoluteDeleteOption, got %T", armInput)
 	}
 
 	// Set property "Duration":
@@ -4996,7 +4725,11 @@ func (option *AbsoluteDeleteOption) PopulateFromARM(owner genruntime.ArbitraryOw
 	}
 
 	// Set property "ObjectType":
-	option.ObjectType = &typedInput.ObjectType
+	var temp AbsoluteDeleteOption_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AbsoluteDeleteOption_ObjectType(temp1)
+	option.ObjectType = &temp
 
 	// No error
 	return nil
@@ -5048,24 +4781,6 @@ func (option *AbsoluteDeleteOption) AssignProperties_To_AbsoluteDeleteOption(des
 	return nil
 }
 
-// Initialize_From_AbsoluteDeleteOption_STATUS populates our AbsoluteDeleteOption from the provided source AbsoluteDeleteOption_STATUS
-func (option *AbsoluteDeleteOption) Initialize_From_AbsoluteDeleteOption_STATUS(source *AbsoluteDeleteOption_STATUS) error {
-
-	// Duration
-	option.Duration = genruntime.ClonePointerToString(source.Duration)
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), absoluteDeleteOption_ObjectType_Values)
-		option.ObjectType = &objectType
-	} else {
-		option.ObjectType = nil
-	}
-
-	// No error
-	return nil
-}
-
 type AbsoluteDeleteOption_STATUS struct {
 	// Duration: Duration of deletion after given timespan
 	Duration *string `json:"duration,omitempty"`
@@ -5078,14 +4793,14 @@ var _ genruntime.FromARMConverter = &AbsoluteDeleteOption_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *AbsoluteDeleteOption_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AbsoluteDeleteOption_STATUS_ARM{}
+	return &arm.AbsoluteDeleteOption_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *AbsoluteDeleteOption_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AbsoluteDeleteOption_STATUS_ARM)
+	typedInput, ok := armInput.(arm.AbsoluteDeleteOption_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AbsoluteDeleteOption_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AbsoluteDeleteOption_STATUS, got %T", armInput)
 	}
 
 	// Set property "Duration":
@@ -5095,7 +4810,11 @@ func (option *AbsoluteDeleteOption_STATUS) PopulateFromARM(owner genruntime.Arbi
 	}
 
 	// Set property "ObjectType":
-	option.ObjectType = &typedInput.ObjectType
+	var temp AbsoluteDeleteOption_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = AbsoluteDeleteOption_ObjectType_STATUS(temp1)
+	option.ObjectType = &temp
 
 	// No error
 	return nil
@@ -5160,15 +4879,15 @@ func (criteria *AdhocBasedTaggingCriteria) ConvertToARM(resolved genruntime.Conv
 	if criteria == nil {
 		return nil, nil
 	}
-	result := &AdhocBasedTaggingCriteria_ARM{}
+	result := &arm.AdhocBasedTaggingCriteria{}
 
 	// Set property "TagInfo":
 	if criteria.TagInfo != nil {
-		tagInfo_ARM, err := (*criteria.TagInfo).ConvertToARM(resolved)
+		tagInfo_ARM, err := criteria.TagInfo.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		tagInfo := *tagInfo_ARM.(*RetentionTag_ARM)
+		tagInfo := *tagInfo_ARM.(*arm.RetentionTag)
 		result.TagInfo = &tagInfo
 	}
 	return result, nil
@@ -5176,14 +4895,14 @@ func (criteria *AdhocBasedTaggingCriteria) ConvertToARM(resolved genruntime.Conv
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *AdhocBasedTaggingCriteria) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AdhocBasedTaggingCriteria_ARM{}
+	return &arm.AdhocBasedTaggingCriteria{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *AdhocBasedTaggingCriteria) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AdhocBasedTaggingCriteria_ARM)
+	typedInput, ok := armInput.(arm.AdhocBasedTaggingCriteria)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AdhocBasedTaggingCriteria_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AdhocBasedTaggingCriteria, got %T", armInput)
 	}
 
 	// Set property "TagInfo":
@@ -5209,7 +4928,7 @@ func (criteria *AdhocBasedTaggingCriteria) AssignProperties_From_AdhocBasedTaggi
 		var tagInfo RetentionTag
 		err := tagInfo.AssignProperties_From_RetentionTag(source.TagInfo)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RetentionTag() to populate field TagInfo")
+			return eris.Wrap(err, "calling AssignProperties_From_RetentionTag() to populate field TagInfo")
 		}
 		criteria.TagInfo = &tagInfo
 	} else {
@@ -5230,7 +4949,7 @@ func (criteria *AdhocBasedTaggingCriteria) AssignProperties_To_AdhocBasedTagging
 		var tagInfo storage.RetentionTag
 		err := criteria.TagInfo.AssignProperties_To_RetentionTag(&tagInfo)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RetentionTag() to populate field TagInfo")
+			return eris.Wrap(err, "calling AssignProperties_To_RetentionTag() to populate field TagInfo")
 		}
 		destination.TagInfo = &tagInfo
 	} else {
@@ -5248,25 +4967,6 @@ func (criteria *AdhocBasedTaggingCriteria) AssignProperties_To_AdhocBasedTagging
 	return nil
 }
 
-// Initialize_From_AdhocBasedTaggingCriteria_STATUS populates our AdhocBasedTaggingCriteria from the provided source AdhocBasedTaggingCriteria_STATUS
-func (criteria *AdhocBasedTaggingCriteria) Initialize_From_AdhocBasedTaggingCriteria_STATUS(source *AdhocBasedTaggingCriteria_STATUS) error {
-
-	// TagInfo
-	if source.TagInfo != nil {
-		var tagInfo RetentionTag
-		err := tagInfo.Initialize_From_RetentionTag_STATUS(source.TagInfo)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_RetentionTag_STATUS() to populate field TagInfo")
-		}
-		criteria.TagInfo = &tagInfo
-	} else {
-		criteria.TagInfo = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Adhoc backup tagging criteria
 type AdhocBasedTaggingCriteria_STATUS struct {
 	// TagInfo: Retention tag information
@@ -5277,14 +4977,14 @@ var _ genruntime.FromARMConverter = &AdhocBasedTaggingCriteria_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *AdhocBasedTaggingCriteria_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &AdhocBasedTaggingCriteria_STATUS_ARM{}
+	return &arm.AdhocBasedTaggingCriteria_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *AdhocBasedTaggingCriteria_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(AdhocBasedTaggingCriteria_STATUS_ARM)
+	typedInput, ok := armInput.(arm.AdhocBasedTaggingCriteria_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected AdhocBasedTaggingCriteria_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AdhocBasedTaggingCriteria_STATUS, got %T", armInput)
 	}
 
 	// Set property "TagInfo":
@@ -5310,7 +5010,7 @@ func (criteria *AdhocBasedTaggingCriteria_STATUS) AssignProperties_From_AdhocBas
 		var tagInfo RetentionTag_STATUS
 		err := tagInfo.AssignProperties_From_RetentionTag_STATUS(source.TagInfo)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RetentionTag_STATUS() to populate field TagInfo")
+			return eris.Wrap(err, "calling AssignProperties_From_RetentionTag_STATUS() to populate field TagInfo")
 		}
 		criteria.TagInfo = &tagInfo
 	} else {
@@ -5331,7 +5031,7 @@ func (criteria *AdhocBasedTaggingCriteria_STATUS) AssignProperties_To_AdhocBased
 		var tagInfo storage.RetentionTag_STATUS
 		err := criteria.TagInfo.AssignProperties_To_RetentionTag_STATUS(&tagInfo)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RetentionTag_STATUS() to populate field TagInfo")
+			return eris.Wrap(err, "calling AssignProperties_To_RetentionTag_STATUS() to populate field TagInfo")
 		}
 		destination.TagInfo = &tagInfo
 	} else {
@@ -5349,13 +5049,72 @@ func (criteria *AdhocBasedTaggingCriteria_STATUS) AssignProperties_To_AdhocBased
 	return nil
 }
 
+// +kubebuilder:validation:Enum={"AdhocBasedTriggerContext"}
+type AdhocBasedTriggerContext_ObjectType string
+
+const AdhocBasedTriggerContext_ObjectType_AdhocBasedTriggerContext = AdhocBasedTriggerContext_ObjectType("AdhocBasedTriggerContext")
+
+// Mapping from string to AdhocBasedTriggerContext_ObjectType
+var adhocBasedTriggerContext_ObjectType_Values = map[string]AdhocBasedTriggerContext_ObjectType{
+	"adhocbasedtriggercontext": AdhocBasedTriggerContext_ObjectType_AdhocBasedTriggerContext,
+}
+
+type AdhocBasedTriggerContext_ObjectType_STATUS string
+
+const AdhocBasedTriggerContext_ObjectType_STATUS_AdhocBasedTriggerContext = AdhocBasedTriggerContext_ObjectType_STATUS("AdhocBasedTriggerContext")
+
+// Mapping from string to AdhocBasedTriggerContext_ObjectType_STATUS
+var adhocBasedTriggerContext_ObjectType_STATUS_Values = map[string]AdhocBasedTriggerContext_ObjectType_STATUS{
+	"adhocbasedtriggercontext": AdhocBasedTriggerContext_ObjectType_STATUS_AdhocBasedTriggerContext,
+}
+
+// +kubebuilder:validation:Enum={"AzureBackupParams"}
+type AzureBackupParams_ObjectType string
+
+const AzureBackupParams_ObjectType_AzureBackupParams = AzureBackupParams_ObjectType("AzureBackupParams")
+
+// Mapping from string to AzureBackupParams_ObjectType
+var azureBackupParams_ObjectType_Values = map[string]AzureBackupParams_ObjectType{
+	"azurebackupparams": AzureBackupParams_ObjectType_AzureBackupParams,
+}
+
+type AzureBackupParams_ObjectType_STATUS string
+
+const AzureBackupParams_ObjectType_STATUS_AzureBackupParams = AzureBackupParams_ObjectType_STATUS("AzureBackupParams")
+
+// Mapping from string to AzureBackupParams_ObjectType_STATUS
+var azureBackupParams_ObjectType_STATUS_Values = map[string]AzureBackupParams_ObjectType_STATUS{
+	"azurebackupparams": AzureBackupParams_ObjectType_STATUS_AzureBackupParams,
+}
+
 // Schedule for backup
 type BackupSchedule struct {
 	// +kubebuilder:validation:Required
-	// RepeatingTimeIntervals: ISO 8601 repeating time interval format
+	// RepeatingTimeIntervals: Repeating time intervals that define the backup schedule.
+	// Each value must follow the format: `R/YYYY-MM-DDThh:mm:ss[.fff][Z|(+/-)hh:mm]/Duration`
+	// Only the exact formats listed below are supported. Other ISO 8601 variations are not accepted.
+	// Supported time formats:
+	// - `Thh:mm:ss.fff` (with milliseconds)
+	// - `Thh:mm:ss` (with seconds)
+	// - `Thh:mm` (hours and minutes only)
+	// A timezone indicator (`Z`, `+hh:mm`, or `-hh:mm`) may be appended to any of the above.
+	// Unsupported formats include compact notation such as `T1430`, `T143045`, or `T14.5`.
+	// Examples:
+	// - `R/2023-10-15T14:30:00Z/P1W`
+	// - `R/2023-10-15T14:30:45.123+05:30/P1D`
+	// - `R/2023-10-15T14:30Z/P1D`
 	RepeatingTimeIntervals []string `json:"repeatingTimeIntervals,omitempty"`
 
-	// TimeZone: Time zone for a schedule. Example: Pacific Standard Time
+	// TimeZone: Time Zone for a schedule.
+	// Supported timezone indicators include:
+	// - 'Z' for UTC
+	// - '+00:00'
+	// - '+05:30'
+	// - '-08:00'
+	// Examples:
+	// - 2023-10-15T14:30:45Z
+	// - 2023-10-15T14:30:45.123+05:30
+	// - 2023-10-15T14:30-08:00
 	TimeZone *string `json:"timeZone,omitempty"`
 }
 
@@ -5366,7 +5125,7 @@ func (schedule *BackupSchedule) ConvertToARM(resolved genruntime.ConvertToARMRes
 	if schedule == nil {
 		return nil, nil
 	}
-	result := &BackupSchedule_ARM{}
+	result := &arm.BackupSchedule{}
 
 	// Set property "RepeatingTimeIntervals":
 	for _, item := range schedule.RepeatingTimeIntervals {
@@ -5383,14 +5142,14 @@ func (schedule *BackupSchedule) ConvertToARM(resolved genruntime.ConvertToARMRes
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (schedule *BackupSchedule) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupSchedule_ARM{}
+	return &arm.BackupSchedule{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (schedule *BackupSchedule) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupSchedule_ARM)
+	typedInput, ok := armInput.(arm.BackupSchedule)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupSchedule_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupSchedule, got %T", armInput)
 	}
 
 	// Set property "RepeatingTimeIntervals":
@@ -5443,25 +5202,33 @@ func (schedule *BackupSchedule) AssignProperties_To_BackupSchedule(destination *
 	return nil
 }
 
-// Initialize_From_BackupSchedule_STATUS populates our BackupSchedule from the provided source BackupSchedule_STATUS
-func (schedule *BackupSchedule) Initialize_From_BackupSchedule_STATUS(source *BackupSchedule_STATUS) error {
-
-	// RepeatingTimeIntervals
-	schedule.RepeatingTimeIntervals = genruntime.CloneSliceOfString(source.RepeatingTimeIntervals)
-
-	// TimeZone
-	schedule.TimeZone = genruntime.ClonePointerToString(source.TimeZone)
-
-	// No error
-	return nil
-}
-
 // Schedule for backup
 type BackupSchedule_STATUS struct {
-	// RepeatingTimeIntervals: ISO 8601 repeating time interval format
+	// RepeatingTimeIntervals: Repeating time intervals that define the backup schedule.
+	// Each value must follow the format: `R/YYYY-MM-DDThh:mm:ss[.fff][Z|(+/-)hh:mm]/Duration`
+	// Only the exact formats listed below are supported. Other ISO 8601 variations are not accepted.
+	// Supported time formats:
+	// - `Thh:mm:ss.fff` (with milliseconds)
+	// - `Thh:mm:ss` (with seconds)
+	// - `Thh:mm` (hours and minutes only)
+	// A timezone indicator (`Z`, `+hh:mm`, or `-hh:mm`) may be appended to any of the above.
+	// Unsupported formats include compact notation such as `T1430`, `T143045`, or `T14.5`.
+	// Examples:
+	// - `R/2023-10-15T14:30:00Z/P1W`
+	// - `R/2023-10-15T14:30:45.123+05:30/P1D`
+	// - `R/2023-10-15T14:30Z/P1D`
 	RepeatingTimeIntervals []string `json:"repeatingTimeIntervals,omitempty"`
 
-	// TimeZone: Time zone for a schedule. Example: Pacific Standard Time
+	// TimeZone: Time Zone for a schedule.
+	// Supported timezone indicators include:
+	// - 'Z' for UTC
+	// - '+00:00'
+	// - '+05:30'
+	// - '-08:00'
+	// Examples:
+	// - 2023-10-15T14:30:45Z
+	// - 2023-10-15T14:30:45.123+05:30
+	// - 2023-10-15T14:30-08:00
 	TimeZone *string `json:"timeZone,omitempty"`
 }
 
@@ -5469,14 +5236,14 @@ var _ genruntime.FromARMConverter = &BackupSchedule_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (schedule *BackupSchedule_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupSchedule_STATUS_ARM{}
+	return &arm.BackupSchedule_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (schedule *BackupSchedule_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupSchedule_STATUS_ARM)
+	typedInput, ok := armInput.(arm.BackupSchedule_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupSchedule_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupSchedule_STATUS, got %T", armInput)
 	}
 
 	// Set property "RepeatingTimeIntervals":
@@ -5547,35 +5314,35 @@ func (option *CopyOption) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 	if option == nil {
 		return nil, nil
 	}
-	result := &CopyOption_ARM{}
+	result := &arm.CopyOption{}
 
 	// Set property "CopyOnExpiry":
 	if option.CopyOnExpiry != nil {
-		copyOnExpiry_ARM, err := (*option.CopyOnExpiry).ConvertToARM(resolved)
+		copyOnExpiry_ARM, err := option.CopyOnExpiry.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		copyOnExpiry := *copyOnExpiry_ARM.(*CopyOnExpiryOption_ARM)
+		copyOnExpiry := *copyOnExpiry_ARM.(*arm.CopyOnExpiryOption)
 		result.CopyOnExpiry = &copyOnExpiry
 	}
 
 	// Set property "CustomCopy":
 	if option.CustomCopy != nil {
-		customCopy_ARM, err := (*option.CustomCopy).ConvertToARM(resolved)
+		customCopy_ARM, err := option.CustomCopy.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		customCopy := *customCopy_ARM.(*CustomCopyOption_ARM)
+		customCopy := *customCopy_ARM.(*arm.CustomCopyOption)
 		result.CustomCopy = &customCopy
 	}
 
 	// Set property "ImmediateCopy":
 	if option.ImmediateCopy != nil {
-		immediateCopy_ARM, err := (*option.ImmediateCopy).ConvertToARM(resolved)
+		immediateCopy_ARM, err := option.ImmediateCopy.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		immediateCopy := *immediateCopy_ARM.(*ImmediateCopyOption_ARM)
+		immediateCopy := *immediateCopy_ARM.(*arm.ImmediateCopyOption)
 		result.ImmediateCopy = &immediateCopy
 	}
 	return result, nil
@@ -5583,14 +5350,14 @@ func (option *CopyOption) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *CopyOption) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &CopyOption_ARM{}
+	return &arm.CopyOption{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *CopyOption) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(CopyOption_ARM)
+	typedInput, ok := armInput.(arm.CopyOption)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected CopyOption_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.CopyOption, got %T", armInput)
 	}
 
 	// Set property "CopyOnExpiry":
@@ -5638,7 +5405,7 @@ func (option *CopyOption) AssignProperties_From_CopyOption(source *storage.CopyO
 		var copyOnExpiry CopyOnExpiryOption
 		err := copyOnExpiry.AssignProperties_From_CopyOnExpiryOption(source.CopyOnExpiry)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CopyOnExpiryOption() to populate field CopyOnExpiry")
+			return eris.Wrap(err, "calling AssignProperties_From_CopyOnExpiryOption() to populate field CopyOnExpiry")
 		}
 		option.CopyOnExpiry = &copyOnExpiry
 	} else {
@@ -5650,7 +5417,7 @@ func (option *CopyOption) AssignProperties_From_CopyOption(source *storage.CopyO
 		var customCopy CustomCopyOption
 		err := customCopy.AssignProperties_From_CustomCopyOption(source.CustomCopy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CustomCopyOption() to populate field CustomCopy")
+			return eris.Wrap(err, "calling AssignProperties_From_CustomCopyOption() to populate field CustomCopy")
 		}
 		option.CustomCopy = &customCopy
 	} else {
@@ -5662,7 +5429,7 @@ func (option *CopyOption) AssignProperties_From_CopyOption(source *storage.CopyO
 		var immediateCopy ImmediateCopyOption
 		err := immediateCopy.AssignProperties_From_ImmediateCopyOption(source.ImmediateCopy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ImmediateCopyOption() to populate field ImmediateCopy")
+			return eris.Wrap(err, "calling AssignProperties_From_ImmediateCopyOption() to populate field ImmediateCopy")
 		}
 		option.ImmediateCopy = &immediateCopy
 	} else {
@@ -5683,7 +5450,7 @@ func (option *CopyOption) AssignProperties_To_CopyOption(destination *storage.Co
 		var copyOnExpiry storage.CopyOnExpiryOption
 		err := option.CopyOnExpiry.AssignProperties_To_CopyOnExpiryOption(&copyOnExpiry)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CopyOnExpiryOption() to populate field CopyOnExpiry")
+			return eris.Wrap(err, "calling AssignProperties_To_CopyOnExpiryOption() to populate field CopyOnExpiry")
 		}
 		destination.CopyOnExpiry = &copyOnExpiry
 	} else {
@@ -5695,7 +5462,7 @@ func (option *CopyOption) AssignProperties_To_CopyOption(destination *storage.Co
 		var customCopy storage.CustomCopyOption
 		err := option.CustomCopy.AssignProperties_To_CustomCopyOption(&customCopy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CustomCopyOption() to populate field CustomCopy")
+			return eris.Wrap(err, "calling AssignProperties_To_CustomCopyOption() to populate field CustomCopy")
 		}
 		destination.CustomCopy = &customCopy
 	} else {
@@ -5707,7 +5474,7 @@ func (option *CopyOption) AssignProperties_To_CopyOption(destination *storage.Co
 		var immediateCopy storage.ImmediateCopyOption
 		err := option.ImmediateCopy.AssignProperties_To_ImmediateCopyOption(&immediateCopy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ImmediateCopyOption() to populate field ImmediateCopy")
+			return eris.Wrap(err, "calling AssignProperties_To_ImmediateCopyOption() to populate field ImmediateCopy")
 		}
 		destination.ImmediateCopy = &immediateCopy
 	} else {
@@ -5719,49 +5486,6 @@ func (option *CopyOption) AssignProperties_To_CopyOption(destination *storage.Co
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_CopyOption_STATUS populates our CopyOption from the provided source CopyOption_STATUS
-func (option *CopyOption) Initialize_From_CopyOption_STATUS(source *CopyOption_STATUS) error {
-
-	// CopyOnExpiry
-	if source.CopyOnExpiry != nil {
-		var copyOnExpiry CopyOnExpiryOption
-		err := copyOnExpiry.Initialize_From_CopyOnExpiryOption_STATUS(source.CopyOnExpiry)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_CopyOnExpiryOption_STATUS() to populate field CopyOnExpiry")
-		}
-		option.CopyOnExpiry = &copyOnExpiry
-	} else {
-		option.CopyOnExpiry = nil
-	}
-
-	// CustomCopy
-	if source.CustomCopy != nil {
-		var customCopy CustomCopyOption
-		err := customCopy.Initialize_From_CustomCopyOption_STATUS(source.CustomCopy)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_CustomCopyOption_STATUS() to populate field CustomCopy")
-		}
-		option.CustomCopy = &customCopy
-	} else {
-		option.CustomCopy = nil
-	}
-
-	// ImmediateCopy
-	if source.ImmediateCopy != nil {
-		var immediateCopy ImmediateCopyOption
-		err := immediateCopy.Initialize_From_ImmediateCopyOption_STATUS(source.ImmediateCopy)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ImmediateCopyOption_STATUS() to populate field ImmediateCopy")
-		}
-		option.ImmediateCopy = &immediateCopy
-	} else {
-		option.ImmediateCopy = nil
 	}
 
 	// No error
@@ -5783,14 +5507,14 @@ var _ genruntime.FromARMConverter = &CopyOption_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *CopyOption_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &CopyOption_STATUS_ARM{}
+	return &arm.CopyOption_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *CopyOption_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(CopyOption_STATUS_ARM)
+	typedInput, ok := armInput.(arm.CopyOption_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected CopyOption_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.CopyOption_STATUS, got %T", armInput)
 	}
 
 	// Set property "CopyOnExpiry":
@@ -5838,7 +5562,7 @@ func (option *CopyOption_STATUS) AssignProperties_From_CopyOption_STATUS(source 
 		var copyOnExpiry CopyOnExpiryOption_STATUS
 		err := copyOnExpiry.AssignProperties_From_CopyOnExpiryOption_STATUS(source.CopyOnExpiry)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CopyOnExpiryOption_STATUS() to populate field CopyOnExpiry")
+			return eris.Wrap(err, "calling AssignProperties_From_CopyOnExpiryOption_STATUS() to populate field CopyOnExpiry")
 		}
 		option.CopyOnExpiry = &copyOnExpiry
 	} else {
@@ -5850,7 +5574,7 @@ func (option *CopyOption_STATUS) AssignProperties_From_CopyOption_STATUS(source 
 		var customCopy CustomCopyOption_STATUS
 		err := customCopy.AssignProperties_From_CustomCopyOption_STATUS(source.CustomCopy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CustomCopyOption_STATUS() to populate field CustomCopy")
+			return eris.Wrap(err, "calling AssignProperties_From_CustomCopyOption_STATUS() to populate field CustomCopy")
 		}
 		option.CustomCopy = &customCopy
 	} else {
@@ -5862,7 +5586,7 @@ func (option *CopyOption_STATUS) AssignProperties_From_CopyOption_STATUS(source 
 		var immediateCopy ImmediateCopyOption_STATUS
 		err := immediateCopy.AssignProperties_From_ImmediateCopyOption_STATUS(source.ImmediateCopy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ImmediateCopyOption_STATUS() to populate field ImmediateCopy")
+			return eris.Wrap(err, "calling AssignProperties_From_ImmediateCopyOption_STATUS() to populate field ImmediateCopy")
 		}
 		option.ImmediateCopy = &immediateCopy
 	} else {
@@ -5883,7 +5607,7 @@ func (option *CopyOption_STATUS) AssignProperties_To_CopyOption_STATUS(destinati
 		var copyOnExpiry storage.CopyOnExpiryOption_STATUS
 		err := option.CopyOnExpiry.AssignProperties_To_CopyOnExpiryOption_STATUS(&copyOnExpiry)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CopyOnExpiryOption_STATUS() to populate field CopyOnExpiry")
+			return eris.Wrap(err, "calling AssignProperties_To_CopyOnExpiryOption_STATUS() to populate field CopyOnExpiry")
 		}
 		destination.CopyOnExpiry = &copyOnExpiry
 	} else {
@@ -5895,7 +5619,7 @@ func (option *CopyOption_STATUS) AssignProperties_To_CopyOption_STATUS(destinati
 		var customCopy storage.CustomCopyOption_STATUS
 		err := option.CustomCopy.AssignProperties_To_CustomCopyOption_STATUS(&customCopy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CustomCopyOption_STATUS() to populate field CustomCopy")
+			return eris.Wrap(err, "calling AssignProperties_To_CustomCopyOption_STATUS() to populate field CustomCopy")
 		}
 		destination.CustomCopy = &customCopy
 	} else {
@@ -5907,7 +5631,7 @@ func (option *CopyOption_STATUS) AssignProperties_To_CopyOption_STATUS(destinati
 		var immediateCopy storage.ImmediateCopyOption_STATUS
 		err := option.ImmediateCopy.AssignProperties_To_ImmediateCopyOption_STATUS(&immediateCopy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ImmediateCopyOption_STATUS() to populate field ImmediateCopy")
+			return eris.Wrap(err, "calling AssignProperties_To_ImmediateCopyOption_STATUS() to populate field ImmediateCopy")
 		}
 		destination.ImmediateCopy = &immediateCopy
 	} else {
@@ -5923,6 +5647,25 @@ func (option *CopyOption_STATUS) AssignProperties_To_CopyOption_STATUS(destinati
 
 	// No error
 	return nil
+}
+
+// +kubebuilder:validation:Enum={"ScheduleBasedTriggerContext"}
+type ScheduleBasedTriggerContext_ObjectType string
+
+const ScheduleBasedTriggerContext_ObjectType_ScheduleBasedTriggerContext = ScheduleBasedTriggerContext_ObjectType("ScheduleBasedTriggerContext")
+
+// Mapping from string to ScheduleBasedTriggerContext_ObjectType
+var scheduleBasedTriggerContext_ObjectType_Values = map[string]ScheduleBasedTriggerContext_ObjectType{
+	"schedulebasedtriggercontext": ScheduleBasedTriggerContext_ObjectType_ScheduleBasedTriggerContext,
+}
+
+type ScheduleBasedTriggerContext_ObjectType_STATUS string
+
+const ScheduleBasedTriggerContext_ObjectType_STATUS_ScheduleBasedTriggerContext = ScheduleBasedTriggerContext_ObjectType_STATUS("ScheduleBasedTriggerContext")
+
+// Mapping from string to ScheduleBasedTriggerContext_ObjectType_STATUS
+var scheduleBasedTriggerContext_ObjectType_STATUS_Values = map[string]ScheduleBasedTriggerContext_ObjectType_STATUS{
+	"schedulebasedtriggercontext": ScheduleBasedTriggerContext_ObjectType_STATUS_ScheduleBasedTriggerContext,
 }
 
 // Tagging criteria
@@ -5950,7 +5693,7 @@ func (criteria *TaggingCriteria) ConvertToARM(resolved genruntime.ConvertToARMRe
 	if criteria == nil {
 		return nil, nil
 	}
-	result := &TaggingCriteria_ARM{}
+	result := &arm.TaggingCriteria{}
 
 	// Set property "Criteria":
 	for _, item := range criteria.Criteria {
@@ -5958,7 +5701,7 @@ func (criteria *TaggingCriteria) ConvertToARM(resolved genruntime.ConvertToARMRe
 		if err != nil {
 			return nil, err
 		}
-		result.Criteria = append(result.Criteria, *item_ARM.(*BackupCriteria_ARM))
+		result.Criteria = append(result.Criteria, *item_ARM.(*arm.BackupCriteria))
 	}
 
 	// Set property "IsDefault":
@@ -5969,11 +5712,11 @@ func (criteria *TaggingCriteria) ConvertToARM(resolved genruntime.ConvertToARMRe
 
 	// Set property "TagInfo":
 	if criteria.TagInfo != nil {
-		tagInfo_ARM, err := (*criteria.TagInfo).ConvertToARM(resolved)
+		tagInfo_ARM, err := criteria.TagInfo.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		tagInfo := *tagInfo_ARM.(*RetentionTag_ARM)
+		tagInfo := *tagInfo_ARM.(*arm.RetentionTag)
 		result.TagInfo = &tagInfo
 	}
 
@@ -5987,14 +5730,14 @@ func (criteria *TaggingCriteria) ConvertToARM(resolved genruntime.ConvertToARMRe
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *TaggingCriteria) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &TaggingCriteria_ARM{}
+	return &arm.TaggingCriteria{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *TaggingCriteria) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(TaggingCriteria_ARM)
+	typedInput, ok := armInput.(arm.TaggingCriteria)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected TaggingCriteria_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.TaggingCriteria, got %T", armInput)
 	}
 
 	// Set property "Criteria":
@@ -6041,12 +5784,10 @@ func (criteria *TaggingCriteria) AssignProperties_From_TaggingCriteria(source *s
 	if source.Criteria != nil {
 		criterionList := make([]BackupCriteria, len(source.Criteria))
 		for criterionIndex, criterionItem := range source.Criteria {
-			// Shadow the loop variable to avoid aliasing
-			criterionItem := criterionItem
 			var criterion BackupCriteria
 			err := criterion.AssignProperties_From_BackupCriteria(&criterionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_BackupCriteria() to populate field Criteria")
+				return eris.Wrap(err, "calling AssignProperties_From_BackupCriteria() to populate field Criteria")
 			}
 			criterionList[criterionIndex] = criterion
 		}
@@ -6068,7 +5809,7 @@ func (criteria *TaggingCriteria) AssignProperties_From_TaggingCriteria(source *s
 		var tagInfo RetentionTag
 		err := tagInfo.AssignProperties_From_RetentionTag(source.TagInfo)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RetentionTag() to populate field TagInfo")
+			return eris.Wrap(err, "calling AssignProperties_From_RetentionTag() to populate field TagInfo")
 		}
 		criteria.TagInfo = &tagInfo
 	} else {
@@ -6091,12 +5832,10 @@ func (criteria *TaggingCriteria) AssignProperties_To_TaggingCriteria(destination
 	if criteria.Criteria != nil {
 		criterionList := make([]storage.BackupCriteria, len(criteria.Criteria))
 		for criterionIndex, criterionItem := range criteria.Criteria {
-			// Shadow the loop variable to avoid aliasing
-			criterionItem := criterionItem
 			var criterion storage.BackupCriteria
 			err := criterionItem.AssignProperties_To_BackupCriteria(&criterion)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_BackupCriteria() to populate field Criteria")
+				return eris.Wrap(err, "calling AssignProperties_To_BackupCriteria() to populate field Criteria")
 			}
 			criterionList[criterionIndex] = criterion
 		}
@@ -6118,7 +5857,7 @@ func (criteria *TaggingCriteria) AssignProperties_To_TaggingCriteria(destination
 		var tagInfo storage.RetentionTag
 		err := criteria.TagInfo.AssignProperties_To_RetentionTag(&tagInfo)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RetentionTag() to populate field TagInfo")
+			return eris.Wrap(err, "calling AssignProperties_To_RetentionTag() to populate field TagInfo")
 		}
 		destination.TagInfo = &tagInfo
 	} else {
@@ -6134,54 +5873,6 @@ func (criteria *TaggingCriteria) AssignProperties_To_TaggingCriteria(destination
 	} else {
 		destination.PropertyBag = nil
 	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_TaggingCriteria_STATUS populates our TaggingCriteria from the provided source TaggingCriteria_STATUS
-func (criteria *TaggingCriteria) Initialize_From_TaggingCriteria_STATUS(source *TaggingCriteria_STATUS) error {
-
-	// Criteria
-	if source.Criteria != nil {
-		criterionList := make([]BackupCriteria, len(source.Criteria))
-		for criterionIndex, criterionItem := range source.Criteria {
-			// Shadow the loop variable to avoid aliasing
-			criterionItem := criterionItem
-			var criterion BackupCriteria
-			err := criterion.Initialize_From_BackupCriteria_STATUS(&criterionItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_BackupCriteria_STATUS() to populate field Criteria")
-			}
-			criterionList[criterionIndex] = criterion
-		}
-		criteria.Criteria = criterionList
-	} else {
-		criteria.Criteria = nil
-	}
-
-	// IsDefault
-	if source.IsDefault != nil {
-		isDefault := *source.IsDefault
-		criteria.IsDefault = &isDefault
-	} else {
-		criteria.IsDefault = nil
-	}
-
-	// TagInfo
-	if source.TagInfo != nil {
-		var tagInfo RetentionTag
-		err := tagInfo.Initialize_From_RetentionTag_STATUS(source.TagInfo)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_RetentionTag_STATUS() to populate field TagInfo")
-		}
-		criteria.TagInfo = &tagInfo
-	} else {
-		criteria.TagInfo = nil
-	}
-
-	// TaggingPriority
-	criteria.TaggingPriority = genruntime.ClonePointerToInt(source.TaggingPriority)
 
 	// No error
 	return nil
@@ -6206,14 +5897,14 @@ var _ genruntime.FromARMConverter = &TaggingCriteria_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *TaggingCriteria_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &TaggingCriteria_STATUS_ARM{}
+	return &arm.TaggingCriteria_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *TaggingCriteria_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(TaggingCriteria_STATUS_ARM)
+	typedInput, ok := armInput.(arm.TaggingCriteria_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected TaggingCriteria_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.TaggingCriteria_STATUS, got %T", armInput)
 	}
 
 	// Set property "Criteria":
@@ -6260,12 +5951,10 @@ func (criteria *TaggingCriteria_STATUS) AssignProperties_From_TaggingCriteria_ST
 	if source.Criteria != nil {
 		criterionList := make([]BackupCriteria_STATUS, len(source.Criteria))
 		for criterionIndex, criterionItem := range source.Criteria {
-			// Shadow the loop variable to avoid aliasing
-			criterionItem := criterionItem
 			var criterion BackupCriteria_STATUS
 			err := criterion.AssignProperties_From_BackupCriteria_STATUS(&criterionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_BackupCriteria_STATUS() to populate field Criteria")
+				return eris.Wrap(err, "calling AssignProperties_From_BackupCriteria_STATUS() to populate field Criteria")
 			}
 			criterionList[criterionIndex] = criterion
 		}
@@ -6287,7 +5976,7 @@ func (criteria *TaggingCriteria_STATUS) AssignProperties_From_TaggingCriteria_ST
 		var tagInfo RetentionTag_STATUS
 		err := tagInfo.AssignProperties_From_RetentionTag_STATUS(source.TagInfo)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RetentionTag_STATUS() to populate field TagInfo")
+			return eris.Wrap(err, "calling AssignProperties_From_RetentionTag_STATUS() to populate field TagInfo")
 		}
 		criteria.TagInfo = &tagInfo
 	} else {
@@ -6310,12 +5999,10 @@ func (criteria *TaggingCriteria_STATUS) AssignProperties_To_TaggingCriteria_STAT
 	if criteria.Criteria != nil {
 		criterionList := make([]storage.BackupCriteria_STATUS, len(criteria.Criteria))
 		for criterionIndex, criterionItem := range criteria.Criteria {
-			// Shadow the loop variable to avoid aliasing
-			criterionItem := criterionItem
 			var criterion storage.BackupCriteria_STATUS
 			err := criterionItem.AssignProperties_To_BackupCriteria_STATUS(&criterion)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_BackupCriteria_STATUS() to populate field Criteria")
+				return eris.Wrap(err, "calling AssignProperties_To_BackupCriteria_STATUS() to populate field Criteria")
 			}
 			criterionList[criterionIndex] = criterion
 		}
@@ -6337,7 +6024,7 @@ func (criteria *TaggingCriteria_STATUS) AssignProperties_To_TaggingCriteria_STAT
 		var tagInfo storage.RetentionTag_STATUS
 		err := criteria.TagInfo.AssignProperties_To_RetentionTag_STATUS(&tagInfo)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RetentionTag_STATUS() to populate field TagInfo")
+			return eris.Wrap(err, "calling AssignProperties_To_RetentionTag_STATUS() to populate field TagInfo")
 		}
 		destination.TagInfo = &tagInfo
 	} else {
@@ -6358,6 +6045,25 @@ func (criteria *TaggingCriteria_STATUS) AssignProperties_To_TaggingCriteria_STAT
 	return nil
 }
 
+// +kubebuilder:validation:Enum={"AbsoluteDeleteOption"}
+type AbsoluteDeleteOption_ObjectType string
+
+const AbsoluteDeleteOption_ObjectType_AbsoluteDeleteOption = AbsoluteDeleteOption_ObjectType("AbsoluteDeleteOption")
+
+// Mapping from string to AbsoluteDeleteOption_ObjectType
+var absoluteDeleteOption_ObjectType_Values = map[string]AbsoluteDeleteOption_ObjectType{
+	"absolutedeleteoption": AbsoluteDeleteOption_ObjectType_AbsoluteDeleteOption,
+}
+
+type AbsoluteDeleteOption_ObjectType_STATUS string
+
+const AbsoluteDeleteOption_ObjectType_STATUS_AbsoluteDeleteOption = AbsoluteDeleteOption_ObjectType_STATUS("AbsoluteDeleteOption")
+
+// Mapping from string to AbsoluteDeleteOption_ObjectType_STATUS
+var absoluteDeleteOption_ObjectType_STATUS_Values = map[string]AbsoluteDeleteOption_ObjectType_STATUS{
+	"absolutedeleteoption": AbsoluteDeleteOption_ObjectType_STATUS_AbsoluteDeleteOption,
+}
+
 type BackupCriteria struct {
 	// ScheduleBasedBackupCriteria: Mutually exclusive with all other properties
 	ScheduleBasedBackupCriteria *ScheduleBasedBackupCriteria `json:"scheduleBasedBackupCriteria,omitempty"`
@@ -6370,15 +6076,15 @@ func (criteria *BackupCriteria) ConvertToARM(resolved genruntime.ConvertToARMRes
 	if criteria == nil {
 		return nil, nil
 	}
-	result := &BackupCriteria_ARM{}
+	result := &arm.BackupCriteria{}
 
 	// Set property "ScheduleBasedBackupCriteria":
 	if criteria.ScheduleBasedBackupCriteria != nil {
-		scheduleBasedBackupCriteria_ARM, err := (*criteria.ScheduleBasedBackupCriteria).ConvertToARM(resolved)
+		scheduleBasedBackupCriteria_ARM, err := criteria.ScheduleBasedBackupCriteria.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		scheduleBasedBackupCriteria := *scheduleBasedBackupCriteria_ARM.(*ScheduleBasedBackupCriteria_ARM)
+		scheduleBasedBackupCriteria := *scheduleBasedBackupCriteria_ARM.(*arm.ScheduleBasedBackupCriteria)
 		result.ScheduleBasedBackupCriteria = &scheduleBasedBackupCriteria
 	}
 	return result, nil
@@ -6386,14 +6092,14 @@ func (criteria *BackupCriteria) ConvertToARM(resolved genruntime.ConvertToARMRes
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *BackupCriteria) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupCriteria_ARM{}
+	return &arm.BackupCriteria{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *BackupCriteria) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupCriteria_ARM)
+	typedInput, ok := armInput.(arm.BackupCriteria)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupCriteria_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupCriteria, got %T", armInput)
 	}
 
 	// Set property "ScheduleBasedBackupCriteria":
@@ -6419,7 +6125,7 @@ func (criteria *BackupCriteria) AssignProperties_From_BackupCriteria(source *sto
 		var scheduleBasedBackupCriterion ScheduleBasedBackupCriteria
 		err := scheduleBasedBackupCriterion.AssignProperties_From_ScheduleBasedBackupCriteria(source.ScheduleBasedBackupCriteria)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ScheduleBasedBackupCriteria() to populate field ScheduleBasedBackupCriteria")
+			return eris.Wrap(err, "calling AssignProperties_From_ScheduleBasedBackupCriteria() to populate field ScheduleBasedBackupCriteria")
 		}
 		criteria.ScheduleBasedBackupCriteria = &scheduleBasedBackupCriterion
 	} else {
@@ -6440,7 +6146,7 @@ func (criteria *BackupCriteria) AssignProperties_To_BackupCriteria(destination *
 		var scheduleBasedBackupCriterion storage.ScheduleBasedBackupCriteria
 		err := criteria.ScheduleBasedBackupCriteria.AssignProperties_To_ScheduleBasedBackupCriteria(&scheduleBasedBackupCriterion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ScheduleBasedBackupCriteria() to populate field ScheduleBasedBackupCriteria")
+			return eris.Wrap(err, "calling AssignProperties_To_ScheduleBasedBackupCriteria() to populate field ScheduleBasedBackupCriteria")
 		}
 		destination.ScheduleBasedBackupCriteria = &scheduleBasedBackupCriterion
 	} else {
@@ -6458,25 +6164,6 @@ func (criteria *BackupCriteria) AssignProperties_To_BackupCriteria(destination *
 	return nil
 }
 
-// Initialize_From_BackupCriteria_STATUS populates our BackupCriteria from the provided source BackupCriteria_STATUS
-func (criteria *BackupCriteria) Initialize_From_BackupCriteria_STATUS(source *BackupCriteria_STATUS) error {
-
-	// ScheduleBasedBackupCriteria
-	if source.ScheduleBasedBackupCriteria != nil {
-		var scheduleBasedBackupCriterion ScheduleBasedBackupCriteria
-		err := scheduleBasedBackupCriterion.Initialize_From_ScheduleBasedBackupCriteria_STATUS(source.ScheduleBasedBackupCriteria)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ScheduleBasedBackupCriteria_STATUS() to populate field ScheduleBasedBackupCriteria")
-		}
-		criteria.ScheduleBasedBackupCriteria = &scheduleBasedBackupCriterion
-	} else {
-		criteria.ScheduleBasedBackupCriteria = nil
-	}
-
-	// No error
-	return nil
-}
-
 type BackupCriteria_STATUS struct {
 	// ScheduleBasedBackupCriteria: Mutually exclusive with all other properties
 	ScheduleBasedBackupCriteria *ScheduleBasedBackupCriteria_STATUS `json:"scheduleBasedBackupCriteria,omitempty"`
@@ -6486,14 +6173,14 @@ var _ genruntime.FromARMConverter = &BackupCriteria_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *BackupCriteria_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &BackupCriteria_STATUS_ARM{}
+	return &arm.BackupCriteria_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *BackupCriteria_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(BackupCriteria_STATUS_ARM)
+	typedInput, ok := armInput.(arm.BackupCriteria_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected BackupCriteria_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.BackupCriteria_STATUS, got %T", armInput)
 	}
 
 	// Set property "ScheduleBasedBackupCriteria":
@@ -6519,7 +6206,7 @@ func (criteria *BackupCriteria_STATUS) AssignProperties_From_BackupCriteria_STAT
 		var scheduleBasedBackupCriterion ScheduleBasedBackupCriteria_STATUS
 		err := scheduleBasedBackupCriterion.AssignProperties_From_ScheduleBasedBackupCriteria_STATUS(source.ScheduleBasedBackupCriteria)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ScheduleBasedBackupCriteria_STATUS() to populate field ScheduleBasedBackupCriteria")
+			return eris.Wrap(err, "calling AssignProperties_From_ScheduleBasedBackupCriteria_STATUS() to populate field ScheduleBasedBackupCriteria")
 		}
 		criteria.ScheduleBasedBackupCriteria = &scheduleBasedBackupCriterion
 	} else {
@@ -6540,7 +6227,7 @@ func (criteria *BackupCriteria_STATUS) AssignProperties_To_BackupCriteria_STATUS
 		var scheduleBasedBackupCriterion storage.ScheduleBasedBackupCriteria_STATUS
 		err := criteria.ScheduleBasedBackupCriteria.AssignProperties_To_ScheduleBasedBackupCriteria_STATUS(&scheduleBasedBackupCriterion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ScheduleBasedBackupCriteria_STATUS() to populate field ScheduleBasedBackupCriteria")
+			return eris.Wrap(err, "calling AssignProperties_To_ScheduleBasedBackupCriteria_STATUS() to populate field ScheduleBasedBackupCriteria")
 		}
 		destination.ScheduleBasedBackupCriteria = &scheduleBasedBackupCriterion
 	} else {
@@ -6571,29 +6258,37 @@ func (option *CopyOnExpiryOption) ConvertToARM(resolved genruntime.ConvertToARMR
 	if option == nil {
 		return nil, nil
 	}
-	result := &CopyOnExpiryOption_ARM{}
+	result := &arm.CopyOnExpiryOption{}
 
 	// Set property "ObjectType":
 	if option.ObjectType != nil {
-		result.ObjectType = *option.ObjectType
+		var temp arm.CopyOnExpiryOption_ObjectType
+		var temp1 string
+		temp1 = string(*option.ObjectType)
+		temp = arm.CopyOnExpiryOption_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *CopyOnExpiryOption) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &CopyOnExpiryOption_ARM{}
+	return &arm.CopyOnExpiryOption{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *CopyOnExpiryOption) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(CopyOnExpiryOption_ARM)
+	typedInput, ok := armInput.(arm.CopyOnExpiryOption)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected CopyOnExpiryOption_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.CopyOnExpiryOption, got %T", armInput)
 	}
 
 	// Set property "ObjectType":
-	option.ObjectType = &typedInput.ObjectType
+	var temp CopyOnExpiryOption_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = CopyOnExpiryOption_ObjectType(temp1)
+	option.ObjectType = &temp
 
 	// No error
 	return nil
@@ -6639,21 +6334,6 @@ func (option *CopyOnExpiryOption) AssignProperties_To_CopyOnExpiryOption(destina
 	return nil
 }
 
-// Initialize_From_CopyOnExpiryOption_STATUS populates our CopyOnExpiryOption from the provided source CopyOnExpiryOption_STATUS
-func (option *CopyOnExpiryOption) Initialize_From_CopyOnExpiryOption_STATUS(source *CopyOnExpiryOption_STATUS) error {
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), copyOnExpiryOption_ObjectType_Values)
-		option.ObjectType = &objectType
-	} else {
-		option.ObjectType = nil
-	}
-
-	// No error
-	return nil
-}
-
 type CopyOnExpiryOption_STATUS struct {
 	// ObjectType: Type of the specific object - used for deserializing
 	ObjectType *CopyOnExpiryOption_ObjectType_STATUS `json:"objectType,omitempty"`
@@ -6663,18 +6343,22 @@ var _ genruntime.FromARMConverter = &CopyOnExpiryOption_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *CopyOnExpiryOption_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &CopyOnExpiryOption_STATUS_ARM{}
+	return &arm.CopyOnExpiryOption_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *CopyOnExpiryOption_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(CopyOnExpiryOption_STATUS_ARM)
+	typedInput, ok := armInput.(arm.CopyOnExpiryOption_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected CopyOnExpiryOption_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.CopyOnExpiryOption_STATUS, got %T", armInput)
 	}
 
 	// Set property "ObjectType":
-	option.ObjectType = &typedInput.ObjectType
+	var temp CopyOnExpiryOption_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = CopyOnExpiryOption_ObjectType_STATUS(temp1)
+	option.ObjectType = &temp
 
 	// No error
 	return nil
@@ -6736,7 +6420,7 @@ func (option *CustomCopyOption) ConvertToARM(resolved genruntime.ConvertToARMRes
 	if option == nil {
 		return nil, nil
 	}
-	result := &CustomCopyOption_ARM{}
+	result := &arm.CustomCopyOption{}
 
 	// Set property "Duration":
 	if option.Duration != nil {
@@ -6746,21 +6430,25 @@ func (option *CustomCopyOption) ConvertToARM(resolved genruntime.ConvertToARMRes
 
 	// Set property "ObjectType":
 	if option.ObjectType != nil {
-		result.ObjectType = *option.ObjectType
+		var temp arm.CustomCopyOption_ObjectType
+		var temp1 string
+		temp1 = string(*option.ObjectType)
+		temp = arm.CustomCopyOption_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *CustomCopyOption) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &CustomCopyOption_ARM{}
+	return &arm.CustomCopyOption{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *CustomCopyOption) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(CustomCopyOption_ARM)
+	typedInput, ok := armInput.(arm.CustomCopyOption)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected CustomCopyOption_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.CustomCopyOption, got %T", armInput)
 	}
 
 	// Set property "Duration":
@@ -6770,7 +6458,11 @@ func (option *CustomCopyOption) PopulateFromARM(owner genruntime.ArbitraryOwnerR
 	}
 
 	// Set property "ObjectType":
-	option.ObjectType = &typedInput.ObjectType
+	var temp CustomCopyOption_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = CustomCopyOption_ObjectType(temp1)
+	option.ObjectType = &temp
 
 	// No error
 	return nil
@@ -6822,24 +6514,6 @@ func (option *CustomCopyOption) AssignProperties_To_CustomCopyOption(destination
 	return nil
 }
 
-// Initialize_From_CustomCopyOption_STATUS populates our CustomCopyOption from the provided source CustomCopyOption_STATUS
-func (option *CustomCopyOption) Initialize_From_CustomCopyOption_STATUS(source *CustomCopyOption_STATUS) error {
-
-	// Duration
-	option.Duration = genruntime.ClonePointerToString(source.Duration)
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), customCopyOption_ObjectType_Values)
-		option.ObjectType = &objectType
-	} else {
-		option.ObjectType = nil
-	}
-
-	// No error
-	return nil
-}
-
 type CustomCopyOption_STATUS struct {
 	// Duration: Data copied after given timespan
 	Duration *string `json:"duration,omitempty"`
@@ -6852,14 +6526,14 @@ var _ genruntime.FromARMConverter = &CustomCopyOption_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *CustomCopyOption_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &CustomCopyOption_STATUS_ARM{}
+	return &arm.CustomCopyOption_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *CustomCopyOption_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(CustomCopyOption_STATUS_ARM)
+	typedInput, ok := armInput.(arm.CustomCopyOption_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected CustomCopyOption_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.CustomCopyOption_STATUS, got %T", armInput)
 	}
 
 	// Set property "Duration":
@@ -6869,7 +6543,11 @@ func (option *CustomCopyOption_STATUS) PopulateFromARM(owner genruntime.Arbitrar
 	}
 
 	// Set property "ObjectType":
-	option.ObjectType = &typedInput.ObjectType
+	var temp CustomCopyOption_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = CustomCopyOption_ObjectType_STATUS(temp1)
+	option.ObjectType = &temp
 
 	// No error
 	return nil
@@ -6934,29 +6612,37 @@ func (option *ImmediateCopyOption) ConvertToARM(resolved genruntime.ConvertToARM
 	if option == nil {
 		return nil, nil
 	}
-	result := &ImmediateCopyOption_ARM{}
+	result := &arm.ImmediateCopyOption{}
 
 	// Set property "ObjectType":
 	if option.ObjectType != nil {
-		result.ObjectType = *option.ObjectType
+		var temp arm.ImmediateCopyOption_ObjectType
+		var temp1 string
+		temp1 = string(*option.ObjectType)
+		temp = arm.ImmediateCopyOption_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *ImmediateCopyOption) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ImmediateCopyOption_ARM{}
+	return &arm.ImmediateCopyOption{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *ImmediateCopyOption) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ImmediateCopyOption_ARM)
+	typedInput, ok := armInput.(arm.ImmediateCopyOption)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ImmediateCopyOption_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ImmediateCopyOption, got %T", armInput)
 	}
 
 	// Set property "ObjectType":
-	option.ObjectType = &typedInput.ObjectType
+	var temp ImmediateCopyOption_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = ImmediateCopyOption_ObjectType(temp1)
+	option.ObjectType = &temp
 
 	// No error
 	return nil
@@ -7002,21 +6688,6 @@ func (option *ImmediateCopyOption) AssignProperties_To_ImmediateCopyOption(desti
 	return nil
 }
 
-// Initialize_From_ImmediateCopyOption_STATUS populates our ImmediateCopyOption from the provided source ImmediateCopyOption_STATUS
-func (option *ImmediateCopyOption) Initialize_From_ImmediateCopyOption_STATUS(source *ImmediateCopyOption_STATUS) error {
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), immediateCopyOption_ObjectType_Values)
-		option.ObjectType = &objectType
-	} else {
-		option.ObjectType = nil
-	}
-
-	// No error
-	return nil
-}
-
 type ImmediateCopyOption_STATUS struct {
 	// ObjectType: Type of the specific object - used for deserializing
 	ObjectType *ImmediateCopyOption_ObjectType_STATUS `json:"objectType,omitempty"`
@@ -7026,18 +6697,22 @@ var _ genruntime.FromARMConverter = &ImmediateCopyOption_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (option *ImmediateCopyOption_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ImmediateCopyOption_STATUS_ARM{}
+	return &arm.ImmediateCopyOption_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (option *ImmediateCopyOption_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ImmediateCopyOption_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ImmediateCopyOption_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ImmediateCopyOption_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ImmediateCopyOption_STATUS, got %T", armInput)
 	}
 
 	// Set property "ObjectType":
-	option.ObjectType = &typedInput.ObjectType
+	var temp ImmediateCopyOption_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = ImmediateCopyOption_ObjectType_STATUS(temp1)
+	option.ObjectType = &temp
 
 	// No error
 	return nil
@@ -7097,7 +6772,7 @@ func (retentionTag *RetentionTag) ConvertToARM(resolved genruntime.ConvertToARMR
 	if retentionTag == nil {
 		return nil, nil
 	}
-	result := &RetentionTag_ARM{}
+	result := &arm.RetentionTag{}
 
 	// Set property "TagName":
 	if retentionTag.TagName != nil {
@@ -7109,14 +6784,14 @@ func (retentionTag *RetentionTag) ConvertToARM(resolved genruntime.ConvertToARMR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (retentionTag *RetentionTag) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &RetentionTag_ARM{}
+	return &arm.RetentionTag{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (retentionTag *RetentionTag) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(RetentionTag_ARM)
+	typedInput, ok := armInput.(arm.RetentionTag)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected RetentionTag_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.RetentionTag, got %T", armInput)
 	}
 
 	// Set property "TagName":
@@ -7158,16 +6833,6 @@ func (retentionTag *RetentionTag) AssignProperties_To_RetentionTag(destination *
 	return nil
 }
 
-// Initialize_From_RetentionTag_STATUS populates our RetentionTag from the provided source RetentionTag_STATUS
-func (retentionTag *RetentionTag) Initialize_From_RetentionTag_STATUS(source *RetentionTag_STATUS) error {
-
-	// TagName
-	retentionTag.TagName = genruntime.ClonePointerToString(source.TagName)
-
-	// No error
-	return nil
-}
-
 // Retention tag
 type RetentionTag_STATUS struct {
 	// ETag: Retention Tag version.
@@ -7184,14 +6849,14 @@ var _ genruntime.FromARMConverter = &RetentionTag_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (retentionTag *RetentionTag_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &RetentionTag_STATUS_ARM{}
+	return &arm.RetentionTag_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (retentionTag *RetentionTag_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(RetentionTag_STATUS_ARM)
+	typedInput, ok := armInput.(arm.RetentionTag_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected RetentionTag_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.RetentionTag_STATUS, got %T", armInput)
 	}
 
 	// Set property "ETag":
@@ -7257,6 +6922,63 @@ func (retentionTag *RetentionTag_STATUS) AssignProperties_To_RetentionTag_STATUS
 	return nil
 }
 
+// +kubebuilder:validation:Enum={"CopyOnExpiryOption"}
+type CopyOnExpiryOption_ObjectType string
+
+const CopyOnExpiryOption_ObjectType_CopyOnExpiryOption = CopyOnExpiryOption_ObjectType("CopyOnExpiryOption")
+
+// Mapping from string to CopyOnExpiryOption_ObjectType
+var copyOnExpiryOption_ObjectType_Values = map[string]CopyOnExpiryOption_ObjectType{
+	"copyonexpiryoption": CopyOnExpiryOption_ObjectType_CopyOnExpiryOption,
+}
+
+type CopyOnExpiryOption_ObjectType_STATUS string
+
+const CopyOnExpiryOption_ObjectType_STATUS_CopyOnExpiryOption = CopyOnExpiryOption_ObjectType_STATUS("CopyOnExpiryOption")
+
+// Mapping from string to CopyOnExpiryOption_ObjectType_STATUS
+var copyOnExpiryOption_ObjectType_STATUS_Values = map[string]CopyOnExpiryOption_ObjectType_STATUS{
+	"copyonexpiryoption": CopyOnExpiryOption_ObjectType_STATUS_CopyOnExpiryOption,
+}
+
+// +kubebuilder:validation:Enum={"CustomCopyOption"}
+type CustomCopyOption_ObjectType string
+
+const CustomCopyOption_ObjectType_CustomCopyOption = CustomCopyOption_ObjectType("CustomCopyOption")
+
+// Mapping from string to CustomCopyOption_ObjectType
+var customCopyOption_ObjectType_Values = map[string]CustomCopyOption_ObjectType{
+	"customcopyoption": CustomCopyOption_ObjectType_CustomCopyOption,
+}
+
+type CustomCopyOption_ObjectType_STATUS string
+
+const CustomCopyOption_ObjectType_STATUS_CustomCopyOption = CustomCopyOption_ObjectType_STATUS("CustomCopyOption")
+
+// Mapping from string to CustomCopyOption_ObjectType_STATUS
+var customCopyOption_ObjectType_STATUS_Values = map[string]CustomCopyOption_ObjectType_STATUS{
+	"customcopyoption": CustomCopyOption_ObjectType_STATUS_CustomCopyOption,
+}
+
+// +kubebuilder:validation:Enum={"ImmediateCopyOption"}
+type ImmediateCopyOption_ObjectType string
+
+const ImmediateCopyOption_ObjectType_ImmediateCopyOption = ImmediateCopyOption_ObjectType("ImmediateCopyOption")
+
+// Mapping from string to ImmediateCopyOption_ObjectType
+var immediateCopyOption_ObjectType_Values = map[string]ImmediateCopyOption_ObjectType{
+	"immediatecopyoption": ImmediateCopyOption_ObjectType_ImmediateCopyOption,
+}
+
+type ImmediateCopyOption_ObjectType_STATUS string
+
+const ImmediateCopyOption_ObjectType_STATUS_ImmediateCopyOption = ImmediateCopyOption_ObjectType_STATUS("ImmediateCopyOption")
+
+// Mapping from string to ImmediateCopyOption_ObjectType_STATUS
+var immediateCopyOption_ObjectType_STATUS_Values = map[string]ImmediateCopyOption_ObjectType_STATUS{
+	"immediatecopyoption": ImmediateCopyOption_ObjectType_STATUS_ImmediateCopyOption,
+}
+
 type ScheduleBasedBackupCriteria struct {
 	// AbsoluteCriteria: it contains absolute values like "AllBackup" / "FirstOfDay" / "FirstOfWeek" / "FirstOfMonth"
 	// and should be part of AbsoluteMarker enum
@@ -7289,11 +7011,13 @@ func (criteria *ScheduleBasedBackupCriteria) ConvertToARM(resolved genruntime.Co
 	if criteria == nil {
 		return nil, nil
 	}
-	result := &ScheduleBasedBackupCriteria_ARM{}
+	result := &arm.ScheduleBasedBackupCriteria{}
 
 	// Set property "AbsoluteCriteria":
 	for _, item := range criteria.AbsoluteCriteria {
-		result.AbsoluteCriteria = append(result.AbsoluteCriteria, item)
+		var temp string
+		temp = string(item)
+		result.AbsoluteCriteria = append(result.AbsoluteCriteria, arm.ScheduleBasedBackupCriteria_AbsoluteCriteria(temp))
 	}
 
 	// Set property "DaysOfMonth":
@@ -7302,22 +7026,30 @@ func (criteria *ScheduleBasedBackupCriteria) ConvertToARM(resolved genruntime.Co
 		if err != nil {
 			return nil, err
 		}
-		result.DaysOfMonth = append(result.DaysOfMonth, *item_ARM.(*Day_ARM))
+		result.DaysOfMonth = append(result.DaysOfMonth, *item_ARM.(*arm.Day))
 	}
 
 	// Set property "DaysOfTheWeek":
 	for _, item := range criteria.DaysOfTheWeek {
-		result.DaysOfTheWeek = append(result.DaysOfTheWeek, item)
+		var temp string
+		temp = string(item)
+		result.DaysOfTheWeek = append(result.DaysOfTheWeek, arm.ScheduleBasedBackupCriteria_DaysOfTheWeek(temp))
 	}
 
 	// Set property "MonthsOfYear":
 	for _, item := range criteria.MonthsOfYear {
-		result.MonthsOfYear = append(result.MonthsOfYear, item)
+		var temp string
+		temp = string(item)
+		result.MonthsOfYear = append(result.MonthsOfYear, arm.ScheduleBasedBackupCriteria_MonthsOfYear(temp))
 	}
 
 	// Set property "ObjectType":
 	if criteria.ObjectType != nil {
-		result.ObjectType = *criteria.ObjectType
+		var temp arm.ScheduleBasedBackupCriteria_ObjectType
+		var temp1 string
+		temp1 = string(*criteria.ObjectType)
+		temp = arm.ScheduleBasedBackupCriteria_ObjectType(temp1)
+		result.ObjectType = temp
 	}
 
 	// Set property "ScheduleTimes":
@@ -7327,26 +7059,30 @@ func (criteria *ScheduleBasedBackupCriteria) ConvertToARM(resolved genruntime.Co
 
 	// Set property "WeeksOfTheMonth":
 	for _, item := range criteria.WeeksOfTheMonth {
-		result.WeeksOfTheMonth = append(result.WeeksOfTheMonth, item)
+		var temp string
+		temp = string(item)
+		result.WeeksOfTheMonth = append(result.WeeksOfTheMonth, arm.ScheduleBasedBackupCriteria_WeeksOfTheMonth(temp))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *ScheduleBasedBackupCriteria) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ScheduleBasedBackupCriteria_ARM{}
+	return &arm.ScheduleBasedBackupCriteria{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *ScheduleBasedBackupCriteria) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ScheduleBasedBackupCriteria_ARM)
+	typedInput, ok := armInput.(arm.ScheduleBasedBackupCriteria)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ScheduleBasedBackupCriteria_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ScheduleBasedBackupCriteria, got %T", armInput)
 	}
 
 	// Set property "AbsoluteCriteria":
 	for _, item := range typedInput.AbsoluteCriteria {
-		criteria.AbsoluteCriteria = append(criteria.AbsoluteCriteria, item)
+		var temp string
+		temp = string(item)
+		criteria.AbsoluteCriteria = append(criteria.AbsoluteCriteria, ScheduleBasedBackupCriteria_AbsoluteCriteria(temp))
 	}
 
 	// Set property "DaysOfMonth":
@@ -7361,16 +7097,24 @@ func (criteria *ScheduleBasedBackupCriteria) PopulateFromARM(owner genruntime.Ar
 
 	// Set property "DaysOfTheWeek":
 	for _, item := range typedInput.DaysOfTheWeek {
-		criteria.DaysOfTheWeek = append(criteria.DaysOfTheWeek, item)
+		var temp string
+		temp = string(item)
+		criteria.DaysOfTheWeek = append(criteria.DaysOfTheWeek, ScheduleBasedBackupCriteria_DaysOfTheWeek(temp))
 	}
 
 	// Set property "MonthsOfYear":
 	for _, item := range typedInput.MonthsOfYear {
-		criteria.MonthsOfYear = append(criteria.MonthsOfYear, item)
+		var temp string
+		temp = string(item)
+		criteria.MonthsOfYear = append(criteria.MonthsOfYear, ScheduleBasedBackupCriteria_MonthsOfYear(temp))
 	}
 
 	// Set property "ObjectType":
-	criteria.ObjectType = &typedInput.ObjectType
+	var temp ScheduleBasedBackupCriteria_ObjectType
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = ScheduleBasedBackupCriteria_ObjectType(temp1)
+	criteria.ObjectType = &temp
 
 	// Set property "ScheduleTimes":
 	for _, item := range typedInput.ScheduleTimes {
@@ -7379,7 +7123,9 @@ func (criteria *ScheduleBasedBackupCriteria) PopulateFromARM(owner genruntime.Ar
 
 	// Set property "WeeksOfTheMonth":
 	for _, item := range typedInput.WeeksOfTheMonth {
-		criteria.WeeksOfTheMonth = append(criteria.WeeksOfTheMonth, item)
+		var itemTemp string
+		itemTemp = string(item)
+		criteria.WeeksOfTheMonth = append(criteria.WeeksOfTheMonth, ScheduleBasedBackupCriteria_WeeksOfTheMonth(itemTemp))
 	}
 
 	// No error
@@ -7393,8 +7139,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_From_ScheduleBased
 	if source.AbsoluteCriteria != nil {
 		absoluteCriterionList := make([]ScheduleBasedBackupCriteria_AbsoluteCriteria, len(source.AbsoluteCriteria))
 		for absoluteCriterionIndex, absoluteCriterionItem := range source.AbsoluteCriteria {
-			// Shadow the loop variable to avoid aliasing
-			absoluteCriterionItem := absoluteCriterionItem
 			absoluteCriterionList[absoluteCriterionIndex] = genruntime.ToEnum(absoluteCriterionItem, scheduleBasedBackupCriteria_AbsoluteCriteria_Values)
 		}
 		criteria.AbsoluteCriteria = absoluteCriterionList
@@ -7406,12 +7150,10 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_From_ScheduleBased
 	if source.DaysOfMonth != nil {
 		daysOfMonthList := make([]Day, len(source.DaysOfMonth))
 		for daysOfMonthIndex, daysOfMonthItem := range source.DaysOfMonth {
-			// Shadow the loop variable to avoid aliasing
-			daysOfMonthItem := daysOfMonthItem
 			var daysOfMonth Day
 			err := daysOfMonth.AssignProperties_From_Day(&daysOfMonthItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Day() to populate field DaysOfMonth")
+				return eris.Wrap(err, "calling AssignProperties_From_Day() to populate field DaysOfMonth")
 			}
 			daysOfMonthList[daysOfMonthIndex] = daysOfMonth
 		}
@@ -7424,8 +7166,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_From_ScheduleBased
 	if source.DaysOfTheWeek != nil {
 		daysOfTheWeekList := make([]ScheduleBasedBackupCriteria_DaysOfTheWeek, len(source.DaysOfTheWeek))
 		for daysOfTheWeekIndex, daysOfTheWeekItem := range source.DaysOfTheWeek {
-			// Shadow the loop variable to avoid aliasing
-			daysOfTheWeekItem := daysOfTheWeekItem
 			daysOfTheWeekList[daysOfTheWeekIndex] = genruntime.ToEnum(daysOfTheWeekItem, scheduleBasedBackupCriteria_DaysOfTheWeek_Values)
 		}
 		criteria.DaysOfTheWeek = daysOfTheWeekList
@@ -7437,8 +7177,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_From_ScheduleBased
 	if source.MonthsOfYear != nil {
 		monthsOfYearList := make([]ScheduleBasedBackupCriteria_MonthsOfYear, len(source.MonthsOfYear))
 		for monthsOfYearIndex, monthsOfYearItem := range source.MonthsOfYear {
-			// Shadow the loop variable to avoid aliasing
-			monthsOfYearItem := monthsOfYearItem
 			monthsOfYearList[monthsOfYearIndex] = genruntime.ToEnum(monthsOfYearItem, scheduleBasedBackupCriteria_MonthsOfYear_Values)
 		}
 		criteria.MonthsOfYear = monthsOfYearList
@@ -7462,8 +7200,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_From_ScheduleBased
 	if source.WeeksOfTheMonth != nil {
 		weeksOfTheMonthList := make([]ScheduleBasedBackupCriteria_WeeksOfTheMonth, len(source.WeeksOfTheMonth))
 		for weeksOfTheMonthIndex, weeksOfTheMonthItem := range source.WeeksOfTheMonth {
-			// Shadow the loop variable to avoid aliasing
-			weeksOfTheMonthItem := weeksOfTheMonthItem
 			weeksOfTheMonthList[weeksOfTheMonthIndex] = genruntime.ToEnum(weeksOfTheMonthItem, scheduleBasedBackupCriteria_WeeksOfTheMonth_Values)
 		}
 		criteria.WeeksOfTheMonth = weeksOfTheMonthList
@@ -7484,8 +7220,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_To_ScheduleBasedBa
 	if criteria.AbsoluteCriteria != nil {
 		absoluteCriterionList := make([]string, len(criteria.AbsoluteCriteria))
 		for absoluteCriterionIndex, absoluteCriterionItem := range criteria.AbsoluteCriteria {
-			// Shadow the loop variable to avoid aliasing
-			absoluteCriterionItem := absoluteCriterionItem
 			absoluteCriterionList[absoluteCriterionIndex] = string(absoluteCriterionItem)
 		}
 		destination.AbsoluteCriteria = absoluteCriterionList
@@ -7497,12 +7231,10 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_To_ScheduleBasedBa
 	if criteria.DaysOfMonth != nil {
 		daysOfMonthList := make([]storage.Day, len(criteria.DaysOfMonth))
 		for daysOfMonthIndex, daysOfMonthItem := range criteria.DaysOfMonth {
-			// Shadow the loop variable to avoid aliasing
-			daysOfMonthItem := daysOfMonthItem
 			var daysOfMonth storage.Day
 			err := daysOfMonthItem.AssignProperties_To_Day(&daysOfMonth)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Day() to populate field DaysOfMonth")
+				return eris.Wrap(err, "calling AssignProperties_To_Day() to populate field DaysOfMonth")
 			}
 			daysOfMonthList[daysOfMonthIndex] = daysOfMonth
 		}
@@ -7515,8 +7247,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_To_ScheduleBasedBa
 	if criteria.DaysOfTheWeek != nil {
 		daysOfTheWeekList := make([]string, len(criteria.DaysOfTheWeek))
 		for daysOfTheWeekIndex, daysOfTheWeekItem := range criteria.DaysOfTheWeek {
-			// Shadow the loop variable to avoid aliasing
-			daysOfTheWeekItem := daysOfTheWeekItem
 			daysOfTheWeekList[daysOfTheWeekIndex] = string(daysOfTheWeekItem)
 		}
 		destination.DaysOfTheWeek = daysOfTheWeekList
@@ -7528,8 +7258,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_To_ScheduleBasedBa
 	if criteria.MonthsOfYear != nil {
 		monthsOfYearList := make([]string, len(criteria.MonthsOfYear))
 		for monthsOfYearIndex, monthsOfYearItem := range criteria.MonthsOfYear {
-			// Shadow the loop variable to avoid aliasing
-			monthsOfYearItem := monthsOfYearItem
 			monthsOfYearList[monthsOfYearIndex] = string(monthsOfYearItem)
 		}
 		destination.MonthsOfYear = monthsOfYearList
@@ -7552,8 +7280,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_To_ScheduleBasedBa
 	if criteria.WeeksOfTheMonth != nil {
 		weeksOfTheMonthList := make([]string, len(criteria.WeeksOfTheMonth))
 		for weeksOfTheMonthIndex, weeksOfTheMonthItem := range criteria.WeeksOfTheMonth {
-			// Shadow the loop variable to avoid aliasing
-			weeksOfTheMonthItem := weeksOfTheMonthItem
 			weeksOfTheMonthList[weeksOfTheMonthIndex] = string(weeksOfTheMonthItem)
 		}
 		destination.WeeksOfTheMonth = weeksOfTheMonthList
@@ -7566,98 +7292,6 @@ func (criteria *ScheduleBasedBackupCriteria) AssignProperties_To_ScheduleBasedBa
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_ScheduleBasedBackupCriteria_STATUS populates our ScheduleBasedBackupCriteria from the provided source ScheduleBasedBackupCriteria_STATUS
-func (criteria *ScheduleBasedBackupCriteria) Initialize_From_ScheduleBasedBackupCriteria_STATUS(source *ScheduleBasedBackupCriteria_STATUS) error {
-
-	// AbsoluteCriteria
-	if source.AbsoluteCriteria != nil {
-		absoluteCriterionList := make([]ScheduleBasedBackupCriteria_AbsoluteCriteria, len(source.AbsoluteCriteria))
-		for absoluteCriterionIndex, absoluteCriterionItem := range source.AbsoluteCriteria {
-			// Shadow the loop variable to avoid aliasing
-			absoluteCriterionItem := absoluteCriterionItem
-			absoluteCriterion := genruntime.ToEnum(string(absoluteCriterionItem), scheduleBasedBackupCriteria_AbsoluteCriteria_Values)
-			absoluteCriterionList[absoluteCriterionIndex] = absoluteCriterion
-		}
-		criteria.AbsoluteCriteria = absoluteCriterionList
-	} else {
-		criteria.AbsoluteCriteria = nil
-	}
-
-	// DaysOfMonth
-	if source.DaysOfMonth != nil {
-		daysOfMonthList := make([]Day, len(source.DaysOfMonth))
-		for daysOfMonthIndex, daysOfMonthItem := range source.DaysOfMonth {
-			// Shadow the loop variable to avoid aliasing
-			daysOfMonthItem := daysOfMonthItem
-			var daysOfMonth Day
-			err := daysOfMonth.Initialize_From_Day_STATUS(&daysOfMonthItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_Day_STATUS() to populate field DaysOfMonth")
-			}
-			daysOfMonthList[daysOfMonthIndex] = daysOfMonth
-		}
-		criteria.DaysOfMonth = daysOfMonthList
-	} else {
-		criteria.DaysOfMonth = nil
-	}
-
-	// DaysOfTheWeek
-	if source.DaysOfTheWeek != nil {
-		daysOfTheWeekList := make([]ScheduleBasedBackupCriteria_DaysOfTheWeek, len(source.DaysOfTheWeek))
-		for daysOfTheWeekIndex, daysOfTheWeekItem := range source.DaysOfTheWeek {
-			// Shadow the loop variable to avoid aliasing
-			daysOfTheWeekItem := daysOfTheWeekItem
-			daysOfTheWeek := genruntime.ToEnum(string(daysOfTheWeekItem), scheduleBasedBackupCriteria_DaysOfTheWeek_Values)
-			daysOfTheWeekList[daysOfTheWeekIndex] = daysOfTheWeek
-		}
-		criteria.DaysOfTheWeek = daysOfTheWeekList
-	} else {
-		criteria.DaysOfTheWeek = nil
-	}
-
-	// MonthsOfYear
-	if source.MonthsOfYear != nil {
-		monthsOfYearList := make([]ScheduleBasedBackupCriteria_MonthsOfYear, len(source.MonthsOfYear))
-		for monthsOfYearIndex, monthsOfYearItem := range source.MonthsOfYear {
-			// Shadow the loop variable to avoid aliasing
-			monthsOfYearItem := monthsOfYearItem
-			monthsOfYear := genruntime.ToEnum(string(monthsOfYearItem), scheduleBasedBackupCriteria_MonthsOfYear_Values)
-			monthsOfYearList[monthsOfYearIndex] = monthsOfYear
-		}
-		criteria.MonthsOfYear = monthsOfYearList
-	} else {
-		criteria.MonthsOfYear = nil
-	}
-
-	// ObjectType
-	if source.ObjectType != nil {
-		objectType := genruntime.ToEnum(string(*source.ObjectType), scheduleBasedBackupCriteria_ObjectType_Values)
-		criteria.ObjectType = &objectType
-	} else {
-		criteria.ObjectType = nil
-	}
-
-	// ScheduleTimes
-	criteria.ScheduleTimes = genruntime.CloneSliceOfString(source.ScheduleTimes)
-
-	// WeeksOfTheMonth
-	if source.WeeksOfTheMonth != nil {
-		weeksOfTheMonthList := make([]ScheduleBasedBackupCriteria_WeeksOfTheMonth, len(source.WeeksOfTheMonth))
-		for weeksOfTheMonthIndex, weeksOfTheMonthItem := range source.WeeksOfTheMonth {
-			// Shadow the loop variable to avoid aliasing
-			weeksOfTheMonthItem := weeksOfTheMonthItem
-			weeksOfTheMonth := genruntime.ToEnum(string(weeksOfTheMonthItem), scheduleBasedBackupCriteria_WeeksOfTheMonth_Values)
-			weeksOfTheMonthList[weeksOfTheMonthIndex] = weeksOfTheMonth
-		}
-		criteria.WeeksOfTheMonth = weeksOfTheMonthList
-	} else {
-		criteria.WeeksOfTheMonth = nil
 	}
 
 	// No error
@@ -7692,19 +7326,21 @@ var _ genruntime.FromARMConverter = &ScheduleBasedBackupCriteria_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (criteria *ScheduleBasedBackupCriteria_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ScheduleBasedBackupCriteria_STATUS_ARM{}
+	return &arm.ScheduleBasedBackupCriteria_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (criteria *ScheduleBasedBackupCriteria_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ScheduleBasedBackupCriteria_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ScheduleBasedBackupCriteria_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ScheduleBasedBackupCriteria_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ScheduleBasedBackupCriteria_STATUS, got %T", armInput)
 	}
 
 	// Set property "AbsoluteCriteria":
 	for _, item := range typedInput.AbsoluteCriteria {
-		criteria.AbsoluteCriteria = append(criteria.AbsoluteCriteria, item)
+		var temp string
+		temp = string(item)
+		criteria.AbsoluteCriteria = append(criteria.AbsoluteCriteria, ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS(temp))
 	}
 
 	// Set property "DaysOfMonth":
@@ -7719,16 +7355,24 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) PopulateFromARM(owner genrun
 
 	// Set property "DaysOfTheWeek":
 	for _, item := range typedInput.DaysOfTheWeek {
-		criteria.DaysOfTheWeek = append(criteria.DaysOfTheWeek, item)
+		var temp string
+		temp = string(item)
+		criteria.DaysOfTheWeek = append(criteria.DaysOfTheWeek, ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS(temp))
 	}
 
 	// Set property "MonthsOfYear":
 	for _, item := range typedInput.MonthsOfYear {
-		criteria.MonthsOfYear = append(criteria.MonthsOfYear, item)
+		var temp string
+		temp = string(item)
+		criteria.MonthsOfYear = append(criteria.MonthsOfYear, ScheduleBasedBackupCriteria_MonthsOfYear_STATUS(temp))
 	}
 
 	// Set property "ObjectType":
-	criteria.ObjectType = &typedInput.ObjectType
+	var temp ScheduleBasedBackupCriteria_ObjectType_STATUS
+	var temp1 string
+	temp1 = string(typedInput.ObjectType)
+	temp = ScheduleBasedBackupCriteria_ObjectType_STATUS(temp1)
+	criteria.ObjectType = &temp
 
 	// Set property "ScheduleTimes":
 	for _, item := range typedInput.ScheduleTimes {
@@ -7737,7 +7381,9 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) PopulateFromARM(owner genrun
 
 	// Set property "WeeksOfTheMonth":
 	for _, item := range typedInput.WeeksOfTheMonth {
-		criteria.WeeksOfTheMonth = append(criteria.WeeksOfTheMonth, item)
+		var itemTemp string
+		itemTemp = string(item)
+		criteria.WeeksOfTheMonth = append(criteria.WeeksOfTheMonth, ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS(itemTemp))
 	}
 
 	// No error
@@ -7751,8 +7397,6 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_From_Schedu
 	if source.AbsoluteCriteria != nil {
 		absoluteCriterionList := make([]ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS, len(source.AbsoluteCriteria))
 		for absoluteCriterionIndex, absoluteCriterionItem := range source.AbsoluteCriteria {
-			// Shadow the loop variable to avoid aliasing
-			absoluteCriterionItem := absoluteCriterionItem
 			absoluteCriterionList[absoluteCriterionIndex] = genruntime.ToEnum(absoluteCriterionItem, scheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_Values)
 		}
 		criteria.AbsoluteCriteria = absoluteCriterionList
@@ -7764,12 +7408,10 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_From_Schedu
 	if source.DaysOfMonth != nil {
 		daysOfMonthList := make([]Day_STATUS, len(source.DaysOfMonth))
 		for daysOfMonthIndex, daysOfMonthItem := range source.DaysOfMonth {
-			// Shadow the loop variable to avoid aliasing
-			daysOfMonthItem := daysOfMonthItem
 			var daysOfMonth Day_STATUS
 			err := daysOfMonth.AssignProperties_From_Day_STATUS(&daysOfMonthItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_Day_STATUS() to populate field DaysOfMonth")
+				return eris.Wrap(err, "calling AssignProperties_From_Day_STATUS() to populate field DaysOfMonth")
 			}
 			daysOfMonthList[daysOfMonthIndex] = daysOfMonth
 		}
@@ -7782,8 +7424,6 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_From_Schedu
 	if source.DaysOfTheWeek != nil {
 		daysOfTheWeekList := make([]ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS, len(source.DaysOfTheWeek))
 		for daysOfTheWeekIndex, daysOfTheWeekItem := range source.DaysOfTheWeek {
-			// Shadow the loop variable to avoid aliasing
-			daysOfTheWeekItem := daysOfTheWeekItem
 			daysOfTheWeekList[daysOfTheWeekIndex] = genruntime.ToEnum(daysOfTheWeekItem, scheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Values)
 		}
 		criteria.DaysOfTheWeek = daysOfTheWeekList
@@ -7795,8 +7435,6 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_From_Schedu
 	if source.MonthsOfYear != nil {
 		monthsOfYearList := make([]ScheduleBasedBackupCriteria_MonthsOfYear_STATUS, len(source.MonthsOfYear))
 		for monthsOfYearIndex, monthsOfYearItem := range source.MonthsOfYear {
-			// Shadow the loop variable to avoid aliasing
-			monthsOfYearItem := monthsOfYearItem
 			monthsOfYearList[monthsOfYearIndex] = genruntime.ToEnum(monthsOfYearItem, scheduleBasedBackupCriteria_MonthsOfYear_STATUS_Values)
 		}
 		criteria.MonthsOfYear = monthsOfYearList
@@ -7820,8 +7458,6 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_From_Schedu
 	if source.WeeksOfTheMonth != nil {
 		weeksOfTheMonthList := make([]ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS, len(source.WeeksOfTheMonth))
 		for weeksOfTheMonthIndex, weeksOfTheMonthItem := range source.WeeksOfTheMonth {
-			// Shadow the loop variable to avoid aliasing
-			weeksOfTheMonthItem := weeksOfTheMonthItem
 			weeksOfTheMonthList[weeksOfTheMonthIndex] = genruntime.ToEnum(weeksOfTheMonthItem, scheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Values)
 		}
 		criteria.WeeksOfTheMonth = weeksOfTheMonthList
@@ -7842,8 +7478,6 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_To_Schedule
 	if criteria.AbsoluteCriteria != nil {
 		absoluteCriterionList := make([]string, len(criteria.AbsoluteCriteria))
 		for absoluteCriterionIndex, absoluteCriterionItem := range criteria.AbsoluteCriteria {
-			// Shadow the loop variable to avoid aliasing
-			absoluteCriterionItem := absoluteCriterionItem
 			absoluteCriterionList[absoluteCriterionIndex] = string(absoluteCriterionItem)
 		}
 		destination.AbsoluteCriteria = absoluteCriterionList
@@ -7855,12 +7489,10 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_To_Schedule
 	if criteria.DaysOfMonth != nil {
 		daysOfMonthList := make([]storage.Day_STATUS, len(criteria.DaysOfMonth))
 		for daysOfMonthIndex, daysOfMonthItem := range criteria.DaysOfMonth {
-			// Shadow the loop variable to avoid aliasing
-			daysOfMonthItem := daysOfMonthItem
 			var daysOfMonth storage.Day_STATUS
 			err := daysOfMonthItem.AssignProperties_To_Day_STATUS(&daysOfMonth)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_Day_STATUS() to populate field DaysOfMonth")
+				return eris.Wrap(err, "calling AssignProperties_To_Day_STATUS() to populate field DaysOfMonth")
 			}
 			daysOfMonthList[daysOfMonthIndex] = daysOfMonth
 		}
@@ -7873,8 +7505,6 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_To_Schedule
 	if criteria.DaysOfTheWeek != nil {
 		daysOfTheWeekList := make([]string, len(criteria.DaysOfTheWeek))
 		for daysOfTheWeekIndex, daysOfTheWeekItem := range criteria.DaysOfTheWeek {
-			// Shadow the loop variable to avoid aliasing
-			daysOfTheWeekItem := daysOfTheWeekItem
 			daysOfTheWeekList[daysOfTheWeekIndex] = string(daysOfTheWeekItem)
 		}
 		destination.DaysOfTheWeek = daysOfTheWeekList
@@ -7886,8 +7516,6 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_To_Schedule
 	if criteria.MonthsOfYear != nil {
 		monthsOfYearList := make([]string, len(criteria.MonthsOfYear))
 		for monthsOfYearIndex, monthsOfYearItem := range criteria.MonthsOfYear {
-			// Shadow the loop variable to avoid aliasing
-			monthsOfYearItem := monthsOfYearItem
 			monthsOfYearList[monthsOfYearIndex] = string(monthsOfYearItem)
 		}
 		destination.MonthsOfYear = monthsOfYearList
@@ -7910,8 +7538,6 @@ func (criteria *ScheduleBasedBackupCriteria_STATUS) AssignProperties_To_Schedule
 	if criteria.WeeksOfTheMonth != nil {
 		weeksOfTheMonthList := make([]string, len(criteria.WeeksOfTheMonth))
 		for weeksOfTheMonthIndex, weeksOfTheMonthItem := range criteria.WeeksOfTheMonth {
-			// Shadow the loop variable to avoid aliasing
-			weeksOfTheMonthItem := weeksOfTheMonthItem
 			weeksOfTheMonthList[weeksOfTheMonthIndex] = string(weeksOfTheMonthItem)
 		}
 		destination.WeeksOfTheMonth = weeksOfTheMonthList
@@ -7946,7 +7572,7 @@ func (day *Day) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (i
 	if day == nil {
 		return nil, nil
 	}
-	result := &Day_ARM{}
+	result := &arm.Day{}
 
 	// Set property "Date":
 	if day.Date != nil {
@@ -7964,14 +7590,14 @@ func (day *Day) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (i
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (day *Day) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Day_ARM{}
+	return &arm.Day{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (day *Day) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Day_ARM)
+	typedInput, ok := armInput.(arm.Day)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Day_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Day, got %T", armInput)
 	}
 
 	// Set property "Date":
@@ -8035,24 +7661,6 @@ func (day *Day) AssignProperties_To_Day(destination *storage.Day) error {
 	return nil
 }
 
-// Initialize_From_Day_STATUS populates our Day from the provided source Day_STATUS
-func (day *Day) Initialize_From_Day_STATUS(source *Day_STATUS) error {
-
-	// Date
-	day.Date = genruntime.ClonePointerToInt(source.Date)
-
-	// IsLast
-	if source.IsLast != nil {
-		isLast := *source.IsLast
-		day.IsLast = &isLast
-	} else {
-		day.IsLast = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Day of the week
 type Day_STATUS struct {
 	// Date: Date of the month
@@ -8066,14 +7674,14 @@ var _ genruntime.FromARMConverter = &Day_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (day *Day_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Day_STATUS_ARM{}
+	return &arm.Day_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (day *Day_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Day_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Day_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Day_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Day_STATUS, got %T", armInput)
 	}
 
 	// Set property "Date":
@@ -8135,6 +7743,217 @@ func (day *Day_STATUS) AssignProperties_To_Day_STATUS(destination *storage.Day_S
 
 	// No error
 	return nil
+}
+
+// +kubebuilder:validation:Enum={"AllBackup","FirstOfDay","FirstOfMonth","FirstOfWeek","FirstOfYear"}
+type ScheduleBasedBackupCriteria_AbsoluteCriteria string
+
+const (
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_AllBackup    = ScheduleBasedBackupCriteria_AbsoluteCriteria("AllBackup")
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_FirstOfDay   = ScheduleBasedBackupCriteria_AbsoluteCriteria("FirstOfDay")
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_FirstOfMonth = ScheduleBasedBackupCriteria_AbsoluteCriteria("FirstOfMonth")
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_FirstOfWeek  = ScheduleBasedBackupCriteria_AbsoluteCriteria("FirstOfWeek")
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_FirstOfYear  = ScheduleBasedBackupCriteria_AbsoluteCriteria("FirstOfYear")
+)
+
+// Mapping from string to ScheduleBasedBackupCriteria_AbsoluteCriteria
+var scheduleBasedBackupCriteria_AbsoluteCriteria_Values = map[string]ScheduleBasedBackupCriteria_AbsoluteCriteria{
+	"allbackup":    ScheduleBasedBackupCriteria_AbsoluteCriteria_AllBackup,
+	"firstofday":   ScheduleBasedBackupCriteria_AbsoluteCriteria_FirstOfDay,
+	"firstofmonth": ScheduleBasedBackupCriteria_AbsoluteCriteria_FirstOfMonth,
+	"firstofweek":  ScheduleBasedBackupCriteria_AbsoluteCriteria_FirstOfWeek,
+	"firstofyear":  ScheduleBasedBackupCriteria_AbsoluteCriteria_FirstOfYear,
+}
+
+type ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS string
+
+const (
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_AllBackup    = ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS("AllBackup")
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_FirstOfDay   = ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS("FirstOfDay")
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_FirstOfMonth = ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS("FirstOfMonth")
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_FirstOfWeek  = ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS("FirstOfWeek")
+	ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_FirstOfYear  = ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS("FirstOfYear")
+)
+
+// Mapping from string to ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS
+var scheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_Values = map[string]ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS{
+	"allbackup":    ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_AllBackup,
+	"firstofday":   ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_FirstOfDay,
+	"firstofmonth": ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_FirstOfMonth,
+	"firstofweek":  ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_FirstOfWeek,
+	"firstofyear":  ScheduleBasedBackupCriteria_AbsoluteCriteria_STATUS_FirstOfYear,
+}
+
+// +kubebuilder:validation:Enum={"Friday","Monday","Saturday","Sunday","Thursday","Tuesday","Wednesday"}
+type ScheduleBasedBackupCriteria_DaysOfTheWeek string
+
+const (
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_Friday    = ScheduleBasedBackupCriteria_DaysOfTheWeek("Friday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_Monday    = ScheduleBasedBackupCriteria_DaysOfTheWeek("Monday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_Saturday  = ScheduleBasedBackupCriteria_DaysOfTheWeek("Saturday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_Sunday    = ScheduleBasedBackupCriteria_DaysOfTheWeek("Sunday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_Thursday  = ScheduleBasedBackupCriteria_DaysOfTheWeek("Thursday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_Tuesday   = ScheduleBasedBackupCriteria_DaysOfTheWeek("Tuesday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_Wednesday = ScheduleBasedBackupCriteria_DaysOfTheWeek("Wednesday")
+)
+
+// Mapping from string to ScheduleBasedBackupCriteria_DaysOfTheWeek
+var scheduleBasedBackupCriteria_DaysOfTheWeek_Values = map[string]ScheduleBasedBackupCriteria_DaysOfTheWeek{
+	"friday":    ScheduleBasedBackupCriteria_DaysOfTheWeek_Friday,
+	"monday":    ScheduleBasedBackupCriteria_DaysOfTheWeek_Monday,
+	"saturday":  ScheduleBasedBackupCriteria_DaysOfTheWeek_Saturday,
+	"sunday":    ScheduleBasedBackupCriteria_DaysOfTheWeek_Sunday,
+	"thursday":  ScheduleBasedBackupCriteria_DaysOfTheWeek_Thursday,
+	"tuesday":   ScheduleBasedBackupCriteria_DaysOfTheWeek_Tuesday,
+	"wednesday": ScheduleBasedBackupCriteria_DaysOfTheWeek_Wednesday,
+}
+
+type ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS string
+
+const (
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Friday    = ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS("Friday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Monday    = ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS("Monday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Saturday  = ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS("Saturday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Sunday    = ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS("Sunday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Thursday  = ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS("Thursday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Tuesday   = ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS("Tuesday")
+	ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Wednesday = ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS("Wednesday")
+)
+
+// Mapping from string to ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS
+var scheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Values = map[string]ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS{
+	"friday":    ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Friday,
+	"monday":    ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Monday,
+	"saturday":  ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Saturday,
+	"sunday":    ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Sunday,
+	"thursday":  ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Thursday,
+	"tuesday":   ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Tuesday,
+	"wednesday": ScheduleBasedBackupCriteria_DaysOfTheWeek_STATUS_Wednesday,
+}
+
+// +kubebuilder:validation:Enum={"April","August","December","February","January","July","June","March","May","November","October","September"}
+type ScheduleBasedBackupCriteria_MonthsOfYear string
+
+const (
+	ScheduleBasedBackupCriteria_MonthsOfYear_April     = ScheduleBasedBackupCriteria_MonthsOfYear("April")
+	ScheduleBasedBackupCriteria_MonthsOfYear_August    = ScheduleBasedBackupCriteria_MonthsOfYear("August")
+	ScheduleBasedBackupCriteria_MonthsOfYear_December  = ScheduleBasedBackupCriteria_MonthsOfYear("December")
+	ScheduleBasedBackupCriteria_MonthsOfYear_February  = ScheduleBasedBackupCriteria_MonthsOfYear("February")
+	ScheduleBasedBackupCriteria_MonthsOfYear_January   = ScheduleBasedBackupCriteria_MonthsOfYear("January")
+	ScheduleBasedBackupCriteria_MonthsOfYear_July      = ScheduleBasedBackupCriteria_MonthsOfYear("July")
+	ScheduleBasedBackupCriteria_MonthsOfYear_June      = ScheduleBasedBackupCriteria_MonthsOfYear("June")
+	ScheduleBasedBackupCriteria_MonthsOfYear_March     = ScheduleBasedBackupCriteria_MonthsOfYear("March")
+	ScheduleBasedBackupCriteria_MonthsOfYear_May       = ScheduleBasedBackupCriteria_MonthsOfYear("May")
+	ScheduleBasedBackupCriteria_MonthsOfYear_November  = ScheduleBasedBackupCriteria_MonthsOfYear("November")
+	ScheduleBasedBackupCriteria_MonthsOfYear_October   = ScheduleBasedBackupCriteria_MonthsOfYear("October")
+	ScheduleBasedBackupCriteria_MonthsOfYear_September = ScheduleBasedBackupCriteria_MonthsOfYear("September")
+)
+
+// Mapping from string to ScheduleBasedBackupCriteria_MonthsOfYear
+var scheduleBasedBackupCriteria_MonthsOfYear_Values = map[string]ScheduleBasedBackupCriteria_MonthsOfYear{
+	"april":     ScheduleBasedBackupCriteria_MonthsOfYear_April,
+	"august":    ScheduleBasedBackupCriteria_MonthsOfYear_August,
+	"december":  ScheduleBasedBackupCriteria_MonthsOfYear_December,
+	"february":  ScheduleBasedBackupCriteria_MonthsOfYear_February,
+	"january":   ScheduleBasedBackupCriteria_MonthsOfYear_January,
+	"july":      ScheduleBasedBackupCriteria_MonthsOfYear_July,
+	"june":      ScheduleBasedBackupCriteria_MonthsOfYear_June,
+	"march":     ScheduleBasedBackupCriteria_MonthsOfYear_March,
+	"may":       ScheduleBasedBackupCriteria_MonthsOfYear_May,
+	"november":  ScheduleBasedBackupCriteria_MonthsOfYear_November,
+	"october":   ScheduleBasedBackupCriteria_MonthsOfYear_October,
+	"september": ScheduleBasedBackupCriteria_MonthsOfYear_September,
+}
+
+type ScheduleBasedBackupCriteria_MonthsOfYear_STATUS string
+
+const (
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_April     = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("April")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_August    = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("August")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_December  = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("December")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_February  = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("February")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_January   = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("January")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_July      = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("July")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_June      = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("June")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_March     = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("March")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_May       = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("May")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_November  = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("November")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_October   = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("October")
+	ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_September = ScheduleBasedBackupCriteria_MonthsOfYear_STATUS("September")
+)
+
+// Mapping from string to ScheduleBasedBackupCriteria_MonthsOfYear_STATUS
+var scheduleBasedBackupCriteria_MonthsOfYear_STATUS_Values = map[string]ScheduleBasedBackupCriteria_MonthsOfYear_STATUS{
+	"april":     ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_April,
+	"august":    ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_August,
+	"december":  ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_December,
+	"february":  ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_February,
+	"january":   ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_January,
+	"july":      ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_July,
+	"june":      ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_June,
+	"march":     ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_March,
+	"may":       ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_May,
+	"november":  ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_November,
+	"october":   ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_October,
+	"september": ScheduleBasedBackupCriteria_MonthsOfYear_STATUS_September,
+}
+
+// +kubebuilder:validation:Enum={"ScheduleBasedBackupCriteria"}
+type ScheduleBasedBackupCriteria_ObjectType string
+
+const ScheduleBasedBackupCriteria_ObjectType_ScheduleBasedBackupCriteria = ScheduleBasedBackupCriteria_ObjectType("ScheduleBasedBackupCriteria")
+
+// Mapping from string to ScheduleBasedBackupCriteria_ObjectType
+var scheduleBasedBackupCriteria_ObjectType_Values = map[string]ScheduleBasedBackupCriteria_ObjectType{
+	"schedulebasedbackupcriteria": ScheduleBasedBackupCriteria_ObjectType_ScheduleBasedBackupCriteria,
+}
+
+type ScheduleBasedBackupCriteria_ObjectType_STATUS string
+
+const ScheduleBasedBackupCriteria_ObjectType_STATUS_ScheduleBasedBackupCriteria = ScheduleBasedBackupCriteria_ObjectType_STATUS("ScheduleBasedBackupCriteria")
+
+// Mapping from string to ScheduleBasedBackupCriteria_ObjectType_STATUS
+var scheduleBasedBackupCriteria_ObjectType_STATUS_Values = map[string]ScheduleBasedBackupCriteria_ObjectType_STATUS{
+	"schedulebasedbackupcriteria": ScheduleBasedBackupCriteria_ObjectType_STATUS_ScheduleBasedBackupCriteria,
+}
+
+// +kubebuilder:validation:Enum={"First","Fourth","Last","Second","Third"}
+type ScheduleBasedBackupCriteria_WeeksOfTheMonth string
+
+const (
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_First  = ScheduleBasedBackupCriteria_WeeksOfTheMonth("First")
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_Fourth = ScheduleBasedBackupCriteria_WeeksOfTheMonth("Fourth")
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_Last   = ScheduleBasedBackupCriteria_WeeksOfTheMonth("Last")
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_Second = ScheduleBasedBackupCriteria_WeeksOfTheMonth("Second")
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_Third  = ScheduleBasedBackupCriteria_WeeksOfTheMonth("Third")
+)
+
+// Mapping from string to ScheduleBasedBackupCriteria_WeeksOfTheMonth
+var scheduleBasedBackupCriteria_WeeksOfTheMonth_Values = map[string]ScheduleBasedBackupCriteria_WeeksOfTheMonth{
+	"first":  ScheduleBasedBackupCriteria_WeeksOfTheMonth_First,
+	"fourth": ScheduleBasedBackupCriteria_WeeksOfTheMonth_Fourth,
+	"last":   ScheduleBasedBackupCriteria_WeeksOfTheMonth_Last,
+	"second": ScheduleBasedBackupCriteria_WeeksOfTheMonth_Second,
+	"third":  ScheduleBasedBackupCriteria_WeeksOfTheMonth_Third,
+}
+
+type ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS string
+
+const (
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_First  = ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS("First")
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Fourth = ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS("Fourth")
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Last   = ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS("Last")
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Second = ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS("Second")
+	ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Third  = ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS("Third")
+)
+
+// Mapping from string to ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS
+var scheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Values = map[string]ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS{
+	"first":  ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_First,
+	"fourth": ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Fourth,
+	"last":   ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Last,
+	"second": ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Second,
+	"third":  ScheduleBasedBackupCriteria_WeeksOfTheMonth_STATUS_Third,
 }
 
 func init() {

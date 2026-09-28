@@ -4,33 +4,35 @@
 package storage
 
 import (
-	storage "github.com/Azure/azure-service-operator/v2/api/cdn/v1api20230501/storage"
+	"fmt"
+	storage "github.com/Azure/azure-service-operator/v2/api/cdn/v20210601/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// +kubebuilder:rbac:groups=cdn.azure.com,resources=profilesendpoints,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=cdn.azure.com,resources={profilesendpoints/status,profilesendpoints/finalizers},verbs=get;update;patch
-
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,cdn}
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20210601.ProfilesEndpoint
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2021-06-01/cdn.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2021-06-01/cdn.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/endpoints/{endpointName}
 type ProfilesEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Profiles_Endpoint_Spec   `json:"spec,omitempty"`
-	Status            Profiles_Endpoint_STATUS `json:"status,omitempty"`
+	Spec              ProfilesEndpoint_Spec   `json:"spec,omitempty"`
+	Status            ProfilesEndpoint_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &ProfilesEndpoint{}
@@ -45,6 +47,48 @@ func (endpoint *ProfilesEndpoint) SetConditions(conditions conditions.Conditions
 	endpoint.Status.Conditions = conditions
 }
 
+var _ conversion.Convertible = &ProfilesEndpoint{}
+
+// ConvertFrom populates our ProfilesEndpoint from the provided hub ProfilesEndpoint
+func (endpoint *ProfilesEndpoint) ConvertFrom(hub conversion.Hub) error {
+	source, ok := hub.(*storage.ProfilesEndpoint)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20210601/storage/ProfilesEndpoint but received %T instead", hub)
+	}
+
+	return endpoint.AssignProperties_From_ProfilesEndpoint(source)
+}
+
+// ConvertTo populates the provided hub ProfilesEndpoint from our ProfilesEndpoint
+func (endpoint *ProfilesEndpoint) ConvertTo(hub conversion.Hub) error {
+	destination, ok := hub.(*storage.ProfilesEndpoint)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20210601/storage/ProfilesEndpoint but received %T instead", hub)
+	}
+
+	return endpoint.AssignProperties_To_ProfilesEndpoint(destination)
+}
+
+var _ configmaps.Exporter = &ProfilesEndpoint{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (endpoint *ProfilesEndpoint) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if endpoint.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return endpoint.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &ProfilesEndpoint{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (endpoint *ProfilesEndpoint) SecretDestinationExpressions() []*core.DestinationExpression {
+	if endpoint.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return endpoint.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &ProfilesEndpoint{}
 
 // AzureName returns the Azure name of the resource
@@ -54,7 +98,7 @@ func (endpoint *ProfilesEndpoint) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2021-06-01"
 func (endpoint ProfilesEndpoint) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2021-06-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -88,11 +132,15 @@ func (endpoint *ProfilesEndpoint) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (endpoint *ProfilesEndpoint) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Profiles_Endpoint_STATUS{}
+	return &ProfilesEndpoint_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (endpoint *ProfilesEndpoint) Owner() *genruntime.ResourceReference {
+	if endpoint.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(endpoint.Spec)
 	return endpoint.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -100,24 +148,91 @@ func (endpoint *ProfilesEndpoint) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (endpoint *ProfilesEndpoint) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Profiles_Endpoint_STATUS); ok {
+	if st, ok := status.(*ProfilesEndpoint_STATUS); ok {
 		endpoint.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Profiles_Endpoint_STATUS
+	var st ProfilesEndpoint_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	endpoint.Status = st
 	return nil
 }
 
-// Hub marks that this ProfilesEndpoint is the hub type for conversion
-func (endpoint *ProfilesEndpoint) Hub() {}
+// AssignProperties_From_ProfilesEndpoint populates our ProfilesEndpoint from the provided source ProfilesEndpoint
+func (endpoint *ProfilesEndpoint) AssignProperties_From_ProfilesEndpoint(source *storage.ProfilesEndpoint) error {
+
+	// ObjectMeta
+	endpoint.ObjectMeta = *source.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec ProfilesEndpoint_Spec
+	err := spec.AssignProperties_From_ProfilesEndpoint_Spec(&source.Spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_ProfilesEndpoint_Spec() to populate field Spec")
+	}
+	endpoint.Spec = spec
+
+	// Status
+	var status ProfilesEndpoint_STATUS
+	err = status.AssignProperties_From_ProfilesEndpoint_STATUS(&source.Status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_ProfilesEndpoint_STATUS() to populate field Status")
+	}
+	endpoint.Status = status
+
+	// Invoke the augmentConversionForProfilesEndpoint interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForProfilesEndpoint); ok {
+		err := augmentedEndpoint.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ProfilesEndpoint populates the provided destination ProfilesEndpoint from our ProfilesEndpoint
+func (endpoint *ProfilesEndpoint) AssignProperties_To_ProfilesEndpoint(destination *storage.ProfilesEndpoint) error {
+
+	// ObjectMeta
+	destination.ObjectMeta = *endpoint.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec storage.ProfilesEndpoint_Spec
+	err := endpoint.Spec.AssignProperties_To_ProfilesEndpoint_Spec(&spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_ProfilesEndpoint_Spec() to populate field Spec")
+	}
+	destination.Spec = spec
+
+	// Status
+	var status storage.ProfilesEndpoint_STATUS
+	err = endpoint.Status.AssignProperties_To_ProfilesEndpoint_STATUS(&status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_ProfilesEndpoint_STATUS() to populate field Status")
+	}
+	destination.Status = status
+
+	// Invoke the augmentConversionForProfilesEndpoint interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForProfilesEndpoint); ok {
+		err := augmentedEndpoint.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
 
 // OriginalGVK returns a GroupValueKind for the original API version used to create the resource
 func (endpoint *ProfilesEndpoint) OriginalGVK() *schema.GroupVersionKind {
@@ -131,7 +246,7 @@ func (endpoint *ProfilesEndpoint) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20210601.ProfilesEndpoint
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2021-06-01/cdn.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2021-06-01/cdn.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/endpoints/{endpointName}
 type ProfilesEndpointList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -139,8 +254,13 @@ type ProfilesEndpointList struct {
 	Items           []ProfilesEndpoint `json:"items"`
 }
 
-// Storage version of v1api20210601.Profiles_Endpoint_Spec
-type Profiles_Endpoint_Spec struct {
+type augmentConversionForProfilesEndpoint interface {
+	AssignPropertiesFrom(src *storage.ProfilesEndpoint) error
+	AssignPropertiesTo(dst *storage.ProfilesEndpoint) error
+}
+
+// Storage version of v1api20210601.ProfilesEndpoint_Spec
+type ProfilesEndpoint_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
 	AzureName              string                             `json:"azureName,omitempty"`
@@ -152,6 +272,7 @@ type Profiles_Endpoint_Spec struct {
 	IsHttpAllowed          *bool                              `json:"isHttpAllowed,omitempty"`
 	IsHttpsAllowed         *bool                              `json:"isHttpsAllowed,omitempty"`
 	Location               *string                            `json:"location,omitempty"`
+	OperatorSpec           *ProfilesEndpointOperatorSpec      `json:"operatorSpec,omitempty"`
 	OptimizationType       *string                            `json:"optimizationType,omitempty"`
 	OriginGroups           []DeepCreatedOriginGroup           `json:"originGroups,omitempty"`
 	OriginHostHeader       *string                            `json:"originHostHeader,omitempty"`
@@ -172,28 +293,456 @@ type Profiles_Endpoint_Spec struct {
 	WebApplicationFirewallPolicyLink *EndpointProperties_WebApplicationFirewallPolicyLink `json:"webApplicationFirewallPolicyLink,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Profiles_Endpoint_Spec{}
+var _ genruntime.ConvertibleSpec = &ProfilesEndpoint_Spec{}
 
-// ConvertSpecFrom populates our Profiles_Endpoint_Spec from the provided source
-func (endpoint *Profiles_Endpoint_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our ProfilesEndpoint_Spec from the provided source
+func (endpoint *ProfilesEndpoint_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.ProfilesEndpoint_Spec)
+	if ok {
+		// Populate our instance from source
+		return endpoint.AssignProperties_From_ProfilesEndpoint_Spec(src)
 	}
 
-	return source.ConvertSpecTo(endpoint)
-}
-
-// ConvertSpecTo populates the provided destination from our Profiles_Endpoint_Spec
-func (endpoint *Profiles_Endpoint_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	// Convert to an intermediate form
+	src = &storage.ProfilesEndpoint_Spec{}
+	err := src.ConvertSpecFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
-	return destination.ConvertSpecFrom(endpoint)
+	// Update our instance from src
+	err = endpoint.AssignProperties_From_ProfilesEndpoint_Spec(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+	}
+
+	return nil
 }
 
-// Storage version of v1api20210601.Profiles_Endpoint_STATUS
-type Profiles_Endpoint_STATUS struct {
+// ConvertSpecTo populates the provided destination from our ProfilesEndpoint_Spec
+func (endpoint *ProfilesEndpoint_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.ProfilesEndpoint_Spec)
+	if ok {
+		// Populate destination from our instance
+		return endpoint.AssignProperties_To_ProfilesEndpoint_Spec(dst)
+	}
+
+	// Convert to an intermediate form
+	dst = &storage.ProfilesEndpoint_Spec{}
+	err := endpoint.AssignProperties_To_ProfilesEndpoint_Spec(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertSpecTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_ProfilesEndpoint_Spec populates our ProfilesEndpoint_Spec from the provided source ProfilesEndpoint_Spec
+func (endpoint *ProfilesEndpoint_Spec) AssignProperties_From_ProfilesEndpoint_Spec(source *storage.ProfilesEndpoint_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureName
+	endpoint.AzureName = source.AzureName
+
+	// ContentTypesToCompress
+	endpoint.ContentTypesToCompress = genruntime.CloneSliceOfString(source.ContentTypesToCompress)
+
+	// DefaultOriginGroup
+	if source.DefaultOriginGroup != nil {
+		var defaultOriginGroup ResourceReference
+		err := defaultOriginGroup.AssignProperties_From_ResourceReference(source.DefaultOriginGroup)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field DefaultOriginGroup")
+		}
+		endpoint.DefaultOriginGroup = &defaultOriginGroup
+	} else {
+		endpoint.DefaultOriginGroup = nil
+	}
+
+	// DeliveryPolicy
+	if source.DeliveryPolicy != nil {
+		var deliveryPolicy EndpointProperties_DeliveryPolicy
+		err := deliveryPolicy.AssignProperties_From_EndpointProperties_DeliveryPolicy(source.DeliveryPolicy)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_EndpointProperties_DeliveryPolicy() to populate field DeliveryPolicy")
+		}
+		endpoint.DeliveryPolicy = &deliveryPolicy
+	} else {
+		endpoint.DeliveryPolicy = nil
+	}
+
+	// GeoFilters
+	if source.GeoFilters != nil {
+		geoFilterList := make([]GeoFilter, len(source.GeoFilters))
+		for geoFilterIndex, geoFilterItem := range source.GeoFilters {
+			var geoFilter GeoFilter
+			err := geoFilter.AssignProperties_From_GeoFilter(&geoFilterItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_GeoFilter() to populate field GeoFilters")
+			}
+			geoFilterList[geoFilterIndex] = geoFilter
+		}
+		endpoint.GeoFilters = geoFilterList
+	} else {
+		endpoint.GeoFilters = nil
+	}
+
+	// IsCompressionEnabled
+	if source.IsCompressionEnabled != nil {
+		isCompressionEnabled := *source.IsCompressionEnabled
+		endpoint.IsCompressionEnabled = &isCompressionEnabled
+	} else {
+		endpoint.IsCompressionEnabled = nil
+	}
+
+	// IsHttpAllowed
+	if source.IsHttpAllowed != nil {
+		isHttpAllowed := *source.IsHttpAllowed
+		endpoint.IsHttpAllowed = &isHttpAllowed
+	} else {
+		endpoint.IsHttpAllowed = nil
+	}
+
+	// IsHttpsAllowed
+	if source.IsHttpsAllowed != nil {
+		isHttpsAllowed := *source.IsHttpsAllowed
+		endpoint.IsHttpsAllowed = &isHttpsAllowed
+	} else {
+		endpoint.IsHttpsAllowed = nil
+	}
+
+	// Location
+	endpoint.Location = genruntime.ClonePointerToString(source.Location)
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec ProfilesEndpointOperatorSpec
+		err := operatorSpec.AssignProperties_From_ProfilesEndpointOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ProfilesEndpointOperatorSpec() to populate field OperatorSpec")
+		}
+		endpoint.OperatorSpec = &operatorSpec
+	} else {
+		endpoint.OperatorSpec = nil
+	}
+
+	// OptimizationType
+	endpoint.OptimizationType = genruntime.ClonePointerToString(source.OptimizationType)
+
+	// OriginGroups
+	if source.OriginGroups != nil {
+		originGroupList := make([]DeepCreatedOriginGroup, len(source.OriginGroups))
+		for originGroupIndex, originGroupItem := range source.OriginGroups {
+			var originGroup DeepCreatedOriginGroup
+			err := originGroup.AssignProperties_From_DeepCreatedOriginGroup(&originGroupItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeepCreatedOriginGroup() to populate field OriginGroups")
+			}
+			originGroupList[originGroupIndex] = originGroup
+		}
+		endpoint.OriginGroups = originGroupList
+	} else {
+		endpoint.OriginGroups = nil
+	}
+
+	// OriginHostHeader
+	endpoint.OriginHostHeader = genruntime.ClonePointerToString(source.OriginHostHeader)
+
+	// OriginPath
+	endpoint.OriginPath = genruntime.ClonePointerToString(source.OriginPath)
+
+	// OriginalVersion
+	endpoint.OriginalVersion = source.OriginalVersion
+
+	// Origins
+	if source.Origins != nil {
+		originList := make([]DeepCreatedOrigin, len(source.Origins))
+		for originIndex, originItem := range source.Origins {
+			var origin DeepCreatedOrigin
+			err := origin.AssignProperties_From_DeepCreatedOrigin(&originItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeepCreatedOrigin() to populate field Origins")
+			}
+			originList[originIndex] = origin
+		}
+		endpoint.Origins = originList
+	} else {
+		endpoint.Origins = nil
+	}
+
+	// Owner
+	if source.Owner != nil {
+		owner := source.Owner.Copy()
+		endpoint.Owner = &owner
+	} else {
+		endpoint.Owner = nil
+	}
+
+	// ProbePath
+	endpoint.ProbePath = genruntime.ClonePointerToString(source.ProbePath)
+
+	// QueryStringCachingBehavior
+	endpoint.QueryStringCachingBehavior = genruntime.ClonePointerToString(source.QueryStringCachingBehavior)
+
+	// Tags
+	endpoint.Tags = genruntime.CloneMapOfStringToString(source.Tags)
+
+	// UrlSigningKeys
+	if source.UrlSigningKeys != nil {
+		urlSigningKeyList := make([]UrlSigningKey, len(source.UrlSigningKeys))
+		for urlSigningKeyIndex, urlSigningKeyItem := range source.UrlSigningKeys {
+			var urlSigningKey UrlSigningKey
+			err := urlSigningKey.AssignProperties_From_UrlSigningKey(&urlSigningKeyItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_UrlSigningKey() to populate field UrlSigningKeys")
+			}
+			urlSigningKeyList[urlSigningKeyIndex] = urlSigningKey
+		}
+		endpoint.UrlSigningKeys = urlSigningKeyList
+	} else {
+		endpoint.UrlSigningKeys = nil
+	}
+
+	// WebApplicationFirewallPolicyLink
+	if source.WebApplicationFirewallPolicyLink != nil {
+		var webApplicationFirewallPolicyLink EndpointProperties_WebApplicationFirewallPolicyLink
+		err := webApplicationFirewallPolicyLink.AssignProperties_From_EndpointProperties_WebApplicationFirewallPolicyLink(source.WebApplicationFirewallPolicyLink)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_EndpointProperties_WebApplicationFirewallPolicyLink() to populate field WebApplicationFirewallPolicyLink")
+		}
+		endpoint.WebApplicationFirewallPolicyLink = &webApplicationFirewallPolicyLink
+	} else {
+		endpoint.WebApplicationFirewallPolicyLink = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		endpoint.PropertyBag = propertyBag
+	} else {
+		endpoint.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForProfilesEndpoint_Spec interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForProfilesEndpoint_Spec); ok {
+		err := augmentedEndpoint.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ProfilesEndpoint_Spec populates the provided destination ProfilesEndpoint_Spec from our ProfilesEndpoint_Spec
+func (endpoint *ProfilesEndpoint_Spec) AssignProperties_To_ProfilesEndpoint_Spec(destination *storage.ProfilesEndpoint_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(endpoint.PropertyBag)
+
+	// AzureName
+	destination.AzureName = endpoint.AzureName
+
+	// ContentTypesToCompress
+	destination.ContentTypesToCompress = genruntime.CloneSliceOfString(endpoint.ContentTypesToCompress)
+
+	// DefaultOriginGroup
+	if endpoint.DefaultOriginGroup != nil {
+		var defaultOriginGroup storage.ResourceReference
+		err := endpoint.DefaultOriginGroup.AssignProperties_To_ResourceReference(&defaultOriginGroup)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field DefaultOriginGroup")
+		}
+		destination.DefaultOriginGroup = &defaultOriginGroup
+	} else {
+		destination.DefaultOriginGroup = nil
+	}
+
+	// DeliveryPolicy
+	if endpoint.DeliveryPolicy != nil {
+		var deliveryPolicy storage.EndpointProperties_DeliveryPolicy
+		err := endpoint.DeliveryPolicy.AssignProperties_To_EndpointProperties_DeliveryPolicy(&deliveryPolicy)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_EndpointProperties_DeliveryPolicy() to populate field DeliveryPolicy")
+		}
+		destination.DeliveryPolicy = &deliveryPolicy
+	} else {
+		destination.DeliveryPolicy = nil
+	}
+
+	// GeoFilters
+	if endpoint.GeoFilters != nil {
+		geoFilterList := make([]storage.GeoFilter, len(endpoint.GeoFilters))
+		for geoFilterIndex, geoFilterItem := range endpoint.GeoFilters {
+			var geoFilter storage.GeoFilter
+			err := geoFilterItem.AssignProperties_To_GeoFilter(&geoFilter)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_GeoFilter() to populate field GeoFilters")
+			}
+			geoFilterList[geoFilterIndex] = geoFilter
+		}
+		destination.GeoFilters = geoFilterList
+	} else {
+		destination.GeoFilters = nil
+	}
+
+	// IsCompressionEnabled
+	if endpoint.IsCompressionEnabled != nil {
+		isCompressionEnabled := *endpoint.IsCompressionEnabled
+		destination.IsCompressionEnabled = &isCompressionEnabled
+	} else {
+		destination.IsCompressionEnabled = nil
+	}
+
+	// IsHttpAllowed
+	if endpoint.IsHttpAllowed != nil {
+		isHttpAllowed := *endpoint.IsHttpAllowed
+		destination.IsHttpAllowed = &isHttpAllowed
+	} else {
+		destination.IsHttpAllowed = nil
+	}
+
+	// IsHttpsAllowed
+	if endpoint.IsHttpsAllowed != nil {
+		isHttpsAllowed := *endpoint.IsHttpsAllowed
+		destination.IsHttpsAllowed = &isHttpsAllowed
+	} else {
+		destination.IsHttpsAllowed = nil
+	}
+
+	// Location
+	destination.Location = genruntime.ClonePointerToString(endpoint.Location)
+
+	// OperatorSpec
+	if endpoint.OperatorSpec != nil {
+		var operatorSpec storage.ProfilesEndpointOperatorSpec
+		err := endpoint.OperatorSpec.AssignProperties_To_ProfilesEndpointOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ProfilesEndpointOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
+	// OptimizationType
+	destination.OptimizationType = genruntime.ClonePointerToString(endpoint.OptimizationType)
+
+	// OriginGroups
+	if endpoint.OriginGroups != nil {
+		originGroupList := make([]storage.DeepCreatedOriginGroup, len(endpoint.OriginGroups))
+		for originGroupIndex, originGroupItem := range endpoint.OriginGroups {
+			var originGroup storage.DeepCreatedOriginGroup
+			err := originGroupItem.AssignProperties_To_DeepCreatedOriginGroup(&originGroup)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeepCreatedOriginGroup() to populate field OriginGroups")
+			}
+			originGroupList[originGroupIndex] = originGroup
+		}
+		destination.OriginGroups = originGroupList
+	} else {
+		destination.OriginGroups = nil
+	}
+
+	// OriginHostHeader
+	destination.OriginHostHeader = genruntime.ClonePointerToString(endpoint.OriginHostHeader)
+
+	// OriginPath
+	destination.OriginPath = genruntime.ClonePointerToString(endpoint.OriginPath)
+
+	// OriginalVersion
+	destination.OriginalVersion = endpoint.OriginalVersion
+
+	// Origins
+	if endpoint.Origins != nil {
+		originList := make([]storage.DeepCreatedOrigin, len(endpoint.Origins))
+		for originIndex, originItem := range endpoint.Origins {
+			var origin storage.DeepCreatedOrigin
+			err := originItem.AssignProperties_To_DeepCreatedOrigin(&origin)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeepCreatedOrigin() to populate field Origins")
+			}
+			originList[originIndex] = origin
+		}
+		destination.Origins = originList
+	} else {
+		destination.Origins = nil
+	}
+
+	// Owner
+	if endpoint.Owner != nil {
+		owner := endpoint.Owner.Copy()
+		destination.Owner = &owner
+	} else {
+		destination.Owner = nil
+	}
+
+	// ProbePath
+	destination.ProbePath = genruntime.ClonePointerToString(endpoint.ProbePath)
+
+	// QueryStringCachingBehavior
+	destination.QueryStringCachingBehavior = genruntime.ClonePointerToString(endpoint.QueryStringCachingBehavior)
+
+	// Tags
+	destination.Tags = genruntime.CloneMapOfStringToString(endpoint.Tags)
+
+	// UrlSigningKeys
+	if endpoint.UrlSigningKeys != nil {
+		urlSigningKeyList := make([]storage.UrlSigningKey, len(endpoint.UrlSigningKeys))
+		for urlSigningKeyIndex, urlSigningKeyItem := range endpoint.UrlSigningKeys {
+			var urlSigningKey storage.UrlSigningKey
+			err := urlSigningKeyItem.AssignProperties_To_UrlSigningKey(&urlSigningKey)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_UrlSigningKey() to populate field UrlSigningKeys")
+			}
+			urlSigningKeyList[urlSigningKeyIndex] = urlSigningKey
+		}
+		destination.UrlSigningKeys = urlSigningKeyList
+	} else {
+		destination.UrlSigningKeys = nil
+	}
+
+	// WebApplicationFirewallPolicyLink
+	if endpoint.WebApplicationFirewallPolicyLink != nil {
+		var webApplicationFirewallPolicyLink storage.EndpointProperties_WebApplicationFirewallPolicyLink
+		err := endpoint.WebApplicationFirewallPolicyLink.AssignProperties_To_EndpointProperties_WebApplicationFirewallPolicyLink(&webApplicationFirewallPolicyLink)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_EndpointProperties_WebApplicationFirewallPolicyLink() to populate field WebApplicationFirewallPolicyLink")
+		}
+		destination.WebApplicationFirewallPolicyLink = &webApplicationFirewallPolicyLink
+	} else {
+		destination.WebApplicationFirewallPolicyLink = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForProfilesEndpoint_Spec interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForProfilesEndpoint_Spec); ok {
+		err := augmentedEndpoint.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20210601.ProfilesEndpoint_STATUS
+type ProfilesEndpoint_STATUS struct {
 	Conditions                       []conditions.Condition                                      `json:"conditions,omitempty"`
 	ContentTypesToCompress           []string                                                    `json:"contentTypesToCompress,omitempty"`
 	CustomDomains                    []DeepCreatedCustomDomain_STATUS                            `json:"customDomains,omitempty"`
@@ -224,24 +773,508 @@ type Profiles_Endpoint_STATUS struct {
 	WebApplicationFirewallPolicyLink *EndpointProperties_WebApplicationFirewallPolicyLink_STATUS `json:"webApplicationFirewallPolicyLink,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Profiles_Endpoint_STATUS{}
+var _ genruntime.ConvertibleStatus = &ProfilesEndpoint_STATUS{}
 
-// ConvertStatusFrom populates our Profiles_Endpoint_STATUS from the provided source
-func (endpoint *Profiles_Endpoint_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our ProfilesEndpoint_STATUS from the provided source
+func (endpoint *ProfilesEndpoint_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.ProfilesEndpoint_STATUS)
+	if ok {
+		// Populate our instance from source
+		return endpoint.AssignProperties_From_ProfilesEndpoint_STATUS(src)
 	}
 
-	return source.ConvertStatusTo(endpoint)
+	// Convert to an intermediate form
+	src = &storage.ProfilesEndpoint_STATUS{}
+	err := src.ConvertStatusFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+	}
+
+	// Update our instance from src
+	err = endpoint.AssignProperties_From_ProfilesEndpoint_STATUS(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+	}
+
+	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Profiles_Endpoint_STATUS
-func (endpoint *Profiles_Endpoint_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our ProfilesEndpoint_STATUS
+func (endpoint *ProfilesEndpoint_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.ProfilesEndpoint_STATUS)
+	if ok {
+		// Populate destination from our instance
+		return endpoint.AssignProperties_To_ProfilesEndpoint_STATUS(dst)
 	}
 
-	return destination.ConvertStatusFrom(endpoint)
+	// Convert to an intermediate form
+	dst = &storage.ProfilesEndpoint_STATUS{}
+	err := endpoint.AssignProperties_To_ProfilesEndpoint_STATUS(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertStatusTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_ProfilesEndpoint_STATUS populates our ProfilesEndpoint_STATUS from the provided source ProfilesEndpoint_STATUS
+func (endpoint *ProfilesEndpoint_STATUS) AssignProperties_From_ProfilesEndpoint_STATUS(source *storage.ProfilesEndpoint_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Conditions
+	endpoint.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
+
+	// ContentTypesToCompress
+	endpoint.ContentTypesToCompress = genruntime.CloneSliceOfString(source.ContentTypesToCompress)
+
+	// CustomDomains
+	if source.CustomDomains != nil {
+		customDomainList := make([]DeepCreatedCustomDomain_STATUS, len(source.CustomDomains))
+		for customDomainIndex, customDomainItem := range source.CustomDomains {
+			var customDomain DeepCreatedCustomDomain_STATUS
+			err := customDomain.AssignProperties_From_DeepCreatedCustomDomain_STATUS(&customDomainItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeepCreatedCustomDomain_STATUS() to populate field CustomDomains")
+			}
+			customDomainList[customDomainIndex] = customDomain
+		}
+		endpoint.CustomDomains = customDomainList
+	} else {
+		endpoint.CustomDomains = nil
+	}
+
+	// DefaultOriginGroup
+	if source.DefaultOriginGroup != nil {
+		var defaultOriginGroup ResourceReference_STATUS
+		err := defaultOriginGroup.AssignProperties_From_ResourceReference_STATUS(source.DefaultOriginGroup)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field DefaultOriginGroup")
+		}
+		endpoint.DefaultOriginGroup = &defaultOriginGroup
+	} else {
+		endpoint.DefaultOriginGroup = nil
+	}
+
+	// DeliveryPolicy
+	if source.DeliveryPolicy != nil {
+		var deliveryPolicy EndpointProperties_DeliveryPolicy_STATUS
+		err := deliveryPolicy.AssignProperties_From_EndpointProperties_DeliveryPolicy_STATUS(source.DeliveryPolicy)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_EndpointProperties_DeliveryPolicy_STATUS() to populate field DeliveryPolicy")
+		}
+		endpoint.DeliveryPolicy = &deliveryPolicy
+	} else {
+		endpoint.DeliveryPolicy = nil
+	}
+
+	// GeoFilters
+	if source.GeoFilters != nil {
+		geoFilterList := make([]GeoFilter_STATUS, len(source.GeoFilters))
+		for geoFilterIndex, geoFilterItem := range source.GeoFilters {
+			var geoFilter GeoFilter_STATUS
+			err := geoFilter.AssignProperties_From_GeoFilter_STATUS(&geoFilterItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_GeoFilter_STATUS() to populate field GeoFilters")
+			}
+			geoFilterList[geoFilterIndex] = geoFilter
+		}
+		endpoint.GeoFilters = geoFilterList
+	} else {
+		endpoint.GeoFilters = nil
+	}
+
+	// HostName
+	endpoint.HostName = genruntime.ClonePointerToString(source.HostName)
+
+	// Id
+	endpoint.Id = genruntime.ClonePointerToString(source.Id)
+
+	// IsCompressionEnabled
+	if source.IsCompressionEnabled != nil {
+		isCompressionEnabled := *source.IsCompressionEnabled
+		endpoint.IsCompressionEnabled = &isCompressionEnabled
+	} else {
+		endpoint.IsCompressionEnabled = nil
+	}
+
+	// IsHttpAllowed
+	if source.IsHttpAllowed != nil {
+		isHttpAllowed := *source.IsHttpAllowed
+		endpoint.IsHttpAllowed = &isHttpAllowed
+	} else {
+		endpoint.IsHttpAllowed = nil
+	}
+
+	// IsHttpsAllowed
+	if source.IsHttpsAllowed != nil {
+		isHttpsAllowed := *source.IsHttpsAllowed
+		endpoint.IsHttpsAllowed = &isHttpsAllowed
+	} else {
+		endpoint.IsHttpsAllowed = nil
+	}
+
+	// Location
+	endpoint.Location = genruntime.ClonePointerToString(source.Location)
+
+	// Name
+	endpoint.Name = genruntime.ClonePointerToString(source.Name)
+
+	// OptimizationType
+	endpoint.OptimizationType = genruntime.ClonePointerToString(source.OptimizationType)
+
+	// OriginGroups
+	if source.OriginGroups != nil {
+		originGroupList := make([]DeepCreatedOriginGroup_STATUS, len(source.OriginGroups))
+		for originGroupIndex, originGroupItem := range source.OriginGroups {
+			var originGroup DeepCreatedOriginGroup_STATUS
+			err := originGroup.AssignProperties_From_DeepCreatedOriginGroup_STATUS(&originGroupItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeepCreatedOriginGroup_STATUS() to populate field OriginGroups")
+			}
+			originGroupList[originGroupIndex] = originGroup
+		}
+		endpoint.OriginGroups = originGroupList
+	} else {
+		endpoint.OriginGroups = nil
+	}
+
+	// OriginHostHeader
+	endpoint.OriginHostHeader = genruntime.ClonePointerToString(source.OriginHostHeader)
+
+	// OriginPath
+	endpoint.OriginPath = genruntime.ClonePointerToString(source.OriginPath)
+
+	// Origins
+	if source.Origins != nil {
+		originList := make([]DeepCreatedOrigin_STATUS, len(source.Origins))
+		for originIndex, originItem := range source.Origins {
+			var origin DeepCreatedOrigin_STATUS
+			err := origin.AssignProperties_From_DeepCreatedOrigin_STATUS(&originItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeepCreatedOrigin_STATUS() to populate field Origins")
+			}
+			originList[originIndex] = origin
+		}
+		endpoint.Origins = originList
+	} else {
+		endpoint.Origins = nil
+	}
+
+	// ProbePath
+	endpoint.ProbePath = genruntime.ClonePointerToString(source.ProbePath)
+
+	// ProvisioningState
+	endpoint.ProvisioningState = genruntime.ClonePointerToString(source.ProvisioningState)
+
+	// QueryStringCachingBehavior
+	endpoint.QueryStringCachingBehavior = genruntime.ClonePointerToString(source.QueryStringCachingBehavior)
+
+	// ResourceState
+	endpoint.ResourceState = genruntime.ClonePointerToString(source.ResourceState)
+
+	// SystemData
+	if source.SystemData != nil {
+		var systemDatum SystemData_STATUS
+		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+		}
+		endpoint.SystemData = &systemDatum
+	} else {
+		endpoint.SystemData = nil
+	}
+
+	// Tags
+	endpoint.Tags = genruntime.CloneMapOfStringToString(source.Tags)
+
+	// Type
+	endpoint.Type = genruntime.ClonePointerToString(source.Type)
+
+	// UrlSigningKeys
+	if source.UrlSigningKeys != nil {
+		urlSigningKeyList := make([]UrlSigningKey_STATUS, len(source.UrlSigningKeys))
+		for urlSigningKeyIndex, urlSigningKeyItem := range source.UrlSigningKeys {
+			var urlSigningKey UrlSigningKey_STATUS
+			err := urlSigningKey.AssignProperties_From_UrlSigningKey_STATUS(&urlSigningKeyItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_UrlSigningKey_STATUS() to populate field UrlSigningKeys")
+			}
+			urlSigningKeyList[urlSigningKeyIndex] = urlSigningKey
+		}
+		endpoint.UrlSigningKeys = urlSigningKeyList
+	} else {
+		endpoint.UrlSigningKeys = nil
+	}
+
+	// WebApplicationFirewallPolicyLink
+	if source.WebApplicationFirewallPolicyLink != nil {
+		var webApplicationFirewallPolicyLink EndpointProperties_WebApplicationFirewallPolicyLink_STATUS
+		err := webApplicationFirewallPolicyLink.AssignProperties_From_EndpointProperties_WebApplicationFirewallPolicyLink_STATUS(source.WebApplicationFirewallPolicyLink)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_EndpointProperties_WebApplicationFirewallPolicyLink_STATUS() to populate field WebApplicationFirewallPolicyLink")
+		}
+		endpoint.WebApplicationFirewallPolicyLink = &webApplicationFirewallPolicyLink
+	} else {
+		endpoint.WebApplicationFirewallPolicyLink = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		endpoint.PropertyBag = propertyBag
+	} else {
+		endpoint.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForProfilesEndpoint_STATUS interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForProfilesEndpoint_STATUS); ok {
+		err := augmentedEndpoint.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ProfilesEndpoint_STATUS populates the provided destination ProfilesEndpoint_STATUS from our ProfilesEndpoint_STATUS
+func (endpoint *ProfilesEndpoint_STATUS) AssignProperties_To_ProfilesEndpoint_STATUS(destination *storage.ProfilesEndpoint_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(endpoint.PropertyBag)
+
+	// Conditions
+	destination.Conditions = genruntime.CloneSliceOfCondition(endpoint.Conditions)
+
+	// ContentTypesToCompress
+	destination.ContentTypesToCompress = genruntime.CloneSliceOfString(endpoint.ContentTypesToCompress)
+
+	// CustomDomains
+	if endpoint.CustomDomains != nil {
+		customDomainList := make([]storage.DeepCreatedCustomDomain_STATUS, len(endpoint.CustomDomains))
+		for customDomainIndex, customDomainItem := range endpoint.CustomDomains {
+			var customDomain storage.DeepCreatedCustomDomain_STATUS
+			err := customDomainItem.AssignProperties_To_DeepCreatedCustomDomain_STATUS(&customDomain)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeepCreatedCustomDomain_STATUS() to populate field CustomDomains")
+			}
+			customDomainList[customDomainIndex] = customDomain
+		}
+		destination.CustomDomains = customDomainList
+	} else {
+		destination.CustomDomains = nil
+	}
+
+	// DefaultOriginGroup
+	if endpoint.DefaultOriginGroup != nil {
+		var defaultOriginGroup storage.ResourceReference_STATUS
+		err := endpoint.DefaultOriginGroup.AssignProperties_To_ResourceReference_STATUS(&defaultOriginGroup)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field DefaultOriginGroup")
+		}
+		destination.DefaultOriginGroup = &defaultOriginGroup
+	} else {
+		destination.DefaultOriginGroup = nil
+	}
+
+	// DeliveryPolicy
+	if endpoint.DeliveryPolicy != nil {
+		var deliveryPolicy storage.EndpointProperties_DeliveryPolicy_STATUS
+		err := endpoint.DeliveryPolicy.AssignProperties_To_EndpointProperties_DeliveryPolicy_STATUS(&deliveryPolicy)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_EndpointProperties_DeliveryPolicy_STATUS() to populate field DeliveryPolicy")
+		}
+		destination.DeliveryPolicy = &deliveryPolicy
+	} else {
+		destination.DeliveryPolicy = nil
+	}
+
+	// GeoFilters
+	if endpoint.GeoFilters != nil {
+		geoFilterList := make([]storage.GeoFilter_STATUS, len(endpoint.GeoFilters))
+		for geoFilterIndex, geoFilterItem := range endpoint.GeoFilters {
+			var geoFilter storage.GeoFilter_STATUS
+			err := geoFilterItem.AssignProperties_To_GeoFilter_STATUS(&geoFilter)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_GeoFilter_STATUS() to populate field GeoFilters")
+			}
+			geoFilterList[geoFilterIndex] = geoFilter
+		}
+		destination.GeoFilters = geoFilterList
+	} else {
+		destination.GeoFilters = nil
+	}
+
+	// HostName
+	destination.HostName = genruntime.ClonePointerToString(endpoint.HostName)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(endpoint.Id)
+
+	// IsCompressionEnabled
+	if endpoint.IsCompressionEnabled != nil {
+		isCompressionEnabled := *endpoint.IsCompressionEnabled
+		destination.IsCompressionEnabled = &isCompressionEnabled
+	} else {
+		destination.IsCompressionEnabled = nil
+	}
+
+	// IsHttpAllowed
+	if endpoint.IsHttpAllowed != nil {
+		isHttpAllowed := *endpoint.IsHttpAllowed
+		destination.IsHttpAllowed = &isHttpAllowed
+	} else {
+		destination.IsHttpAllowed = nil
+	}
+
+	// IsHttpsAllowed
+	if endpoint.IsHttpsAllowed != nil {
+		isHttpsAllowed := *endpoint.IsHttpsAllowed
+		destination.IsHttpsAllowed = &isHttpsAllowed
+	} else {
+		destination.IsHttpsAllowed = nil
+	}
+
+	// Location
+	destination.Location = genruntime.ClonePointerToString(endpoint.Location)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(endpoint.Name)
+
+	// OptimizationType
+	destination.OptimizationType = genruntime.ClonePointerToString(endpoint.OptimizationType)
+
+	// OriginGroups
+	if endpoint.OriginGroups != nil {
+		originGroupList := make([]storage.DeepCreatedOriginGroup_STATUS, len(endpoint.OriginGroups))
+		for originGroupIndex, originGroupItem := range endpoint.OriginGroups {
+			var originGroup storage.DeepCreatedOriginGroup_STATUS
+			err := originGroupItem.AssignProperties_To_DeepCreatedOriginGroup_STATUS(&originGroup)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeepCreatedOriginGroup_STATUS() to populate field OriginGroups")
+			}
+			originGroupList[originGroupIndex] = originGroup
+		}
+		destination.OriginGroups = originGroupList
+	} else {
+		destination.OriginGroups = nil
+	}
+
+	// OriginHostHeader
+	destination.OriginHostHeader = genruntime.ClonePointerToString(endpoint.OriginHostHeader)
+
+	// OriginPath
+	destination.OriginPath = genruntime.ClonePointerToString(endpoint.OriginPath)
+
+	// Origins
+	if endpoint.Origins != nil {
+		originList := make([]storage.DeepCreatedOrigin_STATUS, len(endpoint.Origins))
+		for originIndex, originItem := range endpoint.Origins {
+			var origin storage.DeepCreatedOrigin_STATUS
+			err := originItem.AssignProperties_To_DeepCreatedOrigin_STATUS(&origin)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeepCreatedOrigin_STATUS() to populate field Origins")
+			}
+			originList[originIndex] = origin
+		}
+		destination.Origins = originList
+	} else {
+		destination.Origins = nil
+	}
+
+	// ProbePath
+	destination.ProbePath = genruntime.ClonePointerToString(endpoint.ProbePath)
+
+	// ProvisioningState
+	destination.ProvisioningState = genruntime.ClonePointerToString(endpoint.ProvisioningState)
+
+	// QueryStringCachingBehavior
+	destination.QueryStringCachingBehavior = genruntime.ClonePointerToString(endpoint.QueryStringCachingBehavior)
+
+	// ResourceState
+	destination.ResourceState = genruntime.ClonePointerToString(endpoint.ResourceState)
+
+	// SystemData
+	if endpoint.SystemData != nil {
+		var systemDatum storage.SystemData_STATUS
+		err := endpoint.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+		}
+		destination.SystemData = &systemDatum
+	} else {
+		destination.SystemData = nil
+	}
+
+	// Tags
+	destination.Tags = genruntime.CloneMapOfStringToString(endpoint.Tags)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(endpoint.Type)
+
+	// UrlSigningKeys
+	if endpoint.UrlSigningKeys != nil {
+		urlSigningKeyList := make([]storage.UrlSigningKey_STATUS, len(endpoint.UrlSigningKeys))
+		for urlSigningKeyIndex, urlSigningKeyItem := range endpoint.UrlSigningKeys {
+			var urlSigningKey storage.UrlSigningKey_STATUS
+			err := urlSigningKeyItem.AssignProperties_To_UrlSigningKey_STATUS(&urlSigningKey)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_UrlSigningKey_STATUS() to populate field UrlSigningKeys")
+			}
+			urlSigningKeyList[urlSigningKeyIndex] = urlSigningKey
+		}
+		destination.UrlSigningKeys = urlSigningKeyList
+	} else {
+		destination.UrlSigningKeys = nil
+	}
+
+	// WebApplicationFirewallPolicyLink
+	if endpoint.WebApplicationFirewallPolicyLink != nil {
+		var webApplicationFirewallPolicyLink storage.EndpointProperties_WebApplicationFirewallPolicyLink_STATUS
+		err := endpoint.WebApplicationFirewallPolicyLink.AssignProperties_To_EndpointProperties_WebApplicationFirewallPolicyLink_STATUS(&webApplicationFirewallPolicyLink)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_EndpointProperties_WebApplicationFirewallPolicyLink_STATUS() to populate field WebApplicationFirewallPolicyLink")
+		}
+		destination.WebApplicationFirewallPolicyLink = &webApplicationFirewallPolicyLink
+	} else {
+		destination.WebApplicationFirewallPolicyLink = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForProfilesEndpoint_STATUS interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForProfilesEndpoint_STATUS); ok {
+		err := augmentedEndpoint.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForProfilesEndpoint_Spec interface {
+	AssignPropertiesFrom(src *storage.ProfilesEndpoint_Spec) error
+	AssignPropertiesTo(dst *storage.ProfilesEndpoint_Spec) error
+}
+
+type augmentConversionForProfilesEndpoint_STATUS interface {
+	AssignPropertiesFrom(src *storage.ProfilesEndpoint_STATUS) error
+	AssignPropertiesTo(dst *storage.ProfilesEndpoint_STATUS) error
 }
 
 // Storage version of v1api20210601.DeepCreatedCustomDomain_STATUS
@@ -251,6 +1284,74 @@ type DeepCreatedCustomDomain_STATUS struct {
 	Name           *string                `json:"name,omitempty"`
 	PropertyBag    genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	ValidationData *string                `json:"validationData,omitempty"`
+}
+
+// AssignProperties_From_DeepCreatedCustomDomain_STATUS populates our DeepCreatedCustomDomain_STATUS from the provided source DeepCreatedCustomDomain_STATUS
+func (domain *DeepCreatedCustomDomain_STATUS) AssignProperties_From_DeepCreatedCustomDomain_STATUS(source *storage.DeepCreatedCustomDomain_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// HostName
+	domain.HostName = genruntime.ClonePointerToString(source.HostName)
+
+	// Name
+	domain.Name = genruntime.ClonePointerToString(source.Name)
+
+	// ValidationData
+	domain.ValidationData = genruntime.ClonePointerToString(source.ValidationData)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		domain.PropertyBag = propertyBag
+	} else {
+		domain.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedCustomDomain_STATUS interface (if implemented) to customize the conversion
+	var domainAsAny any = domain
+	if augmentedDomain, ok := domainAsAny.(augmentConversionForDeepCreatedCustomDomain_STATUS); ok {
+		err := augmentedDomain.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DeepCreatedCustomDomain_STATUS populates the provided destination DeepCreatedCustomDomain_STATUS from our DeepCreatedCustomDomain_STATUS
+func (domain *DeepCreatedCustomDomain_STATUS) AssignProperties_To_DeepCreatedCustomDomain_STATUS(destination *storage.DeepCreatedCustomDomain_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(domain.PropertyBag)
+
+	// HostName
+	destination.HostName = genruntime.ClonePointerToString(domain.HostName)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(domain.Name)
+
+	// ValidationData
+	destination.ValidationData = genruntime.ClonePointerToString(domain.ValidationData)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedCustomDomain_STATUS interface (if implemented) to customize the conversion
+	var domainAsAny any = domain
+	if augmentedDomain, ok := domainAsAny.(augmentConversionForDeepCreatedCustomDomain_STATUS); ok {
+		err := augmentedDomain.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20210601.DeepCreatedOrigin
@@ -277,6 +1378,158 @@ type DeepCreatedOrigin struct {
 	Weight                       *int                          `json:"weight,omitempty"`
 }
 
+// AssignProperties_From_DeepCreatedOrigin populates our DeepCreatedOrigin from the provided source DeepCreatedOrigin
+func (origin *DeepCreatedOrigin) AssignProperties_From_DeepCreatedOrigin(source *storage.DeepCreatedOrigin) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Enabled
+	if source.Enabled != nil {
+		enabled := *source.Enabled
+		origin.Enabled = &enabled
+	} else {
+		origin.Enabled = nil
+	}
+
+	// HostName
+	origin.HostName = genruntime.ClonePointerToString(source.HostName)
+
+	// HttpPort
+	origin.HttpPort = genruntime.ClonePointerToInt(source.HttpPort)
+
+	// HttpsPort
+	origin.HttpsPort = genruntime.ClonePointerToInt(source.HttpsPort)
+
+	// Name
+	origin.Name = genruntime.ClonePointerToString(source.Name)
+
+	// OriginHostHeader
+	origin.OriginHostHeader = genruntime.ClonePointerToString(source.OriginHostHeader)
+
+	// Priority
+	origin.Priority = genruntime.ClonePointerToInt(source.Priority)
+
+	// PrivateLinkAlias
+	origin.PrivateLinkAlias = genruntime.ClonePointerToString(source.PrivateLinkAlias)
+
+	// PrivateLinkApprovalMessage
+	origin.PrivateLinkApprovalMessage = genruntime.ClonePointerToString(source.PrivateLinkApprovalMessage)
+
+	// PrivateLinkLocationReference
+	if source.PrivateLinkLocationReference != nil {
+		privateLinkLocationReference := source.PrivateLinkLocationReference.Copy()
+		origin.PrivateLinkLocationReference = &privateLinkLocationReference
+	} else {
+		origin.PrivateLinkLocationReference = nil
+	}
+
+	// PrivateLinkResourceReference
+	if source.PrivateLinkResourceReference != nil {
+		privateLinkResourceReference := source.PrivateLinkResourceReference.Copy()
+		origin.PrivateLinkResourceReference = &privateLinkResourceReference
+	} else {
+		origin.PrivateLinkResourceReference = nil
+	}
+
+	// Weight
+	origin.Weight = genruntime.ClonePointerToInt(source.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		origin.PropertyBag = propertyBag
+	} else {
+		origin.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedOrigin interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForDeepCreatedOrigin); ok {
+		err := augmentedOrigin.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DeepCreatedOrigin populates the provided destination DeepCreatedOrigin from our DeepCreatedOrigin
+func (origin *DeepCreatedOrigin) AssignProperties_To_DeepCreatedOrigin(destination *storage.DeepCreatedOrigin) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(origin.PropertyBag)
+
+	// Enabled
+	if origin.Enabled != nil {
+		enabled := *origin.Enabled
+		destination.Enabled = &enabled
+	} else {
+		destination.Enabled = nil
+	}
+
+	// HostName
+	destination.HostName = genruntime.ClonePointerToString(origin.HostName)
+
+	// HttpPort
+	destination.HttpPort = genruntime.ClonePointerToInt(origin.HttpPort)
+
+	// HttpsPort
+	destination.HttpsPort = genruntime.ClonePointerToInt(origin.HttpsPort)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(origin.Name)
+
+	// OriginHostHeader
+	destination.OriginHostHeader = genruntime.ClonePointerToString(origin.OriginHostHeader)
+
+	// Priority
+	destination.Priority = genruntime.ClonePointerToInt(origin.Priority)
+
+	// PrivateLinkAlias
+	destination.PrivateLinkAlias = genruntime.ClonePointerToString(origin.PrivateLinkAlias)
+
+	// PrivateLinkApprovalMessage
+	destination.PrivateLinkApprovalMessage = genruntime.ClonePointerToString(origin.PrivateLinkApprovalMessage)
+
+	// PrivateLinkLocationReference
+	if origin.PrivateLinkLocationReference != nil {
+		privateLinkLocationReference := origin.PrivateLinkLocationReference.Copy()
+		destination.PrivateLinkLocationReference = &privateLinkLocationReference
+	} else {
+		destination.PrivateLinkLocationReference = nil
+	}
+
+	// PrivateLinkResourceReference
+	if origin.PrivateLinkResourceReference != nil {
+		privateLinkResourceReference := origin.PrivateLinkResourceReference.Copy()
+		destination.PrivateLinkResourceReference = &privateLinkResourceReference
+	} else {
+		destination.PrivateLinkResourceReference = nil
+	}
+
+	// Weight
+	destination.Weight = genruntime.ClonePointerToInt(origin.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedOrigin interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForDeepCreatedOrigin); ok {
+		err := augmentedOrigin.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.DeepCreatedOrigin_STATUS
 // The main origin of CDN content which is added when creating a CDN endpoint.
 type DeepCreatedOrigin_STATUS struct {
@@ -296,6 +1549,144 @@ type DeepCreatedOrigin_STATUS struct {
 	Weight                     *int                   `json:"weight,omitempty"`
 }
 
+// AssignProperties_From_DeepCreatedOrigin_STATUS populates our DeepCreatedOrigin_STATUS from the provided source DeepCreatedOrigin_STATUS
+func (origin *DeepCreatedOrigin_STATUS) AssignProperties_From_DeepCreatedOrigin_STATUS(source *storage.DeepCreatedOrigin_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Enabled
+	if source.Enabled != nil {
+		enabled := *source.Enabled
+		origin.Enabled = &enabled
+	} else {
+		origin.Enabled = nil
+	}
+
+	// HostName
+	origin.HostName = genruntime.ClonePointerToString(source.HostName)
+
+	// HttpPort
+	origin.HttpPort = genruntime.ClonePointerToInt(source.HttpPort)
+
+	// HttpsPort
+	origin.HttpsPort = genruntime.ClonePointerToInt(source.HttpsPort)
+
+	// Name
+	origin.Name = genruntime.ClonePointerToString(source.Name)
+
+	// OriginHostHeader
+	origin.OriginHostHeader = genruntime.ClonePointerToString(source.OriginHostHeader)
+
+	// Priority
+	origin.Priority = genruntime.ClonePointerToInt(source.Priority)
+
+	// PrivateEndpointStatus
+	origin.PrivateEndpointStatus = genruntime.ClonePointerToString(source.PrivateEndpointStatus)
+
+	// PrivateLinkAlias
+	origin.PrivateLinkAlias = genruntime.ClonePointerToString(source.PrivateLinkAlias)
+
+	// PrivateLinkApprovalMessage
+	origin.PrivateLinkApprovalMessage = genruntime.ClonePointerToString(source.PrivateLinkApprovalMessage)
+
+	// PrivateLinkLocation
+	origin.PrivateLinkLocation = genruntime.ClonePointerToString(source.PrivateLinkLocation)
+
+	// PrivateLinkResourceId
+	origin.PrivateLinkResourceId = genruntime.ClonePointerToString(source.PrivateLinkResourceId)
+
+	// Weight
+	origin.Weight = genruntime.ClonePointerToInt(source.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		origin.PropertyBag = propertyBag
+	} else {
+		origin.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedOrigin_STATUS interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForDeepCreatedOrigin_STATUS); ok {
+		err := augmentedOrigin.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DeepCreatedOrigin_STATUS populates the provided destination DeepCreatedOrigin_STATUS from our DeepCreatedOrigin_STATUS
+func (origin *DeepCreatedOrigin_STATUS) AssignProperties_To_DeepCreatedOrigin_STATUS(destination *storage.DeepCreatedOrigin_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(origin.PropertyBag)
+
+	// Enabled
+	if origin.Enabled != nil {
+		enabled := *origin.Enabled
+		destination.Enabled = &enabled
+	} else {
+		destination.Enabled = nil
+	}
+
+	// HostName
+	destination.HostName = genruntime.ClonePointerToString(origin.HostName)
+
+	// HttpPort
+	destination.HttpPort = genruntime.ClonePointerToInt(origin.HttpPort)
+
+	// HttpsPort
+	destination.HttpsPort = genruntime.ClonePointerToInt(origin.HttpsPort)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(origin.Name)
+
+	// OriginHostHeader
+	destination.OriginHostHeader = genruntime.ClonePointerToString(origin.OriginHostHeader)
+
+	// Priority
+	destination.Priority = genruntime.ClonePointerToInt(origin.Priority)
+
+	// PrivateEndpointStatus
+	destination.PrivateEndpointStatus = genruntime.ClonePointerToString(origin.PrivateEndpointStatus)
+
+	// PrivateLinkAlias
+	destination.PrivateLinkAlias = genruntime.ClonePointerToString(origin.PrivateLinkAlias)
+
+	// PrivateLinkApprovalMessage
+	destination.PrivateLinkApprovalMessage = genruntime.ClonePointerToString(origin.PrivateLinkApprovalMessage)
+
+	// PrivateLinkLocation
+	destination.PrivateLinkLocation = genruntime.ClonePointerToString(origin.PrivateLinkLocation)
+
+	// PrivateLinkResourceId
+	destination.PrivateLinkResourceId = genruntime.ClonePointerToString(origin.PrivateLinkResourceId)
+
+	// Weight
+	destination.Weight = genruntime.ClonePointerToInt(origin.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedOrigin_STATUS interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForDeepCreatedOrigin_STATUS); ok {
+		err := augmentedOrigin.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.DeepCreatedOriginGroup
 // The origin group for CDN content which is added when creating a CDN endpoint. Traffic is sent to the origins within the
 // origin group based on origin health.
@@ -306,6 +1697,148 @@ type DeepCreatedOriginGroup struct {
 	PropertyBag                                           genruntime.PropertyBag                       `json:"$propertyBag,omitempty"`
 	ResponseBasedOriginErrorDetectionSettings             *ResponseBasedOriginErrorDetectionParameters `json:"responseBasedOriginErrorDetectionSettings,omitempty"`
 	TrafficRestorationTimeToHealedOrNewEndpointsInMinutes *int                                         `json:"trafficRestorationTimeToHealedOrNewEndpointsInMinutes,omitempty"`
+}
+
+// AssignProperties_From_DeepCreatedOriginGroup populates our DeepCreatedOriginGroup from the provided source DeepCreatedOriginGroup
+func (group *DeepCreatedOriginGroup) AssignProperties_From_DeepCreatedOriginGroup(source *storage.DeepCreatedOriginGroup) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// HealthProbeSettings
+	if source.HealthProbeSettings != nil {
+		var healthProbeSetting HealthProbeParameters
+		err := healthProbeSetting.AssignProperties_From_HealthProbeParameters(source.HealthProbeSettings)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_HealthProbeParameters() to populate field HealthProbeSettings")
+		}
+		group.HealthProbeSettings = &healthProbeSetting
+	} else {
+		group.HealthProbeSettings = nil
+	}
+
+	// Name
+	group.Name = genruntime.ClonePointerToString(source.Name)
+
+	// Origins
+	if source.Origins != nil {
+		originList := make([]ResourceReference, len(source.Origins))
+		for originIndex, originItem := range source.Origins {
+			var origin ResourceReference
+			err := origin.AssignProperties_From_ResourceReference(&originItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field Origins")
+			}
+			originList[originIndex] = origin
+		}
+		group.Origins = originList
+	} else {
+		group.Origins = nil
+	}
+
+	// ResponseBasedOriginErrorDetectionSettings
+	if source.ResponseBasedOriginErrorDetectionSettings != nil {
+		var responseBasedOriginErrorDetectionSetting ResponseBasedOriginErrorDetectionParameters
+		err := responseBasedOriginErrorDetectionSetting.AssignProperties_From_ResponseBasedOriginErrorDetectionParameters(source.ResponseBasedOriginErrorDetectionSettings)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResponseBasedOriginErrorDetectionParameters() to populate field ResponseBasedOriginErrorDetectionSettings")
+		}
+		group.ResponseBasedOriginErrorDetectionSettings = &responseBasedOriginErrorDetectionSetting
+	} else {
+		group.ResponseBasedOriginErrorDetectionSettings = nil
+	}
+
+	// TrafficRestorationTimeToHealedOrNewEndpointsInMinutes
+	group.TrafficRestorationTimeToHealedOrNewEndpointsInMinutes = genruntime.ClonePointerToInt(source.TrafficRestorationTimeToHealedOrNewEndpointsInMinutes)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		group.PropertyBag = propertyBag
+	} else {
+		group.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedOriginGroup interface (if implemented) to customize the conversion
+	var groupAsAny any = group
+	if augmentedGroup, ok := groupAsAny.(augmentConversionForDeepCreatedOriginGroup); ok {
+		err := augmentedGroup.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DeepCreatedOriginGroup populates the provided destination DeepCreatedOriginGroup from our DeepCreatedOriginGroup
+func (group *DeepCreatedOriginGroup) AssignProperties_To_DeepCreatedOriginGroup(destination *storage.DeepCreatedOriginGroup) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(group.PropertyBag)
+
+	// HealthProbeSettings
+	if group.HealthProbeSettings != nil {
+		var healthProbeSetting storage.HealthProbeParameters
+		err := group.HealthProbeSettings.AssignProperties_To_HealthProbeParameters(&healthProbeSetting)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_HealthProbeParameters() to populate field HealthProbeSettings")
+		}
+		destination.HealthProbeSettings = &healthProbeSetting
+	} else {
+		destination.HealthProbeSettings = nil
+	}
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(group.Name)
+
+	// Origins
+	if group.Origins != nil {
+		originList := make([]storage.ResourceReference, len(group.Origins))
+		for originIndex, originItem := range group.Origins {
+			var origin storage.ResourceReference
+			err := originItem.AssignProperties_To_ResourceReference(&origin)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field Origins")
+			}
+			originList[originIndex] = origin
+		}
+		destination.Origins = originList
+	} else {
+		destination.Origins = nil
+	}
+
+	// ResponseBasedOriginErrorDetectionSettings
+	if group.ResponseBasedOriginErrorDetectionSettings != nil {
+		var responseBasedOriginErrorDetectionSetting storage.ResponseBasedOriginErrorDetectionParameters
+		err := group.ResponseBasedOriginErrorDetectionSettings.AssignProperties_To_ResponseBasedOriginErrorDetectionParameters(&responseBasedOriginErrorDetectionSetting)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResponseBasedOriginErrorDetectionParameters() to populate field ResponseBasedOriginErrorDetectionSettings")
+		}
+		destination.ResponseBasedOriginErrorDetectionSettings = &responseBasedOriginErrorDetectionSetting
+	} else {
+		destination.ResponseBasedOriginErrorDetectionSettings = nil
+	}
+
+	// TrafficRestorationTimeToHealedOrNewEndpointsInMinutes
+	destination.TrafficRestorationTimeToHealedOrNewEndpointsInMinutes = genruntime.ClonePointerToInt(group.TrafficRestorationTimeToHealedOrNewEndpointsInMinutes)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedOriginGroup interface (if implemented) to customize the conversion
+	var groupAsAny any = group
+	if augmentedGroup, ok := groupAsAny.(augmentConversionForDeepCreatedOriginGroup); ok {
+		err := augmentedGroup.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20210601.DeepCreatedOriginGroup_STATUS
@@ -320,6 +1853,148 @@ type DeepCreatedOriginGroup_STATUS struct {
 	TrafficRestorationTimeToHealedOrNewEndpointsInMinutes *int                                                `json:"trafficRestorationTimeToHealedOrNewEndpointsInMinutes,omitempty"`
 }
 
+// AssignProperties_From_DeepCreatedOriginGroup_STATUS populates our DeepCreatedOriginGroup_STATUS from the provided source DeepCreatedOriginGroup_STATUS
+func (group *DeepCreatedOriginGroup_STATUS) AssignProperties_From_DeepCreatedOriginGroup_STATUS(source *storage.DeepCreatedOriginGroup_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// HealthProbeSettings
+	if source.HealthProbeSettings != nil {
+		var healthProbeSetting HealthProbeParameters_STATUS
+		err := healthProbeSetting.AssignProperties_From_HealthProbeParameters_STATUS(source.HealthProbeSettings)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_HealthProbeParameters_STATUS() to populate field HealthProbeSettings")
+		}
+		group.HealthProbeSettings = &healthProbeSetting
+	} else {
+		group.HealthProbeSettings = nil
+	}
+
+	// Name
+	group.Name = genruntime.ClonePointerToString(source.Name)
+
+	// Origins
+	if source.Origins != nil {
+		originList := make([]ResourceReference_STATUS, len(source.Origins))
+		for originIndex, originItem := range source.Origins {
+			var origin ResourceReference_STATUS
+			err := origin.AssignProperties_From_ResourceReference_STATUS(&originItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field Origins")
+			}
+			originList[originIndex] = origin
+		}
+		group.Origins = originList
+	} else {
+		group.Origins = nil
+	}
+
+	// ResponseBasedOriginErrorDetectionSettings
+	if source.ResponseBasedOriginErrorDetectionSettings != nil {
+		var responseBasedOriginErrorDetectionSetting ResponseBasedOriginErrorDetectionParameters_STATUS
+		err := responseBasedOriginErrorDetectionSetting.AssignProperties_From_ResponseBasedOriginErrorDetectionParameters_STATUS(source.ResponseBasedOriginErrorDetectionSettings)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResponseBasedOriginErrorDetectionParameters_STATUS() to populate field ResponseBasedOriginErrorDetectionSettings")
+		}
+		group.ResponseBasedOriginErrorDetectionSettings = &responseBasedOriginErrorDetectionSetting
+	} else {
+		group.ResponseBasedOriginErrorDetectionSettings = nil
+	}
+
+	// TrafficRestorationTimeToHealedOrNewEndpointsInMinutes
+	group.TrafficRestorationTimeToHealedOrNewEndpointsInMinutes = genruntime.ClonePointerToInt(source.TrafficRestorationTimeToHealedOrNewEndpointsInMinutes)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		group.PropertyBag = propertyBag
+	} else {
+		group.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedOriginGroup_STATUS interface (if implemented) to customize the conversion
+	var groupAsAny any = group
+	if augmentedGroup, ok := groupAsAny.(augmentConversionForDeepCreatedOriginGroup_STATUS); ok {
+		err := augmentedGroup.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DeepCreatedOriginGroup_STATUS populates the provided destination DeepCreatedOriginGroup_STATUS from our DeepCreatedOriginGroup_STATUS
+func (group *DeepCreatedOriginGroup_STATUS) AssignProperties_To_DeepCreatedOriginGroup_STATUS(destination *storage.DeepCreatedOriginGroup_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(group.PropertyBag)
+
+	// HealthProbeSettings
+	if group.HealthProbeSettings != nil {
+		var healthProbeSetting storage.HealthProbeParameters_STATUS
+		err := group.HealthProbeSettings.AssignProperties_To_HealthProbeParameters_STATUS(&healthProbeSetting)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_HealthProbeParameters_STATUS() to populate field HealthProbeSettings")
+		}
+		destination.HealthProbeSettings = &healthProbeSetting
+	} else {
+		destination.HealthProbeSettings = nil
+	}
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(group.Name)
+
+	// Origins
+	if group.Origins != nil {
+		originList := make([]storage.ResourceReference_STATUS, len(group.Origins))
+		for originIndex, originItem := range group.Origins {
+			var origin storage.ResourceReference_STATUS
+			err := originItem.AssignProperties_To_ResourceReference_STATUS(&origin)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field Origins")
+			}
+			originList[originIndex] = origin
+		}
+		destination.Origins = originList
+	} else {
+		destination.Origins = nil
+	}
+
+	// ResponseBasedOriginErrorDetectionSettings
+	if group.ResponseBasedOriginErrorDetectionSettings != nil {
+		var responseBasedOriginErrorDetectionSetting storage.ResponseBasedOriginErrorDetectionParameters_STATUS
+		err := group.ResponseBasedOriginErrorDetectionSettings.AssignProperties_To_ResponseBasedOriginErrorDetectionParameters_STATUS(&responseBasedOriginErrorDetectionSetting)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResponseBasedOriginErrorDetectionParameters_STATUS() to populate field ResponseBasedOriginErrorDetectionSettings")
+		}
+		destination.ResponseBasedOriginErrorDetectionSettings = &responseBasedOriginErrorDetectionSetting
+	} else {
+		destination.ResponseBasedOriginErrorDetectionSettings = nil
+	}
+
+	// TrafficRestorationTimeToHealedOrNewEndpointsInMinutes
+	destination.TrafficRestorationTimeToHealedOrNewEndpointsInMinutes = genruntime.ClonePointerToInt(group.TrafficRestorationTimeToHealedOrNewEndpointsInMinutes)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeepCreatedOriginGroup_STATUS interface (if implemented) to customize the conversion
+	var groupAsAny any = group
+	if augmentedGroup, ok := groupAsAny.(augmentConversionForDeepCreatedOriginGroup_STATUS); ok {
+		err := augmentedGroup.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.EndpointProperties_DeliveryPolicy
 type EndpointProperties_DeliveryPolicy struct {
 	Description *string                `json:"description,omitempty"`
@@ -327,11 +2002,187 @@ type EndpointProperties_DeliveryPolicy struct {
 	Rules       []DeliveryRule         `json:"rules,omitempty"`
 }
 
+// AssignProperties_From_EndpointProperties_DeliveryPolicy populates our EndpointProperties_DeliveryPolicy from the provided source EndpointProperties_DeliveryPolicy
+func (policy *EndpointProperties_DeliveryPolicy) AssignProperties_From_EndpointProperties_DeliveryPolicy(source *storage.EndpointProperties_DeliveryPolicy) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Description
+	policy.Description = genruntime.ClonePointerToString(source.Description)
+
+	// Rules
+	if source.Rules != nil {
+		ruleList := make([]DeliveryRule, len(source.Rules))
+		for ruleIndex, ruleItem := range source.Rules {
+			var rule DeliveryRule
+			err := rule.AssignProperties_From_DeliveryRule(&ruleItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeliveryRule() to populate field Rules")
+			}
+			ruleList[ruleIndex] = rule
+		}
+		policy.Rules = ruleList
+	} else {
+		policy.Rules = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		policy.PropertyBag = propertyBag
+	} else {
+		policy.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForEndpointProperties_DeliveryPolicy interface (if implemented) to customize the conversion
+	var policyAsAny any = policy
+	if augmentedPolicy, ok := policyAsAny.(augmentConversionForEndpointProperties_DeliveryPolicy); ok {
+		err := augmentedPolicy.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_EndpointProperties_DeliveryPolicy populates the provided destination EndpointProperties_DeliveryPolicy from our EndpointProperties_DeliveryPolicy
+func (policy *EndpointProperties_DeliveryPolicy) AssignProperties_To_EndpointProperties_DeliveryPolicy(destination *storage.EndpointProperties_DeliveryPolicy) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(policy.PropertyBag)
+
+	// Description
+	destination.Description = genruntime.ClonePointerToString(policy.Description)
+
+	// Rules
+	if policy.Rules != nil {
+		ruleList := make([]storage.DeliveryRule, len(policy.Rules))
+		for ruleIndex, ruleItem := range policy.Rules {
+			var rule storage.DeliveryRule
+			err := ruleItem.AssignProperties_To_DeliveryRule(&rule)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeliveryRule() to populate field Rules")
+			}
+			ruleList[ruleIndex] = rule
+		}
+		destination.Rules = ruleList
+	} else {
+		destination.Rules = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForEndpointProperties_DeliveryPolicy interface (if implemented) to customize the conversion
+	var policyAsAny any = policy
+	if augmentedPolicy, ok := policyAsAny.(augmentConversionForEndpointProperties_DeliveryPolicy); ok {
+		err := augmentedPolicy.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.EndpointProperties_DeliveryPolicy_STATUS
 type EndpointProperties_DeliveryPolicy_STATUS struct {
 	Description *string                `json:"description,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	Rules       []DeliveryRule_STATUS  `json:"rules,omitempty"`
+}
+
+// AssignProperties_From_EndpointProperties_DeliveryPolicy_STATUS populates our EndpointProperties_DeliveryPolicy_STATUS from the provided source EndpointProperties_DeliveryPolicy_STATUS
+func (policy *EndpointProperties_DeliveryPolicy_STATUS) AssignProperties_From_EndpointProperties_DeliveryPolicy_STATUS(source *storage.EndpointProperties_DeliveryPolicy_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Description
+	policy.Description = genruntime.ClonePointerToString(source.Description)
+
+	// Rules
+	if source.Rules != nil {
+		ruleList := make([]DeliveryRule_STATUS, len(source.Rules))
+		for ruleIndex, ruleItem := range source.Rules {
+			var rule DeliveryRule_STATUS
+			err := rule.AssignProperties_From_DeliveryRule_STATUS(&ruleItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeliveryRule_STATUS() to populate field Rules")
+			}
+			ruleList[ruleIndex] = rule
+		}
+		policy.Rules = ruleList
+	} else {
+		policy.Rules = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		policy.PropertyBag = propertyBag
+	} else {
+		policy.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForEndpointProperties_DeliveryPolicy_STATUS interface (if implemented) to customize the conversion
+	var policyAsAny any = policy
+	if augmentedPolicy, ok := policyAsAny.(augmentConversionForEndpointProperties_DeliveryPolicy_STATUS); ok {
+		err := augmentedPolicy.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_EndpointProperties_DeliveryPolicy_STATUS populates the provided destination EndpointProperties_DeliveryPolicy_STATUS from our EndpointProperties_DeliveryPolicy_STATUS
+func (policy *EndpointProperties_DeliveryPolicy_STATUS) AssignProperties_To_EndpointProperties_DeliveryPolicy_STATUS(destination *storage.EndpointProperties_DeliveryPolicy_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(policy.PropertyBag)
+
+	// Description
+	destination.Description = genruntime.ClonePointerToString(policy.Description)
+
+	// Rules
+	if policy.Rules != nil {
+		ruleList := make([]storage.DeliveryRule_STATUS, len(policy.Rules))
+		for ruleIndex, ruleItem := range policy.Rules {
+			var rule storage.DeliveryRule_STATUS
+			err := ruleItem.AssignProperties_To_DeliveryRule_STATUS(&rule)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeliveryRule_STATUS() to populate field Rules")
+			}
+			ruleList[ruleIndex] = rule
+		}
+		destination.Rules = ruleList
+	} else {
+		destination.Rules = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForEndpointProperties_DeliveryPolicy_STATUS interface (if implemented) to customize the conversion
+	var policyAsAny any = policy
+	if augmentedPolicy, ok := policyAsAny.(augmentConversionForEndpointProperties_DeliveryPolicy_STATUS); ok {
+		err := augmentedPolicy.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20210601.EndpointProperties_WebApplicationFirewallPolicyLink
@@ -342,10 +2193,132 @@ type EndpointProperties_WebApplicationFirewallPolicyLink struct {
 	Reference *genruntime.ResourceReference `armReference:"Id" json:"reference,omitempty"`
 }
 
+// AssignProperties_From_EndpointProperties_WebApplicationFirewallPolicyLink populates our EndpointProperties_WebApplicationFirewallPolicyLink from the provided source EndpointProperties_WebApplicationFirewallPolicyLink
+func (link *EndpointProperties_WebApplicationFirewallPolicyLink) AssignProperties_From_EndpointProperties_WebApplicationFirewallPolicyLink(source *storage.EndpointProperties_WebApplicationFirewallPolicyLink) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Reference
+	if source.Reference != nil {
+		reference := source.Reference.Copy()
+		link.Reference = &reference
+	} else {
+		link.Reference = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		link.PropertyBag = propertyBag
+	} else {
+		link.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink interface (if implemented) to customize the conversion
+	var linkAsAny any = link
+	if augmentedLink, ok := linkAsAny.(augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink); ok {
+		err := augmentedLink.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_EndpointProperties_WebApplicationFirewallPolicyLink populates the provided destination EndpointProperties_WebApplicationFirewallPolicyLink from our EndpointProperties_WebApplicationFirewallPolicyLink
+func (link *EndpointProperties_WebApplicationFirewallPolicyLink) AssignProperties_To_EndpointProperties_WebApplicationFirewallPolicyLink(destination *storage.EndpointProperties_WebApplicationFirewallPolicyLink) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(link.PropertyBag)
+
+	// Reference
+	if link.Reference != nil {
+		reference := link.Reference.Copy()
+		destination.Reference = &reference
+	} else {
+		destination.Reference = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink interface (if implemented) to customize the conversion
+	var linkAsAny any = link
+	if augmentedLink, ok := linkAsAny.(augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink); ok {
+		err := augmentedLink.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.EndpointProperties_WebApplicationFirewallPolicyLink_STATUS
 type EndpointProperties_WebApplicationFirewallPolicyLink_STATUS struct {
 	Id          *string                `json:"id,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
+}
+
+// AssignProperties_From_EndpointProperties_WebApplicationFirewallPolicyLink_STATUS populates our EndpointProperties_WebApplicationFirewallPolicyLink_STATUS from the provided source EndpointProperties_WebApplicationFirewallPolicyLink_STATUS
+func (link *EndpointProperties_WebApplicationFirewallPolicyLink_STATUS) AssignProperties_From_EndpointProperties_WebApplicationFirewallPolicyLink_STATUS(source *storage.EndpointProperties_WebApplicationFirewallPolicyLink_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Id
+	link.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		link.PropertyBag = propertyBag
+	} else {
+		link.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink_STATUS interface (if implemented) to customize the conversion
+	var linkAsAny any = link
+	if augmentedLink, ok := linkAsAny.(augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink_STATUS); ok {
+		err := augmentedLink.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_EndpointProperties_WebApplicationFirewallPolicyLink_STATUS populates the provided destination EndpointProperties_WebApplicationFirewallPolicyLink_STATUS from our EndpointProperties_WebApplicationFirewallPolicyLink_STATUS
+func (link *EndpointProperties_WebApplicationFirewallPolicyLink_STATUS) AssignProperties_To_EndpointProperties_WebApplicationFirewallPolicyLink_STATUS(destination *storage.EndpointProperties_WebApplicationFirewallPolicyLink_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(link.PropertyBag)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(link.Id)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink_STATUS interface (if implemented) to customize the conversion
+	var linkAsAny any = link
+	if augmentedLink, ok := linkAsAny.(augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink_STATUS); ok {
+		err := augmentedLink.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20210601.GeoFilter
@@ -357,6 +2330,74 @@ type GeoFilter struct {
 	RelativePath *string                `json:"relativePath,omitempty"`
 }
 
+// AssignProperties_From_GeoFilter populates our GeoFilter from the provided source GeoFilter
+func (filter *GeoFilter) AssignProperties_From_GeoFilter(source *storage.GeoFilter) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Action
+	filter.Action = genruntime.ClonePointerToString(source.Action)
+
+	// CountryCodes
+	filter.CountryCodes = genruntime.CloneSliceOfString(source.CountryCodes)
+
+	// RelativePath
+	filter.RelativePath = genruntime.ClonePointerToString(source.RelativePath)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		filter.PropertyBag = propertyBag
+	} else {
+		filter.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForGeoFilter interface (if implemented) to customize the conversion
+	var filterAsAny any = filter
+	if augmentedFilter, ok := filterAsAny.(augmentConversionForGeoFilter); ok {
+		err := augmentedFilter.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_GeoFilter populates the provided destination GeoFilter from our GeoFilter
+func (filter *GeoFilter) AssignProperties_To_GeoFilter(destination *storage.GeoFilter) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(filter.PropertyBag)
+
+	// Action
+	destination.Action = genruntime.ClonePointerToString(filter.Action)
+
+	// CountryCodes
+	destination.CountryCodes = genruntime.CloneSliceOfString(filter.CountryCodes)
+
+	// RelativePath
+	destination.RelativePath = genruntime.ClonePointerToString(filter.RelativePath)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForGeoFilter interface (if implemented) to customize the conversion
+	var filterAsAny any = filter
+	if augmentedFilter, ok := filterAsAny.(augmentConversionForGeoFilter); ok {
+		err := augmentedFilter.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.GeoFilter_STATUS
 // Rules defining user's geo access within a CDN endpoint.
 type GeoFilter_STATUS struct {
@@ -364,6 +2405,196 @@ type GeoFilter_STATUS struct {
 	CountryCodes []string               `json:"countryCodes,omitempty"`
 	PropertyBag  genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	RelativePath *string                `json:"relativePath,omitempty"`
+}
+
+// AssignProperties_From_GeoFilter_STATUS populates our GeoFilter_STATUS from the provided source GeoFilter_STATUS
+func (filter *GeoFilter_STATUS) AssignProperties_From_GeoFilter_STATUS(source *storage.GeoFilter_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Action
+	filter.Action = genruntime.ClonePointerToString(source.Action)
+
+	// CountryCodes
+	filter.CountryCodes = genruntime.CloneSliceOfString(source.CountryCodes)
+
+	// RelativePath
+	filter.RelativePath = genruntime.ClonePointerToString(source.RelativePath)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		filter.PropertyBag = propertyBag
+	} else {
+		filter.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForGeoFilter_STATUS interface (if implemented) to customize the conversion
+	var filterAsAny any = filter
+	if augmentedFilter, ok := filterAsAny.(augmentConversionForGeoFilter_STATUS); ok {
+		err := augmentedFilter.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_GeoFilter_STATUS populates the provided destination GeoFilter_STATUS from our GeoFilter_STATUS
+func (filter *GeoFilter_STATUS) AssignProperties_To_GeoFilter_STATUS(destination *storage.GeoFilter_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(filter.PropertyBag)
+
+	// Action
+	destination.Action = genruntime.ClonePointerToString(filter.Action)
+
+	// CountryCodes
+	destination.CountryCodes = genruntime.CloneSliceOfString(filter.CountryCodes)
+
+	// RelativePath
+	destination.RelativePath = genruntime.ClonePointerToString(filter.RelativePath)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForGeoFilter_STATUS interface (if implemented) to customize the conversion
+	var filterAsAny any = filter
+	if augmentedFilter, ok := filterAsAny.(augmentConversionForGeoFilter_STATUS); ok {
+		err := augmentedFilter.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20210601.ProfilesEndpointOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type ProfilesEndpointOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_ProfilesEndpointOperatorSpec populates our ProfilesEndpointOperatorSpec from the provided source ProfilesEndpointOperatorSpec
+func (operator *ProfilesEndpointOperatorSpec) AssignProperties_From_ProfilesEndpointOperatorSpec(source *storage.ProfilesEndpointOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		operator.PropertyBag = propertyBag
+	} else {
+		operator.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForProfilesEndpointOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForProfilesEndpointOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ProfilesEndpointOperatorSpec populates the provided destination ProfilesEndpointOperatorSpec from our ProfilesEndpointOperatorSpec
+func (operator *ProfilesEndpointOperatorSpec) AssignProperties_To_ProfilesEndpointOperatorSpec(destination *storage.ProfilesEndpointOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForProfilesEndpointOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForProfilesEndpointOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20210601.ResourceReference
@@ -400,7 +2631,7 @@ func (reference *ResourceReference) AssignProperties_From_ResourceReference(sour
 	if augmentedReference, ok := referenceAsAny.(augmentConversionForResourceReference); ok {
 		err := augmentedReference.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -433,7 +2664,7 @@ func (reference *ResourceReference) AssignProperties_To_ResourceReference(destin
 	if augmentedReference, ok := referenceAsAny.(augmentConversionForResourceReference); ok {
 		err := augmentedReference.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -468,7 +2699,7 @@ func (reference *ResourceReference_STATUS) AssignProperties_From_ResourceReferen
 	if augmentedReference, ok := referenceAsAny.(augmentConversionForResourceReference_STATUS); ok {
 		err := augmentedReference.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -496,7 +2727,7 @@ func (reference *ResourceReference_STATUS) AssignProperties_To_ResourceReference
 	if augmentedReference, ok := referenceAsAny.(augmentConversionForResourceReference_STATUS); ok {
 		err := augmentedReference.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -512,12 +2743,232 @@ type UrlSigningKey struct {
 	PropertyBag         genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
 }
 
+// AssignProperties_From_UrlSigningKey populates our UrlSigningKey from the provided source UrlSigningKey
+func (signingKey *UrlSigningKey) AssignProperties_From_UrlSigningKey(source *storage.UrlSigningKey) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// KeyId
+	signingKey.KeyId = genruntime.ClonePointerToString(source.KeyId)
+
+	// KeySourceParameters
+	if source.KeySourceParameters != nil {
+		var keySourceParameter KeyVaultSigningKeyParameters
+		err := keySourceParameter.AssignProperties_From_KeyVaultSigningKeyParameters(source.KeySourceParameters)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_KeyVaultSigningKeyParameters() to populate field KeySourceParameters")
+		}
+		signingKey.KeySourceParameters = &keySourceParameter
+	} else {
+		signingKey.KeySourceParameters = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		signingKey.PropertyBag = propertyBag
+	} else {
+		signingKey.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForUrlSigningKey interface (if implemented) to customize the conversion
+	var signingKeyAsAny any = signingKey
+	if augmentedSigningKey, ok := signingKeyAsAny.(augmentConversionForUrlSigningKey); ok {
+		err := augmentedSigningKey.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_UrlSigningKey populates the provided destination UrlSigningKey from our UrlSigningKey
+func (signingKey *UrlSigningKey) AssignProperties_To_UrlSigningKey(destination *storage.UrlSigningKey) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(signingKey.PropertyBag)
+
+	// KeyId
+	destination.KeyId = genruntime.ClonePointerToString(signingKey.KeyId)
+
+	// KeySourceParameters
+	if signingKey.KeySourceParameters != nil {
+		var keySourceParameter storage.KeyVaultSigningKeyParameters
+		err := signingKey.KeySourceParameters.AssignProperties_To_KeyVaultSigningKeyParameters(&keySourceParameter)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_KeyVaultSigningKeyParameters() to populate field KeySourceParameters")
+		}
+		destination.KeySourceParameters = &keySourceParameter
+	} else {
+		destination.KeySourceParameters = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForUrlSigningKey interface (if implemented) to customize the conversion
+	var signingKeyAsAny any = signingKey
+	if augmentedSigningKey, ok := signingKeyAsAny.(augmentConversionForUrlSigningKey); ok {
+		err := augmentedSigningKey.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.UrlSigningKey_STATUS
 // Url signing key
 type UrlSigningKey_STATUS struct {
 	KeyId               *string                              `json:"keyId,omitempty"`
 	KeySourceParameters *KeyVaultSigningKeyParameters_STATUS `json:"keySourceParameters,omitempty"`
 	PropertyBag         genruntime.PropertyBag               `json:"$propertyBag,omitempty"`
+}
+
+// AssignProperties_From_UrlSigningKey_STATUS populates our UrlSigningKey_STATUS from the provided source UrlSigningKey_STATUS
+func (signingKey *UrlSigningKey_STATUS) AssignProperties_From_UrlSigningKey_STATUS(source *storage.UrlSigningKey_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// KeyId
+	signingKey.KeyId = genruntime.ClonePointerToString(source.KeyId)
+
+	// KeySourceParameters
+	if source.KeySourceParameters != nil {
+		var keySourceParameter KeyVaultSigningKeyParameters_STATUS
+		err := keySourceParameter.AssignProperties_From_KeyVaultSigningKeyParameters_STATUS(source.KeySourceParameters)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_KeyVaultSigningKeyParameters_STATUS() to populate field KeySourceParameters")
+		}
+		signingKey.KeySourceParameters = &keySourceParameter
+	} else {
+		signingKey.KeySourceParameters = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		signingKey.PropertyBag = propertyBag
+	} else {
+		signingKey.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForUrlSigningKey_STATUS interface (if implemented) to customize the conversion
+	var signingKeyAsAny any = signingKey
+	if augmentedSigningKey, ok := signingKeyAsAny.(augmentConversionForUrlSigningKey_STATUS); ok {
+		err := augmentedSigningKey.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_UrlSigningKey_STATUS populates the provided destination UrlSigningKey_STATUS from our UrlSigningKey_STATUS
+func (signingKey *UrlSigningKey_STATUS) AssignProperties_To_UrlSigningKey_STATUS(destination *storage.UrlSigningKey_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(signingKey.PropertyBag)
+
+	// KeyId
+	destination.KeyId = genruntime.ClonePointerToString(signingKey.KeyId)
+
+	// KeySourceParameters
+	if signingKey.KeySourceParameters != nil {
+		var keySourceParameter storage.KeyVaultSigningKeyParameters_STATUS
+		err := signingKey.KeySourceParameters.AssignProperties_To_KeyVaultSigningKeyParameters_STATUS(&keySourceParameter)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_KeyVaultSigningKeyParameters_STATUS() to populate field KeySourceParameters")
+		}
+		destination.KeySourceParameters = &keySourceParameter
+	} else {
+		destination.KeySourceParameters = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForUrlSigningKey_STATUS interface (if implemented) to customize the conversion
+	var signingKeyAsAny any = signingKey
+	if augmentedSigningKey, ok := signingKeyAsAny.(augmentConversionForUrlSigningKey_STATUS); ok {
+		err := augmentedSigningKey.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForDeepCreatedCustomDomain_STATUS interface {
+	AssignPropertiesFrom(src *storage.DeepCreatedCustomDomain_STATUS) error
+	AssignPropertiesTo(dst *storage.DeepCreatedCustomDomain_STATUS) error
+}
+
+type augmentConversionForDeepCreatedOrigin interface {
+	AssignPropertiesFrom(src *storage.DeepCreatedOrigin) error
+	AssignPropertiesTo(dst *storage.DeepCreatedOrigin) error
+}
+
+type augmentConversionForDeepCreatedOrigin_STATUS interface {
+	AssignPropertiesFrom(src *storage.DeepCreatedOrigin_STATUS) error
+	AssignPropertiesTo(dst *storage.DeepCreatedOrigin_STATUS) error
+}
+
+type augmentConversionForDeepCreatedOriginGroup interface {
+	AssignPropertiesFrom(src *storage.DeepCreatedOriginGroup) error
+	AssignPropertiesTo(dst *storage.DeepCreatedOriginGroup) error
+}
+
+type augmentConversionForDeepCreatedOriginGroup_STATUS interface {
+	AssignPropertiesFrom(src *storage.DeepCreatedOriginGroup_STATUS) error
+	AssignPropertiesTo(dst *storage.DeepCreatedOriginGroup_STATUS) error
+}
+
+type augmentConversionForEndpointProperties_DeliveryPolicy interface {
+	AssignPropertiesFrom(src *storage.EndpointProperties_DeliveryPolicy) error
+	AssignPropertiesTo(dst *storage.EndpointProperties_DeliveryPolicy) error
+}
+
+type augmentConversionForEndpointProperties_DeliveryPolicy_STATUS interface {
+	AssignPropertiesFrom(src *storage.EndpointProperties_DeliveryPolicy_STATUS) error
+	AssignPropertiesTo(dst *storage.EndpointProperties_DeliveryPolicy_STATUS) error
+}
+
+type augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink interface {
+	AssignPropertiesFrom(src *storage.EndpointProperties_WebApplicationFirewallPolicyLink) error
+	AssignPropertiesTo(dst *storage.EndpointProperties_WebApplicationFirewallPolicyLink) error
+}
+
+type augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink_STATUS interface {
+	AssignPropertiesFrom(src *storage.EndpointProperties_WebApplicationFirewallPolicyLink_STATUS) error
+	AssignPropertiesTo(dst *storage.EndpointProperties_WebApplicationFirewallPolicyLink_STATUS) error
+}
+
+type augmentConversionForGeoFilter interface {
+	AssignPropertiesFrom(src *storage.GeoFilter) error
+	AssignPropertiesTo(dst *storage.GeoFilter) error
+}
+
+type augmentConversionForGeoFilter_STATUS interface {
+	AssignPropertiesFrom(src *storage.GeoFilter_STATUS) error
+	AssignPropertiesTo(dst *storage.GeoFilter_STATUS) error
+}
+
+type augmentConversionForProfilesEndpointOperatorSpec interface {
+	AssignPropertiesFrom(src *storage.ProfilesEndpointOperatorSpec) error
+	AssignPropertiesTo(dst *storage.ProfilesEndpointOperatorSpec) error
 }
 
 type augmentConversionForResourceReference interface {
@@ -530,6 +2981,16 @@ type augmentConversionForResourceReference_STATUS interface {
 	AssignPropertiesTo(dst *storage.ResourceReference_STATUS) error
 }
 
+type augmentConversionForUrlSigningKey interface {
+	AssignPropertiesFrom(src *storage.UrlSigningKey) error
+	AssignPropertiesTo(dst *storage.UrlSigningKey) error
+}
+
+type augmentConversionForUrlSigningKey_STATUS interface {
+	AssignPropertiesFrom(src *storage.UrlSigningKey_STATUS) error
+	AssignPropertiesTo(dst *storage.UrlSigningKey_STATUS) error
+}
+
 // Storage version of v1api20210601.DeliveryRule
 // A rule that specifies a set of actions and conditions
 type DeliveryRule struct {
@@ -540,6 +3001,132 @@ type DeliveryRule struct {
 	PropertyBag genruntime.PropertyBag  `json:"$propertyBag,omitempty"`
 }
 
+// AssignProperties_From_DeliveryRule populates our DeliveryRule from the provided source DeliveryRule
+func (rule *DeliveryRule) AssignProperties_From_DeliveryRule(source *storage.DeliveryRule) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Actions
+	if source.Actions != nil {
+		actionList := make([]DeliveryRuleAction, len(source.Actions))
+		for actionIndex, actionItem := range source.Actions {
+			var action DeliveryRuleAction
+			err := action.AssignProperties_From_DeliveryRuleAction(&actionItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleAction() to populate field Actions")
+			}
+			actionList[actionIndex] = action
+		}
+		rule.Actions = actionList
+	} else {
+		rule.Actions = nil
+	}
+
+	// Conditions
+	if source.Conditions != nil {
+		conditionList := make([]DeliveryRuleCondition, len(source.Conditions))
+		for conditionIndex, conditionItem := range source.Conditions {
+			var condition DeliveryRuleCondition
+			err := condition.AssignProperties_From_DeliveryRuleCondition(&conditionItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleCondition() to populate field Conditions")
+			}
+			conditionList[conditionIndex] = condition
+		}
+		rule.Conditions = conditionList
+	} else {
+		rule.Conditions = nil
+	}
+
+	// Name
+	rule.Name = genruntime.ClonePointerToString(source.Name)
+
+	// Order
+	rule.Order = genruntime.ClonePointerToInt(source.Order)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		rule.PropertyBag = propertyBag
+	} else {
+		rule.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeliveryRule interface (if implemented) to customize the conversion
+	var ruleAsAny any = rule
+	if augmentedRule, ok := ruleAsAny.(augmentConversionForDeliveryRule); ok {
+		err := augmentedRule.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DeliveryRule populates the provided destination DeliveryRule from our DeliveryRule
+func (rule *DeliveryRule) AssignProperties_To_DeliveryRule(destination *storage.DeliveryRule) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(rule.PropertyBag)
+
+	// Actions
+	if rule.Actions != nil {
+		actionList := make([]storage.DeliveryRuleAction, len(rule.Actions))
+		for actionIndex, actionItem := range rule.Actions {
+			var action storage.DeliveryRuleAction
+			err := actionItem.AssignProperties_To_DeliveryRuleAction(&action)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleAction() to populate field Actions")
+			}
+			actionList[actionIndex] = action
+		}
+		destination.Actions = actionList
+	} else {
+		destination.Actions = nil
+	}
+
+	// Conditions
+	if rule.Conditions != nil {
+		conditionList := make([]storage.DeliveryRuleCondition, len(rule.Conditions))
+		for conditionIndex, conditionItem := range rule.Conditions {
+			var condition storage.DeliveryRuleCondition
+			err := conditionItem.AssignProperties_To_DeliveryRuleCondition(&condition)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleCondition() to populate field Conditions")
+			}
+			conditionList[conditionIndex] = condition
+		}
+		destination.Conditions = conditionList
+	} else {
+		destination.Conditions = nil
+	}
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(rule.Name)
+
+	// Order
+	destination.Order = genruntime.ClonePointerToInt(rule.Order)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeliveryRule interface (if implemented) to customize the conversion
+	var ruleAsAny any = rule
+	if augmentedRule, ok := ruleAsAny.(augmentConversionForDeliveryRule); ok {
+		err := augmentedRule.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.DeliveryRule_STATUS
 // A rule that specifies a set of actions and conditions
 type DeliveryRule_STATUS struct {
@@ -548,6 +3135,132 @@ type DeliveryRule_STATUS struct {
 	Name        *string                        `json:"name,omitempty"`
 	Order       *int                           `json:"order,omitempty"`
 	PropertyBag genruntime.PropertyBag         `json:"$propertyBag,omitempty"`
+}
+
+// AssignProperties_From_DeliveryRule_STATUS populates our DeliveryRule_STATUS from the provided source DeliveryRule_STATUS
+func (rule *DeliveryRule_STATUS) AssignProperties_From_DeliveryRule_STATUS(source *storage.DeliveryRule_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Actions
+	if source.Actions != nil {
+		actionList := make([]DeliveryRuleAction_STATUS, len(source.Actions))
+		for actionIndex, actionItem := range source.Actions {
+			var action DeliveryRuleAction_STATUS
+			err := action.AssignProperties_From_DeliveryRuleAction_STATUS(&actionItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleAction_STATUS() to populate field Actions")
+			}
+			actionList[actionIndex] = action
+		}
+		rule.Actions = actionList
+	} else {
+		rule.Actions = nil
+	}
+
+	// Conditions
+	if source.Conditions != nil {
+		conditionList := make([]DeliveryRuleCondition_STATUS, len(source.Conditions))
+		for conditionIndex, conditionItem := range source.Conditions {
+			var condition DeliveryRuleCondition_STATUS
+			err := condition.AssignProperties_From_DeliveryRuleCondition_STATUS(&conditionItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleCondition_STATUS() to populate field Conditions")
+			}
+			conditionList[conditionIndex] = condition
+		}
+		rule.Conditions = conditionList
+	} else {
+		rule.Conditions = nil
+	}
+
+	// Name
+	rule.Name = genruntime.ClonePointerToString(source.Name)
+
+	// Order
+	rule.Order = genruntime.ClonePointerToInt(source.Order)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		rule.PropertyBag = propertyBag
+	} else {
+		rule.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeliveryRule_STATUS interface (if implemented) to customize the conversion
+	var ruleAsAny any = rule
+	if augmentedRule, ok := ruleAsAny.(augmentConversionForDeliveryRule_STATUS); ok {
+		err := augmentedRule.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DeliveryRule_STATUS populates the provided destination DeliveryRule_STATUS from our DeliveryRule_STATUS
+func (rule *DeliveryRule_STATUS) AssignProperties_To_DeliveryRule_STATUS(destination *storage.DeliveryRule_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(rule.PropertyBag)
+
+	// Actions
+	if rule.Actions != nil {
+		actionList := make([]storage.DeliveryRuleAction_STATUS, len(rule.Actions))
+		for actionIndex, actionItem := range rule.Actions {
+			var action storage.DeliveryRuleAction_STATUS
+			err := actionItem.AssignProperties_To_DeliveryRuleAction_STATUS(&action)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleAction_STATUS() to populate field Actions")
+			}
+			actionList[actionIndex] = action
+		}
+		destination.Actions = actionList
+	} else {
+		destination.Actions = nil
+	}
+
+	// Conditions
+	if rule.Conditions != nil {
+		conditionList := make([]storage.DeliveryRuleCondition_STATUS, len(rule.Conditions))
+		for conditionIndex, conditionItem := range rule.Conditions {
+			var condition storage.DeliveryRuleCondition_STATUS
+			err := conditionItem.AssignProperties_To_DeliveryRuleCondition_STATUS(&condition)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleCondition_STATUS() to populate field Conditions")
+			}
+			conditionList[conditionIndex] = condition
+		}
+		destination.Conditions = conditionList
+	} else {
+		destination.Conditions = nil
+	}
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(rule.Name)
+
+	// Order
+	destination.Order = genruntime.ClonePointerToInt(rule.Order)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForDeliveryRule_STATUS interface (if implemented) to customize the conversion
+	var ruleAsAny any = rule
+	if augmentedRule, ok := ruleAsAny.(augmentConversionForDeliveryRule_STATUS); ok {
+		err := augmentedRule.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20210601.HealthProbeParameters
@@ -589,7 +3302,7 @@ func (parameters *HealthProbeParameters) AssignProperties_From_HealthProbeParame
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHealthProbeParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -626,7 +3339,7 @@ func (parameters *HealthProbeParameters) AssignProperties_To_HealthProbeParamete
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHealthProbeParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -673,7 +3386,7 @@ func (parameters *HealthProbeParameters_STATUS) AssignProperties_From_HealthProb
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHealthProbeParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -710,7 +3423,7 @@ func (parameters *HealthProbeParameters_STATUS) AssignProperties_To_HealthProbeP
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHealthProbeParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -730,6 +3443,92 @@ type KeyVaultSigningKeyParameters struct {
 	VaultName         *string                `json:"vaultName,omitempty"`
 }
 
+// AssignProperties_From_KeyVaultSigningKeyParameters populates our KeyVaultSigningKeyParameters from the provided source KeyVaultSigningKeyParameters
+func (parameters *KeyVaultSigningKeyParameters) AssignProperties_From_KeyVaultSigningKeyParameters(source *storage.KeyVaultSigningKeyParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ResourceGroupName
+	parameters.ResourceGroupName = genruntime.ClonePointerToString(source.ResourceGroupName)
+
+	// SecretName
+	parameters.SecretName = genruntime.ClonePointerToString(source.SecretName)
+
+	// SecretVersion
+	parameters.SecretVersion = genruntime.ClonePointerToString(source.SecretVersion)
+
+	// SubscriptionId
+	parameters.SubscriptionId = genruntime.ClonePointerToString(source.SubscriptionId)
+
+	// TypeName
+	parameters.TypeName = genruntime.ClonePointerToString(source.TypeName)
+
+	// VaultName
+	parameters.VaultName = genruntime.ClonePointerToString(source.VaultName)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForKeyVaultSigningKeyParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForKeyVaultSigningKeyParameters); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_KeyVaultSigningKeyParameters populates the provided destination KeyVaultSigningKeyParameters from our KeyVaultSigningKeyParameters
+func (parameters *KeyVaultSigningKeyParameters) AssignProperties_To_KeyVaultSigningKeyParameters(destination *storage.KeyVaultSigningKeyParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// ResourceGroupName
+	destination.ResourceGroupName = genruntime.ClonePointerToString(parameters.ResourceGroupName)
+
+	// SecretName
+	destination.SecretName = genruntime.ClonePointerToString(parameters.SecretName)
+
+	// SecretVersion
+	destination.SecretVersion = genruntime.ClonePointerToString(parameters.SecretVersion)
+
+	// SubscriptionId
+	destination.SubscriptionId = genruntime.ClonePointerToString(parameters.SubscriptionId)
+
+	// TypeName
+	destination.TypeName = genruntime.ClonePointerToString(parameters.TypeName)
+
+	// VaultName
+	destination.VaultName = genruntime.ClonePointerToString(parameters.VaultName)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForKeyVaultSigningKeyParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForKeyVaultSigningKeyParameters); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.KeyVaultSigningKeyParameters_STATUS
 // Describes the parameters for using a user's KeyVault for URL Signing Key.
 type KeyVaultSigningKeyParameters_STATUS struct {
@@ -742,6 +3541,92 @@ type KeyVaultSigningKeyParameters_STATUS struct {
 	VaultName         *string                `json:"vaultName,omitempty"`
 }
 
+// AssignProperties_From_KeyVaultSigningKeyParameters_STATUS populates our KeyVaultSigningKeyParameters_STATUS from the provided source KeyVaultSigningKeyParameters_STATUS
+func (parameters *KeyVaultSigningKeyParameters_STATUS) AssignProperties_From_KeyVaultSigningKeyParameters_STATUS(source *storage.KeyVaultSigningKeyParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ResourceGroupName
+	parameters.ResourceGroupName = genruntime.ClonePointerToString(source.ResourceGroupName)
+
+	// SecretName
+	parameters.SecretName = genruntime.ClonePointerToString(source.SecretName)
+
+	// SecretVersion
+	parameters.SecretVersion = genruntime.ClonePointerToString(source.SecretVersion)
+
+	// SubscriptionId
+	parameters.SubscriptionId = genruntime.ClonePointerToString(source.SubscriptionId)
+
+	// TypeName
+	parameters.TypeName = genruntime.ClonePointerToString(source.TypeName)
+
+	// VaultName
+	parameters.VaultName = genruntime.ClonePointerToString(source.VaultName)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForKeyVaultSigningKeyParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForKeyVaultSigningKeyParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_KeyVaultSigningKeyParameters_STATUS populates the provided destination KeyVaultSigningKeyParameters_STATUS from our KeyVaultSigningKeyParameters_STATUS
+func (parameters *KeyVaultSigningKeyParameters_STATUS) AssignProperties_To_KeyVaultSigningKeyParameters_STATUS(destination *storage.KeyVaultSigningKeyParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// ResourceGroupName
+	destination.ResourceGroupName = genruntime.ClonePointerToString(parameters.ResourceGroupName)
+
+	// SecretName
+	destination.SecretName = genruntime.ClonePointerToString(parameters.SecretName)
+
+	// SecretVersion
+	destination.SecretVersion = genruntime.ClonePointerToString(parameters.SecretVersion)
+
+	// SubscriptionId
+	destination.SubscriptionId = genruntime.ClonePointerToString(parameters.SubscriptionId)
+
+	// TypeName
+	destination.TypeName = genruntime.ClonePointerToString(parameters.TypeName)
+
+	// VaultName
+	destination.VaultName = genruntime.ClonePointerToString(parameters.VaultName)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForKeyVaultSigningKeyParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForKeyVaultSigningKeyParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.ResponseBasedOriginErrorDetectionParameters
 // The JSON object that contains the properties to determine origin health using real requests/responses.
 type ResponseBasedOriginErrorDetectionParameters struct {
@@ -749,6 +3634,100 @@ type ResponseBasedOriginErrorDetectionParameters struct {
 	PropertyBag                              genruntime.PropertyBag     `json:"$propertyBag,omitempty"`
 	ResponseBasedDetectedErrorTypes          *string                    `json:"responseBasedDetectedErrorTypes,omitempty"`
 	ResponseBasedFailoverThresholdPercentage *int                       `json:"responseBasedFailoverThresholdPercentage,omitempty"`
+}
+
+// AssignProperties_From_ResponseBasedOriginErrorDetectionParameters populates our ResponseBasedOriginErrorDetectionParameters from the provided source ResponseBasedOriginErrorDetectionParameters
+func (parameters *ResponseBasedOriginErrorDetectionParameters) AssignProperties_From_ResponseBasedOriginErrorDetectionParameters(source *storage.ResponseBasedOriginErrorDetectionParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// HttpErrorRanges
+	if source.HttpErrorRanges != nil {
+		httpErrorRangeList := make([]HttpErrorRangeParameters, len(source.HttpErrorRanges))
+		for httpErrorRangeIndex, httpErrorRangeItem := range source.HttpErrorRanges {
+			var httpErrorRange HttpErrorRangeParameters
+			err := httpErrorRange.AssignProperties_From_HttpErrorRangeParameters(&httpErrorRangeItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_HttpErrorRangeParameters() to populate field HttpErrorRanges")
+			}
+			httpErrorRangeList[httpErrorRangeIndex] = httpErrorRange
+		}
+		parameters.HttpErrorRanges = httpErrorRangeList
+	} else {
+		parameters.HttpErrorRanges = nil
+	}
+
+	// ResponseBasedDetectedErrorTypes
+	parameters.ResponseBasedDetectedErrorTypes = genruntime.ClonePointerToString(source.ResponseBasedDetectedErrorTypes)
+
+	// ResponseBasedFailoverThresholdPercentage
+	parameters.ResponseBasedFailoverThresholdPercentage = genruntime.ClonePointerToInt(source.ResponseBasedFailoverThresholdPercentage)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForResponseBasedOriginErrorDetectionParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForResponseBasedOriginErrorDetectionParameters); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ResponseBasedOriginErrorDetectionParameters populates the provided destination ResponseBasedOriginErrorDetectionParameters from our ResponseBasedOriginErrorDetectionParameters
+func (parameters *ResponseBasedOriginErrorDetectionParameters) AssignProperties_To_ResponseBasedOriginErrorDetectionParameters(destination *storage.ResponseBasedOriginErrorDetectionParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// HttpErrorRanges
+	if parameters.HttpErrorRanges != nil {
+		httpErrorRangeList := make([]storage.HttpErrorRangeParameters, len(parameters.HttpErrorRanges))
+		for httpErrorRangeIndex, httpErrorRangeItem := range parameters.HttpErrorRanges {
+			var httpErrorRange storage.HttpErrorRangeParameters
+			err := httpErrorRangeItem.AssignProperties_To_HttpErrorRangeParameters(&httpErrorRange)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_HttpErrorRangeParameters() to populate field HttpErrorRanges")
+			}
+			httpErrorRangeList[httpErrorRangeIndex] = httpErrorRange
+		}
+		destination.HttpErrorRanges = httpErrorRangeList
+	} else {
+		destination.HttpErrorRanges = nil
+	}
+
+	// ResponseBasedDetectedErrorTypes
+	destination.ResponseBasedDetectedErrorTypes = genruntime.ClonePointerToString(parameters.ResponseBasedDetectedErrorTypes)
+
+	// ResponseBasedFailoverThresholdPercentage
+	destination.ResponseBasedFailoverThresholdPercentage = genruntime.ClonePointerToInt(parameters.ResponseBasedFailoverThresholdPercentage)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForResponseBasedOriginErrorDetectionParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForResponseBasedOriginErrorDetectionParameters); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20210601.ResponseBasedOriginErrorDetectionParameters_STATUS
@@ -760,6 +3739,110 @@ type ResponseBasedOriginErrorDetectionParameters_STATUS struct {
 	ResponseBasedFailoverThresholdPercentage *int                              `json:"responseBasedFailoverThresholdPercentage,omitempty"`
 }
 
+// AssignProperties_From_ResponseBasedOriginErrorDetectionParameters_STATUS populates our ResponseBasedOriginErrorDetectionParameters_STATUS from the provided source ResponseBasedOriginErrorDetectionParameters_STATUS
+func (parameters *ResponseBasedOriginErrorDetectionParameters_STATUS) AssignProperties_From_ResponseBasedOriginErrorDetectionParameters_STATUS(source *storage.ResponseBasedOriginErrorDetectionParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// HttpErrorRanges
+	if source.HttpErrorRanges != nil {
+		httpErrorRangeList := make([]HttpErrorRangeParameters_STATUS, len(source.HttpErrorRanges))
+		for httpErrorRangeIndex, httpErrorRangeItem := range source.HttpErrorRanges {
+			var httpErrorRange HttpErrorRangeParameters_STATUS
+			err := httpErrorRange.AssignProperties_From_HttpErrorRangeParameters_STATUS(&httpErrorRangeItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_HttpErrorRangeParameters_STATUS() to populate field HttpErrorRanges")
+			}
+			httpErrorRangeList[httpErrorRangeIndex] = httpErrorRange
+		}
+		parameters.HttpErrorRanges = httpErrorRangeList
+	} else {
+		parameters.HttpErrorRanges = nil
+	}
+
+	// ResponseBasedDetectedErrorTypes
+	parameters.ResponseBasedDetectedErrorTypes = genruntime.ClonePointerToString(source.ResponseBasedDetectedErrorTypes)
+
+	// ResponseBasedFailoverThresholdPercentage
+	parameters.ResponseBasedFailoverThresholdPercentage = genruntime.ClonePointerToInt(source.ResponseBasedFailoverThresholdPercentage)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForResponseBasedOriginErrorDetectionParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForResponseBasedOriginErrorDetectionParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ResponseBasedOriginErrorDetectionParameters_STATUS populates the provided destination ResponseBasedOriginErrorDetectionParameters_STATUS from our ResponseBasedOriginErrorDetectionParameters_STATUS
+func (parameters *ResponseBasedOriginErrorDetectionParameters_STATUS) AssignProperties_To_ResponseBasedOriginErrorDetectionParameters_STATUS(destination *storage.ResponseBasedOriginErrorDetectionParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// HttpErrorRanges
+	if parameters.HttpErrorRanges != nil {
+		httpErrorRangeList := make([]storage.HttpErrorRangeParameters_STATUS, len(parameters.HttpErrorRanges))
+		for httpErrorRangeIndex, httpErrorRangeItem := range parameters.HttpErrorRanges {
+			var httpErrorRange storage.HttpErrorRangeParameters_STATUS
+			err := httpErrorRangeItem.AssignProperties_To_HttpErrorRangeParameters_STATUS(&httpErrorRange)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_HttpErrorRangeParameters_STATUS() to populate field HttpErrorRanges")
+			}
+			httpErrorRangeList[httpErrorRangeIndex] = httpErrorRange
+		}
+		destination.HttpErrorRanges = httpErrorRangeList
+	} else {
+		destination.HttpErrorRanges = nil
+	}
+
+	// ResponseBasedDetectedErrorTypes
+	destination.ResponseBasedDetectedErrorTypes = genruntime.ClonePointerToString(parameters.ResponseBasedDetectedErrorTypes)
+
+	// ResponseBasedFailoverThresholdPercentage
+	destination.ResponseBasedFailoverThresholdPercentage = genruntime.ClonePointerToInt(parameters.ResponseBasedFailoverThresholdPercentage)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForResponseBasedOriginErrorDetectionParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForResponseBasedOriginErrorDetectionParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForDeliveryRule interface {
+	AssignPropertiesFrom(src *storage.DeliveryRule) error
+	AssignPropertiesTo(dst *storage.DeliveryRule) error
+}
+
+type augmentConversionForDeliveryRule_STATUS interface {
+	AssignPropertiesFrom(src *storage.DeliveryRule_STATUS) error
+	AssignPropertiesTo(dst *storage.DeliveryRule_STATUS) error
+}
+
 type augmentConversionForHealthProbeParameters interface {
 	AssignPropertiesFrom(src *storage.HealthProbeParameters) error
 	AssignPropertiesTo(dst *storage.HealthProbeParameters) error
@@ -768,6 +3851,26 @@ type augmentConversionForHealthProbeParameters interface {
 type augmentConversionForHealthProbeParameters_STATUS interface {
 	AssignPropertiesFrom(src *storage.HealthProbeParameters_STATUS) error
 	AssignPropertiesTo(dst *storage.HealthProbeParameters_STATUS) error
+}
+
+type augmentConversionForKeyVaultSigningKeyParameters interface {
+	AssignPropertiesFrom(src *storage.KeyVaultSigningKeyParameters) error
+	AssignPropertiesTo(dst *storage.KeyVaultSigningKeyParameters) error
+}
+
+type augmentConversionForKeyVaultSigningKeyParameters_STATUS interface {
+	AssignPropertiesFrom(src *storage.KeyVaultSigningKeyParameters_STATUS) error
+	AssignPropertiesTo(dst *storage.KeyVaultSigningKeyParameters_STATUS) error
+}
+
+type augmentConversionForResponseBasedOriginErrorDetectionParameters interface {
+	AssignPropertiesFrom(src *storage.ResponseBasedOriginErrorDetectionParameters) error
+	AssignPropertiesTo(dst *storage.ResponseBasedOriginErrorDetectionParameters) error
+}
+
+type augmentConversionForResponseBasedOriginErrorDetectionParameters_STATUS interface {
+	AssignPropertiesFrom(src *storage.ResponseBasedOriginErrorDetectionParameters_STATUS) error
+	AssignPropertiesTo(dst *storage.ResponseBasedOriginErrorDetectionParameters_STATUS) error
 }
 
 // Storage version of v1api20210601.DeliveryRuleAction
@@ -795,7 +3898,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var cacheExpiration DeliveryRuleCacheExpirationAction
 		err := cacheExpiration.AssignProperties_From_DeliveryRuleCacheExpirationAction(source.CacheExpiration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleCacheExpirationAction() to populate field CacheExpiration")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleCacheExpirationAction() to populate field CacheExpiration")
 		}
 		action.CacheExpiration = &cacheExpiration
 	} else {
@@ -807,7 +3910,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var cacheKeyQueryString DeliveryRuleCacheKeyQueryStringAction
 		err := cacheKeyQueryString.AssignProperties_From_DeliveryRuleCacheKeyQueryStringAction(source.CacheKeyQueryString)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleCacheKeyQueryStringAction() to populate field CacheKeyQueryString")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleCacheKeyQueryStringAction() to populate field CacheKeyQueryString")
 		}
 		action.CacheKeyQueryString = &cacheKeyQueryString
 	} else {
@@ -819,7 +3922,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var modifyRequestHeader DeliveryRuleRequestHeaderAction
 		err := modifyRequestHeader.AssignProperties_From_DeliveryRuleRequestHeaderAction(source.ModifyRequestHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestHeaderAction() to populate field ModifyRequestHeader")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestHeaderAction() to populate field ModifyRequestHeader")
 		}
 		action.ModifyRequestHeader = &modifyRequestHeader
 	} else {
@@ -831,7 +3934,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var modifyResponseHeader DeliveryRuleResponseHeaderAction
 		err := modifyResponseHeader.AssignProperties_From_DeliveryRuleResponseHeaderAction(source.ModifyResponseHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleResponseHeaderAction() to populate field ModifyResponseHeader")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleResponseHeaderAction() to populate field ModifyResponseHeader")
 		}
 		action.ModifyResponseHeader = &modifyResponseHeader
 	} else {
@@ -843,7 +3946,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var originGroupOverride OriginGroupOverrideAction
 		err := originGroupOverride.AssignProperties_From_OriginGroupOverrideAction(source.OriginGroupOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_OriginGroupOverrideAction() to populate field OriginGroupOverride")
+			return eris.Wrap(err, "calling AssignProperties_From_OriginGroupOverrideAction() to populate field OriginGroupOverride")
 		}
 		action.OriginGroupOverride = &originGroupOverride
 	} else {
@@ -855,7 +3958,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var routeConfigurationOverride DeliveryRuleRouteConfigurationOverrideAction
 		err := routeConfigurationOverride.AssignProperties_From_DeliveryRuleRouteConfigurationOverrideAction(source.RouteConfigurationOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRouteConfigurationOverrideAction() to populate field RouteConfigurationOverride")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRouteConfigurationOverrideAction() to populate field RouteConfigurationOverride")
 		}
 		action.RouteConfigurationOverride = &routeConfigurationOverride
 	} else {
@@ -867,7 +3970,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var urlRedirect UrlRedirectAction
 		err := urlRedirect.AssignProperties_From_UrlRedirectAction(source.UrlRedirect)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlRedirectAction() to populate field UrlRedirect")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlRedirectAction() to populate field UrlRedirect")
 		}
 		action.UrlRedirect = &urlRedirect
 	} else {
@@ -879,7 +3982,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var urlRewrite UrlRewriteAction
 		err := urlRewrite.AssignProperties_From_UrlRewriteAction(source.UrlRewrite)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlRewriteAction() to populate field UrlRewrite")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlRewriteAction() to populate field UrlRewrite")
 		}
 		action.UrlRewrite = &urlRewrite
 	} else {
@@ -891,7 +3994,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 		var urlSigning UrlSigningAction
 		err := urlSigning.AssignProperties_From_UrlSigningAction(source.UrlSigning)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlSigningAction() to populate field UrlSigning")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlSigningAction() to populate field UrlSigning")
 		}
 		action.UrlSigning = &urlSigning
 	} else {
@@ -910,7 +4013,7 @@ func (action *DeliveryRuleAction) AssignProperties_From_DeliveryRuleAction(sourc
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -928,7 +4031,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var cacheExpiration storage.DeliveryRuleCacheExpirationAction
 		err := action.CacheExpiration.AssignProperties_To_DeliveryRuleCacheExpirationAction(&cacheExpiration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleCacheExpirationAction() to populate field CacheExpiration")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleCacheExpirationAction() to populate field CacheExpiration")
 		}
 		destination.CacheExpiration = &cacheExpiration
 	} else {
@@ -940,7 +4043,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var cacheKeyQueryString storage.DeliveryRuleCacheKeyQueryStringAction
 		err := action.CacheKeyQueryString.AssignProperties_To_DeliveryRuleCacheKeyQueryStringAction(&cacheKeyQueryString)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleCacheKeyQueryStringAction() to populate field CacheKeyQueryString")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleCacheKeyQueryStringAction() to populate field CacheKeyQueryString")
 		}
 		destination.CacheKeyQueryString = &cacheKeyQueryString
 	} else {
@@ -952,7 +4055,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var modifyRequestHeader storage.DeliveryRuleRequestHeaderAction
 		err := action.ModifyRequestHeader.AssignProperties_To_DeliveryRuleRequestHeaderAction(&modifyRequestHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestHeaderAction() to populate field ModifyRequestHeader")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestHeaderAction() to populate field ModifyRequestHeader")
 		}
 		destination.ModifyRequestHeader = &modifyRequestHeader
 	} else {
@@ -964,7 +4067,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var modifyResponseHeader storage.DeliveryRuleResponseHeaderAction
 		err := action.ModifyResponseHeader.AssignProperties_To_DeliveryRuleResponseHeaderAction(&modifyResponseHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleResponseHeaderAction() to populate field ModifyResponseHeader")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleResponseHeaderAction() to populate field ModifyResponseHeader")
 		}
 		destination.ModifyResponseHeader = &modifyResponseHeader
 	} else {
@@ -976,7 +4079,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var originGroupOverride storage.OriginGroupOverrideAction
 		err := action.OriginGroupOverride.AssignProperties_To_OriginGroupOverrideAction(&originGroupOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_OriginGroupOverrideAction() to populate field OriginGroupOverride")
+			return eris.Wrap(err, "calling AssignProperties_To_OriginGroupOverrideAction() to populate field OriginGroupOverride")
 		}
 		destination.OriginGroupOverride = &originGroupOverride
 	} else {
@@ -988,7 +4091,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var routeConfigurationOverride storage.DeliveryRuleRouteConfigurationOverrideAction
 		err := action.RouteConfigurationOverride.AssignProperties_To_DeliveryRuleRouteConfigurationOverrideAction(&routeConfigurationOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRouteConfigurationOverrideAction() to populate field RouteConfigurationOverride")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRouteConfigurationOverrideAction() to populate field RouteConfigurationOverride")
 		}
 		destination.RouteConfigurationOverride = &routeConfigurationOverride
 	} else {
@@ -1000,7 +4103,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var urlRedirect storage.UrlRedirectAction
 		err := action.UrlRedirect.AssignProperties_To_UrlRedirectAction(&urlRedirect)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlRedirectAction() to populate field UrlRedirect")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlRedirectAction() to populate field UrlRedirect")
 		}
 		destination.UrlRedirect = &urlRedirect
 	} else {
@@ -1012,7 +4115,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var urlRewrite storage.UrlRewriteAction
 		err := action.UrlRewrite.AssignProperties_To_UrlRewriteAction(&urlRewrite)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlRewriteAction() to populate field UrlRewrite")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlRewriteAction() to populate field UrlRewrite")
 		}
 		destination.UrlRewrite = &urlRewrite
 	} else {
@@ -1024,7 +4127,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 		var urlSigning storage.UrlSigningAction
 		err := action.UrlSigning.AssignProperties_To_UrlSigningAction(&urlSigning)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlSigningAction() to populate field UrlSigning")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlSigningAction() to populate field UrlSigning")
 		}
 		destination.UrlSigning = &urlSigning
 	} else {
@@ -1043,7 +4146,7 @@ func (action *DeliveryRuleAction) AssignProperties_To_DeliveryRuleAction(destina
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1076,7 +4179,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var cacheExpiration DeliveryRuleCacheExpirationAction_STATUS
 		err := cacheExpiration.AssignProperties_From_DeliveryRuleCacheExpirationAction_STATUS(source.CacheExpiration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleCacheExpirationAction_STATUS() to populate field CacheExpiration")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleCacheExpirationAction_STATUS() to populate field CacheExpiration")
 		}
 		action.CacheExpiration = &cacheExpiration
 	} else {
@@ -1088,7 +4191,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var cacheKeyQueryString DeliveryRuleCacheKeyQueryStringAction_STATUS
 		err := cacheKeyQueryString.AssignProperties_From_DeliveryRuleCacheKeyQueryStringAction_STATUS(source.CacheKeyQueryString)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleCacheKeyQueryStringAction_STATUS() to populate field CacheKeyQueryString")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleCacheKeyQueryStringAction_STATUS() to populate field CacheKeyQueryString")
 		}
 		action.CacheKeyQueryString = &cacheKeyQueryString
 	} else {
@@ -1100,7 +4203,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var modifyRequestHeader DeliveryRuleRequestHeaderAction_STATUS
 		err := modifyRequestHeader.AssignProperties_From_DeliveryRuleRequestHeaderAction_STATUS(source.ModifyRequestHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestHeaderAction_STATUS() to populate field ModifyRequestHeader")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestHeaderAction_STATUS() to populate field ModifyRequestHeader")
 		}
 		action.ModifyRequestHeader = &modifyRequestHeader
 	} else {
@@ -1112,7 +4215,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var modifyResponseHeader DeliveryRuleResponseHeaderAction_STATUS
 		err := modifyResponseHeader.AssignProperties_From_DeliveryRuleResponseHeaderAction_STATUS(source.ModifyResponseHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleResponseHeaderAction_STATUS() to populate field ModifyResponseHeader")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleResponseHeaderAction_STATUS() to populate field ModifyResponseHeader")
 		}
 		action.ModifyResponseHeader = &modifyResponseHeader
 	} else {
@@ -1124,7 +4227,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var originGroupOverride OriginGroupOverrideAction_STATUS
 		err := originGroupOverride.AssignProperties_From_OriginGroupOverrideAction_STATUS(source.OriginGroupOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_OriginGroupOverrideAction_STATUS() to populate field OriginGroupOverride")
+			return eris.Wrap(err, "calling AssignProperties_From_OriginGroupOverrideAction_STATUS() to populate field OriginGroupOverride")
 		}
 		action.OriginGroupOverride = &originGroupOverride
 	} else {
@@ -1136,7 +4239,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var routeConfigurationOverride DeliveryRuleRouteConfigurationOverrideAction_STATUS
 		err := routeConfigurationOverride.AssignProperties_From_DeliveryRuleRouteConfigurationOverrideAction_STATUS(source.RouteConfigurationOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRouteConfigurationOverrideAction_STATUS() to populate field RouteConfigurationOverride")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRouteConfigurationOverrideAction_STATUS() to populate field RouteConfigurationOverride")
 		}
 		action.RouteConfigurationOverride = &routeConfigurationOverride
 	} else {
@@ -1148,7 +4251,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var urlRedirect UrlRedirectAction_STATUS
 		err := urlRedirect.AssignProperties_From_UrlRedirectAction_STATUS(source.UrlRedirect)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlRedirectAction_STATUS() to populate field UrlRedirect")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlRedirectAction_STATUS() to populate field UrlRedirect")
 		}
 		action.UrlRedirect = &urlRedirect
 	} else {
@@ -1160,7 +4263,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var urlRewrite UrlRewriteAction_STATUS
 		err := urlRewrite.AssignProperties_From_UrlRewriteAction_STATUS(source.UrlRewrite)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlRewriteAction_STATUS() to populate field UrlRewrite")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlRewriteAction_STATUS() to populate field UrlRewrite")
 		}
 		action.UrlRewrite = &urlRewrite
 	} else {
@@ -1172,7 +4275,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 		var urlSigning UrlSigningAction_STATUS
 		err := urlSigning.AssignProperties_From_UrlSigningAction_STATUS(source.UrlSigning)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlSigningAction_STATUS() to populate field UrlSigning")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlSigningAction_STATUS() to populate field UrlSigning")
 		}
 		action.UrlSigning = &urlSigning
 	} else {
@@ -1191,7 +4294,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_From_DeliveryRuleActio
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1209,7 +4312,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var cacheExpiration storage.DeliveryRuleCacheExpirationAction_STATUS
 		err := action.CacheExpiration.AssignProperties_To_DeliveryRuleCacheExpirationAction_STATUS(&cacheExpiration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleCacheExpirationAction_STATUS() to populate field CacheExpiration")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleCacheExpirationAction_STATUS() to populate field CacheExpiration")
 		}
 		destination.CacheExpiration = &cacheExpiration
 	} else {
@@ -1221,7 +4324,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var cacheKeyQueryString storage.DeliveryRuleCacheKeyQueryStringAction_STATUS
 		err := action.CacheKeyQueryString.AssignProperties_To_DeliveryRuleCacheKeyQueryStringAction_STATUS(&cacheKeyQueryString)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleCacheKeyQueryStringAction_STATUS() to populate field CacheKeyQueryString")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleCacheKeyQueryStringAction_STATUS() to populate field CacheKeyQueryString")
 		}
 		destination.CacheKeyQueryString = &cacheKeyQueryString
 	} else {
@@ -1233,7 +4336,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var modifyRequestHeader storage.DeliveryRuleRequestHeaderAction_STATUS
 		err := action.ModifyRequestHeader.AssignProperties_To_DeliveryRuleRequestHeaderAction_STATUS(&modifyRequestHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestHeaderAction_STATUS() to populate field ModifyRequestHeader")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestHeaderAction_STATUS() to populate field ModifyRequestHeader")
 		}
 		destination.ModifyRequestHeader = &modifyRequestHeader
 	} else {
@@ -1245,7 +4348,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var modifyResponseHeader storage.DeliveryRuleResponseHeaderAction_STATUS
 		err := action.ModifyResponseHeader.AssignProperties_To_DeliveryRuleResponseHeaderAction_STATUS(&modifyResponseHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleResponseHeaderAction_STATUS() to populate field ModifyResponseHeader")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleResponseHeaderAction_STATUS() to populate field ModifyResponseHeader")
 		}
 		destination.ModifyResponseHeader = &modifyResponseHeader
 	} else {
@@ -1257,7 +4360,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var originGroupOverride storage.OriginGroupOverrideAction_STATUS
 		err := action.OriginGroupOverride.AssignProperties_To_OriginGroupOverrideAction_STATUS(&originGroupOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_OriginGroupOverrideAction_STATUS() to populate field OriginGroupOverride")
+			return eris.Wrap(err, "calling AssignProperties_To_OriginGroupOverrideAction_STATUS() to populate field OriginGroupOverride")
 		}
 		destination.OriginGroupOverride = &originGroupOverride
 	} else {
@@ -1269,7 +4372,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var routeConfigurationOverride storage.DeliveryRuleRouteConfigurationOverrideAction_STATUS
 		err := action.RouteConfigurationOverride.AssignProperties_To_DeliveryRuleRouteConfigurationOverrideAction_STATUS(&routeConfigurationOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRouteConfigurationOverrideAction_STATUS() to populate field RouteConfigurationOverride")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRouteConfigurationOverrideAction_STATUS() to populate field RouteConfigurationOverride")
 		}
 		destination.RouteConfigurationOverride = &routeConfigurationOverride
 	} else {
@@ -1281,7 +4384,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var urlRedirect storage.UrlRedirectAction_STATUS
 		err := action.UrlRedirect.AssignProperties_To_UrlRedirectAction_STATUS(&urlRedirect)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlRedirectAction_STATUS() to populate field UrlRedirect")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlRedirectAction_STATUS() to populate field UrlRedirect")
 		}
 		destination.UrlRedirect = &urlRedirect
 	} else {
@@ -1293,7 +4396,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var urlRewrite storage.UrlRewriteAction_STATUS
 		err := action.UrlRewrite.AssignProperties_To_UrlRewriteAction_STATUS(&urlRewrite)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlRewriteAction_STATUS() to populate field UrlRewrite")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlRewriteAction_STATUS() to populate field UrlRewrite")
 		}
 		destination.UrlRewrite = &urlRewrite
 	} else {
@@ -1305,7 +4408,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 		var urlSigning storage.UrlSigningAction_STATUS
 		err := action.UrlSigning.AssignProperties_To_UrlSigningAction_STATUS(&urlSigning)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlSigningAction_STATUS() to populate field UrlSigning")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlSigningAction_STATUS() to populate field UrlSigning")
 		}
 		destination.UrlSigning = &urlSigning
 	} else {
@@ -1324,7 +4427,7 @@ func (action *DeliveryRuleAction_STATUS) AssignProperties_To_DeliveryRuleAction_
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1367,7 +4470,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var clientPort DeliveryRuleClientPortCondition
 		err := clientPort.AssignProperties_From_DeliveryRuleClientPortCondition(source.ClientPort)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleClientPortCondition() to populate field ClientPort")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleClientPortCondition() to populate field ClientPort")
 		}
 		condition.ClientPort = &clientPort
 	} else {
@@ -1379,7 +4482,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var cookie DeliveryRuleCookiesCondition
 		err := cookie.AssignProperties_From_DeliveryRuleCookiesCondition(source.Cookies)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleCookiesCondition() to populate field Cookies")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleCookiesCondition() to populate field Cookies")
 		}
 		condition.Cookies = &cookie
 	} else {
@@ -1391,7 +4494,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var hostName DeliveryRuleHostNameCondition
 		err := hostName.AssignProperties_From_DeliveryRuleHostNameCondition(source.HostName)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleHostNameCondition() to populate field HostName")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleHostNameCondition() to populate field HostName")
 		}
 		condition.HostName = &hostName
 	} else {
@@ -1403,7 +4506,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var httpVersion DeliveryRuleHttpVersionCondition
 		err := httpVersion.AssignProperties_From_DeliveryRuleHttpVersionCondition(source.HttpVersion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleHttpVersionCondition() to populate field HttpVersion")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleHttpVersionCondition() to populate field HttpVersion")
 		}
 		condition.HttpVersion = &httpVersion
 	} else {
@@ -1415,7 +4518,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var isDevice DeliveryRuleIsDeviceCondition
 		err := isDevice.AssignProperties_From_DeliveryRuleIsDeviceCondition(source.IsDevice)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleIsDeviceCondition() to populate field IsDevice")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleIsDeviceCondition() to populate field IsDevice")
 		}
 		condition.IsDevice = &isDevice
 	} else {
@@ -1427,7 +4530,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var postArg DeliveryRulePostArgsCondition
 		err := postArg.AssignProperties_From_DeliveryRulePostArgsCondition(source.PostArgs)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRulePostArgsCondition() to populate field PostArgs")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRulePostArgsCondition() to populate field PostArgs")
 		}
 		condition.PostArgs = &postArg
 	} else {
@@ -1439,7 +4542,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var queryString DeliveryRuleQueryStringCondition
 		err := queryString.AssignProperties_From_DeliveryRuleQueryStringCondition(source.QueryString)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleQueryStringCondition() to populate field QueryString")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleQueryStringCondition() to populate field QueryString")
 		}
 		condition.QueryString = &queryString
 	} else {
@@ -1451,7 +4554,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var remoteAddress DeliveryRuleRemoteAddressCondition
 		err := remoteAddress.AssignProperties_From_DeliveryRuleRemoteAddressCondition(source.RemoteAddress)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRemoteAddressCondition() to populate field RemoteAddress")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRemoteAddressCondition() to populate field RemoteAddress")
 		}
 		condition.RemoteAddress = &remoteAddress
 	} else {
@@ -1463,7 +4566,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var requestBody DeliveryRuleRequestBodyCondition
 		err := requestBody.AssignProperties_From_DeliveryRuleRequestBodyCondition(source.RequestBody)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestBodyCondition() to populate field RequestBody")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestBodyCondition() to populate field RequestBody")
 		}
 		condition.RequestBody = &requestBody
 	} else {
@@ -1475,7 +4578,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var requestHeader DeliveryRuleRequestHeaderCondition
 		err := requestHeader.AssignProperties_From_DeliveryRuleRequestHeaderCondition(source.RequestHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestHeaderCondition() to populate field RequestHeader")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestHeaderCondition() to populate field RequestHeader")
 		}
 		condition.RequestHeader = &requestHeader
 	} else {
@@ -1487,7 +4590,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var requestMethod DeliveryRuleRequestMethodCondition
 		err := requestMethod.AssignProperties_From_DeliveryRuleRequestMethodCondition(source.RequestMethod)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestMethodCondition() to populate field RequestMethod")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestMethodCondition() to populate field RequestMethod")
 		}
 		condition.RequestMethod = &requestMethod
 	} else {
@@ -1499,7 +4602,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var requestScheme DeliveryRuleRequestSchemeCondition
 		err := requestScheme.AssignProperties_From_DeliveryRuleRequestSchemeCondition(source.RequestScheme)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestSchemeCondition() to populate field RequestScheme")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestSchemeCondition() to populate field RequestScheme")
 		}
 		condition.RequestScheme = &requestScheme
 	} else {
@@ -1511,7 +4614,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var requestUri DeliveryRuleRequestUriCondition
 		err := requestUri.AssignProperties_From_DeliveryRuleRequestUriCondition(source.RequestUri)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestUriCondition() to populate field RequestUri")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestUriCondition() to populate field RequestUri")
 		}
 		condition.RequestUri = &requestUri
 	} else {
@@ -1523,7 +4626,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var serverPort DeliveryRuleServerPortCondition
 		err := serverPort.AssignProperties_From_DeliveryRuleServerPortCondition(source.ServerPort)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleServerPortCondition() to populate field ServerPort")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleServerPortCondition() to populate field ServerPort")
 		}
 		condition.ServerPort = &serverPort
 	} else {
@@ -1535,7 +4638,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var socketAddr DeliveryRuleSocketAddrCondition
 		err := socketAddr.AssignProperties_From_DeliveryRuleSocketAddrCondition(source.SocketAddr)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleSocketAddrCondition() to populate field SocketAddr")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleSocketAddrCondition() to populate field SocketAddr")
 		}
 		condition.SocketAddr = &socketAddr
 	} else {
@@ -1547,7 +4650,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var sslProtocol DeliveryRuleSslProtocolCondition
 		err := sslProtocol.AssignProperties_From_DeliveryRuleSslProtocolCondition(source.SslProtocol)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleSslProtocolCondition() to populate field SslProtocol")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleSslProtocolCondition() to populate field SslProtocol")
 		}
 		condition.SslProtocol = &sslProtocol
 	} else {
@@ -1559,7 +4662,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var urlFileExtension DeliveryRuleUrlFileExtensionCondition
 		err := urlFileExtension.AssignProperties_From_DeliveryRuleUrlFileExtensionCondition(source.UrlFileExtension)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlFileExtensionCondition() to populate field UrlFileExtension")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlFileExtensionCondition() to populate field UrlFileExtension")
 		}
 		condition.UrlFileExtension = &urlFileExtension
 	} else {
@@ -1571,7 +4674,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var urlFileName DeliveryRuleUrlFileNameCondition
 		err := urlFileName.AssignProperties_From_DeliveryRuleUrlFileNameCondition(source.UrlFileName)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlFileNameCondition() to populate field UrlFileName")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlFileNameCondition() to populate field UrlFileName")
 		}
 		condition.UrlFileName = &urlFileName
 	} else {
@@ -1583,7 +4686,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 		var urlPath DeliveryRuleUrlPathCondition
 		err := urlPath.AssignProperties_From_DeliveryRuleUrlPathCondition(source.UrlPath)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlPathCondition() to populate field UrlPath")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlPathCondition() to populate field UrlPath")
 		}
 		condition.UrlPath = &urlPath
 	} else {
@@ -1602,7 +4705,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_From_DeliveryRuleCondit
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1620,7 +4723,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var clientPort storage.DeliveryRuleClientPortCondition
 		err := condition.ClientPort.AssignProperties_To_DeliveryRuleClientPortCondition(&clientPort)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleClientPortCondition() to populate field ClientPort")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleClientPortCondition() to populate field ClientPort")
 		}
 		destination.ClientPort = &clientPort
 	} else {
@@ -1632,7 +4735,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var cookie storage.DeliveryRuleCookiesCondition
 		err := condition.Cookies.AssignProperties_To_DeliveryRuleCookiesCondition(&cookie)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleCookiesCondition() to populate field Cookies")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleCookiesCondition() to populate field Cookies")
 		}
 		destination.Cookies = &cookie
 	} else {
@@ -1644,7 +4747,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var hostName storage.DeliveryRuleHostNameCondition
 		err := condition.HostName.AssignProperties_To_DeliveryRuleHostNameCondition(&hostName)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleHostNameCondition() to populate field HostName")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleHostNameCondition() to populate field HostName")
 		}
 		destination.HostName = &hostName
 	} else {
@@ -1656,7 +4759,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var httpVersion storage.DeliveryRuleHttpVersionCondition
 		err := condition.HttpVersion.AssignProperties_To_DeliveryRuleHttpVersionCondition(&httpVersion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleHttpVersionCondition() to populate field HttpVersion")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleHttpVersionCondition() to populate field HttpVersion")
 		}
 		destination.HttpVersion = &httpVersion
 	} else {
@@ -1668,7 +4771,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var isDevice storage.DeliveryRuleIsDeviceCondition
 		err := condition.IsDevice.AssignProperties_To_DeliveryRuleIsDeviceCondition(&isDevice)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleIsDeviceCondition() to populate field IsDevice")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleIsDeviceCondition() to populate field IsDevice")
 		}
 		destination.IsDevice = &isDevice
 	} else {
@@ -1680,7 +4783,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var postArg storage.DeliveryRulePostArgsCondition
 		err := condition.PostArgs.AssignProperties_To_DeliveryRulePostArgsCondition(&postArg)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRulePostArgsCondition() to populate field PostArgs")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRulePostArgsCondition() to populate field PostArgs")
 		}
 		destination.PostArgs = &postArg
 	} else {
@@ -1692,7 +4795,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var queryString storage.DeliveryRuleQueryStringCondition
 		err := condition.QueryString.AssignProperties_To_DeliveryRuleQueryStringCondition(&queryString)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleQueryStringCondition() to populate field QueryString")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleQueryStringCondition() to populate field QueryString")
 		}
 		destination.QueryString = &queryString
 	} else {
@@ -1704,7 +4807,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var remoteAddress storage.DeliveryRuleRemoteAddressCondition
 		err := condition.RemoteAddress.AssignProperties_To_DeliveryRuleRemoteAddressCondition(&remoteAddress)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRemoteAddressCondition() to populate field RemoteAddress")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRemoteAddressCondition() to populate field RemoteAddress")
 		}
 		destination.RemoteAddress = &remoteAddress
 	} else {
@@ -1716,7 +4819,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var requestBody storage.DeliveryRuleRequestBodyCondition
 		err := condition.RequestBody.AssignProperties_To_DeliveryRuleRequestBodyCondition(&requestBody)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestBodyCondition() to populate field RequestBody")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestBodyCondition() to populate field RequestBody")
 		}
 		destination.RequestBody = &requestBody
 	} else {
@@ -1728,7 +4831,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var requestHeader storage.DeliveryRuleRequestHeaderCondition
 		err := condition.RequestHeader.AssignProperties_To_DeliveryRuleRequestHeaderCondition(&requestHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestHeaderCondition() to populate field RequestHeader")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestHeaderCondition() to populate field RequestHeader")
 		}
 		destination.RequestHeader = &requestHeader
 	} else {
@@ -1740,7 +4843,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var requestMethod storage.DeliveryRuleRequestMethodCondition
 		err := condition.RequestMethod.AssignProperties_To_DeliveryRuleRequestMethodCondition(&requestMethod)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestMethodCondition() to populate field RequestMethod")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestMethodCondition() to populate field RequestMethod")
 		}
 		destination.RequestMethod = &requestMethod
 	} else {
@@ -1752,7 +4855,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var requestScheme storage.DeliveryRuleRequestSchemeCondition
 		err := condition.RequestScheme.AssignProperties_To_DeliveryRuleRequestSchemeCondition(&requestScheme)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestSchemeCondition() to populate field RequestScheme")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestSchemeCondition() to populate field RequestScheme")
 		}
 		destination.RequestScheme = &requestScheme
 	} else {
@@ -1764,7 +4867,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var requestUri storage.DeliveryRuleRequestUriCondition
 		err := condition.RequestUri.AssignProperties_To_DeliveryRuleRequestUriCondition(&requestUri)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestUriCondition() to populate field RequestUri")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestUriCondition() to populate field RequestUri")
 		}
 		destination.RequestUri = &requestUri
 	} else {
@@ -1776,7 +4879,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var serverPort storage.DeliveryRuleServerPortCondition
 		err := condition.ServerPort.AssignProperties_To_DeliveryRuleServerPortCondition(&serverPort)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleServerPortCondition() to populate field ServerPort")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleServerPortCondition() to populate field ServerPort")
 		}
 		destination.ServerPort = &serverPort
 	} else {
@@ -1788,7 +4891,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var socketAddr storage.DeliveryRuleSocketAddrCondition
 		err := condition.SocketAddr.AssignProperties_To_DeliveryRuleSocketAddrCondition(&socketAddr)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleSocketAddrCondition() to populate field SocketAddr")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleSocketAddrCondition() to populate field SocketAddr")
 		}
 		destination.SocketAddr = &socketAddr
 	} else {
@@ -1800,7 +4903,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var sslProtocol storage.DeliveryRuleSslProtocolCondition
 		err := condition.SslProtocol.AssignProperties_To_DeliveryRuleSslProtocolCondition(&sslProtocol)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleSslProtocolCondition() to populate field SslProtocol")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleSslProtocolCondition() to populate field SslProtocol")
 		}
 		destination.SslProtocol = &sslProtocol
 	} else {
@@ -1812,7 +4915,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var urlFileExtension storage.DeliveryRuleUrlFileExtensionCondition
 		err := condition.UrlFileExtension.AssignProperties_To_DeliveryRuleUrlFileExtensionCondition(&urlFileExtension)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlFileExtensionCondition() to populate field UrlFileExtension")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlFileExtensionCondition() to populate field UrlFileExtension")
 		}
 		destination.UrlFileExtension = &urlFileExtension
 	} else {
@@ -1824,7 +4927,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var urlFileName storage.DeliveryRuleUrlFileNameCondition
 		err := condition.UrlFileName.AssignProperties_To_DeliveryRuleUrlFileNameCondition(&urlFileName)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlFileNameCondition() to populate field UrlFileName")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlFileNameCondition() to populate field UrlFileName")
 		}
 		destination.UrlFileName = &urlFileName
 	} else {
@@ -1836,7 +4939,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 		var urlPath storage.DeliveryRuleUrlPathCondition
 		err := condition.UrlPath.AssignProperties_To_DeliveryRuleUrlPathCondition(&urlPath)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlPathCondition() to populate field UrlPath")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlPathCondition() to populate field UrlPath")
 		}
 		destination.UrlPath = &urlPath
 	} else {
@@ -1855,7 +4958,7 @@ func (condition *DeliveryRuleCondition) AssignProperties_To_DeliveryRuleConditio
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1898,7 +5001,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var clientPort DeliveryRuleClientPortCondition_STATUS
 		err := clientPort.AssignProperties_From_DeliveryRuleClientPortCondition_STATUS(source.ClientPort)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleClientPortCondition_STATUS() to populate field ClientPort")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleClientPortCondition_STATUS() to populate field ClientPort")
 		}
 		condition.ClientPort = &clientPort
 	} else {
@@ -1910,7 +5013,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var cookie DeliveryRuleCookiesCondition_STATUS
 		err := cookie.AssignProperties_From_DeliveryRuleCookiesCondition_STATUS(source.Cookies)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleCookiesCondition_STATUS() to populate field Cookies")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleCookiesCondition_STATUS() to populate field Cookies")
 		}
 		condition.Cookies = &cookie
 	} else {
@@ -1922,7 +5025,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var hostName DeliveryRuleHostNameCondition_STATUS
 		err := hostName.AssignProperties_From_DeliveryRuleHostNameCondition_STATUS(source.HostName)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleHostNameCondition_STATUS() to populate field HostName")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleHostNameCondition_STATUS() to populate field HostName")
 		}
 		condition.HostName = &hostName
 	} else {
@@ -1934,7 +5037,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var httpVersion DeliveryRuleHttpVersionCondition_STATUS
 		err := httpVersion.AssignProperties_From_DeliveryRuleHttpVersionCondition_STATUS(source.HttpVersion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleHttpVersionCondition_STATUS() to populate field HttpVersion")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleHttpVersionCondition_STATUS() to populate field HttpVersion")
 		}
 		condition.HttpVersion = &httpVersion
 	} else {
@@ -1946,7 +5049,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var isDevice DeliveryRuleIsDeviceCondition_STATUS
 		err := isDevice.AssignProperties_From_DeliveryRuleIsDeviceCondition_STATUS(source.IsDevice)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleIsDeviceCondition_STATUS() to populate field IsDevice")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleIsDeviceCondition_STATUS() to populate field IsDevice")
 		}
 		condition.IsDevice = &isDevice
 	} else {
@@ -1958,7 +5061,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var postArg DeliveryRulePostArgsCondition_STATUS
 		err := postArg.AssignProperties_From_DeliveryRulePostArgsCondition_STATUS(source.PostArgs)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRulePostArgsCondition_STATUS() to populate field PostArgs")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRulePostArgsCondition_STATUS() to populate field PostArgs")
 		}
 		condition.PostArgs = &postArg
 	} else {
@@ -1970,7 +5073,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var queryString DeliveryRuleQueryStringCondition_STATUS
 		err := queryString.AssignProperties_From_DeliveryRuleQueryStringCondition_STATUS(source.QueryString)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleQueryStringCondition_STATUS() to populate field QueryString")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleQueryStringCondition_STATUS() to populate field QueryString")
 		}
 		condition.QueryString = &queryString
 	} else {
@@ -1982,7 +5085,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var remoteAddress DeliveryRuleRemoteAddressCondition_STATUS
 		err := remoteAddress.AssignProperties_From_DeliveryRuleRemoteAddressCondition_STATUS(source.RemoteAddress)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRemoteAddressCondition_STATUS() to populate field RemoteAddress")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRemoteAddressCondition_STATUS() to populate field RemoteAddress")
 		}
 		condition.RemoteAddress = &remoteAddress
 	} else {
@@ -1994,7 +5097,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var requestBody DeliveryRuleRequestBodyCondition_STATUS
 		err := requestBody.AssignProperties_From_DeliveryRuleRequestBodyCondition_STATUS(source.RequestBody)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestBodyCondition_STATUS() to populate field RequestBody")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestBodyCondition_STATUS() to populate field RequestBody")
 		}
 		condition.RequestBody = &requestBody
 	} else {
@@ -2006,7 +5109,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var requestHeader DeliveryRuleRequestHeaderCondition_STATUS
 		err := requestHeader.AssignProperties_From_DeliveryRuleRequestHeaderCondition_STATUS(source.RequestHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestHeaderCondition_STATUS() to populate field RequestHeader")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestHeaderCondition_STATUS() to populate field RequestHeader")
 		}
 		condition.RequestHeader = &requestHeader
 	} else {
@@ -2018,7 +5121,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var requestMethod DeliveryRuleRequestMethodCondition_STATUS
 		err := requestMethod.AssignProperties_From_DeliveryRuleRequestMethodCondition_STATUS(source.RequestMethod)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestMethodCondition_STATUS() to populate field RequestMethod")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestMethodCondition_STATUS() to populate field RequestMethod")
 		}
 		condition.RequestMethod = &requestMethod
 	} else {
@@ -2030,7 +5133,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var requestScheme DeliveryRuleRequestSchemeCondition_STATUS
 		err := requestScheme.AssignProperties_From_DeliveryRuleRequestSchemeCondition_STATUS(source.RequestScheme)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestSchemeCondition_STATUS() to populate field RequestScheme")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestSchemeCondition_STATUS() to populate field RequestScheme")
 		}
 		condition.RequestScheme = &requestScheme
 	} else {
@@ -2042,7 +5145,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var requestUri DeliveryRuleRequestUriCondition_STATUS
 		err := requestUri.AssignProperties_From_DeliveryRuleRequestUriCondition_STATUS(source.RequestUri)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestUriCondition_STATUS() to populate field RequestUri")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleRequestUriCondition_STATUS() to populate field RequestUri")
 		}
 		condition.RequestUri = &requestUri
 	} else {
@@ -2054,7 +5157,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var serverPort DeliveryRuleServerPortCondition_STATUS
 		err := serverPort.AssignProperties_From_DeliveryRuleServerPortCondition_STATUS(source.ServerPort)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleServerPortCondition_STATUS() to populate field ServerPort")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleServerPortCondition_STATUS() to populate field ServerPort")
 		}
 		condition.ServerPort = &serverPort
 	} else {
@@ -2066,7 +5169,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var socketAddr DeliveryRuleSocketAddrCondition_STATUS
 		err := socketAddr.AssignProperties_From_DeliveryRuleSocketAddrCondition_STATUS(source.SocketAddr)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleSocketAddrCondition_STATUS() to populate field SocketAddr")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleSocketAddrCondition_STATUS() to populate field SocketAddr")
 		}
 		condition.SocketAddr = &socketAddr
 	} else {
@@ -2078,7 +5181,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var sslProtocol DeliveryRuleSslProtocolCondition_STATUS
 		err := sslProtocol.AssignProperties_From_DeliveryRuleSslProtocolCondition_STATUS(source.SslProtocol)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleSslProtocolCondition_STATUS() to populate field SslProtocol")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleSslProtocolCondition_STATUS() to populate field SslProtocol")
 		}
 		condition.SslProtocol = &sslProtocol
 	} else {
@@ -2090,7 +5193,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var urlFileExtension DeliveryRuleUrlFileExtensionCondition_STATUS
 		err := urlFileExtension.AssignProperties_From_DeliveryRuleUrlFileExtensionCondition_STATUS(source.UrlFileExtension)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlFileExtensionCondition_STATUS() to populate field UrlFileExtension")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlFileExtensionCondition_STATUS() to populate field UrlFileExtension")
 		}
 		condition.UrlFileExtension = &urlFileExtension
 	} else {
@@ -2102,7 +5205,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var urlFileName DeliveryRuleUrlFileNameCondition_STATUS
 		err := urlFileName.AssignProperties_From_DeliveryRuleUrlFileNameCondition_STATUS(source.UrlFileName)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlFileNameCondition_STATUS() to populate field UrlFileName")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlFileNameCondition_STATUS() to populate field UrlFileName")
 		}
 		condition.UrlFileName = &urlFileName
 	} else {
@@ -2114,7 +5217,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 		var urlPath DeliveryRuleUrlPathCondition_STATUS
 		err := urlPath.AssignProperties_From_DeliveryRuleUrlPathCondition_STATUS(source.UrlPath)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlPathCondition_STATUS() to populate field UrlPath")
+			return eris.Wrap(err, "calling AssignProperties_From_DeliveryRuleUrlPathCondition_STATUS() to populate field UrlPath")
 		}
 		condition.UrlPath = &urlPath
 	} else {
@@ -2133,7 +5236,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_From_DeliveryRul
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2151,7 +5254,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var clientPort storage.DeliveryRuleClientPortCondition_STATUS
 		err := condition.ClientPort.AssignProperties_To_DeliveryRuleClientPortCondition_STATUS(&clientPort)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleClientPortCondition_STATUS() to populate field ClientPort")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleClientPortCondition_STATUS() to populate field ClientPort")
 		}
 		destination.ClientPort = &clientPort
 	} else {
@@ -2163,7 +5266,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var cookie storage.DeliveryRuleCookiesCondition_STATUS
 		err := condition.Cookies.AssignProperties_To_DeliveryRuleCookiesCondition_STATUS(&cookie)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleCookiesCondition_STATUS() to populate field Cookies")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleCookiesCondition_STATUS() to populate field Cookies")
 		}
 		destination.Cookies = &cookie
 	} else {
@@ -2175,7 +5278,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var hostName storage.DeliveryRuleHostNameCondition_STATUS
 		err := condition.HostName.AssignProperties_To_DeliveryRuleHostNameCondition_STATUS(&hostName)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleHostNameCondition_STATUS() to populate field HostName")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleHostNameCondition_STATUS() to populate field HostName")
 		}
 		destination.HostName = &hostName
 	} else {
@@ -2187,7 +5290,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var httpVersion storage.DeliveryRuleHttpVersionCondition_STATUS
 		err := condition.HttpVersion.AssignProperties_To_DeliveryRuleHttpVersionCondition_STATUS(&httpVersion)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleHttpVersionCondition_STATUS() to populate field HttpVersion")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleHttpVersionCondition_STATUS() to populate field HttpVersion")
 		}
 		destination.HttpVersion = &httpVersion
 	} else {
@@ -2199,7 +5302,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var isDevice storage.DeliveryRuleIsDeviceCondition_STATUS
 		err := condition.IsDevice.AssignProperties_To_DeliveryRuleIsDeviceCondition_STATUS(&isDevice)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleIsDeviceCondition_STATUS() to populate field IsDevice")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleIsDeviceCondition_STATUS() to populate field IsDevice")
 		}
 		destination.IsDevice = &isDevice
 	} else {
@@ -2211,7 +5314,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var postArg storage.DeliveryRulePostArgsCondition_STATUS
 		err := condition.PostArgs.AssignProperties_To_DeliveryRulePostArgsCondition_STATUS(&postArg)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRulePostArgsCondition_STATUS() to populate field PostArgs")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRulePostArgsCondition_STATUS() to populate field PostArgs")
 		}
 		destination.PostArgs = &postArg
 	} else {
@@ -2223,7 +5326,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var queryString storage.DeliveryRuleQueryStringCondition_STATUS
 		err := condition.QueryString.AssignProperties_To_DeliveryRuleQueryStringCondition_STATUS(&queryString)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleQueryStringCondition_STATUS() to populate field QueryString")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleQueryStringCondition_STATUS() to populate field QueryString")
 		}
 		destination.QueryString = &queryString
 	} else {
@@ -2235,7 +5338,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var remoteAddress storage.DeliveryRuleRemoteAddressCondition_STATUS
 		err := condition.RemoteAddress.AssignProperties_To_DeliveryRuleRemoteAddressCondition_STATUS(&remoteAddress)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRemoteAddressCondition_STATUS() to populate field RemoteAddress")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRemoteAddressCondition_STATUS() to populate field RemoteAddress")
 		}
 		destination.RemoteAddress = &remoteAddress
 	} else {
@@ -2247,7 +5350,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var requestBody storage.DeliveryRuleRequestBodyCondition_STATUS
 		err := condition.RequestBody.AssignProperties_To_DeliveryRuleRequestBodyCondition_STATUS(&requestBody)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestBodyCondition_STATUS() to populate field RequestBody")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestBodyCondition_STATUS() to populate field RequestBody")
 		}
 		destination.RequestBody = &requestBody
 	} else {
@@ -2259,7 +5362,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var requestHeader storage.DeliveryRuleRequestHeaderCondition_STATUS
 		err := condition.RequestHeader.AssignProperties_To_DeliveryRuleRequestHeaderCondition_STATUS(&requestHeader)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestHeaderCondition_STATUS() to populate field RequestHeader")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestHeaderCondition_STATUS() to populate field RequestHeader")
 		}
 		destination.RequestHeader = &requestHeader
 	} else {
@@ -2271,7 +5374,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var requestMethod storage.DeliveryRuleRequestMethodCondition_STATUS
 		err := condition.RequestMethod.AssignProperties_To_DeliveryRuleRequestMethodCondition_STATUS(&requestMethod)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestMethodCondition_STATUS() to populate field RequestMethod")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestMethodCondition_STATUS() to populate field RequestMethod")
 		}
 		destination.RequestMethod = &requestMethod
 	} else {
@@ -2283,7 +5386,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var requestScheme storage.DeliveryRuleRequestSchemeCondition_STATUS
 		err := condition.RequestScheme.AssignProperties_To_DeliveryRuleRequestSchemeCondition_STATUS(&requestScheme)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestSchemeCondition_STATUS() to populate field RequestScheme")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestSchemeCondition_STATUS() to populate field RequestScheme")
 		}
 		destination.RequestScheme = &requestScheme
 	} else {
@@ -2295,7 +5398,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var requestUri storage.DeliveryRuleRequestUriCondition_STATUS
 		err := condition.RequestUri.AssignProperties_To_DeliveryRuleRequestUriCondition_STATUS(&requestUri)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestUriCondition_STATUS() to populate field RequestUri")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleRequestUriCondition_STATUS() to populate field RequestUri")
 		}
 		destination.RequestUri = &requestUri
 	} else {
@@ -2307,7 +5410,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var serverPort storage.DeliveryRuleServerPortCondition_STATUS
 		err := condition.ServerPort.AssignProperties_To_DeliveryRuleServerPortCondition_STATUS(&serverPort)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleServerPortCondition_STATUS() to populate field ServerPort")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleServerPortCondition_STATUS() to populate field ServerPort")
 		}
 		destination.ServerPort = &serverPort
 	} else {
@@ -2319,7 +5422,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var socketAddr storage.DeliveryRuleSocketAddrCondition_STATUS
 		err := condition.SocketAddr.AssignProperties_To_DeliveryRuleSocketAddrCondition_STATUS(&socketAddr)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleSocketAddrCondition_STATUS() to populate field SocketAddr")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleSocketAddrCondition_STATUS() to populate field SocketAddr")
 		}
 		destination.SocketAddr = &socketAddr
 	} else {
@@ -2331,7 +5434,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var sslProtocol storage.DeliveryRuleSslProtocolCondition_STATUS
 		err := condition.SslProtocol.AssignProperties_To_DeliveryRuleSslProtocolCondition_STATUS(&sslProtocol)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleSslProtocolCondition_STATUS() to populate field SslProtocol")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleSslProtocolCondition_STATUS() to populate field SslProtocol")
 		}
 		destination.SslProtocol = &sslProtocol
 	} else {
@@ -2343,7 +5446,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var urlFileExtension storage.DeliveryRuleUrlFileExtensionCondition_STATUS
 		err := condition.UrlFileExtension.AssignProperties_To_DeliveryRuleUrlFileExtensionCondition_STATUS(&urlFileExtension)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlFileExtensionCondition_STATUS() to populate field UrlFileExtension")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlFileExtensionCondition_STATUS() to populate field UrlFileExtension")
 		}
 		destination.UrlFileExtension = &urlFileExtension
 	} else {
@@ -2355,7 +5458,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var urlFileName storage.DeliveryRuleUrlFileNameCondition_STATUS
 		err := condition.UrlFileName.AssignProperties_To_DeliveryRuleUrlFileNameCondition_STATUS(&urlFileName)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlFileNameCondition_STATUS() to populate field UrlFileName")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlFileNameCondition_STATUS() to populate field UrlFileName")
 		}
 		destination.UrlFileName = &urlFileName
 	} else {
@@ -2367,7 +5470,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 		var urlPath storage.DeliveryRuleUrlPathCondition_STATUS
 		err := condition.UrlPath.AssignProperties_To_DeliveryRuleUrlPathCondition_STATUS(&urlPath)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlPathCondition_STATUS() to populate field UrlPath")
+			return eris.Wrap(err, "calling AssignProperties_To_DeliveryRuleUrlPathCondition_STATUS() to populate field UrlPath")
 		}
 		destination.UrlPath = &urlPath
 	} else {
@@ -2386,7 +5489,7 @@ func (condition *DeliveryRuleCondition_STATUS) AssignProperties_To_DeliveryRuleC
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2402,12 +5505,136 @@ type HttpErrorRangeParameters struct {
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 }
 
+// AssignProperties_From_HttpErrorRangeParameters populates our HttpErrorRangeParameters from the provided source HttpErrorRangeParameters
+func (parameters *HttpErrorRangeParameters) AssignProperties_From_HttpErrorRangeParameters(source *storage.HttpErrorRangeParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Begin
+	parameters.Begin = genruntime.ClonePointerToInt(source.Begin)
+
+	// End
+	parameters.End = genruntime.ClonePointerToInt(source.End)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForHttpErrorRangeParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHttpErrorRangeParameters); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_HttpErrorRangeParameters populates the provided destination HttpErrorRangeParameters from our HttpErrorRangeParameters
+func (parameters *HttpErrorRangeParameters) AssignProperties_To_HttpErrorRangeParameters(destination *storage.HttpErrorRangeParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// Begin
+	destination.Begin = genruntime.ClonePointerToInt(parameters.Begin)
+
+	// End
+	destination.End = genruntime.ClonePointerToInt(parameters.End)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForHttpErrorRangeParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHttpErrorRangeParameters); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20210601.HttpErrorRangeParameters_STATUS
 // The JSON object that represents the range for http status codes
 type HttpErrorRangeParameters_STATUS struct {
 	Begin       *int                   `json:"begin,omitempty"`
 	End         *int                   `json:"end,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
+}
+
+// AssignProperties_From_HttpErrorRangeParameters_STATUS populates our HttpErrorRangeParameters_STATUS from the provided source HttpErrorRangeParameters_STATUS
+func (parameters *HttpErrorRangeParameters_STATUS) AssignProperties_From_HttpErrorRangeParameters_STATUS(source *storage.HttpErrorRangeParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Begin
+	parameters.Begin = genruntime.ClonePointerToInt(source.Begin)
+
+	// End
+	parameters.End = genruntime.ClonePointerToInt(source.End)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForHttpErrorRangeParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHttpErrorRangeParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_HttpErrorRangeParameters_STATUS populates the provided destination HttpErrorRangeParameters_STATUS from our HttpErrorRangeParameters_STATUS
+func (parameters *HttpErrorRangeParameters_STATUS) AssignProperties_To_HttpErrorRangeParameters_STATUS(destination *storage.HttpErrorRangeParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// Begin
+	destination.Begin = genruntime.ClonePointerToInt(parameters.Begin)
+
+	// End
+	destination.End = genruntime.ClonePointerToInt(parameters.End)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForHttpErrorRangeParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHttpErrorRangeParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 type augmentConversionForDeliveryRuleAction interface {
@@ -2430,6 +5657,16 @@ type augmentConversionForDeliveryRuleCondition_STATUS interface {
 	AssignPropertiesTo(dst *storage.DeliveryRuleCondition_STATUS) error
 }
 
+type augmentConversionForHttpErrorRangeParameters interface {
+	AssignPropertiesFrom(src *storage.HttpErrorRangeParameters) error
+	AssignPropertiesTo(dst *storage.HttpErrorRangeParameters) error
+}
+
+type augmentConversionForHttpErrorRangeParameters_STATUS interface {
+	AssignPropertiesFrom(src *storage.HttpErrorRangeParameters_STATUS) error
+	AssignPropertiesTo(dst *storage.HttpErrorRangeParameters_STATUS) error
+}
+
 // Storage version of v1api20210601.DeliveryRuleCacheExpirationAction
 type DeliveryRuleCacheExpirationAction struct {
 	Name        *string                          `json:"name,omitempty"`
@@ -2450,7 +5687,7 @@ func (action *DeliveryRuleCacheExpirationAction) AssignProperties_From_DeliveryR
 		var parameter CacheExpirationActionParameters
 		err := parameter.AssignProperties_From_CacheExpirationActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CacheExpirationActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_CacheExpirationActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -2469,7 +5706,7 @@ func (action *DeliveryRuleCacheExpirationAction) AssignProperties_From_DeliveryR
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleCacheExpirationAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2490,7 +5727,7 @@ func (action *DeliveryRuleCacheExpirationAction) AssignProperties_To_DeliveryRul
 		var parameter storage.CacheExpirationActionParameters
 		err := action.Parameters.AssignProperties_To_CacheExpirationActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CacheExpirationActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_CacheExpirationActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -2509,7 +5746,7 @@ func (action *DeliveryRuleCacheExpirationAction) AssignProperties_To_DeliveryRul
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleCacheExpirationAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2537,7 +5774,7 @@ func (action *DeliveryRuleCacheExpirationAction_STATUS) AssignProperties_From_De
 		var parameter CacheExpirationActionParameters_STATUS
 		err := parameter.AssignProperties_From_CacheExpirationActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CacheExpirationActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_CacheExpirationActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -2556,7 +5793,7 @@ func (action *DeliveryRuleCacheExpirationAction_STATUS) AssignProperties_From_De
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleCacheExpirationAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2577,7 +5814,7 @@ func (action *DeliveryRuleCacheExpirationAction_STATUS) AssignProperties_To_Deli
 		var parameter storage.CacheExpirationActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_CacheExpirationActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CacheExpirationActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_CacheExpirationActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -2596,7 +5833,7 @@ func (action *DeliveryRuleCacheExpirationAction_STATUS) AssignProperties_To_Deli
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleCacheExpirationAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2624,7 +5861,7 @@ func (action *DeliveryRuleCacheKeyQueryStringAction) AssignProperties_From_Deliv
 		var parameter CacheKeyQueryStringActionParameters
 		err := parameter.AssignProperties_From_CacheKeyQueryStringActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CacheKeyQueryStringActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_CacheKeyQueryStringActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -2643,7 +5880,7 @@ func (action *DeliveryRuleCacheKeyQueryStringAction) AssignProperties_From_Deliv
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleCacheKeyQueryStringAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2664,7 +5901,7 @@ func (action *DeliveryRuleCacheKeyQueryStringAction) AssignProperties_To_Deliver
 		var parameter storage.CacheKeyQueryStringActionParameters
 		err := action.Parameters.AssignProperties_To_CacheKeyQueryStringActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CacheKeyQueryStringActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_CacheKeyQueryStringActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -2683,7 +5920,7 @@ func (action *DeliveryRuleCacheKeyQueryStringAction) AssignProperties_To_Deliver
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleCacheKeyQueryStringAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2711,7 +5948,7 @@ func (action *DeliveryRuleCacheKeyQueryStringAction_STATUS) AssignProperties_Fro
 		var parameter CacheKeyQueryStringActionParameters_STATUS
 		err := parameter.AssignProperties_From_CacheKeyQueryStringActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CacheKeyQueryStringActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_CacheKeyQueryStringActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -2730,7 +5967,7 @@ func (action *DeliveryRuleCacheKeyQueryStringAction_STATUS) AssignProperties_Fro
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleCacheKeyQueryStringAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2751,7 +5988,7 @@ func (action *DeliveryRuleCacheKeyQueryStringAction_STATUS) AssignProperties_To_
 		var parameter storage.CacheKeyQueryStringActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_CacheKeyQueryStringActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CacheKeyQueryStringActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_CacheKeyQueryStringActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -2770,7 +6007,7 @@ func (action *DeliveryRuleCacheKeyQueryStringAction_STATUS) AssignProperties_To_
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleCacheKeyQueryStringAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2798,7 +6035,7 @@ func (condition *DeliveryRuleClientPortCondition) AssignProperties_From_Delivery
 		var parameter ClientPortMatchConditionParameters
 		err := parameter.AssignProperties_From_ClientPortMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ClientPortMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_ClientPortMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -2817,7 +6054,7 @@ func (condition *DeliveryRuleClientPortCondition) AssignProperties_From_Delivery
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleClientPortCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2838,7 +6075,7 @@ func (condition *DeliveryRuleClientPortCondition) AssignProperties_To_DeliveryRu
 		var parameter storage.ClientPortMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_ClientPortMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ClientPortMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_ClientPortMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -2857,7 +6094,7 @@ func (condition *DeliveryRuleClientPortCondition) AssignProperties_To_DeliveryRu
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleClientPortCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2885,7 +6122,7 @@ func (condition *DeliveryRuleClientPortCondition_STATUS) AssignProperties_From_D
 		var parameter ClientPortMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_ClientPortMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ClientPortMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_ClientPortMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -2904,7 +6141,7 @@ func (condition *DeliveryRuleClientPortCondition_STATUS) AssignProperties_From_D
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleClientPortCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2925,7 +6162,7 @@ func (condition *DeliveryRuleClientPortCondition_STATUS) AssignProperties_To_Del
 		var parameter storage.ClientPortMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_ClientPortMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ClientPortMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_ClientPortMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -2944,7 +6181,7 @@ func (condition *DeliveryRuleClientPortCondition_STATUS) AssignProperties_To_Del
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleClientPortCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2972,7 +6209,7 @@ func (condition *DeliveryRuleCookiesCondition) AssignProperties_From_DeliveryRul
 		var parameter CookiesMatchConditionParameters
 		err := parameter.AssignProperties_From_CookiesMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CookiesMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_CookiesMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -2991,7 +6228,7 @@ func (condition *DeliveryRuleCookiesCondition) AssignProperties_From_DeliveryRul
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleCookiesCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3012,7 +6249,7 @@ func (condition *DeliveryRuleCookiesCondition) AssignProperties_To_DeliveryRuleC
 		var parameter storage.CookiesMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_CookiesMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CookiesMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_CookiesMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3031,7 +6268,7 @@ func (condition *DeliveryRuleCookiesCondition) AssignProperties_To_DeliveryRuleC
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleCookiesCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3059,7 +6296,7 @@ func (condition *DeliveryRuleCookiesCondition_STATUS) AssignProperties_From_Deli
 		var parameter CookiesMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_CookiesMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CookiesMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_CookiesMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3078,7 +6315,7 @@ func (condition *DeliveryRuleCookiesCondition_STATUS) AssignProperties_From_Deli
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleCookiesCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3099,7 +6336,7 @@ func (condition *DeliveryRuleCookiesCondition_STATUS) AssignProperties_To_Delive
 		var parameter storage.CookiesMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_CookiesMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CookiesMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_CookiesMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3118,7 +6355,7 @@ func (condition *DeliveryRuleCookiesCondition_STATUS) AssignProperties_To_Delive
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleCookiesCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3146,7 +6383,7 @@ func (condition *DeliveryRuleHostNameCondition) AssignProperties_From_DeliveryRu
 		var parameter HostNameMatchConditionParameters
 		err := parameter.AssignProperties_From_HostNameMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HostNameMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_HostNameMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3165,7 +6402,7 @@ func (condition *DeliveryRuleHostNameCondition) AssignProperties_From_DeliveryRu
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleHostNameCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3186,7 +6423,7 @@ func (condition *DeliveryRuleHostNameCondition) AssignProperties_To_DeliveryRule
 		var parameter storage.HostNameMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_HostNameMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HostNameMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_HostNameMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3205,7 +6442,7 @@ func (condition *DeliveryRuleHostNameCondition) AssignProperties_To_DeliveryRule
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleHostNameCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3233,7 +6470,7 @@ func (condition *DeliveryRuleHostNameCondition_STATUS) AssignProperties_From_Del
 		var parameter HostNameMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_HostNameMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HostNameMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_HostNameMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3252,7 +6489,7 @@ func (condition *DeliveryRuleHostNameCondition_STATUS) AssignProperties_From_Del
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleHostNameCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3273,7 +6510,7 @@ func (condition *DeliveryRuleHostNameCondition_STATUS) AssignProperties_To_Deliv
 		var parameter storage.HostNameMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_HostNameMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HostNameMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_HostNameMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3292,7 +6529,7 @@ func (condition *DeliveryRuleHostNameCondition_STATUS) AssignProperties_To_Deliv
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleHostNameCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3320,7 +6557,7 @@ func (condition *DeliveryRuleHttpVersionCondition) AssignProperties_From_Deliver
 		var parameter HttpVersionMatchConditionParameters
 		err := parameter.AssignProperties_From_HttpVersionMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HttpVersionMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_HttpVersionMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3339,7 +6576,7 @@ func (condition *DeliveryRuleHttpVersionCondition) AssignProperties_From_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleHttpVersionCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3360,7 +6597,7 @@ func (condition *DeliveryRuleHttpVersionCondition) AssignProperties_To_DeliveryR
 		var parameter storage.HttpVersionMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_HttpVersionMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HttpVersionMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_HttpVersionMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3379,7 +6616,7 @@ func (condition *DeliveryRuleHttpVersionCondition) AssignProperties_To_DeliveryR
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleHttpVersionCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3407,7 +6644,7 @@ func (condition *DeliveryRuleHttpVersionCondition_STATUS) AssignProperties_From_
 		var parameter HttpVersionMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_HttpVersionMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HttpVersionMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_HttpVersionMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3426,7 +6663,7 @@ func (condition *DeliveryRuleHttpVersionCondition_STATUS) AssignProperties_From_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleHttpVersionCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3447,7 +6684,7 @@ func (condition *DeliveryRuleHttpVersionCondition_STATUS) AssignProperties_To_De
 		var parameter storage.HttpVersionMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_HttpVersionMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HttpVersionMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_HttpVersionMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3466,7 +6703,7 @@ func (condition *DeliveryRuleHttpVersionCondition_STATUS) AssignProperties_To_De
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleHttpVersionCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3494,7 +6731,7 @@ func (condition *DeliveryRuleIsDeviceCondition) AssignProperties_From_DeliveryRu
 		var parameter IsDeviceMatchConditionParameters
 		err := parameter.AssignProperties_From_IsDeviceMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_IsDeviceMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_IsDeviceMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3513,7 +6750,7 @@ func (condition *DeliveryRuleIsDeviceCondition) AssignProperties_From_DeliveryRu
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleIsDeviceCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3534,7 +6771,7 @@ func (condition *DeliveryRuleIsDeviceCondition) AssignProperties_To_DeliveryRule
 		var parameter storage.IsDeviceMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_IsDeviceMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_IsDeviceMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_IsDeviceMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3553,7 +6790,7 @@ func (condition *DeliveryRuleIsDeviceCondition) AssignProperties_To_DeliveryRule
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleIsDeviceCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3581,7 +6818,7 @@ func (condition *DeliveryRuleIsDeviceCondition_STATUS) AssignProperties_From_Del
 		var parameter IsDeviceMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_IsDeviceMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_IsDeviceMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_IsDeviceMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3600,7 +6837,7 @@ func (condition *DeliveryRuleIsDeviceCondition_STATUS) AssignProperties_From_Del
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleIsDeviceCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3621,7 +6858,7 @@ func (condition *DeliveryRuleIsDeviceCondition_STATUS) AssignProperties_To_Deliv
 		var parameter storage.IsDeviceMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_IsDeviceMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_IsDeviceMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_IsDeviceMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3640,7 +6877,7 @@ func (condition *DeliveryRuleIsDeviceCondition_STATUS) AssignProperties_To_Deliv
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleIsDeviceCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3668,7 +6905,7 @@ func (condition *DeliveryRulePostArgsCondition) AssignProperties_From_DeliveryRu
 		var parameter PostArgsMatchConditionParameters
 		err := parameter.AssignProperties_From_PostArgsMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_PostArgsMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_PostArgsMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3687,7 +6924,7 @@ func (condition *DeliveryRulePostArgsCondition) AssignProperties_From_DeliveryRu
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRulePostArgsCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3708,7 +6945,7 @@ func (condition *DeliveryRulePostArgsCondition) AssignProperties_To_DeliveryRule
 		var parameter storage.PostArgsMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_PostArgsMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_PostArgsMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_PostArgsMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3727,7 +6964,7 @@ func (condition *DeliveryRulePostArgsCondition) AssignProperties_To_DeliveryRule
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRulePostArgsCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3755,7 +6992,7 @@ func (condition *DeliveryRulePostArgsCondition_STATUS) AssignProperties_From_Del
 		var parameter PostArgsMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_PostArgsMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_PostArgsMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_PostArgsMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3774,7 +7011,7 @@ func (condition *DeliveryRulePostArgsCondition_STATUS) AssignProperties_From_Del
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRulePostArgsCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3795,7 +7032,7 @@ func (condition *DeliveryRulePostArgsCondition_STATUS) AssignProperties_To_Deliv
 		var parameter storage.PostArgsMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_PostArgsMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_PostArgsMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_PostArgsMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3814,7 +7051,7 @@ func (condition *DeliveryRulePostArgsCondition_STATUS) AssignProperties_To_Deliv
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRulePostArgsCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3842,7 +7079,7 @@ func (condition *DeliveryRuleQueryStringCondition) AssignProperties_From_Deliver
 		var parameter QueryStringMatchConditionParameters
 		err := parameter.AssignProperties_From_QueryStringMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_QueryStringMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_QueryStringMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3861,7 +7098,7 @@ func (condition *DeliveryRuleQueryStringCondition) AssignProperties_From_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleQueryStringCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3882,7 +7119,7 @@ func (condition *DeliveryRuleQueryStringCondition) AssignProperties_To_DeliveryR
 		var parameter storage.QueryStringMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_QueryStringMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_QueryStringMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_QueryStringMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3901,7 +7138,7 @@ func (condition *DeliveryRuleQueryStringCondition) AssignProperties_To_DeliveryR
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleQueryStringCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -3929,7 +7166,7 @@ func (condition *DeliveryRuleQueryStringCondition_STATUS) AssignProperties_From_
 		var parameter QueryStringMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_QueryStringMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_QueryStringMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_QueryStringMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -3948,7 +7185,7 @@ func (condition *DeliveryRuleQueryStringCondition_STATUS) AssignProperties_From_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleQueryStringCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -3969,7 +7206,7 @@ func (condition *DeliveryRuleQueryStringCondition_STATUS) AssignProperties_To_De
 		var parameter storage.QueryStringMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_QueryStringMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_QueryStringMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_QueryStringMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -3988,7 +7225,7 @@ func (condition *DeliveryRuleQueryStringCondition_STATUS) AssignProperties_To_De
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleQueryStringCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4016,7 +7253,7 @@ func (condition *DeliveryRuleRemoteAddressCondition) AssignProperties_From_Deliv
 		var parameter RemoteAddressMatchConditionParameters
 		err := parameter.AssignProperties_From_RemoteAddressMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RemoteAddressMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RemoteAddressMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4035,7 +7272,7 @@ func (condition *DeliveryRuleRemoteAddressCondition) AssignProperties_From_Deliv
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRemoteAddressCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4056,7 +7293,7 @@ func (condition *DeliveryRuleRemoteAddressCondition) AssignProperties_To_Deliver
 		var parameter storage.RemoteAddressMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_RemoteAddressMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RemoteAddressMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RemoteAddressMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4075,7 +7312,7 @@ func (condition *DeliveryRuleRemoteAddressCondition) AssignProperties_To_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRemoteAddressCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4103,7 +7340,7 @@ func (condition *DeliveryRuleRemoteAddressCondition_STATUS) AssignProperties_Fro
 		var parameter RemoteAddressMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_RemoteAddressMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RemoteAddressMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RemoteAddressMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4122,7 +7359,7 @@ func (condition *DeliveryRuleRemoteAddressCondition_STATUS) AssignProperties_Fro
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRemoteAddressCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4143,7 +7380,7 @@ func (condition *DeliveryRuleRemoteAddressCondition_STATUS) AssignProperties_To_
 		var parameter storage.RemoteAddressMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_RemoteAddressMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RemoteAddressMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RemoteAddressMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4162,7 +7399,7 @@ func (condition *DeliveryRuleRemoteAddressCondition_STATUS) AssignProperties_To_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRemoteAddressCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4190,7 +7427,7 @@ func (condition *DeliveryRuleRequestBodyCondition) AssignProperties_From_Deliver
 		var parameter RequestBodyMatchConditionParameters
 		err := parameter.AssignProperties_From_RequestBodyMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestBodyMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestBodyMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4209,7 +7446,7 @@ func (condition *DeliveryRuleRequestBodyCondition) AssignProperties_From_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestBodyCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4230,7 +7467,7 @@ func (condition *DeliveryRuleRequestBodyCondition) AssignProperties_To_DeliveryR
 		var parameter storage.RequestBodyMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_RequestBodyMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestBodyMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestBodyMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4249,7 +7486,7 @@ func (condition *DeliveryRuleRequestBodyCondition) AssignProperties_To_DeliveryR
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestBodyCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4277,7 +7514,7 @@ func (condition *DeliveryRuleRequestBodyCondition_STATUS) AssignProperties_From_
 		var parameter RequestBodyMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_RequestBodyMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestBodyMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestBodyMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4296,7 +7533,7 @@ func (condition *DeliveryRuleRequestBodyCondition_STATUS) AssignProperties_From_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestBodyCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4317,7 +7554,7 @@ func (condition *DeliveryRuleRequestBodyCondition_STATUS) AssignProperties_To_De
 		var parameter storage.RequestBodyMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_RequestBodyMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestBodyMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestBodyMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4336,7 +7573,7 @@ func (condition *DeliveryRuleRequestBodyCondition_STATUS) AssignProperties_To_De
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestBodyCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4364,7 +7601,7 @@ func (action *DeliveryRuleRequestHeaderAction) AssignProperties_From_DeliveryRul
 		var parameter HeaderActionParameters
 		err := parameter.AssignProperties_From_HeaderActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HeaderActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_HeaderActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -4383,7 +7620,7 @@ func (action *DeliveryRuleRequestHeaderAction) AssignProperties_From_DeliveryRul
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleRequestHeaderAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4404,7 +7641,7 @@ func (action *DeliveryRuleRequestHeaderAction) AssignProperties_To_DeliveryRuleR
 		var parameter storage.HeaderActionParameters
 		err := action.Parameters.AssignProperties_To_HeaderActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HeaderActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_HeaderActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4423,7 +7660,7 @@ func (action *DeliveryRuleRequestHeaderAction) AssignProperties_To_DeliveryRuleR
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleRequestHeaderAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4451,7 +7688,7 @@ func (action *DeliveryRuleRequestHeaderAction_STATUS) AssignProperties_From_Deli
 		var parameter HeaderActionParameters_STATUS
 		err := parameter.AssignProperties_From_HeaderActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HeaderActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_HeaderActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -4470,7 +7707,7 @@ func (action *DeliveryRuleRequestHeaderAction_STATUS) AssignProperties_From_Deli
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleRequestHeaderAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4491,7 +7728,7 @@ func (action *DeliveryRuleRequestHeaderAction_STATUS) AssignProperties_To_Delive
 		var parameter storage.HeaderActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_HeaderActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HeaderActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_HeaderActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4510,7 +7747,7 @@ func (action *DeliveryRuleRequestHeaderAction_STATUS) AssignProperties_To_Delive
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleRequestHeaderAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4538,7 +7775,7 @@ func (condition *DeliveryRuleRequestHeaderCondition) AssignProperties_From_Deliv
 		var parameter RequestHeaderMatchConditionParameters
 		err := parameter.AssignProperties_From_RequestHeaderMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestHeaderMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestHeaderMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4557,7 +7794,7 @@ func (condition *DeliveryRuleRequestHeaderCondition) AssignProperties_From_Deliv
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestHeaderCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4578,7 +7815,7 @@ func (condition *DeliveryRuleRequestHeaderCondition) AssignProperties_To_Deliver
 		var parameter storage.RequestHeaderMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_RequestHeaderMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestHeaderMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestHeaderMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4597,7 +7834,7 @@ func (condition *DeliveryRuleRequestHeaderCondition) AssignProperties_To_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestHeaderCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4625,7 +7862,7 @@ func (condition *DeliveryRuleRequestHeaderCondition_STATUS) AssignProperties_Fro
 		var parameter RequestHeaderMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_RequestHeaderMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestHeaderMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestHeaderMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4644,7 +7881,7 @@ func (condition *DeliveryRuleRequestHeaderCondition_STATUS) AssignProperties_Fro
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestHeaderCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4665,7 +7902,7 @@ func (condition *DeliveryRuleRequestHeaderCondition_STATUS) AssignProperties_To_
 		var parameter storage.RequestHeaderMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_RequestHeaderMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestHeaderMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestHeaderMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4684,7 +7921,7 @@ func (condition *DeliveryRuleRequestHeaderCondition_STATUS) AssignProperties_To_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestHeaderCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4712,7 +7949,7 @@ func (condition *DeliveryRuleRequestMethodCondition) AssignProperties_From_Deliv
 		var parameter RequestMethodMatchConditionParameters
 		err := parameter.AssignProperties_From_RequestMethodMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestMethodMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestMethodMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4731,7 +7968,7 @@ func (condition *DeliveryRuleRequestMethodCondition) AssignProperties_From_Deliv
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestMethodCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4752,7 +7989,7 @@ func (condition *DeliveryRuleRequestMethodCondition) AssignProperties_To_Deliver
 		var parameter storage.RequestMethodMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_RequestMethodMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestMethodMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestMethodMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4771,7 +8008,7 @@ func (condition *DeliveryRuleRequestMethodCondition) AssignProperties_To_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestMethodCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4799,7 +8036,7 @@ func (condition *DeliveryRuleRequestMethodCondition_STATUS) AssignProperties_Fro
 		var parameter RequestMethodMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_RequestMethodMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestMethodMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestMethodMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4818,7 +8055,7 @@ func (condition *DeliveryRuleRequestMethodCondition_STATUS) AssignProperties_Fro
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestMethodCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4839,7 +8076,7 @@ func (condition *DeliveryRuleRequestMethodCondition_STATUS) AssignProperties_To_
 		var parameter storage.RequestMethodMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_RequestMethodMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestMethodMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestMethodMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4858,7 +8095,7 @@ func (condition *DeliveryRuleRequestMethodCondition_STATUS) AssignProperties_To_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestMethodCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4886,7 +8123,7 @@ func (condition *DeliveryRuleRequestSchemeCondition) AssignProperties_From_Deliv
 		var parameter RequestSchemeMatchConditionParameters
 		err := parameter.AssignProperties_From_RequestSchemeMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestSchemeMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestSchemeMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4905,7 +8142,7 @@ func (condition *DeliveryRuleRequestSchemeCondition) AssignProperties_From_Deliv
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestSchemeCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -4926,7 +8163,7 @@ func (condition *DeliveryRuleRequestSchemeCondition) AssignProperties_To_Deliver
 		var parameter storage.RequestSchemeMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_RequestSchemeMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestSchemeMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestSchemeMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -4945,7 +8182,7 @@ func (condition *DeliveryRuleRequestSchemeCondition) AssignProperties_To_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestSchemeCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -4973,7 +8210,7 @@ func (condition *DeliveryRuleRequestSchemeCondition_STATUS) AssignProperties_Fro
 		var parameter RequestSchemeMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_RequestSchemeMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestSchemeMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestSchemeMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -4992,7 +8229,7 @@ func (condition *DeliveryRuleRequestSchemeCondition_STATUS) AssignProperties_Fro
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestSchemeCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5013,7 +8250,7 @@ func (condition *DeliveryRuleRequestSchemeCondition_STATUS) AssignProperties_To_
 		var parameter storage.RequestSchemeMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_RequestSchemeMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestSchemeMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestSchemeMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5032,7 +8269,7 @@ func (condition *DeliveryRuleRequestSchemeCondition_STATUS) AssignProperties_To_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestSchemeCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5060,7 +8297,7 @@ func (condition *DeliveryRuleRequestUriCondition) AssignProperties_From_Delivery
 		var parameter RequestUriMatchConditionParameters
 		err := parameter.AssignProperties_From_RequestUriMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestUriMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestUriMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -5079,7 +8316,7 @@ func (condition *DeliveryRuleRequestUriCondition) AssignProperties_From_Delivery
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestUriCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5100,7 +8337,7 @@ func (condition *DeliveryRuleRequestUriCondition) AssignProperties_To_DeliveryRu
 		var parameter storage.RequestUriMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_RequestUriMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestUriMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestUriMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5119,7 +8356,7 @@ func (condition *DeliveryRuleRequestUriCondition) AssignProperties_To_DeliveryRu
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestUriCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5147,7 +8384,7 @@ func (condition *DeliveryRuleRequestUriCondition_STATUS) AssignProperties_From_D
 		var parameter RequestUriMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_RequestUriMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RequestUriMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RequestUriMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -5166,7 +8403,7 @@ func (condition *DeliveryRuleRequestUriCondition_STATUS) AssignProperties_From_D
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestUriCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5187,7 +8424,7 @@ func (condition *DeliveryRuleRequestUriCondition_STATUS) AssignProperties_To_Del
 		var parameter storage.RequestUriMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_RequestUriMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RequestUriMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RequestUriMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5206,7 +8443,7 @@ func (condition *DeliveryRuleRequestUriCondition_STATUS) AssignProperties_To_Del
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleRequestUriCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5234,7 +8471,7 @@ func (action *DeliveryRuleResponseHeaderAction) AssignProperties_From_DeliveryRu
 		var parameter HeaderActionParameters
 		err := parameter.AssignProperties_From_HeaderActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HeaderActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_HeaderActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -5253,7 +8490,7 @@ func (action *DeliveryRuleResponseHeaderAction) AssignProperties_From_DeliveryRu
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleResponseHeaderAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5274,7 +8511,7 @@ func (action *DeliveryRuleResponseHeaderAction) AssignProperties_To_DeliveryRule
 		var parameter storage.HeaderActionParameters
 		err := action.Parameters.AssignProperties_To_HeaderActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HeaderActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_HeaderActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5293,7 +8530,7 @@ func (action *DeliveryRuleResponseHeaderAction) AssignProperties_To_DeliveryRule
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleResponseHeaderAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5321,7 +8558,7 @@ func (action *DeliveryRuleResponseHeaderAction_STATUS) AssignProperties_From_Del
 		var parameter HeaderActionParameters_STATUS
 		err := parameter.AssignProperties_From_HeaderActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HeaderActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_HeaderActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -5340,7 +8577,7 @@ func (action *DeliveryRuleResponseHeaderAction_STATUS) AssignProperties_From_Del
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleResponseHeaderAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5361,7 +8598,7 @@ func (action *DeliveryRuleResponseHeaderAction_STATUS) AssignProperties_To_Deliv
 		var parameter storage.HeaderActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_HeaderActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HeaderActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_HeaderActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5380,7 +8617,7 @@ func (action *DeliveryRuleResponseHeaderAction_STATUS) AssignProperties_To_Deliv
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleResponseHeaderAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5408,7 +8645,7 @@ func (action *DeliveryRuleRouteConfigurationOverrideAction) AssignProperties_Fro
 		var parameter RouteConfigurationOverrideActionParameters
 		err := parameter.AssignProperties_From_RouteConfigurationOverrideActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RouteConfigurationOverrideActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RouteConfigurationOverrideActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -5427,7 +8664,7 @@ func (action *DeliveryRuleRouteConfigurationOverrideAction) AssignProperties_Fro
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleRouteConfigurationOverrideAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5448,7 +8685,7 @@ func (action *DeliveryRuleRouteConfigurationOverrideAction) AssignProperties_To_
 		var parameter storage.RouteConfigurationOverrideActionParameters
 		err := action.Parameters.AssignProperties_To_RouteConfigurationOverrideActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RouteConfigurationOverrideActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RouteConfigurationOverrideActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5467,7 +8704,7 @@ func (action *DeliveryRuleRouteConfigurationOverrideAction) AssignProperties_To_
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleRouteConfigurationOverrideAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5495,7 +8732,7 @@ func (action *DeliveryRuleRouteConfigurationOverrideAction_STATUS) AssignPropert
 		var parameter RouteConfigurationOverrideActionParameters_STATUS
 		err := parameter.AssignProperties_From_RouteConfigurationOverrideActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_RouteConfigurationOverrideActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_RouteConfigurationOverrideActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -5514,7 +8751,7 @@ func (action *DeliveryRuleRouteConfigurationOverrideAction_STATUS) AssignPropert
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleRouteConfigurationOverrideAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5535,7 +8772,7 @@ func (action *DeliveryRuleRouteConfigurationOverrideAction_STATUS) AssignPropert
 		var parameter storage.RouteConfigurationOverrideActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_RouteConfigurationOverrideActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_RouteConfigurationOverrideActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_RouteConfigurationOverrideActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5554,7 +8791,7 @@ func (action *DeliveryRuleRouteConfigurationOverrideAction_STATUS) AssignPropert
 	if augmentedAction, ok := actionAsAny.(augmentConversionForDeliveryRuleRouteConfigurationOverrideAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5582,7 +8819,7 @@ func (condition *DeliveryRuleServerPortCondition) AssignProperties_From_Delivery
 		var parameter ServerPortMatchConditionParameters
 		err := parameter.AssignProperties_From_ServerPortMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ServerPortMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_ServerPortMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -5601,7 +8838,7 @@ func (condition *DeliveryRuleServerPortCondition) AssignProperties_From_Delivery
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleServerPortCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5622,7 +8859,7 @@ func (condition *DeliveryRuleServerPortCondition) AssignProperties_To_DeliveryRu
 		var parameter storage.ServerPortMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_ServerPortMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ServerPortMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_ServerPortMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5641,7 +8878,7 @@ func (condition *DeliveryRuleServerPortCondition) AssignProperties_To_DeliveryRu
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleServerPortCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5669,7 +8906,7 @@ func (condition *DeliveryRuleServerPortCondition_STATUS) AssignProperties_From_D
 		var parameter ServerPortMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_ServerPortMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ServerPortMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_ServerPortMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -5688,7 +8925,7 @@ func (condition *DeliveryRuleServerPortCondition_STATUS) AssignProperties_From_D
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleServerPortCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5709,7 +8946,7 @@ func (condition *DeliveryRuleServerPortCondition_STATUS) AssignProperties_To_Del
 		var parameter storage.ServerPortMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_ServerPortMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ServerPortMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_ServerPortMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5728,7 +8965,7 @@ func (condition *DeliveryRuleServerPortCondition_STATUS) AssignProperties_To_Del
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleServerPortCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5756,7 +8993,7 @@ func (condition *DeliveryRuleSocketAddrCondition) AssignProperties_From_Delivery
 		var parameter SocketAddrMatchConditionParameters
 		err := parameter.AssignProperties_From_SocketAddrMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SocketAddrMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_SocketAddrMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -5775,7 +9012,7 @@ func (condition *DeliveryRuleSocketAddrCondition) AssignProperties_From_Delivery
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleSocketAddrCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5796,7 +9033,7 @@ func (condition *DeliveryRuleSocketAddrCondition) AssignProperties_To_DeliveryRu
 		var parameter storage.SocketAddrMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_SocketAddrMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SocketAddrMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_SocketAddrMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5815,7 +9052,7 @@ func (condition *DeliveryRuleSocketAddrCondition) AssignProperties_To_DeliveryRu
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleSocketAddrCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5843,7 +9080,7 @@ func (condition *DeliveryRuleSocketAddrCondition_STATUS) AssignProperties_From_D
 		var parameter SocketAddrMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_SocketAddrMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SocketAddrMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_SocketAddrMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -5862,7 +9099,7 @@ func (condition *DeliveryRuleSocketAddrCondition_STATUS) AssignProperties_From_D
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleSocketAddrCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5883,7 +9120,7 @@ func (condition *DeliveryRuleSocketAddrCondition_STATUS) AssignProperties_To_Del
 		var parameter storage.SocketAddrMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_SocketAddrMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SocketAddrMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_SocketAddrMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5902,7 +9139,7 @@ func (condition *DeliveryRuleSocketAddrCondition_STATUS) AssignProperties_To_Del
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleSocketAddrCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -5930,7 +9167,7 @@ func (condition *DeliveryRuleSslProtocolCondition) AssignProperties_From_Deliver
 		var parameter SslProtocolMatchConditionParameters
 		err := parameter.AssignProperties_From_SslProtocolMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SslProtocolMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_SslProtocolMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -5949,7 +9186,7 @@ func (condition *DeliveryRuleSslProtocolCondition) AssignProperties_From_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleSslProtocolCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -5970,7 +9207,7 @@ func (condition *DeliveryRuleSslProtocolCondition) AssignProperties_To_DeliveryR
 		var parameter storage.SslProtocolMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_SslProtocolMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SslProtocolMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_SslProtocolMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -5989,7 +9226,7 @@ func (condition *DeliveryRuleSslProtocolCondition) AssignProperties_To_DeliveryR
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleSslProtocolCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6017,7 +9254,7 @@ func (condition *DeliveryRuleSslProtocolCondition_STATUS) AssignProperties_From_
 		var parameter SslProtocolMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_SslProtocolMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SslProtocolMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_SslProtocolMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -6036,7 +9273,7 @@ func (condition *DeliveryRuleSslProtocolCondition_STATUS) AssignProperties_From_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleSslProtocolCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6057,7 +9294,7 @@ func (condition *DeliveryRuleSslProtocolCondition_STATUS) AssignProperties_To_De
 		var parameter storage.SslProtocolMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_SslProtocolMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SslProtocolMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_SslProtocolMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6076,7 +9313,7 @@ func (condition *DeliveryRuleSslProtocolCondition_STATUS) AssignProperties_To_De
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleSslProtocolCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6104,7 +9341,7 @@ func (condition *DeliveryRuleUrlFileExtensionCondition) AssignProperties_From_De
 		var parameter UrlFileExtensionMatchConditionParameters
 		err := parameter.AssignProperties_From_UrlFileExtensionMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlFileExtensionMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlFileExtensionMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -6123,7 +9360,7 @@ func (condition *DeliveryRuleUrlFileExtensionCondition) AssignProperties_From_De
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlFileExtensionCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6144,7 +9381,7 @@ func (condition *DeliveryRuleUrlFileExtensionCondition) AssignProperties_To_Deli
 		var parameter storage.UrlFileExtensionMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_UrlFileExtensionMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlFileExtensionMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlFileExtensionMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6163,7 +9400,7 @@ func (condition *DeliveryRuleUrlFileExtensionCondition) AssignProperties_To_Deli
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlFileExtensionCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6191,7 +9428,7 @@ func (condition *DeliveryRuleUrlFileExtensionCondition_STATUS) AssignProperties_
 		var parameter UrlFileExtensionMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_UrlFileExtensionMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlFileExtensionMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlFileExtensionMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -6210,7 +9447,7 @@ func (condition *DeliveryRuleUrlFileExtensionCondition_STATUS) AssignProperties_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlFileExtensionCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6231,7 +9468,7 @@ func (condition *DeliveryRuleUrlFileExtensionCondition_STATUS) AssignProperties_
 		var parameter storage.UrlFileExtensionMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_UrlFileExtensionMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlFileExtensionMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlFileExtensionMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6250,7 +9487,7 @@ func (condition *DeliveryRuleUrlFileExtensionCondition_STATUS) AssignProperties_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlFileExtensionCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6278,7 +9515,7 @@ func (condition *DeliveryRuleUrlFileNameCondition) AssignProperties_From_Deliver
 		var parameter UrlFileNameMatchConditionParameters
 		err := parameter.AssignProperties_From_UrlFileNameMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlFileNameMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlFileNameMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -6297,7 +9534,7 @@ func (condition *DeliveryRuleUrlFileNameCondition) AssignProperties_From_Deliver
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlFileNameCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6318,7 +9555,7 @@ func (condition *DeliveryRuleUrlFileNameCondition) AssignProperties_To_DeliveryR
 		var parameter storage.UrlFileNameMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_UrlFileNameMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlFileNameMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlFileNameMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6337,7 +9574,7 @@ func (condition *DeliveryRuleUrlFileNameCondition) AssignProperties_To_DeliveryR
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlFileNameCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6365,7 +9602,7 @@ func (condition *DeliveryRuleUrlFileNameCondition_STATUS) AssignProperties_From_
 		var parameter UrlFileNameMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_UrlFileNameMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlFileNameMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlFileNameMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -6384,7 +9621,7 @@ func (condition *DeliveryRuleUrlFileNameCondition_STATUS) AssignProperties_From_
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlFileNameCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6405,7 +9642,7 @@ func (condition *DeliveryRuleUrlFileNameCondition_STATUS) AssignProperties_To_De
 		var parameter storage.UrlFileNameMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_UrlFileNameMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlFileNameMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlFileNameMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6424,7 +9661,7 @@ func (condition *DeliveryRuleUrlFileNameCondition_STATUS) AssignProperties_To_De
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlFileNameCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6452,7 +9689,7 @@ func (condition *DeliveryRuleUrlPathCondition) AssignProperties_From_DeliveryRul
 		var parameter UrlPathMatchConditionParameters
 		err := parameter.AssignProperties_From_UrlPathMatchConditionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlPathMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlPathMatchConditionParameters() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -6471,7 +9708,7 @@ func (condition *DeliveryRuleUrlPathCondition) AssignProperties_From_DeliveryRul
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlPathCondition); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6492,7 +9729,7 @@ func (condition *DeliveryRuleUrlPathCondition) AssignProperties_To_DeliveryRuleU
 		var parameter storage.UrlPathMatchConditionParameters
 		err := condition.Parameters.AssignProperties_To_UrlPathMatchConditionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlPathMatchConditionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlPathMatchConditionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6511,7 +9748,7 @@ func (condition *DeliveryRuleUrlPathCondition) AssignProperties_To_DeliveryRuleU
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlPathCondition); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6539,7 +9776,7 @@ func (condition *DeliveryRuleUrlPathCondition_STATUS) AssignProperties_From_Deli
 		var parameter UrlPathMatchConditionParameters_STATUS
 		err := parameter.AssignProperties_From_UrlPathMatchConditionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlPathMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlPathMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		condition.Parameters = &parameter
 	} else {
@@ -6558,7 +9795,7 @@ func (condition *DeliveryRuleUrlPathCondition_STATUS) AssignProperties_From_Deli
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlPathCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6579,7 +9816,7 @@ func (condition *DeliveryRuleUrlPathCondition_STATUS) AssignProperties_To_Delive
 		var parameter storage.UrlPathMatchConditionParameters_STATUS
 		err := condition.Parameters.AssignProperties_To_UrlPathMatchConditionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlPathMatchConditionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlPathMatchConditionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6598,7 +9835,7 @@ func (condition *DeliveryRuleUrlPathCondition_STATUS) AssignProperties_To_Delive
 	if augmentedCondition, ok := conditionAsAny.(augmentConversionForDeliveryRuleUrlPathCondition_STATUS); ok {
 		err := augmentedCondition.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6626,7 +9863,7 @@ func (action *OriginGroupOverrideAction) AssignProperties_From_OriginGroupOverri
 		var parameter OriginGroupOverrideActionParameters
 		err := parameter.AssignProperties_From_OriginGroupOverrideActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_OriginGroupOverrideActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_OriginGroupOverrideActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -6645,7 +9882,7 @@ func (action *OriginGroupOverrideAction) AssignProperties_From_OriginGroupOverri
 	if augmentedAction, ok := actionAsAny.(augmentConversionForOriginGroupOverrideAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6666,7 +9903,7 @@ func (action *OriginGroupOverrideAction) AssignProperties_To_OriginGroupOverride
 		var parameter storage.OriginGroupOverrideActionParameters
 		err := action.Parameters.AssignProperties_To_OriginGroupOverrideActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_OriginGroupOverrideActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_OriginGroupOverrideActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6685,7 +9922,7 @@ func (action *OriginGroupOverrideAction) AssignProperties_To_OriginGroupOverride
 	if augmentedAction, ok := actionAsAny.(augmentConversionForOriginGroupOverrideAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6713,7 +9950,7 @@ func (action *OriginGroupOverrideAction_STATUS) AssignProperties_From_OriginGrou
 		var parameter OriginGroupOverrideActionParameters_STATUS
 		err := parameter.AssignProperties_From_OriginGroupOverrideActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_OriginGroupOverrideActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_OriginGroupOverrideActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -6732,7 +9969,7 @@ func (action *OriginGroupOverrideAction_STATUS) AssignProperties_From_OriginGrou
 	if augmentedAction, ok := actionAsAny.(augmentConversionForOriginGroupOverrideAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6753,7 +9990,7 @@ func (action *OriginGroupOverrideAction_STATUS) AssignProperties_To_OriginGroupO
 		var parameter storage.OriginGroupOverrideActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_OriginGroupOverrideActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_OriginGroupOverrideActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_OriginGroupOverrideActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6772,7 +10009,7 @@ func (action *OriginGroupOverrideAction_STATUS) AssignProperties_To_OriginGroupO
 	if augmentedAction, ok := actionAsAny.(augmentConversionForOriginGroupOverrideAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6800,7 +10037,7 @@ func (action *UrlRedirectAction) AssignProperties_From_UrlRedirectAction(source 
 		var parameter UrlRedirectActionParameters
 		err := parameter.AssignProperties_From_UrlRedirectActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlRedirectActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlRedirectActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -6819,7 +10056,7 @@ func (action *UrlRedirectAction) AssignProperties_From_UrlRedirectAction(source 
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlRedirectAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6840,7 +10077,7 @@ func (action *UrlRedirectAction) AssignProperties_To_UrlRedirectAction(destinati
 		var parameter storage.UrlRedirectActionParameters
 		err := action.Parameters.AssignProperties_To_UrlRedirectActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlRedirectActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlRedirectActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6859,7 +10096,7 @@ func (action *UrlRedirectAction) AssignProperties_To_UrlRedirectAction(destinati
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlRedirectAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6887,7 +10124,7 @@ func (action *UrlRedirectAction_STATUS) AssignProperties_From_UrlRedirectAction_
 		var parameter UrlRedirectActionParameters_STATUS
 		err := parameter.AssignProperties_From_UrlRedirectActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlRedirectActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlRedirectActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -6906,7 +10143,7 @@ func (action *UrlRedirectAction_STATUS) AssignProperties_From_UrlRedirectAction_
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlRedirectAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -6927,7 +10164,7 @@ func (action *UrlRedirectAction_STATUS) AssignProperties_To_UrlRedirectAction_ST
 		var parameter storage.UrlRedirectActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_UrlRedirectActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlRedirectActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlRedirectActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -6946,7 +10183,7 @@ func (action *UrlRedirectAction_STATUS) AssignProperties_To_UrlRedirectAction_ST
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlRedirectAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -6974,7 +10211,7 @@ func (action *UrlRewriteAction) AssignProperties_From_UrlRewriteAction(source *s
 		var parameter UrlRewriteActionParameters
 		err := parameter.AssignProperties_From_UrlRewriteActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlRewriteActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlRewriteActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -6993,7 +10230,7 @@ func (action *UrlRewriteAction) AssignProperties_From_UrlRewriteAction(source *s
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlRewriteAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7014,7 +10251,7 @@ func (action *UrlRewriteAction) AssignProperties_To_UrlRewriteAction(destination
 		var parameter storage.UrlRewriteActionParameters
 		err := action.Parameters.AssignProperties_To_UrlRewriteActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlRewriteActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlRewriteActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -7033,7 +10270,7 @@ func (action *UrlRewriteAction) AssignProperties_To_UrlRewriteAction(destination
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlRewriteAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -7061,7 +10298,7 @@ func (action *UrlRewriteAction_STATUS) AssignProperties_From_UrlRewriteAction_ST
 		var parameter UrlRewriteActionParameters_STATUS
 		err := parameter.AssignProperties_From_UrlRewriteActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlRewriteActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlRewriteActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -7080,7 +10317,7 @@ func (action *UrlRewriteAction_STATUS) AssignProperties_From_UrlRewriteAction_ST
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlRewriteAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7101,7 +10338,7 @@ func (action *UrlRewriteAction_STATUS) AssignProperties_To_UrlRewriteAction_STAT
 		var parameter storage.UrlRewriteActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_UrlRewriteActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlRewriteActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlRewriteActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -7120,7 +10357,7 @@ func (action *UrlRewriteAction_STATUS) AssignProperties_To_UrlRewriteAction_STAT
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlRewriteAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -7148,7 +10385,7 @@ func (action *UrlSigningAction) AssignProperties_From_UrlSigningAction(source *s
 		var parameter UrlSigningActionParameters
 		err := parameter.AssignProperties_From_UrlSigningActionParameters(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlSigningActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlSigningActionParameters() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -7167,7 +10404,7 @@ func (action *UrlSigningAction) AssignProperties_From_UrlSigningAction(source *s
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlSigningAction); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7188,7 +10425,7 @@ func (action *UrlSigningAction) AssignProperties_To_UrlSigningAction(destination
 		var parameter storage.UrlSigningActionParameters
 		err := action.Parameters.AssignProperties_To_UrlSigningActionParameters(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlSigningActionParameters() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlSigningActionParameters() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -7207,7 +10444,7 @@ func (action *UrlSigningAction) AssignProperties_To_UrlSigningAction(destination
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlSigningAction); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -7235,7 +10472,7 @@ func (action *UrlSigningAction_STATUS) AssignProperties_From_UrlSigningAction_ST
 		var parameter UrlSigningActionParameters_STATUS
 		err := parameter.AssignProperties_From_UrlSigningActionParameters_STATUS(source.Parameters)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UrlSigningActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_From_UrlSigningActionParameters_STATUS() to populate field Parameters")
 		}
 		action.Parameters = &parameter
 	} else {
@@ -7254,7 +10491,7 @@ func (action *UrlSigningAction_STATUS) AssignProperties_From_UrlSigningAction_ST
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlSigningAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7275,7 +10512,7 @@ func (action *UrlSigningAction_STATUS) AssignProperties_To_UrlSigningAction_STAT
 		var parameter storage.UrlSigningActionParameters_STATUS
 		err := action.Parameters.AssignProperties_To_UrlSigningActionParameters_STATUS(&parameter)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UrlSigningActionParameters_STATUS() to populate field Parameters")
+			return eris.Wrap(err, "calling AssignProperties_To_UrlSigningActionParameters_STATUS() to populate field Parameters")
 		}
 		destination.Parameters = &parameter
 	} else {
@@ -7294,7 +10531,7 @@ func (action *UrlSigningAction_STATUS) AssignProperties_To_UrlSigningAction_STAT
 	if augmentedAction, ok := actionAsAny.(augmentConversionForUrlSigningAction_STATUS); ok {
 		err := augmentedAction.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -7621,7 +10858,7 @@ func (parameters *CacheExpirationActionParameters) AssignProperties_From_CacheEx
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCacheExpirationActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7658,7 +10895,7 @@ func (parameters *CacheExpirationActionParameters) AssignProperties_To_CacheExpi
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCacheExpirationActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -7705,7 +10942,7 @@ func (parameters *CacheExpirationActionParameters_STATUS) AssignProperties_From_
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCacheExpirationActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7742,7 +10979,7 @@ func (parameters *CacheExpirationActionParameters_STATUS) AssignProperties_To_Ca
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCacheExpirationActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -7785,7 +11022,7 @@ func (parameters *CacheKeyQueryStringActionParameters) AssignProperties_From_Cac
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCacheKeyQueryStringActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7819,7 +11056,7 @@ func (parameters *CacheKeyQueryStringActionParameters) AssignProperties_To_Cache
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCacheKeyQueryStringActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -7862,7 +11099,7 @@ func (parameters *CacheKeyQueryStringActionParameters_STATUS) AssignProperties_F
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCacheKeyQueryStringActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7896,7 +11133,7 @@ func (parameters *CacheKeyQueryStringActionParameters_STATUS) AssignProperties_T
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCacheKeyQueryStringActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -7952,7 +11189,7 @@ func (parameters *ClientPortMatchConditionParameters) AssignProperties_From_Clie
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForClientPortMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -7997,7 +11234,7 @@ func (parameters *ClientPortMatchConditionParameters) AssignProperties_To_Client
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForClientPortMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8053,7 +11290,7 @@ func (parameters *ClientPortMatchConditionParameters_STATUS) AssignProperties_Fr
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForClientPortMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8098,7 +11335,7 @@ func (parameters *ClientPortMatchConditionParameters_STATUS) AssignProperties_To
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForClientPortMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8158,7 +11395,7 @@ func (parameters *CookiesMatchConditionParameters) AssignProperties_From_Cookies
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCookiesMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8206,7 +11443,7 @@ func (parameters *CookiesMatchConditionParameters) AssignProperties_To_CookiesMa
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCookiesMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8266,7 +11503,7 @@ func (parameters *CookiesMatchConditionParameters_STATUS) AssignProperties_From_
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCookiesMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8314,7 +11551,7 @@ func (parameters *CookiesMatchConditionParameters_STATUS) AssignProperties_To_Co
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCookiesMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8361,7 +11598,7 @@ func (parameters *HeaderActionParameters) AssignProperties_From_HeaderActionPara
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHeaderActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8398,7 +11635,7 @@ func (parameters *HeaderActionParameters) AssignProperties_To_HeaderActionParame
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHeaderActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8445,7 +11682,7 @@ func (parameters *HeaderActionParameters_STATUS) AssignProperties_From_HeaderAct
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHeaderActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8482,7 +11719,7 @@ func (parameters *HeaderActionParameters_STATUS) AssignProperties_To_HeaderActio
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHeaderActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8538,7 +11775,7 @@ func (parameters *HostNameMatchConditionParameters) AssignProperties_From_HostNa
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHostNameMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8583,7 +11820,7 @@ func (parameters *HostNameMatchConditionParameters) AssignProperties_To_HostName
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHostNameMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8639,7 +11876,7 @@ func (parameters *HostNameMatchConditionParameters_STATUS) AssignProperties_From
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHostNameMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8684,7 +11921,7 @@ func (parameters *HostNameMatchConditionParameters_STATUS) AssignProperties_To_H
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHostNameMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8740,7 +11977,7 @@ func (parameters *HttpVersionMatchConditionParameters) AssignProperties_From_Htt
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHttpVersionMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8785,7 +12022,7 @@ func (parameters *HttpVersionMatchConditionParameters) AssignProperties_To_HttpV
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHttpVersionMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8841,7 +12078,7 @@ func (parameters *HttpVersionMatchConditionParameters_STATUS) AssignProperties_F
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHttpVersionMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8886,7 +12123,7 @@ func (parameters *HttpVersionMatchConditionParameters_STATUS) AssignProperties_T
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForHttpVersionMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -8942,7 +12179,7 @@ func (parameters *IsDeviceMatchConditionParameters) AssignProperties_From_IsDevi
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForIsDeviceMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -8987,7 +12224,7 @@ func (parameters *IsDeviceMatchConditionParameters) AssignProperties_To_IsDevice
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForIsDeviceMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9043,7 +12280,7 @@ func (parameters *IsDeviceMatchConditionParameters_STATUS) AssignProperties_From
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForIsDeviceMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9088,7 +12325,7 @@ func (parameters *IsDeviceMatchConditionParameters_STATUS) AssignProperties_To_I
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForIsDeviceMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9114,7 +12351,7 @@ func (parameters *OriginGroupOverrideActionParameters) AssignProperties_From_Ori
 		var originGroup ResourceReference
 		err := originGroup.AssignProperties_From_ResourceReference(source.OriginGroup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field OriginGroup")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field OriginGroup")
 		}
 		parameters.OriginGroup = &originGroup
 	} else {
@@ -9136,7 +12373,7 @@ func (parameters *OriginGroupOverrideActionParameters) AssignProperties_From_Ori
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForOriginGroupOverrideActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9154,7 +12391,7 @@ func (parameters *OriginGroupOverrideActionParameters) AssignProperties_To_Origi
 		var originGroup storage.ResourceReference
 		err := parameters.OriginGroup.AssignProperties_To_ResourceReference(&originGroup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field OriginGroup")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field OriginGroup")
 		}
 		destination.OriginGroup = &originGroup
 	} else {
@@ -9176,7 +12413,7 @@ func (parameters *OriginGroupOverrideActionParameters) AssignProperties_To_Origi
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForOriginGroupOverrideActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9202,7 +12439,7 @@ func (parameters *OriginGroupOverrideActionParameters_STATUS) AssignProperties_F
 		var originGroup ResourceReference_STATUS
 		err := originGroup.AssignProperties_From_ResourceReference_STATUS(source.OriginGroup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field OriginGroup")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field OriginGroup")
 		}
 		parameters.OriginGroup = &originGroup
 	} else {
@@ -9224,7 +12461,7 @@ func (parameters *OriginGroupOverrideActionParameters_STATUS) AssignProperties_F
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForOriginGroupOverrideActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9242,7 +12479,7 @@ func (parameters *OriginGroupOverrideActionParameters_STATUS) AssignProperties_T
 		var originGroup storage.ResourceReference_STATUS
 		err := parameters.OriginGroup.AssignProperties_To_ResourceReference_STATUS(&originGroup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field OriginGroup")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field OriginGroup")
 		}
 		destination.OriginGroup = &originGroup
 	} else {
@@ -9264,7 +12501,7 @@ func (parameters *OriginGroupOverrideActionParameters_STATUS) AssignProperties_T
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForOriginGroupOverrideActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9324,7 +12561,7 @@ func (parameters *PostArgsMatchConditionParameters) AssignProperties_From_PostAr
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForPostArgsMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9372,7 +12609,7 @@ func (parameters *PostArgsMatchConditionParameters) AssignProperties_To_PostArgs
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForPostArgsMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9432,7 +12669,7 @@ func (parameters *PostArgsMatchConditionParameters_STATUS) AssignProperties_From
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForPostArgsMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9480,7 +12717,7 @@ func (parameters *PostArgsMatchConditionParameters_STATUS) AssignProperties_To_P
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForPostArgsMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9536,7 +12773,7 @@ func (parameters *QueryStringMatchConditionParameters) AssignProperties_From_Que
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForQueryStringMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9581,7 +12818,7 @@ func (parameters *QueryStringMatchConditionParameters) AssignProperties_To_Query
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForQueryStringMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9637,7 +12874,7 @@ func (parameters *QueryStringMatchConditionParameters_STATUS) AssignProperties_F
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForQueryStringMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9682,7 +12919,7 @@ func (parameters *QueryStringMatchConditionParameters_STATUS) AssignProperties_T
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForQueryStringMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9738,7 +12975,7 @@ func (parameters *RemoteAddressMatchConditionParameters) AssignProperties_From_R
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRemoteAddressMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9783,7 +13020,7 @@ func (parameters *RemoteAddressMatchConditionParameters) AssignProperties_To_Rem
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRemoteAddressMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9839,7 +13076,7 @@ func (parameters *RemoteAddressMatchConditionParameters_STATUS) AssignProperties
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRemoteAddressMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9884,7 +13121,7 @@ func (parameters *RemoteAddressMatchConditionParameters_STATUS) AssignProperties
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRemoteAddressMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -9940,7 +13177,7 @@ func (parameters *RequestBodyMatchConditionParameters) AssignProperties_From_Req
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestBodyMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -9985,7 +13222,7 @@ func (parameters *RequestBodyMatchConditionParameters) AssignProperties_To_Reque
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestBodyMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10041,7 +13278,7 @@ func (parameters *RequestBodyMatchConditionParameters_STATUS) AssignProperties_F
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestBodyMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10086,7 +13323,7 @@ func (parameters *RequestBodyMatchConditionParameters_STATUS) AssignProperties_T
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestBodyMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10146,7 +13383,7 @@ func (parameters *RequestHeaderMatchConditionParameters) AssignProperties_From_R
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestHeaderMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10194,7 +13431,7 @@ func (parameters *RequestHeaderMatchConditionParameters) AssignProperties_To_Req
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestHeaderMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10254,7 +13491,7 @@ func (parameters *RequestHeaderMatchConditionParameters_STATUS) AssignProperties
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestHeaderMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10302,7 +13539,7 @@ func (parameters *RequestHeaderMatchConditionParameters_STATUS) AssignProperties
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestHeaderMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10358,7 +13595,7 @@ func (parameters *RequestMethodMatchConditionParameters) AssignProperties_From_R
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestMethodMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10403,7 +13640,7 @@ func (parameters *RequestMethodMatchConditionParameters) AssignProperties_To_Req
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestMethodMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10459,7 +13696,7 @@ func (parameters *RequestMethodMatchConditionParameters_STATUS) AssignProperties
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestMethodMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10504,7 +13741,7 @@ func (parameters *RequestMethodMatchConditionParameters_STATUS) AssignProperties
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestMethodMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10560,7 +13797,7 @@ func (parameters *RequestSchemeMatchConditionParameters) AssignProperties_From_R
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestSchemeMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10605,7 +13842,7 @@ func (parameters *RequestSchemeMatchConditionParameters) AssignProperties_To_Req
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestSchemeMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10661,7 +13898,7 @@ func (parameters *RequestSchemeMatchConditionParameters_STATUS) AssignProperties
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestSchemeMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10706,7 +13943,7 @@ func (parameters *RequestSchemeMatchConditionParameters_STATUS) AssignProperties
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestSchemeMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10762,7 +13999,7 @@ func (parameters *RequestUriMatchConditionParameters) AssignProperties_From_Requ
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestUriMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10807,7 +14044,7 @@ func (parameters *RequestUriMatchConditionParameters) AssignProperties_To_Reques
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestUriMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10863,7 +14100,7 @@ func (parameters *RequestUriMatchConditionParameters_STATUS) AssignProperties_Fr
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestUriMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10908,7 +14145,7 @@ func (parameters *RequestUriMatchConditionParameters_STATUS) AssignProperties_To
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRequestUriMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -10935,7 +14172,7 @@ func (parameters *RouteConfigurationOverrideActionParameters) AssignProperties_F
 		var cacheConfiguration CacheConfiguration
 		err := cacheConfiguration.AssignProperties_From_CacheConfiguration(source.CacheConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CacheConfiguration() to populate field CacheConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_From_CacheConfiguration() to populate field CacheConfiguration")
 		}
 		parameters.CacheConfiguration = &cacheConfiguration
 	} else {
@@ -10947,7 +14184,7 @@ func (parameters *RouteConfigurationOverrideActionParameters) AssignProperties_F
 		var originGroupOverride OriginGroupOverride
 		err := originGroupOverride.AssignProperties_From_OriginGroupOverride(source.OriginGroupOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_OriginGroupOverride() to populate field OriginGroupOverride")
+			return eris.Wrap(err, "calling AssignProperties_From_OriginGroupOverride() to populate field OriginGroupOverride")
 		}
 		parameters.OriginGroupOverride = &originGroupOverride
 	} else {
@@ -10969,7 +14206,7 @@ func (parameters *RouteConfigurationOverrideActionParameters) AssignProperties_F
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRouteConfigurationOverrideActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -10987,7 +14224,7 @@ func (parameters *RouteConfigurationOverrideActionParameters) AssignProperties_T
 		var cacheConfiguration storage.CacheConfiguration
 		err := parameters.CacheConfiguration.AssignProperties_To_CacheConfiguration(&cacheConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CacheConfiguration() to populate field CacheConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_To_CacheConfiguration() to populate field CacheConfiguration")
 		}
 		destination.CacheConfiguration = &cacheConfiguration
 	} else {
@@ -10999,7 +14236,7 @@ func (parameters *RouteConfigurationOverrideActionParameters) AssignProperties_T
 		var originGroupOverride storage.OriginGroupOverride
 		err := parameters.OriginGroupOverride.AssignProperties_To_OriginGroupOverride(&originGroupOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_OriginGroupOverride() to populate field OriginGroupOverride")
+			return eris.Wrap(err, "calling AssignProperties_To_OriginGroupOverride() to populate field OriginGroupOverride")
 		}
 		destination.OriginGroupOverride = &originGroupOverride
 	} else {
@@ -11021,7 +14258,7 @@ func (parameters *RouteConfigurationOverrideActionParameters) AssignProperties_T
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRouteConfigurationOverrideActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11048,7 +14285,7 @@ func (parameters *RouteConfigurationOverrideActionParameters_STATUS) AssignPrope
 		var cacheConfiguration CacheConfiguration_STATUS
 		err := cacheConfiguration.AssignProperties_From_CacheConfiguration_STATUS(source.CacheConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CacheConfiguration_STATUS() to populate field CacheConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_From_CacheConfiguration_STATUS() to populate field CacheConfiguration")
 		}
 		parameters.CacheConfiguration = &cacheConfiguration
 	} else {
@@ -11060,7 +14297,7 @@ func (parameters *RouteConfigurationOverrideActionParameters_STATUS) AssignPrope
 		var originGroupOverride OriginGroupOverride_STATUS
 		err := originGroupOverride.AssignProperties_From_OriginGroupOverride_STATUS(source.OriginGroupOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_OriginGroupOverride_STATUS() to populate field OriginGroupOverride")
+			return eris.Wrap(err, "calling AssignProperties_From_OriginGroupOverride_STATUS() to populate field OriginGroupOverride")
 		}
 		parameters.OriginGroupOverride = &originGroupOverride
 	} else {
@@ -11082,7 +14319,7 @@ func (parameters *RouteConfigurationOverrideActionParameters_STATUS) AssignPrope
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRouteConfigurationOverrideActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11100,7 +14337,7 @@ func (parameters *RouteConfigurationOverrideActionParameters_STATUS) AssignPrope
 		var cacheConfiguration storage.CacheConfiguration_STATUS
 		err := parameters.CacheConfiguration.AssignProperties_To_CacheConfiguration_STATUS(&cacheConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CacheConfiguration_STATUS() to populate field CacheConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_To_CacheConfiguration_STATUS() to populate field CacheConfiguration")
 		}
 		destination.CacheConfiguration = &cacheConfiguration
 	} else {
@@ -11112,7 +14349,7 @@ func (parameters *RouteConfigurationOverrideActionParameters_STATUS) AssignPrope
 		var originGroupOverride storage.OriginGroupOverride_STATUS
 		err := parameters.OriginGroupOverride.AssignProperties_To_OriginGroupOverride_STATUS(&originGroupOverride)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_OriginGroupOverride_STATUS() to populate field OriginGroupOverride")
+			return eris.Wrap(err, "calling AssignProperties_To_OriginGroupOverride_STATUS() to populate field OriginGroupOverride")
 		}
 		destination.OriginGroupOverride = &originGroupOverride
 	} else {
@@ -11134,7 +14371,7 @@ func (parameters *RouteConfigurationOverrideActionParameters_STATUS) AssignPrope
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForRouteConfigurationOverrideActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11190,7 +14427,7 @@ func (parameters *ServerPortMatchConditionParameters) AssignProperties_From_Serv
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForServerPortMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11235,7 +14472,7 @@ func (parameters *ServerPortMatchConditionParameters) AssignProperties_To_Server
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForServerPortMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11291,7 +14528,7 @@ func (parameters *ServerPortMatchConditionParameters_STATUS) AssignProperties_Fr
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForServerPortMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11336,7 +14573,7 @@ func (parameters *ServerPortMatchConditionParameters_STATUS) AssignProperties_To
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForServerPortMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11392,7 +14629,7 @@ func (parameters *SocketAddrMatchConditionParameters) AssignProperties_From_Sock
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSocketAddrMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11437,7 +14674,7 @@ func (parameters *SocketAddrMatchConditionParameters) AssignProperties_To_Socket
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSocketAddrMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11493,7 +14730,7 @@ func (parameters *SocketAddrMatchConditionParameters_STATUS) AssignProperties_Fr
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSocketAddrMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11538,7 +14775,7 @@ func (parameters *SocketAddrMatchConditionParameters_STATUS) AssignProperties_To
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSocketAddrMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11594,7 +14831,7 @@ func (parameters *SslProtocolMatchConditionParameters) AssignProperties_From_Ssl
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSslProtocolMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11639,7 +14876,7 @@ func (parameters *SslProtocolMatchConditionParameters) AssignProperties_To_SslPr
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSslProtocolMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11695,7 +14932,7 @@ func (parameters *SslProtocolMatchConditionParameters_STATUS) AssignProperties_F
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSslProtocolMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11740,7 +14977,7 @@ func (parameters *SslProtocolMatchConditionParameters_STATUS) AssignProperties_T
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSslProtocolMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11796,7 +15033,7 @@ func (parameters *UrlFileExtensionMatchConditionParameters) AssignProperties_Fro
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlFileExtensionMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11841,7 +15078,7 @@ func (parameters *UrlFileExtensionMatchConditionParameters) AssignProperties_To_
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlFileExtensionMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11897,7 +15134,7 @@ func (parameters *UrlFileExtensionMatchConditionParameters_STATUS) AssignPropert
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlFileExtensionMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -11942,7 +15179,7 @@ func (parameters *UrlFileExtensionMatchConditionParameters_STATUS) AssignPropert
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlFileExtensionMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -11998,7 +15235,7 @@ func (parameters *UrlFileNameMatchConditionParameters) AssignProperties_From_Url
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlFileNameMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12043,7 +15280,7 @@ func (parameters *UrlFileNameMatchConditionParameters) AssignProperties_To_UrlFi
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlFileNameMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12099,7 +15336,7 @@ func (parameters *UrlFileNameMatchConditionParameters_STATUS) AssignProperties_F
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlFileNameMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12144,7 +15381,7 @@ func (parameters *UrlFileNameMatchConditionParameters_STATUS) AssignProperties_T
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlFileNameMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12200,7 +15437,7 @@ func (parameters *UrlPathMatchConditionParameters) AssignProperties_From_UrlPath
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlPathMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12245,7 +15482,7 @@ func (parameters *UrlPathMatchConditionParameters) AssignProperties_To_UrlPathMa
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlPathMatchConditionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12301,7 +15538,7 @@ func (parameters *UrlPathMatchConditionParameters_STATUS) AssignProperties_From_
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlPathMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12346,7 +15583,7 @@ func (parameters *UrlPathMatchConditionParameters_STATUS) AssignProperties_To_Ur
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlPathMatchConditionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12405,7 +15642,7 @@ func (parameters *UrlRedirectActionParameters) AssignProperties_From_UrlRedirect
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlRedirectActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12451,7 +15688,7 @@ func (parameters *UrlRedirectActionParameters) AssignProperties_To_UrlRedirectAc
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlRedirectActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12510,7 +15747,7 @@ func (parameters *UrlRedirectActionParameters_STATUS) AssignProperties_From_UrlR
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlRedirectActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12556,7 +15793,7 @@ func (parameters *UrlRedirectActionParameters_STATUS) AssignProperties_To_UrlRed
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlRedirectActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12608,7 +15845,7 @@ func (parameters *UrlRewriteActionParameters) AssignProperties_From_UrlRewriteAc
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlRewriteActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12650,7 +15887,7 @@ func (parameters *UrlRewriteActionParameters) AssignProperties_To_UrlRewriteActi
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlRewriteActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12702,7 +15939,7 @@ func (parameters *UrlRewriteActionParameters_STATUS) AssignProperties_From_UrlRe
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlRewriteActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12744,7 +15981,7 @@ func (parameters *UrlRewriteActionParameters_STATUS) AssignProperties_To_UrlRewr
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlRewriteActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12773,12 +16010,10 @@ func (parameters *UrlSigningActionParameters) AssignProperties_From_UrlSigningAc
 	if source.ParameterNameOverride != nil {
 		parameterNameOverrideList := make([]UrlSigningParamIdentifier, len(source.ParameterNameOverride))
 		for parameterNameOverrideIndex, parameterNameOverrideItem := range source.ParameterNameOverride {
-			// Shadow the loop variable to avoid aliasing
-			parameterNameOverrideItem := parameterNameOverrideItem
 			var parameterNameOverride UrlSigningParamIdentifier
 			err := parameterNameOverride.AssignProperties_From_UrlSigningParamIdentifier(&parameterNameOverrideItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UrlSigningParamIdentifier() to populate field ParameterNameOverride")
+				return eris.Wrap(err, "calling AssignProperties_From_UrlSigningParamIdentifier() to populate field ParameterNameOverride")
 			}
 			parameterNameOverrideList[parameterNameOverrideIndex] = parameterNameOverride
 		}
@@ -12802,7 +16037,7 @@ func (parameters *UrlSigningActionParameters) AssignProperties_From_UrlSigningAc
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlSigningActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12822,12 +16057,10 @@ func (parameters *UrlSigningActionParameters) AssignProperties_To_UrlSigningActi
 	if parameters.ParameterNameOverride != nil {
 		parameterNameOverrideList := make([]storage.UrlSigningParamIdentifier, len(parameters.ParameterNameOverride))
 		for parameterNameOverrideIndex, parameterNameOverrideItem := range parameters.ParameterNameOverride {
-			// Shadow the loop variable to avoid aliasing
-			parameterNameOverrideItem := parameterNameOverrideItem
 			var parameterNameOverride storage.UrlSigningParamIdentifier
 			err := parameterNameOverrideItem.AssignProperties_To_UrlSigningParamIdentifier(&parameterNameOverride)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UrlSigningParamIdentifier() to populate field ParameterNameOverride")
+				return eris.Wrap(err, "calling AssignProperties_To_UrlSigningParamIdentifier() to populate field ParameterNameOverride")
 			}
 			parameterNameOverrideList[parameterNameOverrideIndex] = parameterNameOverride
 		}
@@ -12851,7 +16084,7 @@ func (parameters *UrlSigningActionParameters) AssignProperties_To_UrlSigningActi
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlSigningActionParameters); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -12880,12 +16113,10 @@ func (parameters *UrlSigningActionParameters_STATUS) AssignProperties_From_UrlSi
 	if source.ParameterNameOverride != nil {
 		parameterNameOverrideList := make([]UrlSigningParamIdentifier_STATUS, len(source.ParameterNameOverride))
 		for parameterNameOverrideIndex, parameterNameOverrideItem := range source.ParameterNameOverride {
-			// Shadow the loop variable to avoid aliasing
-			parameterNameOverrideItem := parameterNameOverrideItem
 			var parameterNameOverride UrlSigningParamIdentifier_STATUS
 			err := parameterNameOverride.AssignProperties_From_UrlSigningParamIdentifier_STATUS(&parameterNameOverrideItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UrlSigningParamIdentifier_STATUS() to populate field ParameterNameOverride")
+				return eris.Wrap(err, "calling AssignProperties_From_UrlSigningParamIdentifier_STATUS() to populate field ParameterNameOverride")
 			}
 			parameterNameOverrideList[parameterNameOverrideIndex] = parameterNameOverride
 		}
@@ -12909,7 +16140,7 @@ func (parameters *UrlSigningActionParameters_STATUS) AssignProperties_From_UrlSi
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlSigningActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -12929,12 +16160,10 @@ func (parameters *UrlSigningActionParameters_STATUS) AssignProperties_To_UrlSign
 	if parameters.ParameterNameOverride != nil {
 		parameterNameOverrideList := make([]storage.UrlSigningParamIdentifier_STATUS, len(parameters.ParameterNameOverride))
 		for parameterNameOverrideIndex, parameterNameOverrideItem := range parameters.ParameterNameOverride {
-			// Shadow the loop variable to avoid aliasing
-			parameterNameOverrideItem := parameterNameOverrideItem
 			var parameterNameOverride storage.UrlSigningParamIdentifier_STATUS
 			err := parameterNameOverrideItem.AssignProperties_To_UrlSigningParamIdentifier_STATUS(&parameterNameOverride)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UrlSigningParamIdentifier_STATUS() to populate field ParameterNameOverride")
+				return eris.Wrap(err, "calling AssignProperties_To_UrlSigningParamIdentifier_STATUS() to populate field ParameterNameOverride")
 			}
 			parameterNameOverrideList[parameterNameOverrideIndex] = parameterNameOverride
 		}
@@ -12958,7 +16187,7 @@ func (parameters *UrlSigningActionParameters_STATUS) AssignProperties_To_UrlSign
 	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlSigningActionParameters_STATUS); ok {
 		err := augmentedParameters.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -13279,7 +16508,7 @@ func (configuration *CacheConfiguration) AssignProperties_From_CacheConfiguratio
 	if augmentedConfiguration, ok := configurationAsAny.(augmentConversionForCacheConfiguration); ok {
 		err := augmentedConfiguration.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -13319,7 +16548,7 @@ func (configuration *CacheConfiguration) AssignProperties_To_CacheConfiguration(
 	if augmentedConfiguration, ok := configurationAsAny.(augmentConversionForCacheConfiguration); ok {
 		err := augmentedConfiguration.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -13370,7 +16599,7 @@ func (configuration *CacheConfiguration_STATUS) AssignProperties_From_CacheConfi
 	if augmentedConfiguration, ok := configurationAsAny.(augmentConversionForCacheConfiguration_STATUS); ok {
 		err := augmentedConfiguration.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -13410,7 +16639,7 @@ func (configuration *CacheConfiguration_STATUS) AssignProperties_To_CacheConfigu
 	if augmentedConfiguration, ok := configurationAsAny.(augmentConversionForCacheConfiguration_STATUS); ok {
 		err := augmentedConfiguration.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -13439,7 +16668,7 @@ func (override *OriginGroupOverride) AssignProperties_From_OriginGroupOverride(s
 		var originGroup ResourceReference
 		err := originGroup.AssignProperties_From_ResourceReference(source.OriginGroup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field OriginGroup")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field OriginGroup")
 		}
 		override.OriginGroup = &originGroup
 	} else {
@@ -13458,7 +16687,7 @@ func (override *OriginGroupOverride) AssignProperties_From_OriginGroupOverride(s
 	if augmentedOverride, ok := overrideAsAny.(augmentConversionForOriginGroupOverride); ok {
 		err := augmentedOverride.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -13479,7 +16708,7 @@ func (override *OriginGroupOverride) AssignProperties_To_OriginGroupOverride(des
 		var originGroup storage.ResourceReference
 		err := override.OriginGroup.AssignProperties_To_ResourceReference(&originGroup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field OriginGroup")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field OriginGroup")
 		}
 		destination.OriginGroup = &originGroup
 	} else {
@@ -13498,7 +16727,7 @@ func (override *OriginGroupOverride) AssignProperties_To_OriginGroupOverride(des
 	if augmentedOverride, ok := overrideAsAny.(augmentConversionForOriginGroupOverride); ok {
 		err := augmentedOverride.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -13527,7 +16756,7 @@ func (override *OriginGroupOverride_STATUS) AssignProperties_From_OriginGroupOve
 		var originGroup ResourceReference_STATUS
 		err := originGroup.AssignProperties_From_ResourceReference_STATUS(source.OriginGroup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field OriginGroup")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field OriginGroup")
 		}
 		override.OriginGroup = &originGroup
 	} else {
@@ -13546,7 +16775,7 @@ func (override *OriginGroupOverride_STATUS) AssignProperties_From_OriginGroupOve
 	if augmentedOverride, ok := overrideAsAny.(augmentConversionForOriginGroupOverride_STATUS); ok {
 		err := augmentedOverride.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -13567,7 +16796,7 @@ func (override *OriginGroupOverride_STATUS) AssignProperties_To_OriginGroupOverr
 		var originGroup storage.ResourceReference_STATUS
 		err := override.OriginGroup.AssignProperties_To_ResourceReference_STATUS(&originGroup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field OriginGroup")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field OriginGroup")
 		}
 		destination.OriginGroup = &originGroup
 	} else {
@@ -13586,7 +16815,7 @@ func (override *OriginGroupOverride_STATUS) AssignProperties_To_OriginGroupOverr
 	if augmentedOverride, ok := overrideAsAny.(augmentConversionForOriginGroupOverride_STATUS); ok {
 		err := augmentedOverride.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -13625,7 +16854,7 @@ func (identifier *UrlSigningParamIdentifier) AssignProperties_From_UrlSigningPar
 	if augmentedIdentifier, ok := identifierAsAny.(augmentConversionForUrlSigningParamIdentifier); ok {
 		err := augmentedIdentifier.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -13656,7 +16885,7 @@ func (identifier *UrlSigningParamIdentifier) AssignProperties_To_UrlSigningParam
 	if augmentedIdentifier, ok := identifierAsAny.(augmentConversionForUrlSigningParamIdentifier); ok {
 		err := augmentedIdentifier.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -13695,7 +16924,7 @@ func (identifier *UrlSigningParamIdentifier_STATUS) AssignProperties_From_UrlSig
 	if augmentedIdentifier, ok := identifierAsAny.(augmentConversionForUrlSigningParamIdentifier_STATUS); ok {
 		err := augmentedIdentifier.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -13726,7 +16955,7 @@ func (identifier *UrlSigningParamIdentifier_STATUS) AssignProperties_To_UrlSigni
 	if augmentedIdentifier, ok := identifierAsAny.(augmentConversionForUrlSigningParamIdentifier_STATUS); ok {
 		err := augmentedIdentifier.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 

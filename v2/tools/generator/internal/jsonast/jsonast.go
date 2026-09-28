@@ -7,6 +7,7 @@ package jsonast
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -16,7 +17,7 @@ import (
 
 	"github.com/devigned/tab"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
@@ -102,7 +103,11 @@ func (scanner *SchemaScanner) AddTypeHandler(schemaType SchemaType, handler Type
 }
 
 // RunHandler triggers the appropriate handler for the specified schemaType
-func (scanner *SchemaScanner) RunHandler(ctx context.Context, schemaType SchemaType, schema Schema) (astmodel.Type, error) {
+func (scanner *SchemaScanner) RunHandler(
+	ctx context.Context,
+	schemaType SchemaType,
+	schema Schema,
+) (astmodel.Type, error) {
 	if ctx.Err() != nil { // check for cancellation
 		return nil, ctx.Err()
 	}
@@ -128,19 +133,19 @@ func (scanner *SchemaScanner) RunHandlersForSchemas(ctx context.Context, schemas
 	for _, schema := range schemas {
 		t, err := scanner.RunHandlerForSchema(ctx, schema)
 		if err != nil {
-			var unknownSchema *UnknownSchemaError
-			if errors.As(err, &unknownSchema) {
+			if unknownSchema, ok := errors.AsType[*UnknownSchemaError](err); ok {
 				if unknownSchema.Schema.description() != nil {
 					// some Swagger types (e.g. ServiceFabric Cluster) use allOf with a description-only schema
 					scanner.log.V(2).Info(
 						"skipping description-only schema type",
 						"schema", unknownSchema.Schema.url(),
-						"description", *unknownSchema.Schema.description())
+						"description", *unknownSchema.Schema.description(),
+					)
 					continue
 				}
 			}
 
-			errs = append(errs, errors.Wrapf(err, "unable to handle schema %s", schema.Id()))
+			errs = append(errs, eris.Wrapf(err, "unable to handle schema %s", schema.ID()))
 		}
 
 		if t != nil {
@@ -159,21 +164,22 @@ func (scanner *SchemaScanner) RunHandlersForSchemas(ctx context.Context, schemas
 func (scanner *SchemaScanner) GenerateAllDefinitions(ctx context.Context, schema Schema) (astmodel.TypeDefinitionSet, error) {
 	title := schema.title()
 	if title == nil {
-		return nil, errors.New("given schema has no title")
+		return nil, eris.New("given schema has no title")
 	}
 
 	rootName := *title
 	rootURL := schema.url()
 	rootGroup, err := groupOf(rootURL)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to extract group for schema")
+		return nil, eris.Wrapf(err, "unable to extract group for schema")
 	}
 
 	rootVersion := versionOf(rootURL)
 
 	rootPackage := scanner.configuration.MakeLocalPackageReference(
 		scanner.idFactory.CreateGroupName(rootGroup),
-		rootVersion)
+		rootVersion,
+	)
 	rootTypeName := astmodel.MakeInternalTypeName(rootPackage, rootName)
 
 	_, err = generateDefinitionsFor(ctx, scanner, rootTypeName, schema)
@@ -264,24 +270,41 @@ func stringHandler(_ context.Context, _ *SchemaScanner, schema Schema, log logr.
 	return t, nil
 }
 
-// copied from ARM implementation
-var uuidRegex = regexp.MustCompile("^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+var (
+	// copied from ARM implementation
+	uuidRegex      = regexp.MustCompile("^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+	base64URLRegex = regexp.MustCompile("^[-A-Za-z0-9_]$")
+	uriRegex       = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+-.]*:[^\s]*$`)
+	urlRegex       = regexp.MustCompile(`^https?://[^\s]+$`)
+)
 
 func formatToPattern(format string, log logr.Logger) *regexp.Regexp {
 	switch format {
 	case "uuid":
 		return uuidRegex
-	case "date-time", "date", "duration", "date-time-rfc1123", "arm-id":
+	case "arm-id",
+		"byte",
+		"date-time",
+		"date",
+		"duration",
+		"date-time-rfc1123":
 		// TODO: don’t bother validating for now
 		return nil
 	case "password":
 		// This is handled later in the status_augment phase of processing, so just
 		// ignore it for now
 		return nil
+	case "base64url":
+		return base64URLRegex
+	case "uri":
+		return uriRegex
+	case "url":
+		return urlRegex
 	default:
-		log.V(1).Info(
+		log.V(0).Info(
 			"Unknown property format",
-			"format", format)
+			"format", format,
+		)
 		return nil
 	}
 }
@@ -449,9 +472,10 @@ func generatePropertyDefinition(ctx context.Context, scanner *SchemaScanner, raw
 	propertyName := scanner.idFactory.CreatePropertyName(rawPropName, astmodel.Exported)
 
 	schemaType, err := getSubSchemaType(prop)
-	var use *UnknownSchemaError
-	if errors.As(err, &use) {
-		// if we don't know the type, we still need to provide the property, we will just provide open interface
+	if _, ok := errors.AsType[*UnknownSchemaError](err); ok {
+		// if we don't know the type, we still need to provide the property, we will just provide open interface.
+		// Note we don't use Map[string, Any] here because unlike in Object contexts with things like additionalProperties,
+		// we don't know that this must be an object, it could be a bool, int, etc.
 		property := astmodel.NewPropertyDefinition(propertyName, rawPropName, astmodel.AnyType)
 		return property, nil
 	}
@@ -461,8 +485,10 @@ func generatePropertyDefinition(ctx context.Context, scanner *SchemaScanner, raw
 	}
 
 	propType, err := scanner.RunHandler(ctx, schemaType, prop)
-	if errors.As(err, &use) {
+	if _, ok := errors.AsType[*UnknownSchemaError](err); ok {
 		// if we don't know the type, we still need to provide the property, we will just provide open interface
+		// Note we don't use Map[string, Any] here because unlike in Object contexts with things like additionalProperties,
+		// we don't know that this must be an object, it could be a bool, int, etc.
 		property := astmodel.NewPropertyDefinition(propertyName, rawPropName, astmodel.AnyType)
 		return property, nil
 	}
@@ -493,7 +519,6 @@ func getProperties(
 	props := schema.properties()
 	properties := make([]*astmodel.PropertyDefinition, 0, len(props))
 	for propName, propSchema := range props {
-
 		property, err := generatePropertyDefinition(ctx, scanner, propName, propSchema)
 		if err != nil {
 			return nil, err
@@ -508,7 +533,8 @@ func getProperties(
 			// TODO: https://github.com/Azure/azure-service-operator/issues/1517
 			log.V(2).Info(
 				"Property omitted due to nil propType (probably due to type filter)",
-				"property", propName)
+				"property", propName,
+			)
 			continue
 		}
 
@@ -518,14 +544,14 @@ func getProperties(
 		}
 
 		// add flattening
-		property = property.SetFlatten(propSchema.extensionAsBool("x-ms-client-flatten") == true)
+		property = property.SetFlatten(propSchema.extensionAsBool("x-ms-client-flatten"))
 
 		// add secret flag
 		hasSecretExtension := propSchema.extensionAsBool("x-ms-secret")
 
 		hasFormatPassword := propSchema.format() == "password"
 		if hasSecretExtension || hasFormatPassword {
-			property = property.WithIsSecret(true)
+			property = property.WithSecrecy(astmodel.ImportSecretModeRequired)
 		}
 
 		// add validations
@@ -562,12 +588,21 @@ func getProperties(
 			// (TODO: tell all Azure teams this fact and get them to update their API definitions!)
 			// for now we aren't following the spec 100% as it pollutes the generated code
 			// only generate this field if there are no other fields:
-			if len(properties) == 0 {
+			// Note: we use props here rather than properties as ref types may be pruned
+			// and that can result in a type that looks like it had no properties (so classified as a map below)
+			// when in fact it had properties, just they were pruned. This usually happens when
+			// the whole type is going to be pruned.
+			if len(props) == 0 {
 				// TODO: for JSON serialization this needs to be unpacked into "parent"
 				additionalProperties := astmodel.NewPropertyDefinition(
 					astmodel.AdditionalPropertiesPropertyName,
-					astmodel.AdditionalPropertiesJsonName,
-					astmodel.NewStringMapType(astmodel.AnyType))
+					astmodel.AdditionalPropertiesJSONName,
+					// We are using astmodel.NewStringMapType(astmodel.AnyType) rather than just plain
+					// astmodel.AnyType because as far as `AdditionalProperties` is concerned, the expectation is that they
+					// are properties (not a single bool/etc). In other contexts where we don't know the schema, we use astmodel.AnyType,
+					// as it could be a single bool/int/etc, OR an object. Only in this context do we know for sure it must be an object
+					astmodel.NewStringMapType(astmodel.AnyType),
+				)
 
 				properties = append(properties, additionalProperties)
 			}
@@ -576,15 +611,11 @@ func getProperties(
 			// TODO: for JSON serialization this needs to be unpacked into "parent"
 			additionalPropsType, err := scanner.RunHandlerForSchema(ctx, additionalPropSchema)
 			if err != nil {
-				// If the error is an UnknownSchemaError AND we have properties already, we skip generating
-				// the additional properties. As mentioned above, this isn't 100% following the spec, but
-				// it seems to do the right thing
-				var use *UnknownSchemaError
-				if errors.As(err, &use) && len(properties) > 0 {
-					return properties, nil
+				if _, ok := errors.AsType[*UnknownSchemaError](err); ok {
+					additionalPropsType = astmodel.AnyType
+				} else {
+					return nil, err
 				}
-
-				return nil, err
 			}
 
 			// This can happen if the property type was pruned away by a type filter.
@@ -598,8 +629,13 @@ func getProperties(
 
 			additionalProperties := astmodel.NewPropertyDefinition(
 				astmodel.AdditionalPropertiesPropertyName,
-				astmodel.AdditionalPropertiesJsonName,
-				astmodel.NewStringMapType(additionalPropsType))
+				astmodel.AdditionalPropertiesJSONName,
+				// We are using astmodel.NewStringMapType(astmodel.AnyType) rather than just plain
+				// astmodel.AnyType because as far as `AdditionalProperties` is concerned, the expectation is that they
+				// are properties (not a single bool/etc). In other contexts where we don't know the schema, we use astmodel.AnyType,
+				// as it could be a single bool/int/etc, OR an object. Only in this context do we know for sure it must be an object
+				astmodel.NewStringMapType(additionalPropsType),
+			)
 
 			properties = append(properties, additionalProperties)
 		}
@@ -631,7 +667,8 @@ func refHandler(ctx context.Context, scanner *SchemaScanner, schema Schema, log 
 		log.V(2).Info(
 			"Skipping type",
 			"type", typeName,
-			"because", because)
+			"because", because,
+		)
 		return nil, nil // Skip entirely
 	}
 
@@ -649,7 +686,7 @@ func generateDefinitionsFor(
 		return nil, err
 	}
 
-	schemaUrl := schema.url()
+	schemaURL := schema.url()
 
 	// see if we already generated something for this ref
 	if _, ok := scanner.findTypeDefinition(typeName); ok {
@@ -668,7 +705,7 @@ func generateDefinitionsFor(
 	// TODO: This code and below does nothing in the Swagger path as schema.url() is always empty.
 	// TODO: It's still used in the JSON schema path for golden tests and should be removed once those
 	// TODO: are retired.
-	resourceType := categorizeResourceType(schemaUrl)
+	resourceType := categorizeResourceType(schemaURL)
 	if resourceType != nil {
 		result = astmodel.NewAzureResourceType(result, nil, typeName, *resourceType, nil)
 	}
@@ -725,7 +762,7 @@ func oneOfHandler(ctx context.Context, scanner *SchemaScanner, schema Schema, _ 
 	ctx, span := tab.StartSpan(ctx, "oneOfHandler")
 	defer span.End()
 
-	result := astmodel.NewOneOfType(schema.Id())
+	result := astmodel.NewOneOfType(schema.ID())
 
 	// Capture the discriminator property name, if we have one
 	if schema.discriminator() != "" {
@@ -741,7 +778,7 @@ func oneOfHandler(ctx context.Context, scanner *SchemaScanner, schema Schema, _ 
 	// These will each be either a TypeName or an Object
 	types, err := scanner.RunHandlersForSchemas(ctx, schema.oneOf())
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to generate oneOf types for %s", schema.Id())
+		return nil, eris.Wrapf(err, "unable to generate oneOf types for %s", schema.ID())
 	}
 
 	result = result.WithTypes(types)
@@ -751,7 +788,7 @@ func oneOfHandler(ctx context.Context, scanner *SchemaScanner, schema Schema, _ 
 	// Otherwise, add as an option
 	allOfTypes, err := scanner.RunHandlersForSchemas(ctx, schema.allOf())
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to generate allOf types for %s", schema.Id())
+		return nil, eris.Wrapf(err, "unable to generate allOf types for %s", schema.ID())
 	}
 
 	// Our AllOf contains either properties to add to our OneOf, or references to parent types
@@ -768,15 +805,17 @@ func oneOfHandler(ctx context.Context, scanner *SchemaScanner, schema Schema, _ 
 
 	// If there are any properties, we need to create an object type to wrap them
 	if len(schema.properties()) > 0 {
+
 		t, err := scanner.RunHandler(ctx, Object, schema)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to generate object for properties of %s", schema.Id())
+			return nil, eris.Wrapf(err, "unable to generate object for properties of %s", schema.ID())
 		}
 
 		obj, ok := t.(*astmodel.ObjectType)
 		if !ok {
-			return nil, errors.Errorf(
-				"expected object type for properties of %s, got %T", schema.Id(), t)
+			return nil, eris.Errorf(
+				"expected object type for properties of %s, got %T", schema.ID(), t,
+			)
 		}
 
 		result = result.WithAdditionalPropertyObject(obj)
@@ -810,7 +849,8 @@ func anyOfHandler(ctx context.Context, scanner *SchemaScanner, schema Schema, lo
 	// See https://github.com/Azure/azure-service-operator/issues/1518 for details about why this is treated as oneOf
 	log.V(1).Info(
 		"Handling anyOf type as if it were oneOf",
-		"url", schema.url())
+		"url", schema.url(),
+	)
 	return oneOfHandler(ctx, scanner, schema, log)
 }
 
@@ -820,25 +860,38 @@ func arrayHandler(ctx context.Context, scanner *SchemaScanner, schema Schema, lo
 
 	items := schema.items()
 	if len(items) > 1 {
-		return nil, errors.Errorf("item contains more children than expected: %s", schema.items())
+		return nil, eris.Errorf("item contains more children than expected: %s", schema.items())
 	}
 
 	if len(items) == 0 {
-		// there is no type to the elements, so we must assume interface{}
+		// there is no type to the elements, so we must assume any
 		log.V(1).Info(
-			"Interface assumption unproven",
-			"url", schema.url())
+			"Assuming 'any' as no item detail available",
+			"url", schema.url(),
+		)
 
 		result := astmodel.NewArrayType(astmodel.AnyType)
 		return withArrayValidations(schema, result), nil
 	}
 
 	// get the only child type and wrap it up as an array type:
-
 	onlyChild := items[0]
 
 	astType, err := scanner.RunHandlerForSchema(ctx, onlyChild)
 	if err != nil {
+		// If we can't determine the type of the items, assume any
+		// (This can happen if the item has a description but no type information)
+		if _, ok := errors.AsType[*UnknownSchemaError](err); ok {
+			// there is no type to the elements, so we must assume any
+			log.V(1).Info(
+				"Assuming 'any' as item has no type specified",
+				"url", schema.url(),
+			)
+
+			result := astmodel.NewArrayType(astmodel.AnyType)
+			return withArrayValidations(schema, result), nil
+		}
+
 		return nil, err
 	}
 
@@ -881,7 +934,14 @@ func getSubSchemaType(schema Schema) (SchemaType, error) {
 		return Ref, nil
 	}
 
-	for _, t := range []SchemaType{Object, String, Number, Int, Bool, Array} {
+	for _, t := range []SchemaType{
+		Object,
+		String,
+		Number,
+		Int,
+		Bool,
+		Array,
+	} {
 		if schema.hasType(t) {
 			return t, nil
 		}
@@ -889,6 +949,10 @@ func getSubSchemaType(schema Schema) (SchemaType, error) {
 
 	// TODO: this whole switch is a bit wrong because type: 'object' can
 	// be combined with OneOf/AnyOf/etc. still, it works okay for now...
+	// Note: we use schema.additionalPropertiesSchema() != nil rather than schema.supportsAdditionalProperties()
+	// here because if we used schema.additionalPropertiesSchema() we'd never fall through to UnknownSchemaError
+	// since everything in JSON schema supports additional properties by default, and we have logic elsewhere predicated
+	// on UnknownSchemaError being returned here.
 	if len(schema.properties()) > 0 || schema.additionalPropertiesSchema() != nil {
 		// haven't figured out a type but it has properties, treat it as an object
 		return Object, nil
@@ -916,7 +980,7 @@ func GetPrimitiveType(name SchemaType) (*astmodel.PrimitiveType, error) {
 	case OneOf:
 	case Ref:
 	case Unknown:
-		return astmodel.AnyType, errors.Errorf("%s is not a simple type and no ast.NewIdent can be created", name)
+		return astmodel.AnyType, eris.Errorf("%s is not a simple type and no ast.NewIdent can be created", name)
 	}
 
 	panic(fmt.Sprintf("unhandled case in getPrimitiveType: %s", name)) // this is also checked by linter

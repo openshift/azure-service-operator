@@ -4,32 +4,35 @@
 package storage
 
 import (
+	"fmt"
+	storage "github.com/Azure/azure-service-operator/v2/api/cdn/v20230501/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// +kubebuilder:rbac:groups=cdn.azure.com,resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=cdn.azure.com,resources={secrets/status,secrets/finalizers},verbs=get;update;patch
-
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,cdn}
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20230501.Secret
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/secrets/{secretName}
 type Secret struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Profiles_Secret_Spec   `json:"spec,omitempty"`
-	Status            Profiles_Secret_STATUS `json:"status,omitempty"`
+	Spec              Secret_Spec   `json:"spec,omitempty"`
+	Status            Secret_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &Secret{}
@@ -44,6 +47,48 @@ func (secret *Secret) SetConditions(conditions conditions.Conditions) {
 	secret.Status.Conditions = conditions
 }
 
+var _ conversion.Convertible = &Secret{}
+
+// ConvertFrom populates our Secret from the provided hub Secret
+func (secret *Secret) ConvertFrom(hub conversion.Hub) error {
+	source, ok := hub.(*storage.Secret)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20230501/storage/Secret but received %T instead", hub)
+	}
+
+	return secret.AssignProperties_From_Secret(source)
+}
+
+// ConvertTo populates the provided hub Secret from our Secret
+func (secret *Secret) ConvertTo(hub conversion.Hub) error {
+	destination, ok := hub.(*storage.Secret)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20230501/storage/Secret but received %T instead", hub)
+	}
+
+	return secret.AssignProperties_To_Secret(destination)
+}
+
+var _ configmaps.Exporter = &Secret{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (secret *Secret) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if secret.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return secret.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &Secret{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (secret *Secret) SecretDestinationExpressions() []*core.DestinationExpression {
+	if secret.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return secret.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &Secret{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +98,7 @@ func (secret *Secret) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-05-01"
 func (secret Secret) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-05-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -87,11 +132,15 @@ func (secret *Secret) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (secret *Secret) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Profiles_Secret_STATUS{}
+	return &Secret_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (secret *Secret) Owner() *genruntime.ResourceReference {
+	if secret.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(secret.Spec)
 	return secret.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -99,24 +148,91 @@ func (secret *Secret) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (secret *Secret) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Profiles_Secret_STATUS); ok {
+	if st, ok := status.(*Secret_STATUS); ok {
 		secret.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Profiles_Secret_STATUS
+	var st Secret_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	secret.Status = st
 	return nil
 }
 
-// Hub marks that this Secret is the hub type for conversion
-func (secret *Secret) Hub() {}
+// AssignProperties_From_Secret populates our Secret from the provided source Secret
+func (secret *Secret) AssignProperties_From_Secret(source *storage.Secret) error {
+
+	// ObjectMeta
+	secret.ObjectMeta = *source.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec Secret_Spec
+	err := spec.AssignProperties_From_Secret_Spec(&source.Spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_Secret_Spec() to populate field Spec")
+	}
+	secret.Spec = spec
+
+	// Status
+	var status Secret_STATUS
+	err = status.AssignProperties_From_Secret_STATUS(&source.Status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_Secret_STATUS() to populate field Status")
+	}
+	secret.Status = status
+
+	// Invoke the augmentConversionForSecret interface (if implemented) to customize the conversion
+	var secretAsAny any = secret
+	if augmentedSecret, ok := secretAsAny.(augmentConversionForSecret); ok {
+		err := augmentedSecret.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_Secret populates the provided destination Secret from our Secret
+func (secret *Secret) AssignProperties_To_Secret(destination *storage.Secret) error {
+
+	// ObjectMeta
+	destination.ObjectMeta = *secret.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec storage.Secret_Spec
+	err := secret.Spec.AssignProperties_To_Secret_Spec(&spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_Secret_Spec() to populate field Spec")
+	}
+	destination.Spec = spec
+
+	// Status
+	var status storage.Secret_STATUS
+	err = secret.Status.AssignProperties_To_Secret_STATUS(&status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_Secret_STATUS() to populate field Status")
+	}
+	destination.Status = status
+
+	// Invoke the augmentConversionForSecret interface (if implemented) to customize the conversion
+	var secretAsAny any = secret
+	if augmentedSecret, ok := secretAsAny.(augmentConversionForSecret); ok {
+		err := augmentedSecret.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
 
 // OriginalGVK returns a GroupValueKind for the original API version used to create the resource
 func (secret *Secret) OriginalGVK() *schema.GroupVersionKind {
@@ -130,7 +246,7 @@ func (secret *Secret) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20230501.Secret
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/secrets/{secretName}
 type SecretList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -138,12 +254,18 @@ type SecretList struct {
 	Items           []Secret `json:"items"`
 }
 
-// Storage version of v1api20230501.Profiles_Secret_Spec
-type Profiles_Secret_Spec struct {
+type augmentConversionForSecret interface {
+	AssignPropertiesFrom(src *storage.Secret) error
+	AssignPropertiesTo(dst *storage.Secret) error
+}
+
+// Storage version of v1api20230501.Secret_Spec
+type Secret_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName       string `json:"azureName,omitempty"`
-	OriginalVersion string `json:"originalVersion,omitempty"`
+	AzureName       string              `json:"azureName,omitempty"`
+	OperatorSpec    *SecretOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion string              `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -154,28 +276,184 @@ type Profiles_Secret_Spec struct {
 	PropertyBag genruntime.PropertyBag             `json:"$propertyBag,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Profiles_Secret_Spec{}
+var _ genruntime.ConvertibleSpec = &Secret_Spec{}
 
-// ConvertSpecFrom populates our Profiles_Secret_Spec from the provided source
-func (secret *Profiles_Secret_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == secret {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our Secret_Spec from the provided source
+func (secret *Secret_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.Secret_Spec)
+	if ok {
+		// Populate our instance from source
+		return secret.AssignProperties_From_Secret_Spec(src)
 	}
 
-	return source.ConvertSpecTo(secret)
-}
-
-// ConvertSpecTo populates the provided destination from our Profiles_Secret_Spec
-func (secret *Profiles_Secret_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == secret {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	// Convert to an intermediate form
+	src = &storage.Secret_Spec{}
+	err := src.ConvertSpecFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
-	return destination.ConvertSpecFrom(secret)
+	// Update our instance from src
+	err = secret.AssignProperties_From_Secret_Spec(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+	}
+
+	return nil
 }
 
-// Storage version of v1api20230501.Profiles_Secret_STATUS
-type Profiles_Secret_STATUS struct {
+// ConvertSpecTo populates the provided destination from our Secret_Spec
+func (secret *Secret_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.Secret_Spec)
+	if ok {
+		// Populate destination from our instance
+		return secret.AssignProperties_To_Secret_Spec(dst)
+	}
+
+	// Convert to an intermediate form
+	dst = &storage.Secret_Spec{}
+	err := secret.AssignProperties_To_Secret_Spec(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertSpecTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_Secret_Spec populates our Secret_Spec from the provided source Secret_Spec
+func (secret *Secret_Spec) AssignProperties_From_Secret_Spec(source *storage.Secret_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureName
+	secret.AzureName = source.AzureName
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec SecretOperatorSpec
+		err := operatorSpec.AssignProperties_From_SecretOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SecretOperatorSpec() to populate field OperatorSpec")
+		}
+		secret.OperatorSpec = &operatorSpec
+	} else {
+		secret.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	secret.OriginalVersion = source.OriginalVersion
+
+	// Owner
+	if source.Owner != nil {
+		owner := source.Owner.Copy()
+		secret.Owner = &owner
+	} else {
+		secret.Owner = nil
+	}
+
+	// Parameters
+	if source.Parameters != nil {
+		var parameter SecretParameters
+		err := parameter.AssignProperties_From_SecretParameters(source.Parameters)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SecretParameters() to populate field Parameters")
+		}
+		secret.Parameters = &parameter
+	} else {
+		secret.Parameters = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		secret.PropertyBag = propertyBag
+	} else {
+		secret.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecret_Spec interface (if implemented) to customize the conversion
+	var secretAsAny any = secret
+	if augmentedSecret, ok := secretAsAny.(augmentConversionForSecret_Spec); ok {
+		err := augmentedSecret.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_Secret_Spec populates the provided destination Secret_Spec from our Secret_Spec
+func (secret *Secret_Spec) AssignProperties_To_Secret_Spec(destination *storage.Secret_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(secret.PropertyBag)
+
+	// AzureName
+	destination.AzureName = secret.AzureName
+
+	// OperatorSpec
+	if secret.OperatorSpec != nil {
+		var operatorSpec storage.SecretOperatorSpec
+		err := secret.OperatorSpec.AssignProperties_To_SecretOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SecretOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	destination.OriginalVersion = secret.OriginalVersion
+
+	// Owner
+	if secret.Owner != nil {
+		owner := secret.Owner.Copy()
+		destination.Owner = &owner
+	} else {
+		destination.Owner = nil
+	}
+
+	// Parameters
+	if secret.Parameters != nil {
+		var parameter storage.SecretParameters
+		err := secret.Parameters.AssignProperties_To_SecretParameters(&parameter)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SecretParameters() to populate field Parameters")
+		}
+		destination.Parameters = &parameter
+	} else {
+		destination.Parameters = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecret_Spec interface (if implemented) to customize the conversion
+	var secretAsAny any = secret
+	if augmentedSecret, ok := secretAsAny.(augmentConversionForSecret_Spec); ok {
+		err := augmentedSecret.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20230501.Secret_STATUS
+type Secret_STATUS struct {
 	Conditions        []conditions.Condition   `json:"conditions,omitempty"`
 	DeploymentStatus  *string                  `json:"deploymentStatus,omitempty"`
 	Id                *string                  `json:"id,omitempty"`
@@ -188,24 +466,326 @@ type Profiles_Secret_STATUS struct {
 	Type              *string                  `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Profiles_Secret_STATUS{}
+var _ genruntime.ConvertibleStatus = &Secret_STATUS{}
 
-// ConvertStatusFrom populates our Profiles_Secret_STATUS from the provided source
-func (secret *Profiles_Secret_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == secret {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our Secret_STATUS from the provided source
+func (secret *Secret_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.Secret_STATUS)
+	if ok {
+		// Populate our instance from source
+		return secret.AssignProperties_From_Secret_STATUS(src)
 	}
 
-	return source.ConvertStatusTo(secret)
+	// Convert to an intermediate form
+	src = &storage.Secret_STATUS{}
+	err := src.ConvertStatusFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+	}
+
+	// Update our instance from src
+	err = secret.AssignProperties_From_Secret_STATUS(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+	}
+
+	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Profiles_Secret_STATUS
-func (secret *Profiles_Secret_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == secret {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our Secret_STATUS
+func (secret *Secret_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.Secret_STATUS)
+	if ok {
+		// Populate destination from our instance
+		return secret.AssignProperties_To_Secret_STATUS(dst)
 	}
 
-	return destination.ConvertStatusFrom(secret)
+	// Convert to an intermediate form
+	dst = &storage.Secret_STATUS{}
+	err := secret.AssignProperties_To_Secret_STATUS(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertStatusTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_Secret_STATUS populates our Secret_STATUS from the provided source Secret_STATUS
+func (secret *Secret_STATUS) AssignProperties_From_Secret_STATUS(source *storage.Secret_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Conditions
+	secret.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
+
+	// DeploymentStatus
+	secret.DeploymentStatus = genruntime.ClonePointerToString(source.DeploymentStatus)
+
+	// Id
+	secret.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Name
+	secret.Name = genruntime.ClonePointerToString(source.Name)
+
+	// Parameters
+	if source.Parameters != nil {
+		var parameter SecretParameters_STATUS
+		err := parameter.AssignProperties_From_SecretParameters_STATUS(source.Parameters)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SecretParameters_STATUS() to populate field Parameters")
+		}
+		secret.Parameters = &parameter
+	} else {
+		secret.Parameters = nil
+	}
+
+	// ProfileName
+	secret.ProfileName = genruntime.ClonePointerToString(source.ProfileName)
+
+	// ProvisioningState
+	secret.ProvisioningState = genruntime.ClonePointerToString(source.ProvisioningState)
+
+	// SystemData
+	if source.SystemData != nil {
+		var systemDatum SystemData_STATUS
+		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+		}
+		secret.SystemData = &systemDatum
+	} else {
+		secret.SystemData = nil
+	}
+
+	// Type
+	secret.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		secret.PropertyBag = propertyBag
+	} else {
+		secret.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecret_STATUS interface (if implemented) to customize the conversion
+	var secretAsAny any = secret
+	if augmentedSecret, ok := secretAsAny.(augmentConversionForSecret_STATUS); ok {
+		err := augmentedSecret.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_Secret_STATUS populates the provided destination Secret_STATUS from our Secret_STATUS
+func (secret *Secret_STATUS) AssignProperties_To_Secret_STATUS(destination *storage.Secret_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(secret.PropertyBag)
+
+	// Conditions
+	destination.Conditions = genruntime.CloneSliceOfCondition(secret.Conditions)
+
+	// DeploymentStatus
+	destination.DeploymentStatus = genruntime.ClonePointerToString(secret.DeploymentStatus)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(secret.Id)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(secret.Name)
+
+	// Parameters
+	if secret.Parameters != nil {
+		var parameter storage.SecretParameters_STATUS
+		err := secret.Parameters.AssignProperties_To_SecretParameters_STATUS(&parameter)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SecretParameters_STATUS() to populate field Parameters")
+		}
+		destination.Parameters = &parameter
+	} else {
+		destination.Parameters = nil
+	}
+
+	// ProfileName
+	destination.ProfileName = genruntime.ClonePointerToString(secret.ProfileName)
+
+	// ProvisioningState
+	destination.ProvisioningState = genruntime.ClonePointerToString(secret.ProvisioningState)
+
+	// SystemData
+	if secret.SystemData != nil {
+		var systemDatum storage.SystemData_STATUS
+		err := secret.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+		}
+		destination.SystemData = &systemDatum
+	} else {
+		destination.SystemData = nil
+	}
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(secret.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecret_STATUS interface (if implemented) to customize the conversion
+	var secretAsAny any = secret
+	if augmentedSecret, ok := secretAsAny.(augmentConversionForSecret_STATUS); ok {
+		err := augmentedSecret.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForSecret_Spec interface {
+	AssignPropertiesFrom(src *storage.Secret_Spec) error
+	AssignPropertiesTo(dst *storage.Secret_Spec) error
+}
+
+type augmentConversionForSecret_STATUS interface {
+	AssignPropertiesFrom(src *storage.Secret_STATUS) error
+	AssignPropertiesTo(dst *storage.Secret_STATUS) error
+}
+
+// Storage version of v1api20230501.SecretOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type SecretOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_SecretOperatorSpec populates our SecretOperatorSpec from the provided source SecretOperatorSpec
+func (operator *SecretOperatorSpec) AssignProperties_From_SecretOperatorSpec(source *storage.SecretOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		operator.PropertyBag = propertyBag
+	} else {
+		operator.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecretOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForSecretOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SecretOperatorSpec populates the provided destination SecretOperatorSpec from our SecretOperatorSpec
+func (operator *SecretOperatorSpec) AssignProperties_To_SecretOperatorSpec(destination *storage.SecretOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecretOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForSecretOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20230501.SecretParameters
@@ -217,6 +797,152 @@ type SecretParameters struct {
 	UrlSigningKey                     *UrlSigningKeyParameters                     `json:"urlSigningKey,omitempty"`
 }
 
+// AssignProperties_From_SecretParameters populates our SecretParameters from the provided source SecretParameters
+func (parameters *SecretParameters) AssignProperties_From_SecretParameters(source *storage.SecretParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureFirstPartyManagedCertificate
+	if source.AzureFirstPartyManagedCertificate != nil {
+		var azureFirstPartyManagedCertificate AzureFirstPartyManagedCertificateParameters
+		err := azureFirstPartyManagedCertificate.AssignProperties_From_AzureFirstPartyManagedCertificateParameters(source.AzureFirstPartyManagedCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AzureFirstPartyManagedCertificateParameters() to populate field AzureFirstPartyManagedCertificate")
+		}
+		parameters.AzureFirstPartyManagedCertificate = &azureFirstPartyManagedCertificate
+	} else {
+		parameters.AzureFirstPartyManagedCertificate = nil
+	}
+
+	// CustomerCertificate
+	if source.CustomerCertificate != nil {
+		var customerCertificate CustomerCertificateParameters
+		err := customerCertificate.AssignProperties_From_CustomerCertificateParameters(source.CustomerCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_CustomerCertificateParameters() to populate field CustomerCertificate")
+		}
+		parameters.CustomerCertificate = &customerCertificate
+	} else {
+		parameters.CustomerCertificate = nil
+	}
+
+	// ManagedCertificate
+	if source.ManagedCertificate != nil {
+		var managedCertificate ManagedCertificateParameters
+		err := managedCertificate.AssignProperties_From_ManagedCertificateParameters(source.ManagedCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ManagedCertificateParameters() to populate field ManagedCertificate")
+		}
+		parameters.ManagedCertificate = &managedCertificate
+	} else {
+		parameters.ManagedCertificate = nil
+	}
+
+	// UrlSigningKey
+	if source.UrlSigningKey != nil {
+		var urlSigningKey UrlSigningKeyParameters
+		err := urlSigningKey.AssignProperties_From_UrlSigningKeyParameters(source.UrlSigningKey)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_UrlSigningKeyParameters() to populate field UrlSigningKey")
+		}
+		parameters.UrlSigningKey = &urlSigningKey
+	} else {
+		parameters.UrlSigningKey = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecretParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSecretParameters); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SecretParameters populates the provided destination SecretParameters from our SecretParameters
+func (parameters *SecretParameters) AssignProperties_To_SecretParameters(destination *storage.SecretParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// AzureFirstPartyManagedCertificate
+	if parameters.AzureFirstPartyManagedCertificate != nil {
+		var azureFirstPartyManagedCertificate storage.AzureFirstPartyManagedCertificateParameters
+		err := parameters.AzureFirstPartyManagedCertificate.AssignProperties_To_AzureFirstPartyManagedCertificateParameters(&azureFirstPartyManagedCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AzureFirstPartyManagedCertificateParameters() to populate field AzureFirstPartyManagedCertificate")
+		}
+		destination.AzureFirstPartyManagedCertificate = &azureFirstPartyManagedCertificate
+	} else {
+		destination.AzureFirstPartyManagedCertificate = nil
+	}
+
+	// CustomerCertificate
+	if parameters.CustomerCertificate != nil {
+		var customerCertificate storage.CustomerCertificateParameters
+		err := parameters.CustomerCertificate.AssignProperties_To_CustomerCertificateParameters(&customerCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_CustomerCertificateParameters() to populate field CustomerCertificate")
+		}
+		destination.CustomerCertificate = &customerCertificate
+	} else {
+		destination.CustomerCertificate = nil
+	}
+
+	// ManagedCertificate
+	if parameters.ManagedCertificate != nil {
+		var managedCertificate storage.ManagedCertificateParameters
+		err := parameters.ManagedCertificate.AssignProperties_To_ManagedCertificateParameters(&managedCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ManagedCertificateParameters() to populate field ManagedCertificate")
+		}
+		destination.ManagedCertificate = &managedCertificate
+	} else {
+		destination.ManagedCertificate = nil
+	}
+
+	// UrlSigningKey
+	if parameters.UrlSigningKey != nil {
+		var urlSigningKey storage.UrlSigningKeyParameters
+		err := parameters.UrlSigningKey.AssignProperties_To_UrlSigningKeyParameters(&urlSigningKey)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_UrlSigningKeyParameters() to populate field UrlSigningKey")
+		}
+		destination.UrlSigningKey = &urlSigningKey
+	} else {
+		destination.UrlSigningKey = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecretParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSecretParameters); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20230501.SecretParameters_STATUS
 type SecretParameters_STATUS struct {
 	AzureFirstPartyManagedCertificate *AzureFirstPartyManagedCertificateParameters_STATUS `json:"azureFirstPartyManagedCertificate,omitempty"`
@@ -226,11 +952,234 @@ type SecretParameters_STATUS struct {
 	UrlSigningKey                     *UrlSigningKeyParameters_STATUS                     `json:"urlSigningKey,omitempty"`
 }
 
+// AssignProperties_From_SecretParameters_STATUS populates our SecretParameters_STATUS from the provided source SecretParameters_STATUS
+func (parameters *SecretParameters_STATUS) AssignProperties_From_SecretParameters_STATUS(source *storage.SecretParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureFirstPartyManagedCertificate
+	if source.AzureFirstPartyManagedCertificate != nil {
+		var azureFirstPartyManagedCertificate AzureFirstPartyManagedCertificateParameters_STATUS
+		err := azureFirstPartyManagedCertificate.AssignProperties_From_AzureFirstPartyManagedCertificateParameters_STATUS(source.AzureFirstPartyManagedCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AzureFirstPartyManagedCertificateParameters_STATUS() to populate field AzureFirstPartyManagedCertificate")
+		}
+		parameters.AzureFirstPartyManagedCertificate = &azureFirstPartyManagedCertificate
+	} else {
+		parameters.AzureFirstPartyManagedCertificate = nil
+	}
+
+	// CustomerCertificate
+	if source.CustomerCertificate != nil {
+		var customerCertificate CustomerCertificateParameters_STATUS
+		err := customerCertificate.AssignProperties_From_CustomerCertificateParameters_STATUS(source.CustomerCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_CustomerCertificateParameters_STATUS() to populate field CustomerCertificate")
+		}
+		parameters.CustomerCertificate = &customerCertificate
+	} else {
+		parameters.CustomerCertificate = nil
+	}
+
+	// ManagedCertificate
+	if source.ManagedCertificate != nil {
+		var managedCertificate ManagedCertificateParameters_STATUS
+		err := managedCertificate.AssignProperties_From_ManagedCertificateParameters_STATUS(source.ManagedCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ManagedCertificateParameters_STATUS() to populate field ManagedCertificate")
+		}
+		parameters.ManagedCertificate = &managedCertificate
+	} else {
+		parameters.ManagedCertificate = nil
+	}
+
+	// UrlSigningKey
+	if source.UrlSigningKey != nil {
+		var urlSigningKey UrlSigningKeyParameters_STATUS
+		err := urlSigningKey.AssignProperties_From_UrlSigningKeyParameters_STATUS(source.UrlSigningKey)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_UrlSigningKeyParameters_STATUS() to populate field UrlSigningKey")
+		}
+		parameters.UrlSigningKey = &urlSigningKey
+	} else {
+		parameters.UrlSigningKey = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecretParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSecretParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SecretParameters_STATUS populates the provided destination SecretParameters_STATUS from our SecretParameters_STATUS
+func (parameters *SecretParameters_STATUS) AssignProperties_To_SecretParameters_STATUS(destination *storage.SecretParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// AzureFirstPartyManagedCertificate
+	if parameters.AzureFirstPartyManagedCertificate != nil {
+		var azureFirstPartyManagedCertificate storage.AzureFirstPartyManagedCertificateParameters_STATUS
+		err := parameters.AzureFirstPartyManagedCertificate.AssignProperties_To_AzureFirstPartyManagedCertificateParameters_STATUS(&azureFirstPartyManagedCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AzureFirstPartyManagedCertificateParameters_STATUS() to populate field AzureFirstPartyManagedCertificate")
+		}
+		destination.AzureFirstPartyManagedCertificate = &azureFirstPartyManagedCertificate
+	} else {
+		destination.AzureFirstPartyManagedCertificate = nil
+	}
+
+	// CustomerCertificate
+	if parameters.CustomerCertificate != nil {
+		var customerCertificate storage.CustomerCertificateParameters_STATUS
+		err := parameters.CustomerCertificate.AssignProperties_To_CustomerCertificateParameters_STATUS(&customerCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_CustomerCertificateParameters_STATUS() to populate field CustomerCertificate")
+		}
+		destination.CustomerCertificate = &customerCertificate
+	} else {
+		destination.CustomerCertificate = nil
+	}
+
+	// ManagedCertificate
+	if parameters.ManagedCertificate != nil {
+		var managedCertificate storage.ManagedCertificateParameters_STATUS
+		err := parameters.ManagedCertificate.AssignProperties_To_ManagedCertificateParameters_STATUS(&managedCertificate)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ManagedCertificateParameters_STATUS() to populate field ManagedCertificate")
+		}
+		destination.ManagedCertificate = &managedCertificate
+	} else {
+		destination.ManagedCertificate = nil
+	}
+
+	// UrlSigningKey
+	if parameters.UrlSigningKey != nil {
+		var urlSigningKey storage.UrlSigningKeyParameters_STATUS
+		err := parameters.UrlSigningKey.AssignProperties_To_UrlSigningKeyParameters_STATUS(&urlSigningKey)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_UrlSigningKeyParameters_STATUS() to populate field UrlSigningKey")
+		}
+		destination.UrlSigningKey = &urlSigningKey
+	} else {
+		destination.UrlSigningKey = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSecretParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForSecretParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForSecretOperatorSpec interface {
+	AssignPropertiesFrom(src *storage.SecretOperatorSpec) error
+	AssignPropertiesTo(dst *storage.SecretOperatorSpec) error
+}
+
+type augmentConversionForSecretParameters interface {
+	AssignPropertiesFrom(src *storage.SecretParameters) error
+	AssignPropertiesTo(dst *storage.SecretParameters) error
+}
+
+type augmentConversionForSecretParameters_STATUS interface {
+	AssignPropertiesFrom(src *storage.SecretParameters_STATUS) error
+	AssignPropertiesTo(dst *storage.SecretParameters_STATUS) error
+}
+
 // Storage version of v1api20230501.AzureFirstPartyManagedCertificateParameters
 type AzureFirstPartyManagedCertificateParameters struct {
 	PropertyBag             genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	SubjectAlternativeNames []string               `json:"subjectAlternativeNames,omitempty"`
 	Type                    *string                `json:"type,omitempty"`
+}
+
+// AssignProperties_From_AzureFirstPartyManagedCertificateParameters populates our AzureFirstPartyManagedCertificateParameters from the provided source AzureFirstPartyManagedCertificateParameters
+func (parameters *AzureFirstPartyManagedCertificateParameters) AssignProperties_From_AzureFirstPartyManagedCertificateParameters(source *storage.AzureFirstPartyManagedCertificateParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// SubjectAlternativeNames
+	parameters.SubjectAlternativeNames = genruntime.CloneSliceOfString(source.SubjectAlternativeNames)
+
+	// Type
+	parameters.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAzureFirstPartyManagedCertificateParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForAzureFirstPartyManagedCertificateParameters); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AzureFirstPartyManagedCertificateParameters populates the provided destination AzureFirstPartyManagedCertificateParameters from our AzureFirstPartyManagedCertificateParameters
+func (parameters *AzureFirstPartyManagedCertificateParameters) AssignProperties_To_AzureFirstPartyManagedCertificateParameters(destination *storage.AzureFirstPartyManagedCertificateParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// SubjectAlternativeNames
+	destination.SubjectAlternativeNames = genruntime.CloneSliceOfString(parameters.SubjectAlternativeNames)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(parameters.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAzureFirstPartyManagedCertificateParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForAzureFirstPartyManagedCertificateParameters); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20230501.AzureFirstPartyManagedCertificateParameters_STATUS
@@ -245,6 +1194,116 @@ type AzureFirstPartyManagedCertificateParameters_STATUS struct {
 	Type                    *string                   `json:"type,omitempty"`
 }
 
+// AssignProperties_From_AzureFirstPartyManagedCertificateParameters_STATUS populates our AzureFirstPartyManagedCertificateParameters_STATUS from the provided source AzureFirstPartyManagedCertificateParameters_STATUS
+func (parameters *AzureFirstPartyManagedCertificateParameters_STATUS) AssignProperties_From_AzureFirstPartyManagedCertificateParameters_STATUS(source *storage.AzureFirstPartyManagedCertificateParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// CertificateAuthority
+	parameters.CertificateAuthority = genruntime.ClonePointerToString(source.CertificateAuthority)
+
+	// ExpirationDate
+	parameters.ExpirationDate = genruntime.ClonePointerToString(source.ExpirationDate)
+
+	// SecretSource
+	if source.SecretSource != nil {
+		var secretSource ResourceReference_STATUS
+		err := secretSource.AssignProperties_From_ResourceReference_STATUS(source.SecretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field SecretSource")
+		}
+		parameters.SecretSource = &secretSource
+	} else {
+		parameters.SecretSource = nil
+	}
+
+	// Subject
+	parameters.Subject = genruntime.ClonePointerToString(source.Subject)
+
+	// SubjectAlternativeNames
+	parameters.SubjectAlternativeNames = genruntime.CloneSliceOfString(source.SubjectAlternativeNames)
+
+	// Thumbprint
+	parameters.Thumbprint = genruntime.ClonePointerToString(source.Thumbprint)
+
+	// Type
+	parameters.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAzureFirstPartyManagedCertificateParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForAzureFirstPartyManagedCertificateParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AzureFirstPartyManagedCertificateParameters_STATUS populates the provided destination AzureFirstPartyManagedCertificateParameters_STATUS from our AzureFirstPartyManagedCertificateParameters_STATUS
+func (parameters *AzureFirstPartyManagedCertificateParameters_STATUS) AssignProperties_To_AzureFirstPartyManagedCertificateParameters_STATUS(destination *storage.AzureFirstPartyManagedCertificateParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// CertificateAuthority
+	destination.CertificateAuthority = genruntime.ClonePointerToString(parameters.CertificateAuthority)
+
+	// ExpirationDate
+	destination.ExpirationDate = genruntime.ClonePointerToString(parameters.ExpirationDate)
+
+	// SecretSource
+	if parameters.SecretSource != nil {
+		var secretSource storage.ResourceReference_STATUS
+		err := parameters.SecretSource.AssignProperties_To_ResourceReference_STATUS(&secretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field SecretSource")
+		}
+		destination.SecretSource = &secretSource
+	} else {
+		destination.SecretSource = nil
+	}
+
+	// Subject
+	destination.Subject = genruntime.ClonePointerToString(parameters.Subject)
+
+	// SubjectAlternativeNames
+	destination.SubjectAlternativeNames = genruntime.CloneSliceOfString(parameters.SubjectAlternativeNames)
+
+	// Thumbprint
+	destination.Thumbprint = genruntime.ClonePointerToString(parameters.Thumbprint)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(parameters.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAzureFirstPartyManagedCertificateParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForAzureFirstPartyManagedCertificateParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20230501.CustomerCertificateParameters
 type CustomerCertificateParameters struct {
 	PropertyBag             genruntime.PropertyBag `json:"$propertyBag,omitempty"`
@@ -253,6 +1312,114 @@ type CustomerCertificateParameters struct {
 	SubjectAlternativeNames []string               `json:"subjectAlternativeNames,omitempty"`
 	Type                    *string                `json:"type,omitempty"`
 	UseLatestVersion        *bool                  `json:"useLatestVersion,omitempty"`
+}
+
+// AssignProperties_From_CustomerCertificateParameters populates our CustomerCertificateParameters from the provided source CustomerCertificateParameters
+func (parameters *CustomerCertificateParameters) AssignProperties_From_CustomerCertificateParameters(source *storage.CustomerCertificateParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// SecretSource
+	if source.SecretSource != nil {
+		var secretSource ResourceReference
+		err := secretSource.AssignProperties_From_ResourceReference(source.SecretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field SecretSource")
+		}
+		parameters.SecretSource = &secretSource
+	} else {
+		parameters.SecretSource = nil
+	}
+
+	// SecretVersion
+	parameters.SecretVersion = genruntime.ClonePointerToString(source.SecretVersion)
+
+	// SubjectAlternativeNames
+	parameters.SubjectAlternativeNames = genruntime.CloneSliceOfString(source.SubjectAlternativeNames)
+
+	// Type
+	parameters.Type = genruntime.ClonePointerToString(source.Type)
+
+	// UseLatestVersion
+	if source.UseLatestVersion != nil {
+		useLatestVersion := *source.UseLatestVersion
+		parameters.UseLatestVersion = &useLatestVersion
+	} else {
+		parameters.UseLatestVersion = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForCustomerCertificateParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCustomerCertificateParameters); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_CustomerCertificateParameters populates the provided destination CustomerCertificateParameters from our CustomerCertificateParameters
+func (parameters *CustomerCertificateParameters) AssignProperties_To_CustomerCertificateParameters(destination *storage.CustomerCertificateParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// SecretSource
+	if parameters.SecretSource != nil {
+		var secretSource storage.ResourceReference
+		err := parameters.SecretSource.AssignProperties_To_ResourceReference(&secretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field SecretSource")
+		}
+		destination.SecretSource = &secretSource
+	} else {
+		destination.SecretSource = nil
+	}
+
+	// SecretVersion
+	destination.SecretVersion = genruntime.ClonePointerToString(parameters.SecretVersion)
+
+	// SubjectAlternativeNames
+	destination.SubjectAlternativeNames = genruntime.CloneSliceOfString(parameters.SubjectAlternativeNames)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(parameters.Type)
+
+	// UseLatestVersion
+	if parameters.UseLatestVersion != nil {
+		useLatestVersion := *parameters.UseLatestVersion
+		destination.UseLatestVersion = &useLatestVersion
+	} else {
+		destination.UseLatestVersion = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForCustomerCertificateParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCustomerCertificateParameters); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20230501.CustomerCertificateParameters_STATUS
@@ -269,10 +1436,198 @@ type CustomerCertificateParameters_STATUS struct {
 	UseLatestVersion        *bool                     `json:"useLatestVersion,omitempty"`
 }
 
+// AssignProperties_From_CustomerCertificateParameters_STATUS populates our CustomerCertificateParameters_STATUS from the provided source CustomerCertificateParameters_STATUS
+func (parameters *CustomerCertificateParameters_STATUS) AssignProperties_From_CustomerCertificateParameters_STATUS(source *storage.CustomerCertificateParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// CertificateAuthority
+	parameters.CertificateAuthority = genruntime.ClonePointerToString(source.CertificateAuthority)
+
+	// ExpirationDate
+	parameters.ExpirationDate = genruntime.ClonePointerToString(source.ExpirationDate)
+
+	// SecretSource
+	if source.SecretSource != nil {
+		var secretSource ResourceReference_STATUS
+		err := secretSource.AssignProperties_From_ResourceReference_STATUS(source.SecretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field SecretSource")
+		}
+		parameters.SecretSource = &secretSource
+	} else {
+		parameters.SecretSource = nil
+	}
+
+	// SecretVersion
+	parameters.SecretVersion = genruntime.ClonePointerToString(source.SecretVersion)
+
+	// Subject
+	parameters.Subject = genruntime.ClonePointerToString(source.Subject)
+
+	// SubjectAlternativeNames
+	parameters.SubjectAlternativeNames = genruntime.CloneSliceOfString(source.SubjectAlternativeNames)
+
+	// Thumbprint
+	parameters.Thumbprint = genruntime.ClonePointerToString(source.Thumbprint)
+
+	// Type
+	parameters.Type = genruntime.ClonePointerToString(source.Type)
+
+	// UseLatestVersion
+	if source.UseLatestVersion != nil {
+		useLatestVersion := *source.UseLatestVersion
+		parameters.UseLatestVersion = &useLatestVersion
+	} else {
+		parameters.UseLatestVersion = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForCustomerCertificateParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCustomerCertificateParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_CustomerCertificateParameters_STATUS populates the provided destination CustomerCertificateParameters_STATUS from our CustomerCertificateParameters_STATUS
+func (parameters *CustomerCertificateParameters_STATUS) AssignProperties_To_CustomerCertificateParameters_STATUS(destination *storage.CustomerCertificateParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// CertificateAuthority
+	destination.CertificateAuthority = genruntime.ClonePointerToString(parameters.CertificateAuthority)
+
+	// ExpirationDate
+	destination.ExpirationDate = genruntime.ClonePointerToString(parameters.ExpirationDate)
+
+	// SecretSource
+	if parameters.SecretSource != nil {
+		var secretSource storage.ResourceReference_STATUS
+		err := parameters.SecretSource.AssignProperties_To_ResourceReference_STATUS(&secretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field SecretSource")
+		}
+		destination.SecretSource = &secretSource
+	} else {
+		destination.SecretSource = nil
+	}
+
+	// SecretVersion
+	destination.SecretVersion = genruntime.ClonePointerToString(parameters.SecretVersion)
+
+	// Subject
+	destination.Subject = genruntime.ClonePointerToString(parameters.Subject)
+
+	// SubjectAlternativeNames
+	destination.SubjectAlternativeNames = genruntime.CloneSliceOfString(parameters.SubjectAlternativeNames)
+
+	// Thumbprint
+	destination.Thumbprint = genruntime.ClonePointerToString(parameters.Thumbprint)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(parameters.Type)
+
+	// UseLatestVersion
+	if parameters.UseLatestVersion != nil {
+		useLatestVersion := *parameters.UseLatestVersion
+		destination.UseLatestVersion = &useLatestVersion
+	} else {
+		destination.UseLatestVersion = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForCustomerCertificateParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForCustomerCertificateParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20230501.ManagedCertificateParameters
 type ManagedCertificateParameters struct {
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	Type        *string                `json:"type,omitempty"`
+}
+
+// AssignProperties_From_ManagedCertificateParameters populates our ManagedCertificateParameters from the provided source ManagedCertificateParameters
+func (parameters *ManagedCertificateParameters) AssignProperties_From_ManagedCertificateParameters(source *storage.ManagedCertificateParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Type
+	parameters.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForManagedCertificateParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForManagedCertificateParameters); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ManagedCertificateParameters populates the provided destination ManagedCertificateParameters from our ManagedCertificateParameters
+func (parameters *ManagedCertificateParameters) AssignProperties_To_ManagedCertificateParameters(destination *storage.ManagedCertificateParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(parameters.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForManagedCertificateParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForManagedCertificateParameters); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20230501.ManagedCertificateParameters_STATUS
@@ -281,6 +1636,74 @@ type ManagedCertificateParameters_STATUS struct {
 	PropertyBag    genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	Subject        *string                `json:"subject,omitempty"`
 	Type           *string                `json:"type,omitempty"`
+}
+
+// AssignProperties_From_ManagedCertificateParameters_STATUS populates our ManagedCertificateParameters_STATUS from the provided source ManagedCertificateParameters_STATUS
+func (parameters *ManagedCertificateParameters_STATUS) AssignProperties_From_ManagedCertificateParameters_STATUS(source *storage.ManagedCertificateParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ExpirationDate
+	parameters.ExpirationDate = genruntime.ClonePointerToString(source.ExpirationDate)
+
+	// Subject
+	parameters.Subject = genruntime.ClonePointerToString(source.Subject)
+
+	// Type
+	parameters.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForManagedCertificateParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForManagedCertificateParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ManagedCertificateParameters_STATUS populates the provided destination ManagedCertificateParameters_STATUS from our ManagedCertificateParameters_STATUS
+func (parameters *ManagedCertificateParameters_STATUS) AssignProperties_To_ManagedCertificateParameters_STATUS(destination *storage.ManagedCertificateParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// ExpirationDate
+	destination.ExpirationDate = genruntime.ClonePointerToString(parameters.ExpirationDate)
+
+	// Subject
+	destination.Subject = genruntime.ClonePointerToString(parameters.Subject)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(parameters.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForManagedCertificateParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForManagedCertificateParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20230501.UrlSigningKeyParameters
@@ -292,6 +1715,98 @@ type UrlSigningKeyParameters struct {
 	Type          *string                `json:"type,omitempty"`
 }
 
+// AssignProperties_From_UrlSigningKeyParameters populates our UrlSigningKeyParameters from the provided source UrlSigningKeyParameters
+func (parameters *UrlSigningKeyParameters) AssignProperties_From_UrlSigningKeyParameters(source *storage.UrlSigningKeyParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// KeyId
+	parameters.KeyId = genruntime.ClonePointerToString(source.KeyId)
+
+	// SecretSource
+	if source.SecretSource != nil {
+		var secretSource ResourceReference
+		err := secretSource.AssignProperties_From_ResourceReference(source.SecretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field SecretSource")
+		}
+		parameters.SecretSource = &secretSource
+	} else {
+		parameters.SecretSource = nil
+	}
+
+	// SecretVersion
+	parameters.SecretVersion = genruntime.ClonePointerToString(source.SecretVersion)
+
+	// Type
+	parameters.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForUrlSigningKeyParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlSigningKeyParameters); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_UrlSigningKeyParameters populates the provided destination UrlSigningKeyParameters from our UrlSigningKeyParameters
+func (parameters *UrlSigningKeyParameters) AssignProperties_To_UrlSigningKeyParameters(destination *storage.UrlSigningKeyParameters) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// KeyId
+	destination.KeyId = genruntime.ClonePointerToString(parameters.KeyId)
+
+	// SecretSource
+	if parameters.SecretSource != nil {
+		var secretSource storage.ResourceReference
+		err := parameters.SecretSource.AssignProperties_To_ResourceReference(&secretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field SecretSource")
+		}
+		destination.SecretSource = &secretSource
+	} else {
+		destination.SecretSource = nil
+	}
+
+	// SecretVersion
+	destination.SecretVersion = genruntime.ClonePointerToString(parameters.SecretVersion)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(parameters.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForUrlSigningKeyParameters interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlSigningKeyParameters); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20230501.UrlSigningKeyParameters_STATUS
 type UrlSigningKeyParameters_STATUS struct {
 	KeyId         *string                   `json:"keyId,omitempty"`
@@ -299,6 +1814,138 @@ type UrlSigningKeyParameters_STATUS struct {
 	SecretSource  *ResourceReference_STATUS `json:"secretSource,omitempty"`
 	SecretVersion *string                   `json:"secretVersion,omitempty"`
 	Type          *string                   `json:"type,omitempty"`
+}
+
+// AssignProperties_From_UrlSigningKeyParameters_STATUS populates our UrlSigningKeyParameters_STATUS from the provided source UrlSigningKeyParameters_STATUS
+func (parameters *UrlSigningKeyParameters_STATUS) AssignProperties_From_UrlSigningKeyParameters_STATUS(source *storage.UrlSigningKeyParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// KeyId
+	parameters.KeyId = genruntime.ClonePointerToString(source.KeyId)
+
+	// SecretSource
+	if source.SecretSource != nil {
+		var secretSource ResourceReference_STATUS
+		err := secretSource.AssignProperties_From_ResourceReference_STATUS(source.SecretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field SecretSource")
+		}
+		parameters.SecretSource = &secretSource
+	} else {
+		parameters.SecretSource = nil
+	}
+
+	// SecretVersion
+	parameters.SecretVersion = genruntime.ClonePointerToString(source.SecretVersion)
+
+	// Type
+	parameters.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		parameters.PropertyBag = propertyBag
+	} else {
+		parameters.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForUrlSigningKeyParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlSigningKeyParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_UrlSigningKeyParameters_STATUS populates the provided destination UrlSigningKeyParameters_STATUS from our UrlSigningKeyParameters_STATUS
+func (parameters *UrlSigningKeyParameters_STATUS) AssignProperties_To_UrlSigningKeyParameters_STATUS(destination *storage.UrlSigningKeyParameters_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(parameters.PropertyBag)
+
+	// KeyId
+	destination.KeyId = genruntime.ClonePointerToString(parameters.KeyId)
+
+	// SecretSource
+	if parameters.SecretSource != nil {
+		var secretSource storage.ResourceReference_STATUS
+		err := parameters.SecretSource.AssignProperties_To_ResourceReference_STATUS(&secretSource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field SecretSource")
+		}
+		destination.SecretSource = &secretSource
+	} else {
+		destination.SecretSource = nil
+	}
+
+	// SecretVersion
+	destination.SecretVersion = genruntime.ClonePointerToString(parameters.SecretVersion)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(parameters.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForUrlSigningKeyParameters_STATUS interface (if implemented) to customize the conversion
+	var parametersAsAny any = parameters
+	if augmentedParameters, ok := parametersAsAny.(augmentConversionForUrlSigningKeyParameters_STATUS); ok {
+		err := augmentedParameters.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForAzureFirstPartyManagedCertificateParameters interface {
+	AssignPropertiesFrom(src *storage.AzureFirstPartyManagedCertificateParameters) error
+	AssignPropertiesTo(dst *storage.AzureFirstPartyManagedCertificateParameters) error
+}
+
+type augmentConversionForAzureFirstPartyManagedCertificateParameters_STATUS interface {
+	AssignPropertiesFrom(src *storage.AzureFirstPartyManagedCertificateParameters_STATUS) error
+	AssignPropertiesTo(dst *storage.AzureFirstPartyManagedCertificateParameters_STATUS) error
+}
+
+type augmentConversionForCustomerCertificateParameters interface {
+	AssignPropertiesFrom(src *storage.CustomerCertificateParameters) error
+	AssignPropertiesTo(dst *storage.CustomerCertificateParameters) error
+}
+
+type augmentConversionForCustomerCertificateParameters_STATUS interface {
+	AssignPropertiesFrom(src *storage.CustomerCertificateParameters_STATUS) error
+	AssignPropertiesTo(dst *storage.CustomerCertificateParameters_STATUS) error
+}
+
+type augmentConversionForManagedCertificateParameters interface {
+	AssignPropertiesFrom(src *storage.ManagedCertificateParameters) error
+	AssignPropertiesTo(dst *storage.ManagedCertificateParameters) error
+}
+
+type augmentConversionForManagedCertificateParameters_STATUS interface {
+	AssignPropertiesFrom(src *storage.ManagedCertificateParameters_STATUS) error
+	AssignPropertiesTo(dst *storage.ManagedCertificateParameters_STATUS) error
+}
+
+type augmentConversionForUrlSigningKeyParameters interface {
+	AssignPropertiesFrom(src *storage.UrlSigningKeyParameters) error
+	AssignPropertiesTo(dst *storage.UrlSigningKeyParameters) error
+}
+
+type augmentConversionForUrlSigningKeyParameters_STATUS interface {
+	AssignPropertiesFrom(src *storage.UrlSigningKeyParameters_STATUS) error
+	AssignPropertiesTo(dst *storage.UrlSigningKeyParameters_STATUS) error
 }
 
 func init() {

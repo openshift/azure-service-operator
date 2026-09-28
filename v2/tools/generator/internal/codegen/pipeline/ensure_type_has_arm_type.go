@@ -8,7 +8,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -17,12 +17,14 @@ import (
 // TODO: Wondering if we should have an even stronger version of this that asserts it for all types rather than just the top level?
 // EnsureARMTypeExistsForEveryResource performs a check ensuring that every Kubernetes resource spec/status has a corresponding ARM type
 func EnsureARMTypeExistsForEveryResource() *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		"ensureArmTypeExistsForEveryType",
 		"Check that an ARM type exists for both Spec and Status of each resource",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
-			return definitions, validateExpectedTypesHaveARMType(definitions)
-		})
+		func(ctx context.Context, state *State) (*State, error) {
+			definitions := state.Definitions()
+			return state, validateExpectedTypesHaveARMType(definitions)
+		},
+	)
 }
 
 // validateExpectedTypesHaveARMType returns an error containing details about all
@@ -31,13 +33,13 @@ func validateExpectedTypesHaveARMType(definitions astmodel.TypeDefinitionSet) er
 	findARMType := func(t astmodel.Type) error {
 		name, ok := astmodel.AsInternalTypeName(t)
 		if !ok {
-			return errors.Errorf("type was not of type TypeName, instead %T", t)
+			return eris.Errorf("type was not of type TypeName, instead %T", t)
 		}
 
 		armName := astmodel.CreateARMTypeName(name)
 
 		if _, ok = definitions[armName]; !ok {
-			return errors.Errorf("couldn't find ARM type %q", armName)
+			return eris.Errorf("couldn't find ARM type %q", armName)
 		}
 
 		return nil

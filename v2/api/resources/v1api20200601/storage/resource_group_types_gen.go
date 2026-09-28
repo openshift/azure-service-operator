@@ -6,7 +6,10 @@ package storage
 import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -15,6 +18,7 @@ import (
 // +kubebuilder:rbac:groups=resources.azure.com,resources={resourcegroups/status,resourcegroups/finalizers},verbs=get;update;patch
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,resources}
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
@@ -23,7 +27,7 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20200601.ResourceGroup
 // Generator information:
-// - Generated from: /resources/resource-manager/Microsoft.Resources/stable/2020-06-01/resources.json
+// - Generated from: /resources/resource-manager/Microsoft.Resources/resources/stable/2020-06-01/resources.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}
 type ResourceGroup struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -44,6 +48,26 @@ func (group *ResourceGroup) SetConditions(conditions conditions.Conditions) {
 	group.Status.Conditions = conditions
 }
 
+var _ configmaps.Exporter = &ResourceGroup{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (group *ResourceGroup) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if group.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return group.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &ResourceGroup{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (group *ResourceGroup) SecretDestinationExpressions() []*core.DestinationExpression {
+	if group.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return group.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &ResourceGroup{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +77,7 @@ func (group *ResourceGroup) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2020-06-01"
 func (group ResourceGroup) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2020-06-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -108,7 +132,7 @@ func (group *ResourceGroup) SetStatus(status genruntime.ConvertibleStatus) error
 	var st ResourceGroup_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	group.Status = st
@@ -140,7 +164,7 @@ func (group *ResourceGroup) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20200601.ResourceGroup
 // Generator information:
-// - Generated from: /resources/resource-manager/Microsoft.Resources/stable/2020-06-01/resources.json
+// - Generated from: /resources/resource-manager/Microsoft.Resources/resources/stable/2020-06-01/resources.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}
 type ResourceGroupList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -158,12 +182,13 @@ const APIVersion_Value = APIVersion("2020-06-01")
 type ResourceGroup_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName       string                 `json:"azureName,omitempty"`
-	Location        *string                `json:"location,omitempty"`
-	ManagedBy       *string                `json:"managedBy,omitempty"`
-	OriginalVersion string                 `json:"originalVersion,omitempty"`
-	PropertyBag     genruntime.PropertyBag `json:"$propertyBag,omitempty"`
-	Tags            map[string]string      `json:"tags,omitempty"`
+	AzureName       string                     `json:"azureName,omitempty"`
+	Location        *string                    `json:"location,omitempty"`
+	ManagedBy       *string                    `json:"managedBy,omitempty"`
+	OperatorSpec    *ResourceGroupOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion string                     `json:"originalVersion,omitempty"`
+	PropertyBag     genruntime.PropertyBag     `json:"$propertyBag,omitempty"`
+	Tags            map[string]string          `json:"tags,omitempty"`
 }
 
 var _ genruntime.ConvertibleSpec = &ResourceGroup_Spec{}
@@ -171,7 +196,7 @@ var _ genruntime.ConvertibleSpec = &ResourceGroup_Spec{}
 // ConvertSpecFrom populates our ResourceGroup_Spec from the provided source
 func (group *ResourceGroup_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
 	if source == group {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
 	return source.ConvertSpecTo(group)
@@ -180,7 +205,7 @@ func (group *ResourceGroup_Spec) ConvertSpecFrom(source genruntime.ConvertibleSp
 // ConvertSpecTo populates the provided destination from our ResourceGroup_Spec
 func (group *ResourceGroup_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
 	if destination == group {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
 	return destination.ConvertSpecFrom(group)
@@ -205,7 +230,7 @@ var _ genruntime.ConvertibleStatus = &ResourceGroup_STATUS{}
 // ConvertStatusFrom populates our ResourceGroup_STATUS from the provided source
 func (group *ResourceGroup_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
 	if source == group {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return source.ConvertStatusTo(group)
@@ -214,10 +239,18 @@ func (group *ResourceGroup_STATUS) ConvertStatusFrom(source genruntime.Convertib
 // ConvertStatusTo populates the provided destination from our ResourceGroup_STATUS
 func (group *ResourceGroup_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
 	if destination == group {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return destination.ConvertStatusFrom(group)
+}
+
+// Storage version of v1api20200601.ResourceGroupOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type ResourceGroupOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
 }
 
 // Storage version of v1api20200601.ResourceGroupProperties_STATUS

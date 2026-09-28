@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"github.com/sebdah/goldie/v2"
 	"github.com/xeipuuv/gojsonschema"
 	"gopkg.in/yaml.v3"
@@ -27,7 +27,7 @@ import (
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
 )
 
-var goldenTestPackageReference = astmodel.MakeLocalPackageReference(test.GoModulePrefix, "test", astmodel.GeneratorVersion, "2020-01-01")
+var goldenTestPackageReference = astmodel.MakeVersionedLocalPackageReference(test.GoModulePrefix, "test", "2020-01-01")
 
 type GoldenTestConfig struct {
 	HasARMResources      bool                        `yaml:"hasArmResources"`
@@ -58,7 +58,7 @@ func loadTestConfig(path string) (GoldenTestConfig, error) {
 
 	err = yaml.Unmarshal(fileBytes, &result)
 	if err != nil {
-		return result, errors.Wrapf(err, "unmarshalling golden config %s", path)
+		return result, eris.Wrapf(err, "unmarshalling golden config %s", path)
 	}
 
 	return result, nil
@@ -85,7 +85,8 @@ func injectEmbeddedStructType() *pipeline.Stage {
 						prop := astmodel.NewPropertyDefinition(
 							"",
 							",inline",
-							embeddedTypeDef.Name())
+							embeddedTypeDef.Name(),
+						)
 						return objectType.WithEmbeddedProperty(prop)
 					})
 					if err != nil {
@@ -100,7 +101,8 @@ func injectEmbeddedStructType() *pipeline.Stage {
 			defs.Add(embeddedTypeDef)
 
 			return state.WithDefinitions(defs), nil
-		})
+		},
+	)
 }
 
 func runGoldenTest(t *testing.T, path string, testConfig GoldenTestConfig) {
@@ -160,12 +162,15 @@ func NewTestCodeGenerator(
 			pipeline.CreateResourceExtensionsStageID,
 			pipeline.ReportOnTypesAndVersionsStageID,
 			pipeline.ReportResourceVersionsStageID,
-			pipeline.ReportResourceStructureStageId)
+			pipeline.ReportResourceStructureStageID,
+			pipeline.ReportUpgradableResourcesStageID,
+		)
 		if !testConfig.HasARMResources {
 			codegen.RemoveStages(
 				pipeline.CreateARMTypesStageID,
 				pipeline.PruneResourcesWithLifecycleOwnedByParentStageID,
-				pipeline.ApplyARMConversionInterfaceStageID)
+				pipeline.ApplyARMConversionInterfaceStageID,
+			)
 
 			// These stages treat the collection of types as a graph of types rooted by a resource type.
 			// In the degenerate case where there are no resources it behaves the same as stripUnreferenced - removing
@@ -173,7 +178,8 @@ func NewTestCodeGenerator(
 			codegen.RemoveStages(
 				pipeline.RemoveEmbeddedResourcesStageID,
 				pipeline.CollapseCrossGroupReferencesStageID,
-				pipeline.TransformCrossResourceReferencesStageID)
+				pipeline.TransformCrossResourceReferencesStageID,
+			)
 
 			codegen.ReplaceStage(pipeline.StripUnreferencedTypeDefinitionsStageID, stripUnusedTypesPipelineStage())
 		} else {
@@ -185,20 +191,22 @@ func NewTestCodeGenerator(
 			pipeline.DeleteGeneratedCodeStageID,
 			pipeline.CheckForAnyTypeStageID,
 			pipeline.ReportResourceVersionsStageID,
-			pipeline.ReportResourceStructureStageId)
+			pipeline.ReportResourceStructureStageID,
+			pipeline.ReportUpgradableResourcesStageID,
+		)
 		if !testConfig.HasARMResources {
 			codegen.ReplaceStage(pipeline.StripUnreferencedTypeDefinitionsStageID, stripUnusedTypesPipelineStage())
 		}
 
 	default:
-		return nil, errors.Errorf("unknown pipeline kind %q", string(genPipeline))
+		return nil, eris.Errorf("unknown pipeline kind %q", string(genPipeline))
 	}
 
 	codegen.ReplaceStage(pipeline.LoadTypesStageID, loadTestSchemaIntoTypes(idFactory, cfg, path))
 	codegen.ReplaceStage(pipeline.ExportPackagesStageID, exportPackagesTestPipelineStage(t, testName))
 
 	if testConfig.InjectEmbeddedStruct {
-		codegen.InjectStageAfter(pipeline.DetermineResourceOwnershipStageId, injectEmbeddedStructType())
+		codegen.InjectStageAfter(pipeline.DetermineResourceOwnershipStageID, injectEmbeddedStructType())
 	}
 
 	codegen.RemoveStages(
@@ -228,13 +236,13 @@ func loadTestSchemaIntoTypes(
 		func(ctx context.Context, state *pipeline.State) (*pipeline.State, error) {
 			inputFile, err := os.ReadFile(path)
 			if err != nil {
-				return nil, errors.Wrapf(err, "cannot read golden test input file")
+				return nil, eris.Wrapf(err, "cannot read golden test input file")
 			}
 
 			loader := gojsonschema.NewSchemaLoader()
 			schema, err := loader.Compile(gojsonschema.NewBytesLoader(inputFile))
 			if err != nil {
-				return nil, errors.Wrapf(err, "could not compile input")
+				return nil, eris.Wrapf(err, "could not compile input")
 			}
 
 			scanner := jsonast.NewSchemaScanner(idFactory, configuration, logr.Discard())
@@ -242,11 +250,12 @@ func loadTestSchemaIntoTypes(
 			schemaAbstraction := jsonast.MakeGoJSONSchema(schema.Root(), configuration.MakeLocalPackageReference, idFactory)
 			_, err = scanner.GenerateAllDefinitions(ctx, schemaAbstraction)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to walk JSON schema")
+				return nil, eris.Wrapf(err, "failed to walk JSON schema")
 			}
 
 			return state.WithDefinitions(scanner.Definitions()), nil
-		})
+		},
+	)
 }
 
 func exportPackagesTestPipelineStage(t *testing.T, testName string) *pipeline.Stage {
@@ -304,7 +313,8 @@ func exportPackagesTestPipelineStage(t *testing.T, testName string) *pipeline.St
 			}
 
 			return state, nil
-		})
+		},
+	)
 }
 
 func stripUnusedTypesPipelineStage() *pipeline.Stage {
@@ -317,11 +327,12 @@ func stripUnusedTypesPipelineStage() *pipeline.Stage {
 			roots := astmodel.NewTypeNameSet(astmodel.MakeInternalTypeName(goldenTestPackageReference, "Test"))
 			defs, err := pipeline.StripUnusedDefinitions(roots, state.Definitions())
 			if err != nil {
-				return nil, errors.Wrapf(err, "could not strip unused types")
+				return nil, eris.Wrapf(err, "could not strip unused types")
 			}
 
 			return state.WithDefinitions(defs), nil
-		})
+		},
+	)
 }
 
 // TODO: Ideally we wouldn't need a test specific function here, but currently
@@ -336,13 +347,13 @@ func addCrossResourceReferencesForTest(idFactory astmodel.IdentifierFactory) *pi
 			isCrossResourceReference := func(
 				_ astmodel.InternalTypeName,
 				prop *astmodel.PropertyDefinition,
-			) pipeline.ARMIDPropertyClassification {
+			) pipeline.ReferenceType {
 				ref := pipeline.DoesPropertyLookLikeARMReference(prop)
 				if ref {
-					return pipeline.ARMIDPropertyClassificationSet
+					return pipeline.ReferenceTypeARM
 				}
 
-				return pipeline.ARMIDPropertyClassificationUnspecified
+				return pipeline.ReferenceTypeUnspecified
 			}
 
 			crossReferenceVisitor := pipeline.MakeARMIDPropertyTypeVisitor(isCrossResourceReference, logr.Discard())
@@ -358,19 +369,25 @@ func addCrossResourceReferencesForTest(idFactory astmodel.IdentifierFactory) *pi
 
 				updatedDef, err := crossReferenceVisitor.VisitDefinition(def, def.Name())
 				if err != nil {
-					return nil, errors.Wrapf(err, "crossReferenceVisitor failed visiting %q", def.Name())
+					return nil, eris.Wrapf(err, "crossReferenceVisitor failed visiting %q", def.Name())
 				}
 
-				updatedDef, err = resourceReferenceVisitor.VisitDefinition(updatedDef, def.Name())
+				conversionContext := pipeline.ARMIDToReferenceTypeConverterContext{
+					DefinitionName:        def.Name(),
+					SelectedReferenceType: astmodel.ResourceReferenceType,
+				}
+
+				updatedDef, err = resourceReferenceVisitor.VisitDefinition(updatedDef, conversionContext)
 				if err != nil {
-					return nil, errors.Wrapf(err, "resourceReferenceVisitor failed visiting %q", def.Name())
+					return nil, eris.Wrapf(err, "resourceReferenceVisitor failed visiting %q", def.Name())
 				}
 
 				defs.Add(updatedDef)
 			}
 
 			return state.WithDefinitions(defs), nil
-		})
+		},
+	)
 }
 
 func TestGolden(t *testing.T) {
@@ -405,10 +422,7 @@ func TestGolden(t *testing.T) {
 		t.Fatalf("Expected at least %d test groups, found: %d", minExpectedTestGroups, len(testGroups))
 	}
 
-	// Skip linting next line, see https://github.com/kunwardeep/paralleltest/issues/14. Linter doesn't support maps
-	// nolint:paralleltest
 	for groupName, fs := range testGroups {
-		fs := fs
 		groupName := groupName
 
 		configPath := fmt.Sprintf("%s/%s/config.yaml", testDataRoot, groupName)

@@ -7,8 +7,9 @@ package config
 
 import (
 	"strings"
+	"sync"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"gopkg.in/yaml.v3"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -27,6 +28,14 @@ type VersionConfiguration struct {
 	name    string
 	types   map[string]*TypeConfiguration
 	advisor *typo.Advisor
+
+	// typeCache memoises findType results so that repeated lookups for the same type name -
+	// including negative "not configured" results - skip the strings.ToLower allocation and
+	// map lookup. The cache is keyed on the raw name passed to findType (so a hit on the
+	// common case bypasses the ToLower entirely). Populated lazily on first find; cleared by
+	// addType and addTypeAlias so that late additions remain observable.
+	typeCacheLock sync.RWMutex
+	typeCache     map[string]*TypeConfiguration
 }
 
 // NewVersionConfiguration returns a new (empty) VersionConfiguration
@@ -39,9 +48,24 @@ func NewVersionConfiguration(name string) *VersionConfiguration {
 }
 
 // addType includes configuration for the specified type as a part of this version configuration
-func (vc *VersionConfiguration) addType(name string, tc *TypeConfiguration) {
+func (vc *VersionConfiguration) addType(name string, tc *TypeConfiguration) error {
 	// Indexed by lowercase name of the type to allow case-insensitive lookups
-	vc.types[strings.ToLower(name)] = tc
+	key := strings.ToLower(name)
+	if _, exists := vc.types[key]; exists {
+		return eris.Errorf("duplicate type configuration: %q already exists", name)
+	}
+	vc.types[key] = tc
+	vc.invalidateTypeCache()
+	return nil
+}
+
+// invalidateTypeCache clears the type-resolution cache. Called whenever the set of configured
+// types for this version changes so that lookups previously recorded as "known absent" are
+// re-resolved against the updated map.
+func (vc *VersionConfiguration) invalidateTypeCache() {
+	vc.typeCacheLock.Lock()
+	vc.typeCache = nil
+	vc.typeCacheLock.Unlock()
 }
 
 // visitType invokes the provided visitor on the specified type if present.
@@ -57,7 +81,7 @@ func (vc *VersionConfiguration) visitType(
 
 	err := visitor.visitType(tc)
 	if err != nil {
-		return errors.Wrapf(err, "configuration of version %s", vc.name)
+		return eris.Wrapf(err, "configuration of version %s", vc.name)
 	}
 
 	return nil
@@ -73,21 +97,45 @@ func (vc *VersionConfiguration) visitTypes(visitor *configurationVisitor) error 
 	}
 
 	// Both errors.Wrapf() and kerrors.NewAggregate() return nil if nothing went wrong
-	return errors.Wrapf(
+	return eris.Wrapf(
 		kerrors.NewAggregate(errs),
 		"version %s",
-		vc.name)
+		vc.name,
+	)
 }
 
 // findType uses the provided name to work out which nested TypeConfiguration should be used
 func (vc *VersionConfiguration) findType(name string) *TypeConfiguration {
-	vc.advisor.AddTerm(name)
-	n := strings.ToLower(name)
-	if t, ok := vc.types[n]; ok {
-		return t
+	// Fast path: consult the resolution cache under a read lock. The cache is keyed on the
+	// raw name (not the lowercased form) so a hit avoids allocating a lowercase copy.
+	if cached, ok := vc.findTypeFromCache(name); ok {
+		return cached
 	}
 
-	return nil
+	vc.advisor.AddTerm(name)
+	n := strings.ToLower(name)
+	t := vc.types[n]
+
+	vc.typeCacheLock.Lock()
+	defer vc.typeCacheLock.Unlock()
+
+	if vc.typeCache == nil {
+		vc.typeCache = make(map[string]*TypeConfiguration)
+	}
+
+	vc.typeCache[name] = t
+
+	return t
+}
+
+// findTypeFromCache uses the provided name to look up in our cache
+func (vc *VersionConfiguration) findTypeFromCache(name string) (*TypeConfiguration, bool) {
+	vc.typeCacheLock.RLock()
+	defer vc.typeCacheLock.RUnlock()
+
+	tc, ok := vc.typeCache[name]
+
+	return tc, ok
 }
 
 // addTypeAlias adds an alias for the specified type, so it may be found with an alternative name
@@ -97,21 +145,26 @@ func (vc *VersionConfiguration) addTypeAlias(name string, alias string) error {
 	// Lookup the existing configuration for 'name'
 	tc := vc.findType(name)
 	if tc == nil {
-		return errors.Errorf("unable to create type alias %s", alias)
+		return eris.Errorf("unable to create type alias %s", alias)
 	}
 
 	// Make sure we don't already have a conflicting configuration for 'alias'
 	// if it's already aliased, it's ok if it's the same config, otherwise return an error
 	other := vc.findType(alias)
 	if other != nil && other != tc {
-		return errors.Errorf(
+		return eris.Errorf(
 			"unable to create type alias %s for %s because that would conflict with existing configuration",
 			alias,
-			name)
+			name,
+		)
 	}
 
 	// Add the alias as another route to the existing configuration
-	vc.addType(alias, tc)
+	// We skip the duplicate check here since we've already verified above that it's safe
+	vc.types[strings.ToLower(alias)] = tc
+	// Any cached "known absent" entry for `alias` (populated by the findType(alias) call above)
+	// must be discarded so subsequent lookups resolve to `tc`.
+	vc.invalidateTypeCache()
 	return nil
 }
 
@@ -119,46 +172,40 @@ func (vc *VersionConfiguration) addTypeAlias(name string, alias string) error {
 // Nested objects are handled by a *pair* of nodes (!!), one for the id and one for the content of the object
 func (vc *VersionConfiguration) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind != yaml.MappingNode {
-		return errors.New("expected mapping")
+		return eris.New("expected mapping")
 	}
 
 	vc.types = make(map[string]*TypeConfiguration)
-	var lastId string
+	var lastID string
 
 	for i, c := range value.Content {
 		// Grab identifiers and loop to handle the associated value
 		if i%2 == 0 {
-			lastId = c.Value
+			lastID = c.Value
 			continue
 		}
 
 		// Handle nested kind metadata
 		if c.Kind == yaml.MappingNode {
-			tc := NewTypeConfiguration(lastId)
+			tc := NewTypeConfiguration(lastID)
 			err := c.Decode(&tc)
 			if err != nil {
-				return errors.Wrapf(err, "decoding yaml for %q", lastId)
+				return eris.Wrapf(err, "decoding yaml for %q", lastID)
 			}
 
-			vc.addType(lastId, tc)
+			err = vc.addType(lastID, tc)
+			if err != nil {
+				return eris.Wrapf(err, "adding type %q", lastID)
+			}
 			continue
 		}
 
 		// No handler for this value, return an error
-		return errors.Errorf(
-			"version configuration, unexpected yaml value %s: %s (line %d col %d)", lastId, c.Value, c.Line, c.Column)
+		return eris.Errorf(
+			"version configuration, unexpected yaml value %s: %s (line %d col %d)", lastID, c.Value, c.Line, c.Column,
+		)
+
 	}
 
 	return nil
-}
-
-// configuredTypes returns a sorted slice containing all the properties configured on this type
-func (vc *VersionConfiguration) configuredTypes() []string {
-	result := make([]string, 0, len(vc.types))
-	for _, t := range vc.types {
-		// Use the actual names of the types, not the lower-cased keys of the map
-		result = append(result, t.name)
-	}
-
-	return result
 }

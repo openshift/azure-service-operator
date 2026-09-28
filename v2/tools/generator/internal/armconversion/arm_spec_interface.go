@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -19,7 +19,7 @@ import (
 func checkPropertyPresence(o *astmodel.ObjectType, name astmodel.PropertyName) error {
 	_, ok := o.Property(name)
 	if !ok {
-		return errors.Errorf("resource spec doesn't have %q property", name)
+		return eris.Errorf("resource spec doesn't have %q property", name)
 	}
 
 	return nil
@@ -41,21 +41,20 @@ func NewARMSpecInterfaceImpl(
 	getNameFunc := functions.NewObjectFunction(
 		"Get"+astmodel.NameProperty,
 		idFactory,
-		getNameFunction)
-	getNameFunc.AddPackageReference(astmodel.GenRuntimeReference)
+		getNameFunction,
+		astmodel.GenRuntimeReference,
+	)
 
 	getTypeFunc := functions.NewGetTypeFunction(resource.ARMType(), idFactory, functions.ReceiverTypePtr)
 
-	getAPIVersionFunc := functions.NewGetAPIVersionFunction(
-		resource.APIVersionTypeName(),
-		resource.APIVersionEnumValue(),
-		idFactory)
+	getAPIVersionFunc := functions.NewGetAPIVersionFunction(resource.APIVersionEnumValue(), idFactory)
 
 	result := astmodel.NewInterfaceImplementation(
 		astmodel.ARMResourceSpecType,
 		getNameFunc,
 		getTypeFunc,
-		getAPIVersionFunc)
+		getAPIVersionFunc,
+	)
 
 	return result, nil
 }
@@ -72,7 +71,8 @@ func getNameFunction(
 		receiver,
 		methodName,
 		"Name",
-		false)
+		false,
+	)
 }
 
 func armSpecInterfaceSimpleGetFunction(
@@ -83,10 +83,10 @@ func armSpecInterfaceSimpleGetFunction(
 	propertyName string,
 	castToString bool,
 ) (*dst.FuncDecl, error) {
-	receiverIdent := fn.IdFactory().CreateReceiver(receiver.Name())
+	receiverIdent := fn.IDFactory().CreateReceiver(receiver.Name())
 	receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", receiver.Name())
+		return nil, eris.Wrapf(err, "creating type expression for %s", receiver.Name())
 	}
 
 	var result dst.Expr = astbuilder.Selector(dst.NewIdent(receiverIdent), propertyName)

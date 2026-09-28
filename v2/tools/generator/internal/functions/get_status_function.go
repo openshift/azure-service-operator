@@ -7,7 +7,7 @@ package functions
 
 import (
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -26,11 +26,11 @@ func createGetStatusFunction(
 	receiver astmodel.TypeName,
 	_ string,
 ) (*dst.FuncDecl, error) {
-	receiverIdent := f.IdFactory().CreateReceiver(receiver.Name())
+	receiverIdent := f.IDFactory().CreateReceiver(receiver.Name())
 	receiverType := astmodel.NewOptionalType(receiver)
 	receiverTypeExpr, err := receiverType.AsTypeExpr(genContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating receiver type expression")
+		return nil, eris.Wrap(err, "creating receiver type expression")
 	}
 
 	fn := &astbuilder.FuncDetails{
@@ -39,12 +39,14 @@ func createGetStatusFunction(
 		Name:          "GetStatus",
 		Body: astbuilder.Statements(
 			astbuilder.Returns(
-				astbuilder.AddrOf(astbuilder.Selector(dst.NewIdent(receiverIdent), "Status")))),
+				astbuilder.AddrOf(astbuilder.Selector(dst.NewIdent(receiverIdent), "Status")),
+			),
+		),
 	}
 
 	convertibleStatusInterfaceExpr, err := astmodel.ConvertibleStatusInterfaceType.AsTypeExpr(genContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating type expression for ConvertibleStatusInterface")
+		return nil, eris.Wrap(err, "creating type expression for ConvertibleStatusInterface")
 	}
 
 	fn.AddReturn(convertibleStatusInterfaceExpr)

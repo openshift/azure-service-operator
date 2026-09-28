@@ -1,0 +1,411 @@
+name: Validate Pull Request
+on:
+  # runs on pushes to main in order to update the baseline code coverage
+  # so that PRs have something to compare against
+  push:
+    branches:
+    - main
+
+  pull_request: 
+    branches:
+      - main
+
+  merge_group:
+    branches:
+      - main
+    types: [checks_requested]
+
+  workflow_dispatch:
+  # no content, allows manual triggering
+
+permissions: {}
+
+jobs:
+  test-go-get:
+    runs-on: ubuntu-latest
+    steps:
+      - name: '`go get` code'
+        run: |
+          # placeholder module so we can invoke go get
+          go mod init example.com/m
+
+          # note: cannot use github.sha here since that commit doesn't really exist
+          # however, since we require branches to always be up-to-date (GitHub setting),
+          # using the head of the PR branch should provide equivalent behaviour
+          sha='${{ github.event.pull_request.head.sha }}'
+          repo='${{ github.event.pull_request.head.repo.html_url}}'
+          repo=${repo#"https://"} # trim prefix
+
+          if [ "$repo" != "github.com/Azure/azure-service-operator" ]; then
+            echo "Skipping 'go get' check for fork…" 
+            exit 0
+          fi
+
+          if [ -z "$sha" ]; then 
+            # this means we were triggered by push to 'main', 
+            # not a PR, so use the sha that triggered this
+            sha='${{ github.sha }}'
+          fi
+
+          # Give GitHub some time to make the commit available
+          sleep 10
+
+          # Sometimes it can take https://proxy.golang.org up to a minute for the latest commit to be available.
+          # See the FAQ at https://proxy.golang.org/
+          FAILED=1
+          for i in {1..5}; do
+            if go get "$repo/v2@$sha" ; then
+              FAILED=0
+              break
+            fi
+            echo "Failed to 'go get' $repo/v2@$sha, retrying in 60 seconds…"
+            sleep 60
+          done
+
+          exit $FAILED
+
+  test-generator:
+    runs-on: [self-hosted, 1ES.Pool=aso-1es-pool, "JobId=testgenerator-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"]
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned to 7.0.1
+        with:
+          fetch-depth: 0 # required to access tags
+          submodules: 'true'
+
+      - name: Force docker to SSD
+        run: sudo scripts/v2/linux-docker-use-ssd.sh --containerd true
+
+      - name: check-changes
+        id: check-changes
+        run: scripts/v2/check-changes.sh
+
+      - name: Log in to GitHub Docker Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # pinned to v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      # Note: Changes to this step must also be mirrored into pr-validation-with-secrets.yaml
+      - name: Build devcontainer image
+        run: |
+          docker build --cache-from ghcr.io/azure/azure-service-operator/aso-devcontainer:latest --tag devcontainer:latest -f .devcontainer/Dockerfile .
+        env:
+          DOCKER_BUILDKIT: 1
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Run devcontainer image
+        id: devcontainer
+        run: |
+          container_id=$(docker create -w /workspace -v $GITHUB_WORKSPACE:/workspace -v /var/run/docker.sock:/var/run/docker.sock --network=host devcontainer:latest)
+          docker start "$container_id"
+          echo "container_id=$container_id" >> $GITHUB_ENV
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Run CI tasks
+        run: |
+          container_id=${{ env.container_id }}
+
+          # Start memory monitoring in the background
+          mkdir -p reports
+          (while true; do
+            echo "=== Top 10 Processes by Memory Usage ($(date)) ==="
+            ps -eo pid,rss,args --sort=-rss --no-headers | head -10 | awk '{
+              pid=$1; rss=$2; cmd="";
+              for(i=3;i<=NF;i++){if($i~/^\//||$i~/^[a-zA-Z]/){cmd=$i;break}};
+              if(rss>=1048576) mem=sprintf("%.1fGB",rss/1048576);
+              else mem=sprintf("%.1fMB",rss/1024);
+              printf "%-10s %-10s %s\n",pid,mem,cmd
+            }'
+            echo "--- Total Memory Usage ---"
+            awk '/MemTotal/{total=$2} /MemAvailable/{avail=$2} END{used=total-avail; pct=used/total*100; printf "Total: %.1fGB, Used: %.1fGB, Available: %.1fGB, Usage: %.1f%%\n", total/1048576, used/1048576, avail/1048576, pct}' /proc/meminfo
+            echo
+            sleep 5
+          done) > reports/memory-monitor.log 2>&1 &
+          MONITOR_PID=$!
+
+          set +e # don't exit instantly on failure, we need to produce Markdown summary
+          docker exec "$container_id" task ci
+
+          EXIT_CODE=$?
+          set -e
+
+          # Stop memory monitoring
+          kill $MONITOR_PID 2>/dev/null || true
+          wait $MONITOR_PID 2>/dev/null || true
+
+          # generate summary Markdown file for display in Actions
+          cat reports/*.md > $GITHUB_STEP_SUMMARY
+          exit $EXIT_CODE
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Save JSON logs on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned to v7.0.1
+        with:
+          name: test-output
+          path: reports/*.json
+
+      - name: Save memory monitor log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned to v7.0.1
+        with:
+          name: memory-monitor
+          path: reports/memory-monitor.log
+          if-no-files-found: ignore
+
+      - name: Build docker image & build configuration YAML
+        run: |
+          container_id=${{ env.container_id }}
+          docker exec "$container_id" task controller:docker-build-and-save
+          docker exec "$container_id" task controller:run-kustomize-for-envtest
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Archive outputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned to v7.0.1
+        with:
+          name: output
+          path: v2/bin/*
+          if-no-files-found: error
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      # Workaround for getting "Permission denied" errors when trying to perform code coverage upload
+      - name: Take Ownership
+        run: sudo chown -R $USER:$USER .
+
+  test-controllers:
+    runs-on: [self-hosted, 1ES.Pool=aso-1es-pool, "JobId=testcontrollers-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"]
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned to 7.0.1
+        with:
+          fetch-depth: 0 # required to access tags
+          submodules: 'true'
+
+      - name: Force docker to SSD
+        run: sudo scripts/v2/linux-docker-use-ssd.sh --containerd true
+
+      - name: check-changes
+        id: check-changes
+        run: scripts/v2/check-changes.sh
+
+      - name: Log in to GitHub Docker Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # pinned to v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Pull devcontainer image
+        run: |
+          docker pull ghcr.io/azure/azure-service-operator/aso-devcontainer:latest
+        env:
+          DOCKER_BUILDKIT: 1
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Run devcontainer image
+        id: devcontainer
+        run: |
+          container_id=$(docker create -w /workspace -v $GITHUB_WORKSPACE:/workspace -v /var/run/docker.sock:/var/run/docker.sock --network=host ghcr.io/azure/azure-service-operator/aso-devcontainer:latest)
+          docker start "$container_id"
+          echo "container_id=$container_id" >> $GITHUB_ENV
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Run CI tasks
+        run: |
+          container_id=${{ env.container_id }}
+
+          set +e # don't exit instantly on failure, we need to produce Markdown summary
+          docker exec "$container_id" task ci:test-controllers
+
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Save JSON logs on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned to v7.0.1
+        with:
+          name: test-output
+          path: reports/*.json
+
+  test-samples:
+    runs-on: [self-hosted, 1ES.Pool=aso-1es-pool, "JobId=testsamples-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"]
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned to 7.0.1
+        with:
+          fetch-depth: 0 # required to access tags
+          submodules: 'true'
+
+      - name: Force docker to SSD
+        run: sudo scripts/v2/linux-docker-use-ssd.sh --containerd true
+
+      - name: check-changes
+        id: check-changes
+        run: scripts/v2/check-changes.sh
+
+      - name: Log in to GitHub Docker Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # pinned to v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Pull devcontainer image
+        run: |
+          docker pull ghcr.io/azure/azure-service-operator/aso-devcontainer:latest
+        env:
+          DOCKER_BUILDKIT: 1
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Run devcontainer image
+        id: devcontainer
+        run: |
+          container_id=$(docker create -w /workspace -v $GITHUB_WORKSPACE:/workspace -v /var/run/docker.sock:/var/run/docker.sock --network=host ghcr.io/azure/azure-service-operator/aso-devcontainer:latest)
+          docker start "$container_id"
+          echo "container_id=$container_id" >> $GITHUB_ENV
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Run CI tasks
+        run: |
+          container_id=${{ env.container_id }}
+
+          set +e # don't exit instantly on failure, we need to produce Markdown summary
+          docker exec "$container_id" task ci:test-samples
+
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Save JSON logs on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned to v7.0.1
+        with:
+          name: test-output
+          path: reports/*.json
+
+  # TODO: Changing this name requires changing the github API calls in pr-validation-fork.yml
+  integration-tests:
+    runs-on: [self-hosted, 1ES.Pool=aso-1es-pool, "JobId=testintegration-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"]
+    if: 
+      # Run on pull requests in this repository that are not from @dependabot, run for merge groups, and run for workflow_dispatch
+      github.event_name == 'merge_group' ||
+      github.event_name == 'workflow_dispatch' ||
+      ( github.event_name == 'pull_request' &&
+        github.actor != 'dependabot[bot]' &&
+        github.event.pull_request.head.repo.full_name == github.repository )
+    permissions:
+      checks: write
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned to 7.0.1
+        with:
+          fetch-depth: 0 # required to access tags
+          submodules: 'true'
+
+      - name: Force docker to SSD
+        run: sudo scripts/v2/linux-docker-use-ssd.sh --containerd true
+
+      - name: check-changes
+        id: check-changes
+        run: scripts/v2/check-changes.sh
+
+      - name: Log in to GitHub Docker Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # pinned to v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      # Note: Changes to this step must also be mirror into pr-validation.yaml
+      - name: Build devcontainer image
+        run: |
+          docker build --cache-from ghcr.io/azure/azure-service-operator/aso-devcontainer:latest --tag devcontainer:latest -f .devcontainer/Dockerfile .
+        env:
+          DOCKER_BUILDKIT: 1
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Run devcontainer image
+        id: devcontainer
+        run: |
+          container_id=$(docker create -w /workspace -v $GITHUB_WORKSPACE:/workspace -v /var/run/docker.sock:/var/run/docker.sock --network=host devcontainer:latest)
+          docker start "$container_id"
+          echo "container_id=$container_id" >> $GITHUB_ENV
+        if: steps.check-changes.outputs.code-changed == 'true'
+
+      - name: Run integration tests
+        run: |
+          container_id=${{ env.container_id }}
+          docker exec -e HOSTROOT=$GITHUB_WORKSPACE -e GITHUB_ACTIONS -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID -e KIND_OIDC_STORAGE_ACCOUNT_RG -e KIND_OIDC_STORAGE_ACCOUNT -e AZURE_TEST_IDENTITY_NAME "$container_id" task controller:ci-integration-tests
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_TEST_IDENTITY_NAME: ${{ secrets.AZURE_TEST_IDENTITY_NAME }}
+          KIND_OIDC_STORAGE_ACCOUNT_RG: ${{ secrets.KIND_OIDC_STORAGE_ACCOUNT_RG }}
+          KIND_OIDC_STORAGE_ACCOUNT: ${{ secrets.KIND_OIDC_STORAGE_ACCOUNT }}
+        if: 
+          steps.check-changes.outputs.code-changed == 'true' 
+
+      - name: Get Job ID from GH API
+        id: get-job-id
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          jobs=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id}}/attempts/${{ github.run_attempt }}/jobs)
+          job_id=$(echo $jobs | jq -r '.jobs[] | select(.runner_name=="${{ runner.name }}" and .name=="integration-tests") | .id')
+          echo "job_id=$job_id" >> $GITHUB_ENV
+    
+      # Update check run called "integration-tests-fork"
+      - name: update-integration-tests-result
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # pinned to v9.0.0
+        id: update-check-run
+        if: ${{ always() }}
+        env:
+          repo: ${{ github.repository }}
+          owner: ${{ github.repository_owner }}
+          run_id: ${{ env.job_id }}
+          server_url: ${{ github.server_url }}
+          integration_test_job: 'integration-tests-fork' # This is the name of the job defined in pr-validation-fork.yml
+          # Conveniently, job.status maps to https://developer.github.com/v3/checks/runs/#update-a-check-run
+          conclusion: ${{ job.status }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Get all the details of the check run that's currently executing
+            // This lets us get the SHA we're building regardless of WHY we're building it
+            const { data: check } = await github.rest.checks.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              check_run_id: process.env.run_id
+            });
+
+            // update the check result for `integration-tests-fork`
+            const url = `${process.env.server_url}/${process.env.repo}/actions/runs/${process.env.run_id}`
+            const { data: result } = await github.rest.checks.create({
+              ...context.repo,
+              name: process.env.integration_test_job,
+              head_sha: check.head_sha,
+              status: 'completed',
+              conclusion: process.env.conclusion,
+              details_url: url,
+            });
+
+            return result;

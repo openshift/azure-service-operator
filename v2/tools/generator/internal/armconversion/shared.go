@@ -10,14 +10,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
 	"github.com/dave/dst"
+	"github.com/rotisserie/eris"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/functions"
 )
 
@@ -27,7 +25,6 @@ type conversionBuilder struct {
 	codeGenerationContext      *astmodel.CodeGenerationContext
 	idFactory                  astmodel.IdentifierFactory
 	typeKind                   TypeKind
-	payloadType                config.PayloadType
 	methodName                 string
 	destinationType            *astmodel.ObjectType
 	destinationTypeName        astmodel.InternalTypeName
@@ -44,12 +41,54 @@ const (
 	TypeKindStatus
 )
 
-func (builder conversionBuilder) sourceTypeIdent() string {
-	return builder.sourceTypeName.Name()
+// sourceTypeIdent returns a dst.Expr that refers to the source type.
+func (builder conversionBuilder) sourceTypeIdent() dst.Expr {
+	// If the source type is in this package, return it without qualification
+	sourceTypePkg := builder.sourceTypeName.InternalPackageReference()
+	if sourceTypePkg.Equals(builder.codeGenerationContext.CurrentPackage()) {
+		return dst.NewIdent(builder.sourceTypeName.Name())
+	}
+
+	sourceTypeImport := builder.codeGenerationContext.MustGetImportedPackageName(sourceTypePkg)
+	return astbuilder.QualifiedTypeName(sourceTypeImport, builder.sourceTypeName.Name())
 }
 
-func (builder conversionBuilder) destinationTypeIdent() string {
-	return builder.destinationTypeName.Name()
+// destinationTypeIdent returns a dst.Expr that refers to the destination type.
+func (builder conversionBuilder) destinationTypeIdent() dst.Expr {
+	// If the destination type is in this package, return it without qualification
+	destinationTypePkg := builder.destinationTypeName.InternalPackageReference()
+	if destinationTypePkg.Equals(builder.codeGenerationContext.CurrentPackage()) {
+		return dst.NewIdent(builder.destinationTypeName.Name())
+	}
+
+	destinationTypeImport := builder.codeGenerationContext.MustGetImportedPackageName(destinationTypePkg)
+	return astbuilder.QualifiedTypeName(destinationTypeImport, builder.destinationTypeName.Name())
+}
+
+// sourceTypeString returns a string that refers to the source type.
+func (builder conversionBuilder) sourceTypeString() string {
+	// If the source type is in this package, return it without qualification
+	sourceTypePkg := builder.sourceTypeName.InternalPackageReference()
+	if sourceTypePkg.Equals(builder.codeGenerationContext.CurrentPackage()) {
+		return builder.sourceTypeName.Name()
+	}
+
+	sourceTypeImport := builder.codeGenerationContext.MustGetImportedPackageName(sourceTypePkg)
+	return fmt.Sprintf("%s.%s", sourceTypeImport, builder.sourceTypeName.Name())
+}
+
+// destinationTypeString returns a string that refers to the destination type.
+//
+//nolint:unused
+func (builder conversionBuilder) destinationTypeString() string {
+	// If the destination type is in this package, return it without qualification
+	destinationTypePkg := builder.destinationTypeName.InternalPackageReference()
+	if destinationTypePkg.Equals(builder.codeGenerationContext.CurrentPackage()) {
+		return builder.destinationTypeName.Name()
+	}
+
+	destinationTypeImport := builder.codeGenerationContext.MustGetImportedPackageName(destinationTypePkg)
+	return fmt.Sprintf("%s.%s", destinationTypeImport, builder.destinationTypeName.Name())
 }
 
 func (builder conversionBuilder) propertyConversionHandler(
@@ -80,13 +119,14 @@ func (builder conversionBuilder) propertyConversionHandler(
 		toProp.PropertyName(),
 		builder.methodName,
 		kubeDescription.String(),
-		armDescription.String())
+		armDescription.String(),
+	)
 
 	if err != nil {
-		return nil, errors.Wrap(err, message)
+		return nil, eris.Wrap(err, message)
 	}
 
-	return nil, errors.New(message)
+	return nil, eris.New(message)
 }
 
 type propertyConversionHandler = func(
@@ -128,7 +168,8 @@ func initializeAzureName(idFactory astmodel.IdentifierFactory) {
 	azureNameProperty = astmodel.NewPropertyDefinition(
 		idFactory.CreatePropertyName(astmodel.AzureNameProperty, astmodel.Exported),
 		idFactory.CreateStringIdentifier(astmodel.AzureNameProperty, astmodel.NotExported),
-		astmodel.StringType).WithDescription(azureNameFieldDescription)
+		astmodel.StringType,
+	).WithDescription(azureNameFieldDescription)
 }
 
 // GetAzureNameProperty returns the special "AzureName" field
@@ -232,13 +273,15 @@ func NewARMConversionImplementation(
 			astmodel.MakeExternalTypeName(astmodel.GenRuntimeReference, "ARMTransformer"),
 			newEmptyARMValueFunc,
 			convertToARMFunc,
-			populateFromARMFunc)
+			populateFromARMFunc,
+		)
 	} else {
 		// can only convert in one direction with the FromARMConverter interface
 		return astmodel.NewInterfaceImplementation(
 			astmodel.MakeExternalTypeName(astmodel.GenRuntimeReference, "FromARMConverter"),
 			newEmptyARMValueFunc,
-			populateFromARMFunc)
+			populateFromARMFunc,
+		)
 	}
 }
 
@@ -257,6 +300,7 @@ func removeEmptyStatements(stmts []dst.Stmt) []dst.Stmt {
 const (
 	ConversionTag        = "conversion"
 	NoARMConversionValue = "noarmconversion"
+	PushToOneOfLeaf      = "pushtoleaf"
 )
 
 func skipPropertiesFlaggedWithNoARMConversion(
@@ -269,4 +313,109 @@ func skipPropertiesFlaggedWithNoARMConversion(
 	}
 
 	return notHandled, nil
+}
+
+// propertyPair is a struct that holds a pair of properties - one from the CRD and one from the ARM type,
+// used to track pairs of properties for promotion/demotion.
+type propertyPair struct {
+	crdProperty string
+	armProperty string
+}
+
+// findPromotions creates a map of promotions - properties from nested ARM types that need to be
+// promoted to the container API object. Only properties that are properly tagged are candidates,
+// and only if they exist on the referenced type.
+func (builder conversionBuilder) findPromotions(
+	crdType *astmodel.ObjectType,
+	armType *astmodel.ObjectType,
+) map[string][]propertyPair {
+	// Find all properties that are tagged for promotion,
+	promotable := astmodel.NewPropertySet()
+	for _, prop := range armType.Properties().AsSlice() {
+		if prop.HasTagValue(ConversionTag, PushToOneOfLeaf) {
+			promotable.Add(prop)
+		}
+	}
+
+	// If there are no properties to promote, early return
+	if promotable.Len() == 0 {
+		// No properties to promote, early return
+		return nil
+	}
+
+	// Map those properties to the CRD type
+	propMap := make(map[astmodel.PropertyName]astmodel.PropertyName, len(promotable))
+	crdProperties := crdType.Properties()
+	for _, prop := range armType.Properties().AsSlice() {
+		if crdProperties.ContainsProperty(prop.PropertyName()) {
+			propMap[prop.PropertyName()] = prop.PropertyName()
+			continue
+		}
+
+		// Special case for the AzureName property
+		if prop.HasName(astmodel.NameProperty) && crdProperties.ContainsProperty(astmodel.AzureNameProperty) {
+			propMap[astmodel.NameProperty] = astmodel.AzureNameProperty
+		}
+	}
+
+	// Find all source properties that represent leaves from which promotion might occur
+	// and build a set of the promotable properties for each
+	defs := builder.codeGenerationContext.GetAllReachableDefinitions()
+	result := make(map[string][]propertyPair, len(promotable))
+	armProperties := armType.Properties()
+	for _, prop := range armProperties.AsSlice() {
+		// Check whether the property is a leaf
+		tn, leaf, ok := builder.asLeaf(prop, defs)
+		if !ok {
+			continue
+		}
+
+		promotableFromLeaf := armProperties.Intersect(leaf.Properties())
+		if promotableFromLeaf.IsEmpty() {
+			continue
+		}
+
+		pairs := make([]propertyPair, 0, len(promotableFromLeaf))
+		for _, p := range promotableFromLeaf.AsSlice() {
+			pair := propertyPair{
+				crdProperty: string(propMap[p.PropertyName()]),
+				armProperty: string(p.PropertyName()),
+			}
+
+			pairs = append(pairs, pair)
+		}
+
+		result[tn.Name()] = pairs
+	}
+
+	return result
+}
+
+// asLeaf determines if a property is a OneOf leaf property, returning the related leaf type if so.
+// This requires the property to be an InternalTypeName that refers to an object type.
+func (builder conversionBuilder) asLeaf(
+	prop *astmodel.PropertyDefinition,
+	defs astmodel.TypeDefinitionSet,
+) (astmodel.InternalTypeName, *astmodel.ObjectType, bool) {
+	if prop.HasTagValue(ConversionTag, PushToOneOfLeaf) {
+		// Tagged for promotion itself, so not a leaf
+		return astmodel.InternalTypeName{}, nil, false
+	}
+
+	tn, ok := astmodel.AsInternalTypeName(prop.PropertyType())
+	if !ok {
+		return astmodel.InternalTypeName{}, nil, false
+	}
+
+	def, ok := defs[tn]
+	if !ok {
+		return astmodel.InternalTypeName{}, nil, false
+	}
+
+	obj, ok := astmodel.AsObjectType(def.Type())
+	if !ok {
+		return astmodel.InternalTypeName{}, nil, false
+	}
+
+	return def.Name(), obj, true
 }

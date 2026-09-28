@@ -7,7 +7,7 @@ package functions
 
 import (
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -21,7 +21,8 @@ func NewEmptyStatusFunction(
 	result := NewObjectFunction(
 		"NewEmptyStatus",
 		idFactory,
-		createNewEmptyStatusFunction(status))
+		createNewEmptyStatusFunction(status),
+	)
 	result.AddReferencedTypes(astmodel.ConvertibleStatusInterfaceType)
 	return result
 }
@@ -33,11 +34,11 @@ func createNewEmptyStatusFunction(
 	receiver astmodel.TypeName,
 	_ string) (*dst.FuncDecl, error) {
 	return func(f *ObjectFunction, genContext *astmodel.CodeGenerationContext, receiver astmodel.TypeName, _ string) (*dst.FuncDecl, error) {
-		receiverIdent := f.IdFactory().CreateReceiver(receiver.Name())
+		receiverIdent := f.IDFactory().CreateReceiver(receiver.Name())
 		receiverType := astmodel.NewOptionalType(receiver)
 		receiverTypeExpr, err := receiverType.AsTypeExpr(genContext)
 		if err != nil {
-			return nil, errors.Wrapf(err, "creating receiver expression for %s", receiverType)
+			return nil, eris.Wrapf(err, "creating receiver expression for %s", receiverType)
 		}
 
 		// When Storage variants are created from resources, any existing functions are copied across - which means
@@ -53,12 +54,14 @@ func createNewEmptyStatusFunction(
 			Name:          "NewEmptyStatus",
 			Body: astbuilder.Statements(
 				astbuilder.Returns(
-					astbuilder.AddrOf(literal))),
+					astbuilder.AddrOf(literal),
+				),
+			),
 		}
 
 		convertibleStatusInterfaceExpr, err := astmodel.ConvertibleStatusInterfaceType.AsTypeExpr(genContext)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create ConvertibleStatusInterfaceType expression")
+			return nil, eris.Wrap(err, "unable to create ConvertibleStatusInterfaceType expression")
 		}
 
 		fn.AddReturn(convertibleStatusInterfaceExpr)

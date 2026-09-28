@@ -9,14 +9,16 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	documentdb "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20210515"
+	aks "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20250801"
 	network "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
+	storage "github.com/Azure/azure-service-operator/v2/api/storage/v1api20210401"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	"github.com/Azure/azure-service-operator/v2/internal/util/to"
 	"github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
@@ -76,7 +78,7 @@ func subnetAndVNETCreatedProvisionedOutOfOrder(t *testing.T, waitHelper func(tc 
 
 	subnet := &network.VirtualNetworksSubnet{
 		ObjectMeta: tc.MakeObjectMeta("subnet"),
-		Spec: network.VirtualNetworks_Subnet_Spec{
+		Spec: network.VirtualNetworksSubnet_Spec{
 			Owner:         testcommon.AsOwner(vnet),
 			AddressPrefix: to.Ptr("10.0.0.0/24"),
 		},
@@ -218,7 +220,42 @@ func Test_Owner_IsImmutableOnceSuccessfullyCreated(t *testing.T) {
 	acct.Spec.Owner = testcommon.AsOwner(rg2)
 	err := tc.PatchAndExpectError(old, acct)
 
-	tc.Expect(err).ToNot(BeNil())
+	tc.Expect(err).To(MatchError(ContainSubstring("updating 'spec.owner.name' is not allowed")))
+	tc.Expect(old.Owner().Name).ToNot(BeIdenticalTo(rg2.Name))
+
+	// Delete the account
+	tc.DeleteResourceAndWait(acct)
+}
+
+func Test_OwnerARMID_IsImmutableOnceSuccessfullyCreated(t *testing.T) {
+	t.Parallel()
+
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	// Ensure that the RG has an ARM ID set
+	tc.Expect(rg.Status.Id).ToNot(BeNil())
+	tc.Expect(to.Value(rg.Status.Id)).ToNot(BeEmpty())
+
+	acct := newStorageAccount(tc, rg)
+	// Manually set the ARM ID of the owner:
+	acct.Spec.Owner.Name = ""
+	acct.Spec.Owner.ARMID = to.Value(rg.Status.Id)
+	tc.CreateResourcesAndWait(acct)
+
+	rg2 := tc.CreateTestResourceGroupAndWait()
+
+	// Ensure that the RG has an ARM ID set
+	tc.Expect(rg2.Status.Id).ToNot(BeNil())
+	tc.Expect(to.Value(rg2.Status.Id)).ToNot(BeEmpty())
+
+	// Patch the account to change Owner
+	old := acct.DeepCopy()
+	acct.Spec.Owner.ARMID = to.Value(rg2.Status.Id)
+	err := tc.PatchAndExpectError(old, acct)
+
+	tc.Expect(err).To(MatchError(ContainSubstring("updating 'spec.owner.armId' is not allowed")))
 	tc.Expect(old.Owner().Name).ToNot(BeIdenticalTo(rg2.Name))
 
 	// Delete the account
@@ -242,7 +279,7 @@ func Test_AzureName_IsImmutable_IfAzureHasBeenCommunicatedWith(t *testing.T) {
 	acct.Spec.AzureName = tc.NoSpaceNamer.GenerateName("stor")
 	err := tc.PatchAndExpectError(old, acct)
 	tc.Expect(err).To(HaveOccurred())
-	tc.Expect(err.Error()).To(ContainSubstring("updating 'AzureName' is not allowed"))
+	tc.Expect(err.Error()).To(ContainSubstring("updating 'spec.azureName' is not allowed"))
 
 	// Delete the account
 	tc.DeleteResourceAndWait(acct)
@@ -280,52 +317,88 @@ func Test_Owner_IsMutableIfNotSuccessfullyCreated(t *testing.T) {
 	tc.DeleteResourceAndWait(acct)
 }
 
-func Test_CreateCosmosAccountWithSkipReconcile_SecretsAreWritten(t *testing.T) {
+func Test_CreateStorageAccountWithSkipReconcile_SecretsAreWritten(t *testing.T) {
 	t.Parallel()
 	tc := globalTestContext.ForTest(t)
 
 	rg := tc.CreateTestResourceGroupAndWait()
-	cosmosSecret1 := "keys1"
+	secret1 := "keys1"
 
-	// Custom namer because cosmosdb accounts have stricter name
-	// requirements - no hyphens allowed.
-	// Create a Cosmos DB account
-	offerType := documentdb.DatabaseAccountOfferType_Standard
-	kind := documentdb.DatabaseAccount_Kind_Spec_GlobalDocumentDB
-	acct := &documentdb.DatabaseAccount{
-		ObjectMeta: tc.MakeObjectMetaWithName(tc.NoSpaceNamer.GenerateName("sqlacct")),
-		Spec: documentdb.DatabaseAccount_Spec{
-			Location:                 tc.AzureRegion,
-			Owner:                    testcommon.AsOwner(rg),
-			Kind:                     &kind,
-			DatabaseAccountOfferType: &offerType,
-			Locations: []documentdb.Location{
-				{
-					LocationName: tc.AzureRegion,
-				},
-			},
-			OperatorSpec: &documentdb.DatabaseAccountOperatorSpec{
-				Secrets: &documentdb.DatabaseAccountOperatorSecrets{
-					DocumentEndpoint: &genruntime.SecretDestination{
-						Name: cosmosSecret1,
-						Key:  "endpoint",
-					},
-				},
+	acct := newStorageAccount(tc, rg)
+	acct.Spec.OperatorSpec = &storage.StorageAccountOperatorSpec{
+		Secrets: &storage.StorageAccountOperatorSecrets{
+			Key1: &genruntime.SecretDestination{
+				Name: secret1,
+				Key:  "key",
 			},
 		},
 	}
 
-	cosmosSecret2 := "keys2"
+	secret2 := "keys2"
 	skipAcct := acct.DeepCopy()
 	skipAcct.Spec.AzureName = skipAcct.Name
 	skipAcct.Name = skipAcct.Name + "-skip" // So we don't collide
-	skipAcct.Spec.OperatorSpec.Secrets.DocumentEndpoint.Name = cosmosSecret2
+	skipAcct.Spec.OperatorSpec.Secrets.Key1.Name = secret2
 	skipAcct.Annotations = map[string]string{
 		annotations.ReconcilePolicy: string(annotations.ReconcilePolicySkip),
 	}
 
 	tc.CreateResourcesAndWait(acct, skipAcct)
 
-	tc.ExpectSecretHasKeys(cosmosSecret1, "endpoint")
-	tc.ExpectSecretHasKeys(cosmosSecret2, "endpoint")
+	tc.ExpectSecretHasKeys(secret1, "key")
+	tc.ExpectSecretHasKeys(secret2, "key")
+}
+
+func Test_OwnerARMID_ChildResourceImplementsPreReconcileHook(t *testing.T) {
+	t.Parallel()
+
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	tc.AzureRegion = to.Ptr("westus3") // TODO: the default test region of westus2 doesn't allow ds2_v2 at the moment
+
+	cluster := &aks.ManagedCluster{
+		ObjectMeta: tc.MakeObjectMeta("mc"),
+		Spec: aks.ManagedCluster_Spec{
+			Location:  tc.AzureRegion,
+			Owner:     testcommon.AsOwner(rg),
+			DnsPrefix: to.Ptr("aso"),
+			AgentPoolProfiles: []aks.ManagedClusterAgentPoolProfile{
+				{
+					Name:   to.Ptr("ap1"),
+					Count:  to.Ptr(1),
+					VmSize: to.Ptr("Standard_DS2_v2"),
+					OsType: to.Ptr(aks.OSType_Linux),
+					Mode:   to.Ptr(aks.AgentPoolMode_System),
+				},
+			},
+			Identity: &aks.ManagedClusterIdentity{
+				Type: to.Ptr(aks.ManagedClusterIdentity_Type_SystemAssigned),
+			},
+		},
+	}
+
+	tc.CreateResourceAndWait(cluster)
+
+	tc.Expect(cluster.Status.Id).ToNot(BeNil())
+	armId := *cluster.Status.Id
+
+	agentPool := &aks.ManagedClustersAgentPool{
+		ObjectMeta: tc.MakeObjectMetaWithName("ap2"),
+		Spec: aks.ManagedClustersAgentPool_Spec{
+			Owner:  testcommon.AsARMIDOwner(armId),
+			Count:  to.Ptr(1),
+			VmSize: to.Ptr("Standard_DS2_v2"),
+			OsType: to.Ptr(aks.OSType_Linux),
+			Mode:   to.Ptr(aks.AgentPoolMode_System),
+		},
+	}
+
+	tc.CreateResourceAndWait(agentPool)
+
+	tc.Expect(agentPool.Status.Id).ToNot(BeNil())
+
+	// Delete the agent pool
+	tc.DeleteResourceAndWait(agentPool)
 }

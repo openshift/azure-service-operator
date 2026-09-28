@@ -3,9 +3,10 @@ github.com/Azure/azure-service-operator/v2/api/synapse/v1api20210601/storage
 ----------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2021-06-01"
+
 Workspace: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
-├── Spec: Object (21 properties)
+├── Spec: Object (22 properties)
 │   ├── AzureADOnlyAuthentication: *bool
 │   ├── AzureName: string
 │   ├── CspWorkspaceAdminProperties: *Object (2 properties)
@@ -22,7 +23,7 @@ Workspace: Resource
 │   │   ├── Cmk: *Object (3 properties)
 │   │   │   ├── KekIdentity: *Object (3 properties)
 │   │   │   │   ├── PropertyBag: genruntime.PropertyBag
-│   │   │   │   ├── UseSystemAssignedIdentity: *v1.JSON
+│   │   │   │   ├── UseSystemAssignedIdentity: *bool
 │   │   │   │   └── UserAssignedIdentityReference: *genruntime.ResourceReference
 │   │   │   ├── Key: *Object (3 properties)
 │   │   │   │   ├── KeyVaultUrl: *string
@@ -44,6 +45,10 @@ Workspace: Resource
 │   │   ├── LinkedAccessCheckOnTargetResource: *bool
 │   │   ├── PreventDataExfiltration: *bool
 │   │   └── PropertyBag: genruntime.PropertyBag
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -87,7 +92,7 @@ Workspace: Resource
     │   ├── Cmk: *Object (4 properties)
     │   │   ├── KekIdentity: *Object (3 properties)
     │   │   │   ├── PropertyBag: genruntime.PropertyBag
-    │   │   │   ├── UseSystemAssignedIdentity: *v1.JSON
+    │   │   │   ├── UseSystemAssignedIdentity: *bool
     │   │   │   └── UserAssignedIdentity: *string
     │   │   ├── Key: *Object (3 properties)
     │   │   │   ├── KeyVaultUrl: *string
@@ -146,9 +151,10 @@ Workspace: Resource
     │   ├── TenantId: *string
     │   └── Type: *string
     └── WorkspaceUID: *string
+
 WorkspacesBigDataPool: Resource
 ├── Owner: synapse/v1api20210601.Workspace
-├── Spec: Object (23 properties)
+├── Spec: Object (24 properties)
 │   ├── AutoPause: *Object (3 properties)
 │   │   ├── DelayInMinutes: *int
 │   │   ├── Enabled: *bool
@@ -182,6 +188,10 @@ WorkspacesBigDataPool: Resource
 │   ├── NodeCount: *int
 │   ├── NodeSize: *string
 │   ├── NodeSizeFamily: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -250,3 +260,94 @@ WorkspacesBigDataPool: Resource
     ├── SparkVersion: *string
     ├── Tags: map[string]string
     └── Type: *string
+
+augmentConversionForAutoPauseProperties: Interface
+
+augmentConversionForAutoPauseProperties_STATUS: Interface
+
+augmentConversionForAutoScaleProperties: Interface
+
+augmentConversionForAutoScaleProperties_STATUS: Interface
+
+augmentConversionForCspWorkspaceAdminProperties: Interface
+
+augmentConversionForCspWorkspaceAdminProperties_STATUS: Interface
+
+augmentConversionForCustomerManagedKeyDetails: Interface
+
+augmentConversionForCustomerManagedKeyDetails_STATUS: Interface
+
+augmentConversionForDataLakeStorageAccountDetails: Interface
+
+augmentConversionForDataLakeStorageAccountDetails_STATUS: Interface
+
+augmentConversionForDynamicExecutorAllocation: Interface
+
+augmentConversionForDynamicExecutorAllocation_STATUS: Interface
+
+augmentConversionForEncryptionDetails: Interface
+
+augmentConversionForEncryptionDetails_STATUS: Interface
+
+augmentConversionForKekIdentityProperties: Interface
+
+augmentConversionForKekIdentityProperties_STATUS: Interface
+
+augmentConversionForLibraryInfo: Interface
+
+augmentConversionForLibraryInfo_STATUS: Interface
+
+augmentConversionForLibraryRequirements: Interface
+
+augmentConversionForLibraryRequirements_STATUS: Interface
+
+augmentConversionForManagedIdentity: Interface
+
+augmentConversionForManagedIdentity_STATUS: Interface
+
+augmentConversionForManagedVirtualNetworkSettings: Interface
+
+augmentConversionForManagedVirtualNetworkSettings_STATUS: Interface
+
+augmentConversionForPrivateEndpointConnection_STATUS: Interface
+
+augmentConversionForPurviewConfiguration: Interface
+
+augmentConversionForPurviewConfiguration_STATUS: Interface
+
+augmentConversionForSparkConfigProperties: Interface
+
+augmentConversionForSparkConfigProperties_STATUS: Interface
+
+augmentConversionForUserAssignedIdentityDetails: Interface
+
+augmentConversionForUserAssignedManagedIdentity_STATUS: Interface
+
+augmentConversionForVirtualNetworkProfile: Interface
+
+augmentConversionForVirtualNetworkProfile_STATUS: Interface
+
+augmentConversionForWorkspace: Interface
+
+augmentConversionForWorkspaceKeyDetails: Interface
+
+augmentConversionForWorkspaceKeyDetails_STATUS: Interface
+
+augmentConversionForWorkspaceOperatorSpec: Interface
+
+augmentConversionForWorkspaceRepositoryConfiguration: Interface
+
+augmentConversionForWorkspaceRepositoryConfiguration_STATUS: Interface
+
+augmentConversionForWorkspace_STATUS: Interface
+
+augmentConversionForWorkspace_Spec: Interface
+
+augmentConversionForWorkspacesBigDataPool: Interface
+
+augmentConversionForWorkspacesBigDataPoolOperatorSpec: Interface
+
+augmentConversionForWorkspacesBigDataPool_STATUS: Interface
+
+augmentConversionForWorkspacesBigDataPool_Spec: Interface
+

@@ -5,32 +5,34 @@ package v1api20220701
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,network}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /network/resource-manager/Microsoft.Network/stable/2022-07-01/privateEndpoint.json
+// - Generated from: /network/resource-manager/Microsoft.Network/Network/stable/2022-07-01/privateEndpoint.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/privateEndpoints/{privateEndpointName}/privateDnsZoneGroups/{privateDnsZoneGroupName}
 type PrivateEndpointsPrivateDnsZoneGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              PrivateEndpoints_PrivateDnsZoneGroup_Spec   `json:"spec,omitempty"`
-	Status            PrivateEndpoints_PrivateDnsZoneGroup_STATUS `json:"status,omitempty"`
+	Spec              PrivateEndpointsPrivateDnsZoneGroup_Spec   `json:"spec,omitempty"`
+	Status            PrivateEndpointsPrivateDnsZoneGroup_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &PrivateEndpointsPrivateDnsZoneGroup{}
@@ -49,56 +51,56 @@ var _ conversion.Convertible = &PrivateEndpointsPrivateDnsZoneGroup{}
 
 // ConvertFrom populates our PrivateEndpointsPrivateDnsZoneGroup from the provided hub PrivateEndpointsPrivateDnsZoneGroup
 func (group *PrivateEndpointsPrivateDnsZoneGroup) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.PrivateEndpointsPrivateDnsZoneGroup)
-	if !ok {
-		return fmt.Errorf("expected network/v1api20220701/storage/PrivateEndpointsPrivateDnsZoneGroup but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.PrivateEndpointsPrivateDnsZoneGroup
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return group.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup(source)
+	err = group.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to group")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub PrivateEndpointsPrivateDnsZoneGroup from our PrivateEndpointsPrivateDnsZoneGroup
 func (group *PrivateEndpointsPrivateDnsZoneGroup) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.PrivateEndpointsPrivateDnsZoneGroup)
-	if !ok {
-		return fmt.Errorf("expected network/v1api20220701/storage/PrivateEndpointsPrivateDnsZoneGroup but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.PrivateEndpointsPrivateDnsZoneGroup
+	err := group.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from group")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return group.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-privateendpointsprivatednszonegroup,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privateendpointsprivatednszonegroups,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.privateendpointsprivatednszonegroups.network.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &PrivateEndpointsPrivateDnsZoneGroup{}
 
-var _ admission.Defaulter = &PrivateEndpointsPrivateDnsZoneGroup{}
-
-// Default applies defaults to the PrivateEndpointsPrivateDnsZoneGroup resource
-func (group *PrivateEndpointsPrivateDnsZoneGroup) Default() {
-	group.defaultImpl()
-	var temp any = group
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (group *PrivateEndpointsPrivateDnsZoneGroup) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if group.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return group.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (group *PrivateEndpointsPrivateDnsZoneGroup) defaultAzureName() {
-	if group.Spec.AzureName == "" {
-		group.Spec.AzureName = group.Name
+var _ secrets.Exporter = &PrivateEndpointsPrivateDnsZoneGroup{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (group *PrivateEndpointsPrivateDnsZoneGroup) SecretDestinationExpressions() []*core.DestinationExpression {
+	if group.Spec.OperatorSpec == nil {
+		return nil
 	}
-}
-
-// defaultImpl applies the code generated defaults to the PrivateEndpointsPrivateDnsZoneGroup resource
-func (group *PrivateEndpointsPrivateDnsZoneGroup) defaultImpl() { group.defaultAzureName() }
-
-var _ genruntime.ImportableResource = &PrivateEndpointsPrivateDnsZoneGroup{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (group *PrivateEndpointsPrivateDnsZoneGroup) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*PrivateEndpoints_PrivateDnsZoneGroup_STATUS); ok {
-		return group.Spec.Initialize_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(s)
-	}
-
-	return fmt.Errorf("expected Status of type PrivateEndpoints_PrivateDnsZoneGroup_STATUS but received %T instead", status)
+	return group.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &PrivateEndpointsPrivateDnsZoneGroup{}
@@ -110,7 +112,7 @@ func (group *PrivateEndpointsPrivateDnsZoneGroup) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-07-01"
 func (group PrivateEndpointsPrivateDnsZoneGroup) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-07-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -144,11 +146,15 @@ func (group *PrivateEndpointsPrivateDnsZoneGroup) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (group *PrivateEndpointsPrivateDnsZoneGroup) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &PrivateEndpoints_PrivateDnsZoneGroup_STATUS{}
+	return &PrivateEndpointsPrivateDnsZoneGroup_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (group *PrivateEndpointsPrivateDnsZoneGroup) Owner() *genruntime.ResourceReference {
+	if group.Spec.Owner == nil {
+		return nil
+	}
+
 	ownerGroup, ownerKind := genruntime.LookupOwnerGroupKind(group.Spec)
 	return group.Spec.Owner.AsResourceReference(ownerGroup, ownerKind)
 }
@@ -156,101 +162,20 @@ func (group *PrivateEndpointsPrivateDnsZoneGroup) Owner() *genruntime.ResourceRe
 // SetStatus sets the status of this resource
 func (group *PrivateEndpointsPrivateDnsZoneGroup) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*PrivateEndpoints_PrivateDnsZoneGroup_STATUS); ok {
+	if st, ok := status.(*PrivateEndpointsPrivateDnsZoneGroup_STATUS); ok {
 		group.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st PrivateEndpoints_PrivateDnsZoneGroup_STATUS
+	var st PrivateEndpointsPrivateDnsZoneGroup_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	group.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-privateendpointsprivatednszonegroup,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privateendpointsprivatednszonegroups,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.privateendpointsprivatednszonegroups.network.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &PrivateEndpointsPrivateDnsZoneGroup{}
-
-// ValidateCreate validates the creation of the resource
-func (group *PrivateEndpointsPrivateDnsZoneGroup) ValidateCreate() (admission.Warnings, error) {
-	validations := group.createValidations()
-	var temp any = group
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (group *PrivateEndpointsPrivateDnsZoneGroup) ValidateDelete() (admission.Warnings, error) {
-	validations := group.deleteValidations()
-	var temp any = group
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (group *PrivateEndpointsPrivateDnsZoneGroup) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := group.updateValidations()
-	var temp any = group
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (group *PrivateEndpointsPrivateDnsZoneGroup) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){group.validateResourceReferences, group.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (group *PrivateEndpointsPrivateDnsZoneGroup) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (group *PrivateEndpointsPrivateDnsZoneGroup) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return group.validateResourceReferences()
-		},
-		group.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return group.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (group *PrivateEndpointsPrivateDnsZoneGroup) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(group)
-}
-
-// validateResourceReferences validates all resource references
-func (group *PrivateEndpointsPrivateDnsZoneGroup) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&group.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (group *PrivateEndpointsPrivateDnsZoneGroup) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*PrivateEndpointsPrivateDnsZoneGroup)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, group)
 }
 
 // AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup populates our PrivateEndpointsPrivateDnsZoneGroup from the provided source PrivateEndpointsPrivateDnsZoneGroup
@@ -260,18 +185,18 @@ func (group *PrivateEndpointsPrivateDnsZoneGroup) AssignProperties_From_PrivateE
 	group.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec PrivateEndpoints_PrivateDnsZoneGroup_Spec
-	err := spec.AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_Spec(&source.Spec)
+	var spec PrivateEndpointsPrivateDnsZoneGroup_Spec
+	err := spec.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_Spec() to populate field Spec")
 	}
 	group.Spec = spec
 
 	// Status
-	var status PrivateEndpoints_PrivateDnsZoneGroup_STATUS
-	err = status.AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(&source.Status)
+	var status PrivateEndpointsPrivateDnsZoneGroup_STATUS
+	err = status.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_STATUS() to populate field Status")
 	}
 	group.Status = status
 
@@ -286,18 +211,18 @@ func (group *PrivateEndpointsPrivateDnsZoneGroup) AssignProperties_To_PrivateEnd
 	destination.ObjectMeta = *group.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.PrivateEndpoints_PrivateDnsZoneGroup_Spec
-	err := group.Spec.AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_Spec(&spec)
+	var spec storage.PrivateEndpointsPrivateDnsZoneGroup_Spec
+	err := group.Spec.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.PrivateEndpoints_PrivateDnsZoneGroup_STATUS
-	err = group.Status.AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(&status)
+	var status storage.PrivateEndpointsPrivateDnsZoneGroup_STATUS
+	err = group.Status.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +241,7 @@ func (group *PrivateEndpointsPrivateDnsZoneGroup) OriginalGVK() *schema.GroupVer
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /network/resource-manager/Microsoft.Network/stable/2022-07-01/privateEndpoint.json
+// - Generated from: /network/resource-manager/Microsoft.Network/Network/stable/2022-07-01/privateEndpoint.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/privateEndpoints/{privateEndpointName}/privateDnsZoneGroups/{privateDnsZoneGroupName}
 type PrivateEndpointsPrivateDnsZoneGroupList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -324,10 +249,14 @@ type PrivateEndpointsPrivateDnsZoneGroupList struct {
 	Items           []PrivateEndpointsPrivateDnsZoneGroup `json:"items"`
 }
 
-type PrivateEndpoints_PrivateDnsZoneGroup_Spec struct {
+type PrivateEndpointsPrivateDnsZoneGroup_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
 	AzureName string `json:"azureName,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *PrivateEndpointsPrivateDnsZoneGroupOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -339,46 +268,48 @@ type PrivateEndpoints_PrivateDnsZoneGroup_Spec struct {
 	PrivateDnsZoneConfigs []PrivateDnsZoneConfig `json:"privateDnsZoneConfigs,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &PrivateEndpoints_PrivateDnsZoneGroup_Spec{}
+var _ genruntime.ARMTransformer = &PrivateEndpointsPrivateDnsZoneGroup_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if group == nil {
 		return nil, nil
 	}
-	result := &PrivateEndpoints_PrivateDnsZoneGroup_Spec_ARM{}
+	result := &arm.PrivateEndpointsPrivateDnsZoneGroup_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
 
 	// Set property "Properties":
 	if group.PrivateDnsZoneConfigs != nil {
-		result.Properties = &PrivateDnsZoneGroupPropertiesFormat_ARM{}
+		result.Properties = &arm.PrivateDnsZoneGroupPropertiesFormat{}
 	}
 	for _, item := range group.PrivateDnsZoneConfigs {
 		item_ARM, err := item.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		result.Properties.PrivateDnsZoneConfigs = append(result.Properties.PrivateDnsZoneConfigs, *item_ARM.(*PrivateDnsZoneConfig_ARM))
+		result.Properties.PrivateDnsZoneConfigs = append(result.Properties.PrivateDnsZoneConfigs, *item_ARM.(*arm.PrivateDnsZoneConfig))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateEndpoints_PrivateDnsZoneGroup_Spec_ARM{}
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.PrivateEndpointsPrivateDnsZoneGroup_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateEndpoints_PrivateDnsZoneGroup_Spec_ARM)
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.PrivateEndpointsPrivateDnsZoneGroup_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateEndpoints_PrivateDnsZoneGroup_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateEndpointsPrivateDnsZoneGroup_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
 	group.SetAzureName(genruntime.ExtractKubernetesResourceNameFromARMName(typedInput.Name))
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "Owner":
 	group.Owner = &genruntime.KnownResourceReference{
@@ -403,61 +334,73 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) PopulateFromARM(owner ge
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &PrivateEndpoints_PrivateDnsZoneGroup_Spec{}
+var _ genruntime.ConvertibleSpec = &PrivateEndpointsPrivateDnsZoneGroup_Spec{}
 
-// ConvertSpecFrom populates our PrivateEndpoints_PrivateDnsZoneGroup_Spec from the provided source
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.PrivateEndpoints_PrivateDnsZoneGroup_Spec)
+// ConvertSpecFrom populates our PrivateEndpointsPrivateDnsZoneGroup_Spec from the provided source
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.PrivateEndpointsPrivateDnsZoneGroup_Spec)
 	if ok {
 		// Populate our instance from source
-		return group.AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_Spec(src)
+		return group.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.PrivateEndpoints_PrivateDnsZoneGroup_Spec{}
+	src = &storage.PrivateEndpointsPrivateDnsZoneGroup_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = group.AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_Spec(src)
+	err = group.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our PrivateEndpoints_PrivateDnsZoneGroup_Spec
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.PrivateEndpoints_PrivateDnsZoneGroup_Spec)
+// ConvertSpecTo populates the provided destination from our PrivateEndpointsPrivateDnsZoneGroup_Spec
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.PrivateEndpointsPrivateDnsZoneGroup_Spec)
 	if ok {
 		// Populate destination from our instance
-		return group.AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_Spec(dst)
+		return group.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.PrivateEndpoints_PrivateDnsZoneGroup_Spec{}
-	err := group.AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_Spec(dst)
+	dst = &storage.PrivateEndpointsPrivateDnsZoneGroup_Spec{}
+	err := group.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_Spec populates our PrivateEndpoints_PrivateDnsZoneGroup_Spec from the provided source PrivateEndpoints_PrivateDnsZoneGroup_Spec
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_Spec(source *storage.PrivateEndpoints_PrivateDnsZoneGroup_Spec) error {
+// AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_Spec populates our PrivateEndpointsPrivateDnsZoneGroup_Spec from the provided source PrivateEndpointsPrivateDnsZoneGroup_Spec
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_Spec(source *storage.PrivateEndpointsPrivateDnsZoneGroup_Spec) error {
 
 	// AzureName
 	group.AzureName = source.AzureName
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec PrivateEndpointsPrivateDnsZoneGroupOperatorSpec
+		err := operatorSpec.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroupOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroupOperatorSpec() to populate field OperatorSpec")
+		}
+		group.OperatorSpec = &operatorSpec
+	} else {
+		group.OperatorSpec = nil
+	}
 
 	// Owner
 	if source.Owner != nil {
@@ -471,12 +414,10 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) AssignProperties_From_Pr
 	if source.PrivateDnsZoneConfigs != nil {
 		privateDnsZoneConfigList := make([]PrivateDnsZoneConfig, len(source.PrivateDnsZoneConfigs))
 		for privateDnsZoneConfigIndex, privateDnsZoneConfigItem := range source.PrivateDnsZoneConfigs {
-			// Shadow the loop variable to avoid aliasing
-			privateDnsZoneConfigItem := privateDnsZoneConfigItem
 			var privateDnsZoneConfig PrivateDnsZoneConfig
 			err := privateDnsZoneConfig.AssignProperties_From_PrivateDnsZoneConfig(&privateDnsZoneConfigItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_PrivateDnsZoneConfig() to populate field PrivateDnsZoneConfigs")
+				return eris.Wrap(err, "calling AssignProperties_From_PrivateDnsZoneConfig() to populate field PrivateDnsZoneConfigs")
 			}
 			privateDnsZoneConfigList[privateDnsZoneConfigIndex] = privateDnsZoneConfig
 		}
@@ -489,13 +430,25 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) AssignProperties_From_Pr
 	return nil
 }
 
-// AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_Spec populates the provided destination PrivateEndpoints_PrivateDnsZoneGroup_Spec from our PrivateEndpoints_PrivateDnsZoneGroup_Spec
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_Spec(destination *storage.PrivateEndpoints_PrivateDnsZoneGroup_Spec) error {
+// AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_Spec populates the provided destination PrivateEndpointsPrivateDnsZoneGroup_Spec from our PrivateEndpointsPrivateDnsZoneGroup_Spec
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_Spec(destination *storage.PrivateEndpointsPrivateDnsZoneGroup_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
 	// AzureName
 	destination.AzureName = group.AzureName
+
+	// OperatorSpec
+	if group.OperatorSpec != nil {
+		var operatorSpec storage.PrivateEndpointsPrivateDnsZoneGroupOperatorSpec
+		err := group.OperatorSpec.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroupOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroupOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
 
 	// OriginalVersion
 	destination.OriginalVersion = group.OriginalVersion()
@@ -512,12 +465,10 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) AssignProperties_To_Priv
 	if group.PrivateDnsZoneConfigs != nil {
 		privateDnsZoneConfigList := make([]storage.PrivateDnsZoneConfig, len(group.PrivateDnsZoneConfigs))
 		for privateDnsZoneConfigIndex, privateDnsZoneConfigItem := range group.PrivateDnsZoneConfigs {
-			// Shadow the loop variable to avoid aliasing
-			privateDnsZoneConfigItem := privateDnsZoneConfigItem
 			var privateDnsZoneConfig storage.PrivateDnsZoneConfig
 			err := privateDnsZoneConfigItem.AssignProperties_To_PrivateDnsZoneConfig(&privateDnsZoneConfig)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_PrivateDnsZoneConfig() to populate field PrivateDnsZoneConfigs")
+				return eris.Wrap(err, "calling AssignProperties_To_PrivateDnsZoneConfig() to populate field PrivateDnsZoneConfigs")
 			}
 			privateDnsZoneConfigList[privateDnsZoneConfigIndex] = privateDnsZoneConfig
 		}
@@ -537,42 +488,17 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) AssignProperties_To_Priv
 	return nil
 }
 
-// Initialize_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS populates our PrivateEndpoints_PrivateDnsZoneGroup_Spec from the provided source PrivateEndpoints_PrivateDnsZoneGroup_STATUS
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) Initialize_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(source *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) error {
-
-	// PrivateDnsZoneConfigs
-	if source.PrivateDnsZoneConfigs != nil {
-		privateDnsZoneConfigList := make([]PrivateDnsZoneConfig, len(source.PrivateDnsZoneConfigs))
-		for privateDnsZoneConfigIndex, privateDnsZoneConfigItem := range source.PrivateDnsZoneConfigs {
-			// Shadow the loop variable to avoid aliasing
-			privateDnsZoneConfigItem := privateDnsZoneConfigItem
-			var privateDnsZoneConfig PrivateDnsZoneConfig
-			err := privateDnsZoneConfig.Initialize_From_PrivateDnsZoneConfig_STATUS(&privateDnsZoneConfigItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_PrivateDnsZoneConfig_STATUS() to populate field PrivateDnsZoneConfigs")
-			}
-			privateDnsZoneConfigList[privateDnsZoneConfigIndex] = privateDnsZoneConfig
-		}
-		group.PrivateDnsZoneConfigs = privateDnsZoneConfigList
-	} else {
-		group.PrivateDnsZoneConfigs = nil
-	}
-
-	// No error
-	return nil
-}
-
 // OriginalVersion returns the original API version used to create the resource.
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) OriginalVersion() string {
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
 // SetAzureName sets the Azure name of the resource
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_Spec) SetAzureName(azureName string) {
+func (group *PrivateEndpointsPrivateDnsZoneGroup_Spec) SetAzureName(azureName string) {
 	group.AzureName = azureName
 }
 
-type PrivateEndpoints_PrivateDnsZoneGroup_STATUS struct {
+type PrivateEndpointsPrivateDnsZoneGroup_STATUS struct {
 	// Conditions: The observed state of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty"`
 
@@ -592,68 +518,68 @@ type PrivateEndpoints_PrivateDnsZoneGroup_STATUS struct {
 	ProvisioningState *PrivateEndpointProvisioningState_STATUS `json:"provisioningState,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &PrivateEndpoints_PrivateDnsZoneGroup_STATUS{}
+var _ genruntime.ConvertibleStatus = &PrivateEndpointsPrivateDnsZoneGroup_STATUS{}
 
-// ConvertStatusFrom populates our PrivateEndpoints_PrivateDnsZoneGroup_STATUS from the provided source
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.PrivateEndpoints_PrivateDnsZoneGroup_STATUS)
+// ConvertStatusFrom populates our PrivateEndpointsPrivateDnsZoneGroup_STATUS from the provided source
+func (group *PrivateEndpointsPrivateDnsZoneGroup_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.PrivateEndpointsPrivateDnsZoneGroup_STATUS)
 	if ok {
 		// Populate our instance from source
-		return group.AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(src)
+		return group.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.PrivateEndpoints_PrivateDnsZoneGroup_STATUS{}
+	src = &storage.PrivateEndpointsPrivateDnsZoneGroup_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = group.AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(src)
+	err = group.AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our PrivateEndpoints_PrivateDnsZoneGroup_STATUS
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.PrivateEndpoints_PrivateDnsZoneGroup_STATUS)
+// ConvertStatusTo populates the provided destination from our PrivateEndpointsPrivateDnsZoneGroup_STATUS
+func (group *PrivateEndpointsPrivateDnsZoneGroup_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.PrivateEndpointsPrivateDnsZoneGroup_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return group.AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(dst)
+		return group.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.PrivateEndpoints_PrivateDnsZoneGroup_STATUS{}
-	err := group.AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(dst)
+	dst = &storage.PrivateEndpointsPrivateDnsZoneGroup_STATUS{}
+	err := group.AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &PrivateEndpoints_PrivateDnsZoneGroup_STATUS{}
+var _ genruntime.FromARMConverter = &PrivateEndpointsPrivateDnsZoneGroup_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateEndpoints_PrivateDnsZoneGroup_STATUS_ARM{}
+func (group *PrivateEndpointsPrivateDnsZoneGroup_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.PrivateEndpointsPrivateDnsZoneGroup_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateEndpoints_PrivateDnsZoneGroup_STATUS_ARM)
+func (group *PrivateEndpointsPrivateDnsZoneGroup_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.PrivateEndpointsPrivateDnsZoneGroup_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateEndpoints_PrivateDnsZoneGroup_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateEndpointsPrivateDnsZoneGroup_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -693,7 +619,9 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) PopulateFromARM(owner 
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.ProvisioningState != nil {
-			provisioningState := *typedInput.Properties.ProvisioningState
+			var temp string
+			temp = string(*typedInput.Properties.ProvisioningState)
+			provisioningState := PrivateEndpointProvisioningState_STATUS(temp)
 			group.ProvisioningState = &provisioningState
 		}
 	}
@@ -702,8 +630,8 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) PopulateFromARM(owner 
 	return nil
 }
 
-// AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS populates our PrivateEndpoints_PrivateDnsZoneGroup_STATUS from the provided source PrivateEndpoints_PrivateDnsZoneGroup_STATUS
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) AssignProperties_From_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(source *storage.PrivateEndpoints_PrivateDnsZoneGroup_STATUS) error {
+// AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_STATUS populates our PrivateEndpointsPrivateDnsZoneGroup_STATUS from the provided source PrivateEndpointsPrivateDnsZoneGroup_STATUS
+func (group *PrivateEndpointsPrivateDnsZoneGroup_STATUS) AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroup_STATUS(source *storage.PrivateEndpointsPrivateDnsZoneGroup_STATUS) error {
 
 	// Conditions
 	group.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
@@ -721,12 +649,10 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) AssignProperties_From_
 	if source.PrivateDnsZoneConfigs != nil {
 		privateDnsZoneConfigList := make([]PrivateDnsZoneConfig_STATUS, len(source.PrivateDnsZoneConfigs))
 		for privateDnsZoneConfigIndex, privateDnsZoneConfigItem := range source.PrivateDnsZoneConfigs {
-			// Shadow the loop variable to avoid aliasing
-			privateDnsZoneConfigItem := privateDnsZoneConfigItem
 			var privateDnsZoneConfig PrivateDnsZoneConfig_STATUS
 			err := privateDnsZoneConfig.AssignProperties_From_PrivateDnsZoneConfig_STATUS(&privateDnsZoneConfigItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_PrivateDnsZoneConfig_STATUS() to populate field PrivateDnsZoneConfigs")
+				return eris.Wrap(err, "calling AssignProperties_From_PrivateDnsZoneConfig_STATUS() to populate field PrivateDnsZoneConfigs")
 			}
 			privateDnsZoneConfigList[privateDnsZoneConfigIndex] = privateDnsZoneConfig
 		}
@@ -748,8 +674,8 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) AssignProperties_From_
 	return nil
 }
 
-// AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_STATUS populates the provided destination PrivateEndpoints_PrivateDnsZoneGroup_STATUS from our PrivateEndpoints_PrivateDnsZoneGroup_STATUS
-func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) AssignProperties_To_PrivateEndpoints_PrivateDnsZoneGroup_STATUS(destination *storage.PrivateEndpoints_PrivateDnsZoneGroup_STATUS) error {
+// AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_STATUS populates the provided destination PrivateEndpointsPrivateDnsZoneGroup_STATUS from our PrivateEndpointsPrivateDnsZoneGroup_STATUS
+func (group *PrivateEndpointsPrivateDnsZoneGroup_STATUS) AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroup_STATUS(destination *storage.PrivateEndpointsPrivateDnsZoneGroup_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -769,12 +695,10 @@ func (group *PrivateEndpoints_PrivateDnsZoneGroup_STATUS) AssignProperties_To_Pr
 	if group.PrivateDnsZoneConfigs != nil {
 		privateDnsZoneConfigList := make([]storage.PrivateDnsZoneConfig_STATUS, len(group.PrivateDnsZoneConfigs))
 		for privateDnsZoneConfigIndex, privateDnsZoneConfigItem := range group.PrivateDnsZoneConfigs {
-			// Shadow the loop variable to avoid aliasing
-			privateDnsZoneConfigItem := privateDnsZoneConfigItem
 			var privateDnsZoneConfig storage.PrivateDnsZoneConfig_STATUS
 			err := privateDnsZoneConfigItem.AssignProperties_To_PrivateDnsZoneConfig_STATUS(&privateDnsZoneConfig)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_PrivateDnsZoneConfig_STATUS() to populate field PrivateDnsZoneConfigs")
+				return eris.Wrap(err, "calling AssignProperties_To_PrivateDnsZoneConfig_STATUS() to populate field PrivateDnsZoneConfigs")
 			}
 			privateDnsZoneConfigList[privateDnsZoneConfigIndex] = privateDnsZoneConfig
 		}
@@ -818,7 +742,7 @@ func (config *PrivateDnsZoneConfig) ConvertToARM(resolved genruntime.ConvertToAR
 	if config == nil {
 		return nil, nil
 	}
-	result := &PrivateDnsZoneConfig_ARM{}
+	result := &arm.PrivateDnsZoneConfig{}
 
 	// Set property "Name":
 	if config.Name != nil {
@@ -828,7 +752,7 @@ func (config *PrivateDnsZoneConfig) ConvertToARM(resolved genruntime.ConvertToAR
 
 	// Set property "Properties":
 	if config.PrivateDnsZoneReference != nil {
-		result.Properties = &PrivateDnsZonePropertiesFormat_ARM{}
+		result.Properties = &arm.PrivateDnsZonePropertiesFormat{}
 	}
 	if config.PrivateDnsZoneReference != nil {
 		privateDnsZoneIdARMID, err := resolved.ResolvedReferences.Lookup(*config.PrivateDnsZoneReference)
@@ -843,14 +767,14 @@ func (config *PrivateDnsZoneConfig) ConvertToARM(resolved genruntime.ConvertToAR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (config *PrivateDnsZoneConfig) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateDnsZoneConfig_ARM{}
+	return &arm.PrivateDnsZoneConfig{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (config *PrivateDnsZoneConfig) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateDnsZoneConfig_ARM)
+	typedInput, ok := armInput.(arm.PrivateDnsZoneConfig)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateDnsZoneConfig_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateDnsZoneConfig, got %T", armInput)
 	}
 
 	// Set property "Name":
@@ -910,24 +834,6 @@ func (config *PrivateDnsZoneConfig) AssignProperties_To_PrivateDnsZoneConfig(des
 	return nil
 }
 
-// Initialize_From_PrivateDnsZoneConfig_STATUS populates our PrivateDnsZoneConfig from the provided source PrivateDnsZoneConfig_STATUS
-func (config *PrivateDnsZoneConfig) Initialize_From_PrivateDnsZoneConfig_STATUS(source *PrivateDnsZoneConfig_STATUS) error {
-
-	// Name
-	config.Name = genruntime.ClonePointerToString(source.Name)
-
-	// PrivateDnsZoneReference
-	if source.PrivateDnsZoneId != nil {
-		privateDnsZoneReference := genruntime.CreateResourceReferenceFromARMID(*source.PrivateDnsZoneId)
-		config.PrivateDnsZoneReference = &privateDnsZoneReference
-	} else {
-		config.PrivateDnsZoneReference = nil
-	}
-
-	// No error
-	return nil
-}
-
 // PrivateDnsZoneConfig resource.
 type PrivateDnsZoneConfig_STATUS struct {
 	// Name: Name of the resource that is unique within a resource group. This name can be used to access the resource.
@@ -944,14 +850,14 @@ var _ genruntime.FromARMConverter = &PrivateDnsZoneConfig_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (config *PrivateDnsZoneConfig_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateDnsZoneConfig_STATUS_ARM{}
+	return &arm.PrivateDnsZoneConfig_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (config *PrivateDnsZoneConfig_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateDnsZoneConfig_STATUS_ARM)
+	typedInput, ok := armInput.(arm.PrivateDnsZoneConfig_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateDnsZoneConfig_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateDnsZoneConfig_STATUS, got %T", armInput)
 	}
 
 	// Set property "Name":
@@ -999,12 +905,10 @@ func (config *PrivateDnsZoneConfig_STATUS) AssignProperties_From_PrivateDnsZoneC
 	if source.RecordSets != nil {
 		recordSetList := make([]RecordSet_STATUS, len(source.RecordSets))
 		for recordSetIndex, recordSetItem := range source.RecordSets {
-			// Shadow the loop variable to avoid aliasing
-			recordSetItem := recordSetItem
 			var recordSet RecordSet_STATUS
 			err := recordSet.AssignProperties_From_RecordSet_STATUS(&recordSetItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_RecordSet_STATUS() to populate field RecordSets")
+				return eris.Wrap(err, "calling AssignProperties_From_RecordSet_STATUS() to populate field RecordSets")
 			}
 			recordSetList[recordSetIndex] = recordSet
 		}
@@ -1032,12 +936,10 @@ func (config *PrivateDnsZoneConfig_STATUS) AssignProperties_To_PrivateDnsZoneCon
 	if config.RecordSets != nil {
 		recordSetList := make([]storage.RecordSet_STATUS, len(config.RecordSets))
 		for recordSetIndex, recordSetItem := range config.RecordSets {
-			// Shadow the loop variable to avoid aliasing
-			recordSetItem := recordSetItem
 			var recordSet storage.RecordSet_STATUS
 			err := recordSetItem.AssignProperties_To_RecordSet_STATUS(&recordSet)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_RecordSet_STATUS() to populate field RecordSets")
+				return eris.Wrap(err, "calling AssignProperties_To_RecordSet_STATUS() to populate field RecordSets")
 			}
 			recordSetList[recordSetIndex] = recordSet
 		}
@@ -1075,6 +977,102 @@ var privateEndpointProvisioningState_STATUS_Values = map[string]PrivateEndpointP
 	"updating":  PrivateEndpointProvisioningState_STATUS_Updating,
 }
 
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type PrivateEndpointsPrivateDnsZoneGroupOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroupOperatorSpec populates our PrivateEndpointsPrivateDnsZoneGroupOperatorSpec from the provided source PrivateEndpointsPrivateDnsZoneGroupOperatorSpec
+func (operator *PrivateEndpointsPrivateDnsZoneGroupOperatorSpec) AssignProperties_From_PrivateEndpointsPrivateDnsZoneGroupOperatorSpec(source *storage.PrivateEndpointsPrivateDnsZoneGroupOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroupOperatorSpec populates the provided destination PrivateEndpointsPrivateDnsZoneGroupOperatorSpec from our PrivateEndpointsPrivateDnsZoneGroupOperatorSpec
+func (operator *PrivateEndpointsPrivateDnsZoneGroupOperatorSpec) AssignProperties_To_PrivateEndpointsPrivateDnsZoneGroupOperatorSpec(destination *storage.PrivateEndpointsPrivateDnsZoneGroupOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
 // A collective group of information about the record set information.
 type RecordSet_STATUS struct {
 	// Fqdn: Fqdn that resolves to private endpoint ip address.
@@ -1100,14 +1098,14 @@ var _ genruntime.FromARMConverter = &RecordSet_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (recordSet *RecordSet_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &RecordSet_STATUS_ARM{}
+	return &arm.RecordSet_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (recordSet *RecordSet_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(RecordSet_STATUS_ARM)
+	typedInput, ok := armInput.(arm.RecordSet_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected RecordSet_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.RecordSet_STATUS, got %T", armInput)
 	}
 
 	// Set property "Fqdn":
@@ -1123,7 +1121,9 @@ func (recordSet *RecordSet_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwn
 
 	// Set property "ProvisioningState":
 	if typedInput.ProvisioningState != nil {
-		provisioningState := *typedInput.ProvisioningState
+		var temp string
+		temp = string(*typedInput.ProvisioningState)
+		provisioningState := PrivateEndpointProvisioningState_STATUS(temp)
 		recordSet.ProvisioningState = &provisioningState
 	}
 

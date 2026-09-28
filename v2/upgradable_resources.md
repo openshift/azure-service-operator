@@ -1,0 +1,208 @@
+# Upgradable Resources
+
+The following resources have newer versions available in the Azure REST API specifications. Resources with a 💡 have a recommended or overdue update.
+
+## app
+
+|  | Resource           | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|--|--------------------|------------------|------------------|-------------------|-------------------|
+|  | ContainerApp       | 2026-01-01       | 2025-01-01       | -                 | -                 |
+|  | Job                | 2026-01-01       | 2025-01-01       | -                 | -                 |
+|  | ManagedEnvironment | 2026-01-01       | 2025-01-01       | -                 | -                 |
+
+## batch
+
+|      | Resource     | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|--------------|------------------|------------------|-------------------|-------------------|
+| 💡    | BatchAccount | **2025-06-01**   | 2024-07-01       | -                 | -                 |
+
+## cdn
+
+|      | Resource | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------|------------------|------------------|-------------------|-------------------|
+| 💡    | Profile  | **2025-12-01**   | 2023-05-01       | -                 | -                 |
+
+## cognitiveservices
+
+|      | Resource | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------|------------------|------------------|-------------------|-------------------|
+| 💡    | Account  | **2026-07-01**   | 2025-06-01       | -                 | -                 |
+
+## communication
+
+|      | Resource             | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------------------|------------------|------------------|-------------------|-------------------|
+| 💡    | CommunicationService | **2026-03-18**   | 2023-04-01       | -                 | -                 |
+| 💡    | EmailService         | **2026-03-18**   | 2023-04-01       | -                 | -                 |
+
+## compute
+
+|      | Resource                 | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|--------------------------|------------------|------------------|-------------------|-------------------|
+| 💡    | AvailabilitySet          | **2026-04-01**   | 2024-11-01       | -                 | -                 |
+|      | CapacityReservationGroup | 2026-04-01       | 2025-04-01       | -                 | -                 |
+| 💡    | Disk                     | **2026-03-02**   | 2024-03-02       | -                 | -                 |
+| 💡    | DiskAccess               | **2026-03-02**   | 2024-03-02       | -                 | -                 |
+| 💡    | DiskEncryptionSet        | **2026-03-02**   | 2024-03-02       | -                 | -                 |
+| 💡    | Image                    | **2026-04-01**   | 2022-03-01       | -                 | -                 |
+| 💡    | Snapshot                 | **2026-03-02**   | 2024-03-02       | -                 | -                 |
+| 💡    | VirtualMachine           | **2026-04-01**   | 2022-03-01       | -                 | -                 |
+| 💡    | VirtualMachineScaleSet   | **2026-04-01**   | 2022-03-01       | -                 | -                 |
+
+## containerinstance
+
+|      | Resource       | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------------|------------------|------------------|-------------------|-------------------|
+| 💡    | ContainerGroup | **2026-07-01**   | 2021-10-01       | -                 | -                 |
+
+## containerregistry
+
+|      | Resource | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------|------------------|------------------|-------------------|-------------------|
+| 💡    | Registry | **2025-11-01**   | 2023-07-01       | -                 | -                 |
+
+## containerservice
+
+|      | Resource       | Available Stable | Supported Stable | Available Preview      | Supported Preview  |
+|------|----------------|------------------|------------------|------------------------|--------------------|
+| 💡    | Fleet          | **2026-06-01**   | 2025-03-01       | 2026-03-02-preview     | -                  |
+| 💡    | ManagedCluster | 2026-05-01       | 2025-08-01       | **2026-05-02-preview** | 2025-10-02-preview |
+
+## dataprotection
+
+|      | Resource    | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|-------------|------------------|------------------|-------------------|-------------------|
+| 💡    | BackupVault | **2026-06-01**   | 2023-11-01       | -                 | -                 |
+
+## devices
+
+|      | Resource | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------|------------------|------------------|-------------------|-------------------|
+| 💡    | IotHub   | **2023-06-30**   | 2021-07-02       | -                 | -                 |
+
+## documentdb
+
+|      | Resource        | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|-----------------|------------------|------------------|-------------------|-------------------|
+| 💡    | DatabaseAccount | **2026-03-15**   | 2024-08-15       | -                 | -                 |
+| 💡    | MongoCluster    | **2026-06-01**   | 2024-07-01       | -                 | -                 |
+
+## eventhub
+
+|      | Resource  | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|-----------|------------------|------------------|-------------------|-------------------|
+| 💡    | Namespace | **2026-01-01**   | 2024-01-01       | -                 | -                 |
+
+## insights
+
+|      | Resource           | Available Stable | Supported Stable | Available Preview  | Supported Preview  |
+|------|--------------------|------------------|------------------|--------------------|--------------------|
+| 💡    | ActivityLogAlert   | **2026-01-01**   | 2020-10-01       | -                  | -                  |
+| 💡    | MetricAlert        | **2026-01-01**   | 2018-03-01       | 2024-03-01-preview | -                  |
+| 💡    | ScheduledQueryRule | **2026-03-01**   | 2022-06-15       |                    | 2025-01-01-preview |
+
+## keyvault
+
+|      | Resource | Available Stable | Supported Stable | Available Preview | Supported Preview  |
+|------|----------|------------------|------------------|-------------------|--------------------|
+| 💡    | Vault    | **2026-02-01**   | 2023-07-01       |                   | 2021-04-01-preview |
+
+## kubernetesconfiguration
+
+|  | Resource          | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|--|-------------------|------------------|------------------|-------------------|-------------------|
+|  | Extension         | 2025-03-01       | 2024-11-01       | -                 | -                 |
+|  | FluxConfiguration | 2025-04-01       | 2024-11-01       | -                 | -                 |
+
+## kusto
+
+|      | Resource | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------|------------------|------------------|-------------------|-------------------|
+| 💡    | Cluster  | **2025-02-14**   | 2024-04-13       | -                 | -                 |
+
+## machinelearningservices
+
+|      | Resource  | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|-----------|------------------|------------------|-------------------|-------------------|
+| 💡    | Registry  | **2026-07-01**   | 2024-04-01       | -                 | -                 |
+| 💡    | Workspace | **2026-07-01**   | 2024-04-01       | -                 | -                 |
+
+## managedidentity
+
+|      | Resource             | Available Stable | Supported Stable | Available Preview  | Supported Preview |
+|------|----------------------|------------------|------------------|--------------------|-------------------|
+| 💡    | UserAssignedIdentity | **2024-11-30**   | 2023-01-31       | 2022-01-31-preview | -                 |
+
+## monitor
+
+|      | Resource | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------|------------------|------------------|-------------------|-------------------|
+| 💡    | Account  | **2025-10-03**   | 2023-04-03       | -                 | -                 |
+
+## network
+
+|      | Resource                 | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|--------------------------|------------------|------------------|-------------------|-------------------|
+| 💡    | ApplicationGateway       | **2025-09-01**   | 2022-07-01       | -                 | -                 |
+| 💡    | ApplicationSecurityGroup | **2025-09-01**   | 2024-01-01       | -                 | -                 |
+|      | AzureFirewall            | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | BastionHost              | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | DdosProtectionPlan       | 2025-09-01       | 2025-03-01       | -                 | -                 |
+| 💡    | DnsForwardingRuleset     | **2025-05-01**   | 2022-07-01       | -                 | -                 |
+| 💡    | DnsResolver              | **2025-05-01**   | 2022-07-01       | -                 | -                 |
+|      | FirewallPolicy           | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | LoadBalancer             | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | NatGateway               | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | NetworkInterface         | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | NetworkSecurityGroup     | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | NetworkWatcher           | 2025-09-01       | 2024-10-01       | -                 | -                 |
+|      | PrivateEndpoint          | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | PrivateLinkService       | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | PublicIPAddress          | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | PublicIPPrefix           | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | RouteTable               | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | VirtualNetwork           | 2025-09-01       | 2025-03-01       | -                 | -                 |
+|      | VirtualNetworkGateway    | 2025-09-01       | 2025-03-01       | -                 | -                 |
+
+## operationalinsights
+
+|  | Resource  | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|--|-----------|------------------|------------------|-------------------|-------------------|
+|  | Workspace | 2026-03-01       | 2025-07-01       | -                 | -                 |
+
+## redhatopenshift
+
+|      | Resource         | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|------------------|------------------|------------------|-------------------|-------------------|
+| 💡    | OpenShiftCluster | **2025-07-25**   | 2023-11-22       | -                 | -                 |
+
+## resources
+
+|      | Resource      | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|---------------|------------------|------------------|-------------------|-------------------|
+| 💡    | ResourceGroup | **2025-04-01**   | 2020-06-01       | -                 | -                 |
+
+## search
+
+|      | Resource      | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|---------------|------------------|------------------|-------------------|-------------------|
+| 💡    | SearchService | **2025-05-01**   | 2023-11-01       | -                 | -                 |
+
+## servicebus
+
+|      | Resource  | Available Stable | Supported Stable | Available Preview | Supported Preview  |
+|------|-----------|------------------|------------------|-------------------|--------------------|
+| 💡    | Namespace | **2026-01-01**   | 2024-01-01       |                   | 2022-10-01-preview |
+
+## storage
+
+|  | Resource       | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|--|----------------|------------------|------------------|-------------------|-------------------|
+|  | StorageAccount | 2026-04-01       | 2025-06-01       | -                 | -                 |
+
+## web
+
+|      | Resource | Available Stable | Supported Stable | Available Preview | Supported Preview |
+|------|----------|------------------|------------------|-------------------|-------------------|
+| 💡    | Site     | **2026-07-15**   | 2025-05-01       | -                 | -                 |
+

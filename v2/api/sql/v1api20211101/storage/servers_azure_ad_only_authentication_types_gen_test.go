@@ -5,6 +5,8 @@ package storage
 
 import (
 	"encoding/json"
+	v20211101s "github.com/Azure/azure-service-operator/v2/api/sql/v20211101/storage"
+	v20250101s "github.com/Azure/azure-service-operator/v2/api/sql/v20250101/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -17,8 +19,108 @@ import (
 	"testing"
 )
 
+func Test_ServersAzureADOnlyAuthentication_WhenConvertedToHub_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	parameters.MinSuccessfulTests = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from ServersAzureADOnlyAuthentication to hub returns original",
+		prop.ForAll(RunResourceConversionTestForServersAzureADOnlyAuthentication, ServersAzureADOnlyAuthenticationGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunResourceConversionTestForServersAzureADOnlyAuthentication tests if a specific instance of ServersAzureADOnlyAuthentication round trips to the hub storage version and back losslessly
+func RunResourceConversionTestForServersAzureADOnlyAuthentication(subject ServersAzureADOnlyAuthentication) string {
+	// Copy subject to make sure conversion doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Convert to our hub version
+	var hub v20250101s.ServersAzureADOnlyAuthentication
+	err := copied.ConvertTo(&hub)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Convert from our hub version
+	var actual ServersAzureADOnlyAuthentication
+	err = actual.ConvertFrom(&hub)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Compare actual with what we started with
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_ServersAzureADOnlyAuthentication_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from ServersAzureADOnlyAuthentication to ServersAzureADOnlyAuthentication via AssignProperties_To_ServersAzureADOnlyAuthentication & AssignProperties_From_ServersAzureADOnlyAuthentication returns original",
+		prop.ForAll(RunPropertyAssignmentTestForServersAzureADOnlyAuthentication, ServersAzureADOnlyAuthenticationGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForServersAzureADOnlyAuthentication tests if a specific instance of ServersAzureADOnlyAuthentication can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForServersAzureADOnlyAuthentication(subject ServersAzureADOnlyAuthentication) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20211101s.ServersAzureADOnlyAuthentication
+	err := copied.AssignProperties_To_ServersAzureADOnlyAuthentication(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual ServersAzureADOnlyAuthentication
+	err = actual.AssignProperties_From_ServersAzureADOnlyAuthentication(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
 func Test_ServersAzureADOnlyAuthentication_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -75,24 +177,76 @@ func ServersAzureADOnlyAuthenticationGenerator() gopter.Gen {
 
 // AddRelatedPropertyGeneratorsForServersAzureADOnlyAuthentication is a factory method for creating gopter generators
 func AddRelatedPropertyGeneratorsForServersAzureADOnlyAuthentication(gens map[string]gopter.Gen) {
-	gens["Spec"] = Servers_AzureADOnlyAuthentication_SpecGenerator()
-	gens["Status"] = Servers_AzureADOnlyAuthentication_STATUSGenerator()
+	gens["Spec"] = ServersAzureADOnlyAuthentication_SpecGenerator()
+	gens["Status"] = ServersAzureADOnlyAuthentication_STATUSGenerator()
 }
 
-func Test_Servers_AzureADOnlyAuthentication_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_ServersAzureADOnlyAuthenticationOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 80
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from ServersAzureADOnlyAuthenticationOperatorSpec to ServersAzureADOnlyAuthenticationOperatorSpec via AssignProperties_To_ServersAzureADOnlyAuthenticationOperatorSpec & AssignProperties_From_ServersAzureADOnlyAuthenticationOperatorSpec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForServersAzureADOnlyAuthenticationOperatorSpec, ServersAzureADOnlyAuthenticationOperatorSpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForServersAzureADOnlyAuthenticationOperatorSpec tests if a specific instance of ServersAzureADOnlyAuthenticationOperatorSpec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForServersAzureADOnlyAuthenticationOperatorSpec(subject ServersAzureADOnlyAuthenticationOperatorSpec) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20211101s.ServersAzureADOnlyAuthenticationOperatorSpec
+	err := copied.AssignProperties_To_ServersAzureADOnlyAuthenticationOperatorSpec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual ServersAzureADOnlyAuthenticationOperatorSpec
+	err = actual.AssignProperties_From_ServersAzureADOnlyAuthenticationOperatorSpec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_ServersAzureADOnlyAuthenticationOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip of Servers_AzureADOnlyAuthentication_STATUS via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForServers_AzureADOnlyAuthentication_STATUS, Servers_AzureADOnlyAuthentication_STATUSGenerator()))
+		"Round trip of ServersAzureADOnlyAuthenticationOperatorSpec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForServersAzureADOnlyAuthenticationOperatorSpec, ServersAzureADOnlyAuthenticationOperatorSpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
 }
 
-// RunJSONSerializationTestForServers_AzureADOnlyAuthentication_STATUS runs a test to see if a specific instance of Servers_AzureADOnlyAuthentication_STATUS round trips to JSON and back losslessly
-func RunJSONSerializationTestForServers_AzureADOnlyAuthentication_STATUS(subject Servers_AzureADOnlyAuthentication_STATUS) string {
+// RunJSONSerializationTestForServersAzureADOnlyAuthenticationOperatorSpec runs a test to see if a specific instance of ServersAzureADOnlyAuthenticationOperatorSpec round trips to JSON and back losslessly
+func RunJSONSerializationTestForServersAzureADOnlyAuthenticationOperatorSpec(subject ServersAzureADOnlyAuthenticationOperatorSpec) string {
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
@@ -100,7 +254,7 @@ func RunJSONSerializationTestForServers_AzureADOnlyAuthentication_STATUS(subject
 	}
 
 	// Deserialize back into memory
-	var actual Servers_AzureADOnlyAuthentication_STATUS
+	var actual ServersAzureADOnlyAuthenticationOperatorSpec
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
 		return err.Error()
@@ -118,45 +272,204 @@ func RunJSONSerializationTestForServers_AzureADOnlyAuthentication_STATUS(subject
 	return ""
 }
 
-// Generator of Servers_AzureADOnlyAuthentication_STATUS instances for property testing - lazily instantiated by
-// Servers_AzureADOnlyAuthentication_STATUSGenerator()
-var servers_AzureADOnlyAuthentication_STATUSGenerator gopter.Gen
+// Generator of ServersAzureADOnlyAuthenticationOperatorSpec instances for property testing - lazily instantiated by
+// ServersAzureADOnlyAuthenticationOperatorSpecGenerator()
+var serversAzureADOnlyAuthenticationOperatorSpecGenerator gopter.Gen
 
-// Servers_AzureADOnlyAuthentication_STATUSGenerator returns a generator of Servers_AzureADOnlyAuthentication_STATUS instances for property testing.
-func Servers_AzureADOnlyAuthentication_STATUSGenerator() gopter.Gen {
-	if servers_AzureADOnlyAuthentication_STATUSGenerator != nil {
-		return servers_AzureADOnlyAuthentication_STATUSGenerator
+// ServersAzureADOnlyAuthenticationOperatorSpecGenerator returns a generator of ServersAzureADOnlyAuthenticationOperatorSpec instances for property testing.
+func ServersAzureADOnlyAuthenticationOperatorSpecGenerator() gopter.Gen {
+	if serversAzureADOnlyAuthenticationOperatorSpecGenerator != nil {
+		return serversAzureADOnlyAuthenticationOperatorSpecGenerator
 	}
 
 	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForServers_AzureADOnlyAuthentication_STATUS(generators)
-	servers_AzureADOnlyAuthentication_STATUSGenerator = gen.Struct(reflect.TypeOf(Servers_AzureADOnlyAuthentication_STATUS{}), generators)
+	serversAzureADOnlyAuthenticationOperatorSpecGenerator = gen.Struct(reflect.TypeOf(ServersAzureADOnlyAuthenticationOperatorSpec{}), generators)
 
-	return servers_AzureADOnlyAuthentication_STATUSGenerator
+	return serversAzureADOnlyAuthenticationOperatorSpecGenerator
 }
 
-// AddIndependentPropertyGeneratorsForServers_AzureADOnlyAuthentication_STATUS is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForServers_AzureADOnlyAuthentication_STATUS(gens map[string]gopter.Gen) {
+func Test_ServersAzureADOnlyAuthentication_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from ServersAzureADOnlyAuthentication_STATUS to ServersAzureADOnlyAuthentication_STATUS via AssignProperties_To_ServersAzureADOnlyAuthentication_STATUS & AssignProperties_From_ServersAzureADOnlyAuthentication_STATUS returns original",
+		prop.ForAll(RunPropertyAssignmentTestForServersAzureADOnlyAuthentication_STATUS, ServersAzureADOnlyAuthentication_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForServersAzureADOnlyAuthentication_STATUS tests if a specific instance of ServersAzureADOnlyAuthentication_STATUS can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForServersAzureADOnlyAuthentication_STATUS(subject ServersAzureADOnlyAuthentication_STATUS) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20211101s.ServersAzureADOnlyAuthentication_STATUS
+	err := copied.AssignProperties_To_ServersAzureADOnlyAuthentication_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual ServersAzureADOnlyAuthentication_STATUS
+	err = actual.AssignProperties_From_ServersAzureADOnlyAuthentication_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_ServersAzureADOnlyAuthentication_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 80
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of ServersAzureADOnlyAuthentication_STATUS via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForServersAzureADOnlyAuthentication_STATUS, ServersAzureADOnlyAuthentication_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForServersAzureADOnlyAuthentication_STATUS runs a test to see if a specific instance of ServersAzureADOnlyAuthentication_STATUS round trips to JSON and back losslessly
+func RunJSONSerializationTestForServersAzureADOnlyAuthentication_STATUS(subject ServersAzureADOnlyAuthentication_STATUS) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual ServersAzureADOnlyAuthentication_STATUS
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of ServersAzureADOnlyAuthentication_STATUS instances for property testing - lazily instantiated by
+// ServersAzureADOnlyAuthentication_STATUSGenerator()
+var serversAzureADOnlyAuthentication_STATUSGenerator gopter.Gen
+
+// ServersAzureADOnlyAuthentication_STATUSGenerator returns a generator of ServersAzureADOnlyAuthentication_STATUS instances for property testing.
+func ServersAzureADOnlyAuthentication_STATUSGenerator() gopter.Gen {
+	if serversAzureADOnlyAuthentication_STATUSGenerator != nil {
+		return serversAzureADOnlyAuthentication_STATUSGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForServersAzureADOnlyAuthentication_STATUS(generators)
+	serversAzureADOnlyAuthentication_STATUSGenerator = gen.Struct(reflect.TypeOf(ServersAzureADOnlyAuthentication_STATUS{}), generators)
+
+	return serversAzureADOnlyAuthentication_STATUSGenerator
+}
+
+// AddIndependentPropertyGeneratorsForServersAzureADOnlyAuthentication_STATUS is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForServersAzureADOnlyAuthentication_STATUS(gens map[string]gopter.Gen) {
 	gens["AzureADOnlyAuthentication"] = gen.PtrOf(gen.Bool())
 	gens["Id"] = gen.PtrOf(gen.AlphaString())
 	gens["Name"] = gen.PtrOf(gen.AlphaString())
 	gens["Type"] = gen.PtrOf(gen.AlphaString())
 }
 
-func Test_Servers_AzureADOnlyAuthentication_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_ServersAzureADOnlyAuthentication_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from ServersAzureADOnlyAuthentication_Spec to ServersAzureADOnlyAuthentication_Spec via AssignProperties_To_ServersAzureADOnlyAuthentication_Spec & AssignProperties_From_ServersAzureADOnlyAuthentication_Spec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForServersAzureADOnlyAuthentication_Spec, ServersAzureADOnlyAuthentication_SpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForServersAzureADOnlyAuthentication_Spec tests if a specific instance of ServersAzureADOnlyAuthentication_Spec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForServersAzureADOnlyAuthentication_Spec(subject ServersAzureADOnlyAuthentication_Spec) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20211101s.ServersAzureADOnlyAuthentication_Spec
+	err := copied.AssignProperties_To_ServersAzureADOnlyAuthentication_Spec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual ServersAzureADOnlyAuthentication_Spec
+	err = actual.AssignProperties_From_ServersAzureADOnlyAuthentication_Spec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_ServersAzureADOnlyAuthentication_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip of Servers_AzureADOnlyAuthentication_Spec via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForServers_AzureADOnlyAuthentication_Spec, Servers_AzureADOnlyAuthentication_SpecGenerator()))
+		"Round trip of ServersAzureADOnlyAuthentication_Spec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForServersAzureADOnlyAuthentication_Spec, ServersAzureADOnlyAuthentication_SpecGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
 }
 
-// RunJSONSerializationTestForServers_AzureADOnlyAuthentication_Spec runs a test to see if a specific instance of Servers_AzureADOnlyAuthentication_Spec round trips to JSON and back losslessly
-func RunJSONSerializationTestForServers_AzureADOnlyAuthentication_Spec(subject Servers_AzureADOnlyAuthentication_Spec) string {
+// RunJSONSerializationTestForServersAzureADOnlyAuthentication_Spec runs a test to see if a specific instance of ServersAzureADOnlyAuthentication_Spec round trips to JSON and back losslessly
+func RunJSONSerializationTestForServersAzureADOnlyAuthentication_Spec(subject ServersAzureADOnlyAuthentication_Spec) string {
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
@@ -164,7 +477,7 @@ func RunJSONSerializationTestForServers_AzureADOnlyAuthentication_Spec(subject S
 	}
 
 	// Deserialize back into memory
-	var actual Servers_AzureADOnlyAuthentication_Spec
+	var actual ServersAzureADOnlyAuthentication_Spec
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
 		return err.Error()
@@ -182,25 +495,39 @@ func RunJSONSerializationTestForServers_AzureADOnlyAuthentication_Spec(subject S
 	return ""
 }
 
-// Generator of Servers_AzureADOnlyAuthentication_Spec instances for property testing - lazily instantiated by
-// Servers_AzureADOnlyAuthentication_SpecGenerator()
-var servers_AzureADOnlyAuthentication_SpecGenerator gopter.Gen
+// Generator of ServersAzureADOnlyAuthentication_Spec instances for property testing - lazily instantiated by
+// ServersAzureADOnlyAuthentication_SpecGenerator()
+var serversAzureADOnlyAuthentication_SpecGenerator gopter.Gen
 
-// Servers_AzureADOnlyAuthentication_SpecGenerator returns a generator of Servers_AzureADOnlyAuthentication_Spec instances for property testing.
-func Servers_AzureADOnlyAuthentication_SpecGenerator() gopter.Gen {
-	if servers_AzureADOnlyAuthentication_SpecGenerator != nil {
-		return servers_AzureADOnlyAuthentication_SpecGenerator
+// ServersAzureADOnlyAuthentication_SpecGenerator returns a generator of ServersAzureADOnlyAuthentication_Spec instances for property testing.
+// We first initialize serversAzureADOnlyAuthentication_SpecGenerator with a simplified generator based on the
+// fields with primitive types then replacing it with a more complex one that also handles complex fields
+// to ensure any cycles in the object graph properly terminate.
+func ServersAzureADOnlyAuthentication_SpecGenerator() gopter.Gen {
+	if serversAzureADOnlyAuthentication_SpecGenerator != nil {
+		return serversAzureADOnlyAuthentication_SpecGenerator
 	}
 
 	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForServers_AzureADOnlyAuthentication_Spec(generators)
-	servers_AzureADOnlyAuthentication_SpecGenerator = gen.Struct(reflect.TypeOf(Servers_AzureADOnlyAuthentication_Spec{}), generators)
+	AddIndependentPropertyGeneratorsForServersAzureADOnlyAuthentication_Spec(generators)
+	serversAzureADOnlyAuthentication_SpecGenerator = gen.Struct(reflect.TypeOf(ServersAzureADOnlyAuthentication_Spec{}), generators)
 
-	return servers_AzureADOnlyAuthentication_SpecGenerator
+	// The above call to gen.Struct() captures the map, so create a new one
+	generators = make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForServersAzureADOnlyAuthentication_Spec(generators)
+	AddRelatedPropertyGeneratorsForServersAzureADOnlyAuthentication_Spec(generators)
+	serversAzureADOnlyAuthentication_SpecGenerator = gen.Struct(reflect.TypeOf(ServersAzureADOnlyAuthentication_Spec{}), generators)
+
+	return serversAzureADOnlyAuthentication_SpecGenerator
 }
 
-// AddIndependentPropertyGeneratorsForServers_AzureADOnlyAuthentication_Spec is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForServers_AzureADOnlyAuthentication_Spec(gens map[string]gopter.Gen) {
+// AddIndependentPropertyGeneratorsForServersAzureADOnlyAuthentication_Spec is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForServersAzureADOnlyAuthentication_Spec(gens map[string]gopter.Gen) {
 	gens["AzureADOnlyAuthentication"] = gen.PtrOf(gen.Bool())
 	gens["OriginalVersion"] = gen.AlphaString()
+}
+
+// AddRelatedPropertyGeneratorsForServersAzureADOnlyAuthentication_Spec is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForServersAzureADOnlyAuthentication_Spec(gens map[string]gopter.Gen) {
+	gens["OperatorSpec"] = gen.PtrOf(ServersAzureADOnlyAuthenticationOperatorSpecGenerator())
 }

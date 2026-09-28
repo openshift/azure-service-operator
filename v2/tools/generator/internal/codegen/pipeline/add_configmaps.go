@@ -8,7 +8,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -28,22 +28,31 @@ func AddConfigMaps(config *config.Configuration) *Stage {
 
 			updatedDefs, err := transformConfigMaps(config, defs)
 			if err != nil {
-				return nil, errors.Wrap(err, "transforming spec secrets")
+				return nil, eris.Wrap(err, "transforming spec secrets")
 			}
 
 			return state.WithDefinitions(updatedDefs), nil
-		})
+		},
+	)
 
 	stage.RequiresPostrequisiteStages(CreateARMTypesStageID)
 
 	return stage
 }
 
-func transformPropertyToConfigMapReference(prop *astmodel.PropertyDefinition, newType astmodel.Type) (*astmodel.PropertyDefinition, error) {
+func transformPropertyToConfigMapReference(
+	prop *astmodel.PropertyDefinition,
+	newType astmodel.Type,
+	definitions astmodel.TypeDefinitionSet,
+) (*astmodel.PropertyDefinition, error) {
 	// The expectation is that this is a string
 	propType := prop.PropertyType()
-	if !astmodel.Unwrap(propType).Equals(astmodel.StringType, astmodel.EqualityOverrides{}) {
-		return nil, errors.Errorf("expected property %q to be a string, but was: %T", prop.PropertyName(), propType)
+	resolved, err := astmodel.UnwrapAndResolve(definitions, propType)
+	if err != nil {
+		return nil, eris.Wrapf(err, "resolving type of property %q", prop.PropertyName())
+	}
+	if !resolved.Equals(astmodel.StringType, astmodel.EqualityOverrides{}) {
+		return nil, eris.Errorf("expected property %q to be a string, but was: %s", prop.PropertyName(), astmodel.DebugDescription(propType))
 	}
 
 	// check if it's optional
@@ -59,16 +68,21 @@ func transformPropertyToConfigMapReference(prop *astmodel.PropertyDefinition, ne
 func createNewConfigMapReference(
 	prop *astmodel.PropertyDefinition,
 	newType astmodel.Type,
+	definitions astmodel.TypeDefinitionSet,
 ) (*astmodel.PropertyDefinition, *astmodel.PropertyDefinition, error) {
 	// The expectation is that this is a string
 	propType := prop.PropertyType()
-	if !astmodel.TypeEquals(astmodel.Unwrap(propType), astmodel.StringType) {
-		return nil, nil, errors.Errorf("expected property %q to be a string, but was: %s", prop.PropertyName(), astmodel.DebugDescription(propType))
+	resolved, err := astmodel.UnwrapAndResolve(definitions, propType)
+	if err != nil {
+		return nil, nil, eris.Wrapf(err, "resolving type of property %q", prop.PropertyName())
+	}
+	if !astmodel.TypeEquals(resolved, astmodel.StringType) {
+		return nil, nil, eris.Errorf("expected property %q to be a string, but was: %s", prop.PropertyName(), astmodel.DebugDescription(propType))
 	}
 
 	jsonName, ok := prop.JSONName()
 	if !ok {
-		return nil, nil, errors.Errorf("property %s didn't have a JSON name", prop.PropertyName())
+		return nil, nil, eris.Errorf("property %s didn't have a JSON name", prop.PropertyName())
 	}
 
 	// Neither property can be required anymore. That's a bit unfortunate from a fail-fast perspective.
@@ -80,7 +94,7 @@ func createNewConfigMapReference(
 	newProp := prop.
 		WithName(prop.PropertyName()+astmodel.OptionalConfigMapReferenceSuffix).
 		WithType(newType).
-		WithJsonName(jsonName+astmodel.OptionalConfigMapReferenceSuffix).
+		WithJSONName(jsonName+astmodel.OptionalConfigMapReferenceSuffix).
 		WithTag(astmodel.OptionalConfigMapPairTag, string(prop.PropertyName())).
 		MakeOptional().
 		MakeTypeOptional()
@@ -104,23 +118,24 @@ func transformConfigMaps(cfg *config.Configuration, definitions astmodel.TypeDef
 
 			switch mode {
 			case config.ImportConfigMapModeRequired:
-				newProp, err := transformPropertyToConfigMapReference(prop, astmodel.ConfigMapReferenceType)
+				newProp, err := transformPropertyToConfigMapReference(prop, astmodel.ConfigMapReferenceType, definitions)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed to transform property to configmap on type %s", ctx)
+					return nil, eris.Wrapf(err, "failed to transform property to configmap on type %s", ctx)
 				}
 				it = it.WithProperty(newProp)
 			case config.ImportConfigMapModeOptional:
-				updatedProp, newProp, err := createNewConfigMapReference(prop, astmodel.ConfigMapReferenceType)
+				updatedProp, newProp, err := createNewConfigMapReference(prop, astmodel.ConfigMapReferenceType, definitions)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed to transform property to optional configmap on type %s", ctx)
+					return nil, eris.Wrapf(err, "failed to transform property to optional configmap on type %s", ctx)
 				}
 
 				// If the property we're about to add already exists, that's bad!
 				if _, ok := it.Property(newProp.PropertyName()); ok {
-					return nil, errors.Errorf(
+					return nil, eris.Errorf(
 						"failed to transform property to optional configmap on type %s. Property %s already exists",
 						ctx,
-						newProp.PropertyName())
+						newProp.PropertyName(),
+					)
 				}
 
 				it = it.WithProperties(updatedProp, newProp)
@@ -139,7 +154,7 @@ func transformConfigMaps(cfg *config.Configuration, definitions astmodel.TypeDef
 	for _, def := range definitions {
 		updatedDef, err := visitor.VisitDefinition(def, def.Name())
 		if err != nil {
-			return nil, errors.Wrapf(err, "visiting type %q", def.Name())
+			return nil, eris.Wrapf(err, "visiting type %q", def.Name())
 		}
 
 		result.Add(updatedDef)

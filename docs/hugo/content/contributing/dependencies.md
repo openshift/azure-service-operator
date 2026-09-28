@@ -9,25 +9,27 @@ If you prefer to install those dependencies manually (instead of using the `.dev
 | Dependency | Version | Reference |
 |:---------- |:-------:|:--------- |
 | AZ | latest | https://docs.microsoft.com/en-us/cli/azure/install-azure-cli |
-| AZWI | v1.2.0 | https://github.com/Azure/azure-workload-identity |
-| BuildX | v0.11.2 | https://github.com/docker/buildx |
+| AZWI | v1.5.1 | https://github.com/Azure/azure-workload-identity |
+| BuildX | v0.29.1 | https://github.com/docker/buildx |
 | cmctl | latest | https://cert-manager.io/docs/reference/cmctl |
-| controller-gen | v0.14.0 | https://book.kubebuilder.io/reference/controller-gen |
-| conversion-gen | v0.28.8 | https://pkg.go.dev/k8s.io/code-generator/cmd/conversion-gen |
-| gen-crd-api-reference-docs | 11fe95cb | https://github.com/ahmetb/gen-crd-api-reference-docs |
-| Go | 1.22 | https://golang.org/doc/install #
-| gofumpt | latest | https://pkg.go.dev/mvdan.cc/gofumpt |
-| golangci-lint | 1.51.2 | https://github.com/golangci/golangci-lint |
-| Helm | v3.8.0 | https://helm.sh/ |
+| controller-gen | v0.19.0 | https://book.kubebuilder.io/reference/controller-gen |
+| conversion-gen | v0.34.1 | https://pkg.go.dev/k8s.io/code-generator/cmd/conversion-gen |
+| crddoc | latest | https://github.com/theunrepentantgeek/crddoc |
+| Go | 1.25 | https://golang.org/doc/install #
+| go-vcr-tidy | latest | https://github.com/theunrepentantgeek/go-vcr-tidy |
+| gofumpt | v0.10.0 | https://github.com/mvdan/gofumpt |
+| golangci-lint | 2.12.1 | https://github.com/golangci/golangci-lint |
+| Helm | v3.19.0 | https://helm.sh/ |
 | htmltest | latest | https://github.com/wjdp/htmltest (but see https://github.com/theunrepentantgeek/htmltest for our custom build )
-| hugo | v0.88.1 | https://gohugo.io/ |
-| kind | v0.20.0 | https://kind.sigs.k8s.io/ |
+| hugo | v0.152.2 | https://gohugo.io/ |
+| kind | v0.31.0 | https://kind.sigs.k8s.io/ |
 | kustomize | v4.5.7 | https://kustomize.io/ |
+| Pip3 | latest | https://pip.pypa.io/en/stable/installation/ |
 | PostCSS | latest | https://postcss.org/ |
-| setup-envtest | latest | https://book.kubebuilder.io/reference/envtest.html |
-| Task | v3.31 | https://taskfile.dev/ |
-| Trivy | v0.37.3 | https://trivy.dev/ |
-| YQ | v4.13.0 | https://github.com/mikefarah/yq/ |
+| setup-envtest | v0.23.1 | https://book.kubebuilder.io/reference/envtest.html |
+| Task | v3.49.1 | https://taskfile.dev/ |
+| Trivy | v0.69.3 | https://trivy.dev/ |
+| YQ | v4.48.1 | https://github.com/mikefarah/yq/ |
 
 Dependencies are listed alphabetically. Refer to `install-dependencies.sh` for a recommended order of installation.
 

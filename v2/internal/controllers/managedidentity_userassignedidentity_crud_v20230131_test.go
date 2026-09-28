@@ -1,0 +1,272 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
+package controllers_test
+
+import (
+	"fmt"
+	"testing"
+
+	. "github.com/onsi/gomega"
+
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	managedidentity "github.com/Azure/azure-service-operator/v2/api/managedidentity/v1api20230131"
+	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
+	"github.com/Azure/azure-service-operator/v2/internal/util/to"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+)
+
+func Test_ManagedIdentity_UserAssignedIdentity_20230131_CRUD(t *testing.T) {
+	t.Parallel()
+
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+		},
+	}
+
+	tc.CreateResourceAndWait(mi)
+
+	tc.Expect(mi.Status.TenantId).ToNot(BeNil())
+	tc.Expect(mi.Status.PrincipalId).ToNot(BeNil())
+	tc.Expect(mi.Status.Id).ToNot(BeNil())
+	armId := *mi.Status.Id
+
+	tc.RunParallelSubtests(
+		testcommon.Subtest{
+			Name: "Federated Identity Credentials CRUD",
+			Test: func(tc *testcommon.KubePerTestContext) {
+				FederatedIdentityCredentials_20230131_CRUD(tc, mi)
+			},
+		},
+	)
+
+	// Perform a simple patch
+	old := mi.DeepCopy()
+	mi.Spec.Tags = map[string]string{
+		"foo": "bar",
+	}
+	tc.PatchResourceAndWait(old, mi)
+	tc.Expect(mi.Status.Tags).To(HaveKey("foo"))
+
+	tc.DeleteResourceAndWait(mi)
+
+	// Ensure that the resource group was really deleted in Azure
+	exists, retryAfter, err := tc.AzureClient.CheckExistenceWithGetByID(tc.Ctx, armId, string(managedidentity.APIVersion_Value))
+	tc.Expect(err).ToNot(HaveOccurred())
+	tc.Expect(retryAfter).To(BeZero())
+	tc.Expect(exists).To(BeFalse())
+}
+
+func FederatedIdentityCredentials_20230131_CRUD(tc *testcommon.KubePerTestContext, umi *managedidentity.UserAssignedIdentity) {
+	fic := &managedidentity.FederatedIdentityCredential{
+		ObjectMeta: tc.MakeObjectMeta("fic"),
+		Spec: managedidentity.FederatedIdentityCredential_Spec{
+			Owner: testcommon.AsOwner(umi),
+			// For Workload Identity, Audiences should always be "api://AzureADTokenExchange"
+			Audiences: []string{
+				"api://AzureADTokenExchange",
+			},
+			// For Workload Identity, Issuer should be the OIDC endpoint of the cluster. For AKS this will look like
+			// https://oidc.prod-aks.azure.com/00000000-0000-0000-0000-00000000000/
+			Issuer: to.Ptr("https://oidc.prod-aks.azure.com/00000000-0000-0000-0000-00000000000/"),
+			// For Workload Identity, Subject should always be system:serviceaccount:<namespace>:<serviceaccount>
+			Subject: to.Ptr(fmt.Sprintf("system:serviceaccount:%s:%s", tc.Namespace, "default")),
+		},
+	}
+
+	tc.CreateResourceAndWait(fic)
+
+	tc.Expect(fic.Status.Id).ToNot(BeNil())
+	armId := *fic.Status.Id
+
+	// Update the FIC
+	old := fic.DeepCopy()
+	fic.Spec.Issuer = to.Ptr("https://oidc.prod-aks.azure.com/1234/")
+	tc.Patch(old, fic)
+
+	objectKey := client.ObjectKeyFromObject(fic)
+
+	// ensure state got updated in Azure
+	tc.Eventually(func() *string {
+		updated := &managedidentity.FederatedIdentityCredential{}
+		tc.GetResource(objectKey, updated)
+		return updated.Status.Issuer
+	}).Should(Equal(to.Ptr("https://oidc.prod-aks.azure.com/1234/")))
+
+	tc.DeleteResourceAndWait(fic)
+
+	// Ensure that the resource was really deleted in Azure
+	exists, retryAfter, err := tc.AzureClient.CheckExistenceWithGetByID(tc.Ctx, armId, string(managedidentity.APIVersion_Value))
+	tc.Expect(err).ToNot(HaveOccurred())
+	tc.Expect(retryAfter).To(BeZero())
+	tc.Expect(exists).To(BeFalse())
+}
+
+func Test_ManagedIdentity_UserAssignedIdentity_20230131_ExportConfigMap(t *testing.T) {
+	t.Parallel()
+
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+		},
+	}
+
+	tc.CreateResourceAndWait(mi)
+
+	// There should be no config maps at this point
+	list := &v1.ConfigMapList{}
+	tc.ListResources(list, client.InNamespace(tc.Namespace))
+	tc.Expect(list.Items).To(HaveLen(0))
+
+	// Run sub-tests
+	tc.RunSubtests(
+		testcommon.Subtest{
+			Name: "ConfigMapValuesWrittenToSameConfigMap",
+			Test: func(tc *testcommon.KubePerTestContext) {
+				UserManagedIdentity_20230131_ConfigValuesWrittenToSameConfigMap(tc, mi)
+			},
+		},
+		testcommon.Subtest{
+			Name: "ConfigMapValuesWrittenToDifferentConfigMaps",
+			Test: func(tc *testcommon.KubePerTestContext) {
+				UserManagedIdentity_20230131_ConfigValuesWrittenToDifferentConfigMap(tc, mi)
+			},
+		},
+	)
+
+	tc.DeleteResourceAndWait(mi)
+}
+
+func UserManagedIdentity_20230131_ConfigValuesWrittenToSameConfigMap(tc *testcommon.KubePerTestContext, identity *managedidentity.UserAssignedIdentity) {
+	old := identity.DeepCopy()
+	identityConfigMap := "identity"
+	identity.Spec.OperatorSpec = &managedidentity.UserAssignedIdentityOperatorSpec{
+		ConfigMaps: &managedidentity.UserAssignedIdentityOperatorConfigMaps{
+			PrincipalId: &genruntime.ConfigMapDestination{Name: identityConfigMap, Key: "principalId"},
+			ClientId:    &genruntime.ConfigMapDestination{Name: identityConfigMap, Key: "clientId"},
+			TenantId:    &genruntime.ConfigMapDestination{Name: identityConfigMap, Key: "tenantId"},
+		},
+	}
+	tc.PatchResourceAndWait(old, identity)
+
+	tc.ExpectConfigMapHasKeysAndValues(
+		identityConfigMap,
+		"principalId", *identity.Status.PrincipalId,
+		"clientId", *identity.Status.ClientId,
+		"tenantId", *identity.Status.TenantId,
+	)
+}
+
+func UserManagedIdentity_20230131_ConfigValuesWrittenToDifferentConfigMap(tc *testcommon.KubePerTestContext, identity *managedidentity.UserAssignedIdentity) {
+	old := identity.DeepCopy()
+	identityConfigMap1 := "identity1"
+	identityConfigMap2 := "identity2"
+	identityConfigMap3 := "identity3"
+	identity.Spec.OperatorSpec = &managedidentity.UserAssignedIdentityOperatorSpec{
+		ConfigMaps: &managedidentity.UserAssignedIdentityOperatorConfigMaps{
+			PrincipalId: &genruntime.ConfigMapDestination{Name: identityConfigMap1, Key: "principalId"},
+			ClientId:    &genruntime.ConfigMapDestination{Name: identityConfigMap2, Key: "clientId"},
+			TenantId:    &genruntime.ConfigMapDestination{Name: identityConfigMap3, Key: "tenantId"},
+		},
+	}
+	tc.PatchResourceAndWait(old, identity)
+
+	tc.ExpectConfigMapHasKeysAndValues(identityConfigMap1, "principalId", *identity.Status.PrincipalId)
+	tc.ExpectConfigMapHasKeysAndValues(identityConfigMap2, "clientId", *identity.Status.ClientId)
+	tc.ExpectConfigMapHasKeysAndValues(identityConfigMap3, "tenantId", *identity.Status.TenantId)
+}
+
+func Test_ManagedIdentity_UserAssignedIdentity_20230131_ExportSecret(t *testing.T) {
+	t.Parallel()
+
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+		},
+	}
+
+	tc.CreateResourceAndWait(mi)
+
+	list := &v1.SecretList{}
+	tc.ListResources(list, client.InNamespace(tc.Namespace))
+	tc.Expect(list.Items).To(HaveLen(0))
+
+	tc.RunSubtests(
+		testcommon.Subtest{
+			Name: "SecretsWrittenToSameKubeSecret",
+			Test: func(tc *testcommon.KubePerTestContext) {
+				UserManagedIdentity_20230131_SecretsWrittenToSameKubeSecret(tc, mi)
+			},
+		},
+		testcommon.Subtest{
+			Name: "SecretsWrittenToDifferentKubeSecrets",
+			Test: func(tc *testcommon.KubePerTestContext) {
+				UserManagedIdentity_20230131_SecretsWrittenToDifferentKubeSecrets(tc, mi)
+			},
+		},
+	)
+
+	tc.DeleteResourceAndWait(mi)
+}
+
+func UserManagedIdentity_20230131_SecretsWrittenToSameKubeSecret(tc *testcommon.KubePerTestContext, identity *managedidentity.UserAssignedIdentity) {
+	old := identity.DeepCopy()
+	identitySecret := "identitysecret"
+	identity.Spec.OperatorSpec = &managedidentity.UserAssignedIdentityOperatorSpec{
+		Secrets: &managedidentity.UserAssignedIdentityOperatorSecrets{
+			ClientId:       &genruntime.SecretDestination{Name: identitySecret, Key: "clientId"},
+			PrincipalId:    &genruntime.SecretDestination{Name: identitySecret, Key: "principalId"},
+			TenantId:       &genruntime.SecretDestination{Name: identitySecret, Key: "tenantId"},
+			SubscriptionId: &genruntime.SecretDestination{Name: identitySecret, Key: "subscriptionId"},
+		},
+	}
+	tc.PatchResourceAndWait(old, identity)
+
+	tc.ExpectSecretHasKeys(identitySecret, "clientId", "principalId", "tenantId", "subscriptionId")
+}
+
+func UserManagedIdentity_20230131_SecretsWrittenToDifferentKubeSecrets(tc *testcommon.KubePerTestContext, identity *managedidentity.UserAssignedIdentity) {
+	old := identity.DeepCopy()
+	clientIdSecret := "secret1"
+	principalIdSecret := "secret2"
+	tenantIdSecret := "secret3"
+	subscriptionIdSecret := "secret4"
+
+	identity.Spec.OperatorSpec = &managedidentity.UserAssignedIdentityOperatorSpec{
+		Secrets: &managedidentity.UserAssignedIdentityOperatorSecrets{
+			ClientId:       &genruntime.SecretDestination{Name: clientIdSecret, Key: "clientId"},
+			PrincipalId:    &genruntime.SecretDestination{Name: principalIdSecret, Key: "principalId"},
+			TenantId:       &genruntime.SecretDestination{Name: tenantIdSecret, Key: "tenantId"},
+			SubscriptionId: &genruntime.SecretDestination{Name: subscriptionIdSecret, Key: "subscriptionId"},
+		},
+	}
+	tc.PatchResourceAndWait(old, identity)
+
+	tc.ExpectSecretHasKeys(clientIdSecret, "clientId")
+	tc.ExpectSecretHasKeys(principalIdSecret, "principalId")
+	tc.ExpectSecretHasKeys(tenantIdSecret, "tenantId")
+	tc.ExpectSecretHasKeys(subscriptionIdSecret, "subscriptionId")
+}

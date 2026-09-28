@@ -3,9 +3,10 @@ github.com/Azure/azure-service-operator/v2/api/compute/v1api20200930/storage
 ----------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2020-09-30"
+
 Disk: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
-├── Spec: Object (25 properties)
+├── Spec: Object (26 properties)
 │   ├── AzureName: string
 │   ├── BurstingEnabled: *bool
 │   ├── CreationData: *Object (9 properties)
@@ -60,6 +61,10 @@ Disk: Resource
 │   ├── Location: *string
 │   ├── MaxShares: *int
 │   ├── NetworkAccessPolicy: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── OsType: *string
 │   ├── Owner: *genruntime.KnownResourceReference
@@ -160,6 +165,7 @@ Disk: Resource
     ├── Type: *string
     ├── UniqueId: *string
     └── Zones: string[]
+
 Snapshot: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
 ├── Spec: Object (19 properties)
@@ -182,7 +188,6 @@ Snapshot: Resource
 │   │   └── UploadSizeBytes: *int
 │   ├── DiskAccessReference: *genruntime.ResourceReference
 │   ├── DiskSizeGB: *int
-│   ├── DiskState: *string
 │   ├── Encryption: *Object (3 properties)
 │   │   ├── DiskEncryptionSetReference: *genruntime.ResourceReference
 │   │   ├── PropertyBag: genruntime.PropertyBag
@@ -213,6 +218,10 @@ Snapshot: Resource
 │   ├── Incremental: *bool
 │   ├── Location: *string
 │   ├── NetworkAccessPolicy: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── OsType: *string
 │   ├── Owner: *genruntime.KnownResourceReference
@@ -300,7 +309,70 @@ Snapshot: Resource
     ├── TimeCreated: *string
     ├── Type: *string
     └── UniqueId: *string
+
+augmentConversionForCreationData: Interface
+
+augmentConversionForCreationData_STATUS: Interface
+
+augmentConversionForDisk: Interface
+
+augmentConversionForDiskOperatorSpec: Interface
+
+augmentConversionForDiskSku: Interface
+
+augmentConversionForDiskSku_STATUS: Interface
+
+augmentConversionForDisk_STATUS: Interface
+
+augmentConversionForDisk_Spec: Interface
+
+augmentConversionForEncryption: Interface
+
+augmentConversionForEncryptionSettingsCollection: Interface
+
+augmentConversionForEncryptionSettingsCollection_STATUS: Interface
+
+augmentConversionForEncryptionSettingsElement: Interface
+
+augmentConversionForEncryptionSettingsElement_STATUS: Interface
+
+augmentConversionForEncryption_STATUS: Interface
+
 augmentConversionForExtendedLocation: Interface
+
 augmentConversionForExtendedLocation_STATUS: Interface
+
+augmentConversionForImageDiskReference: Interface
+
+augmentConversionForImageDiskReference_STATUS: Interface
+
+augmentConversionForKeyVaultAndKeyReference: Interface
+
+augmentConversionForKeyVaultAndKeyReference_STATUS: Interface
+
+augmentConversionForKeyVaultAndSecretReference: Interface
+
+augmentConversionForKeyVaultAndSecretReference_STATUS: Interface
+
+augmentConversionForPurchasePlan: Interface
+
+augmentConversionForPurchasePlan_STATUS: Interface
+
+augmentConversionForShareInfoElement_STATUS: Interface
+
+augmentConversionForSnapshot: Interface
+
+augmentConversionForSnapshotOperatorSpec: Interface
+
+augmentConversionForSnapshotSku: Interface
+
+augmentConversionForSnapshotSku_STATUS: Interface
+
+augmentConversionForSnapshot_STATUS: Interface
+
+augmentConversionForSnapshot_Spec: Interface
+
 augmentConversionForSourceVault: Interface
+
 augmentConversionForSourceVault_STATUS: Interface
+

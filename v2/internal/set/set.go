@@ -6,7 +6,8 @@
 package set
 
 import (
-	"golang.org/x/exp/constraints"
+	"cmp"
+
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
@@ -102,8 +103,23 @@ func (set Set[T]) Except(other Set[T]) Set[T] {
 }
 
 // AsSortedSlice returns a sorted slice of values from this set
-func AsSortedSlice[T constraints.Ordered](set Set[T]) []T {
+func AsSortedSlice[T cmp.Ordered](set Set[T]) []T {
 	result := maps.Keys(set)
 	slices.Sort(result)
+	return result
+}
+
+// Union returns the union of the specified sets
+func Union[T comparable](sets ...Set[T]) Set[T] {
+	size := 0
+	for _, set := range sets {
+		size += len(set)
+	}
+	result := make(Set[T], size)
+
+	for _, set := range sets {
+		result.AddAll(set)
+	}
+
 	return result
 }
