@@ -9,9 +9,10 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/Azure/azure-service-operator/v2/internal/util/typo"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
 )
@@ -81,12 +82,12 @@ func MakeEmbeddedResourceRemover(configuration *config.Configuration, definition
 
 	resourcesEmbeddedInParent, err := findResourcesEmbeddedInParent(configuration, definitions)
 	if err != nil {
-		return EmbeddedResourceRemover{}, errors.Wrap(err, "couldn't find all resources embedded in parent")
+		return EmbeddedResourceRemover{}, eris.Wrap(err, "couldn't find all resources embedded in parent")
 	}
 
 	misbehavingResources, err := findMisbehavingResources(configuration, definitions)
 	if err != nil {
-		return EmbeddedResourceRemover{}, errors.Wrap(err, "couldn't find all misbehaving embedded resources")
+		return EmbeddedResourceRemover{}, eris.Wrap(err, "couldn't find all misbehaving embedded resources")
 	}
 
 	remover := EmbeddedResourceRemover{
@@ -111,7 +112,7 @@ func (e EmbeddedResourceRemover) RemoveEmbeddedResources(
 	originalNames := make(map[astmodel.InternalTypeName]embeddedResourceTypeName, len(e.definitions)/2)
 
 	visitor := e.makeEmbeddedResourceRemovalTypeVisitor()
-	for _, def := range astmodel.FindResourceDefinitions(e.definitions) {
+	for _, def := range e.definitions.AllResources() {
 		typeWalker := e.newResourceRemovalTypeWalker(visitor, def)
 
 		updatedTypes, err := typeWalker.Walk(def)
@@ -296,8 +297,7 @@ func (e EmbeddedResourceRemover) newResourceRemovalTypeWalker(
 func findResourceSubResources(definitions astmodel.TypeDefinitionSet) map[resourceKey]astmodel.TypeNameSet {
 	result := make(map[resourceKey]astmodel.TypeNameSet)
 
-	resources := astmodel.FindResourceDefinitions(definitions)
-	for _, def := range resources {
+	for _, def := range definitions.AllResources() {
 		resource, ok := astmodel.AsResourceType(def.Type())
 		if !ok {
 			// Shouldn't be possible to get here
@@ -367,13 +367,38 @@ func findResourcesEmbeddedInParent(
 
 		// Perform some validation that this annotation makes sense before we accept it
 		if !objectType.IsResource() {
-			errs = append(errs, errors.Errorf("%s is not labelled as a resource, so cannot be a resource embedded in a parent", name))
+			errs = append(errs, eris.Errorf("%s is not labelled as a resource, so cannot be a resource embedded in a parent", name))
 			continue
 		}
 
 		parentTypeName := name.WithName(parentResource)
 		if !defs.Contains(parentTypeName) {
-			errs = append(errs, errors.Errorf("cannot find %s parent %s", name, parentTypeName))
+			// Create a typoAdvisor with all the available resources in this package to help the user find the correct parent type name
+			// Note that we only use the type names in this package, as the parent resource must be in the same package as the child resource
+			typoAdvisor := typo.NewAdvisor()
+			for typeName, typeDef := range defs {
+				if !typeName.InternalPackageReference().Equals(name.InternalPackageReference()) {
+					continue
+				}
+
+				if objectDef, ok := astmodel.AsObjectType(typeDef.Type()); ok && objectDef.IsResource() {
+					typoAdvisor.AddTerm(typeName.Name())
+					continue
+				}
+
+				if _, ok := astmodel.AsResourceType(typeDef.Type()); ok {
+					typoAdvisor.AddTerm(typeName.Name())
+				}
+			}
+
+			err := typoAdvisor.Errorf(
+				parentTypeName.Name(),
+				"in package %s cannot find %s parent %s",
+				name.InternalPackageReference(),
+				name.Name(),
+				parentTypeName.Name(),
+			)
+			errs = append(errs, err)
 			continue
 		}
 

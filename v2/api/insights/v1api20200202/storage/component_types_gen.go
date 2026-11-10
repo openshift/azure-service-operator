@@ -5,12 +5,15 @@ package storage
 
 import (
 	"context"
+	storage "github.com/Azure/azure-service-operator/v2/api/insights/v1api20230311/storage"
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,6 +23,7 @@ import (
 // +kubebuilder:rbac:groups=insights.azure.com,resources={components/status,components/finalizers},verbs=get;update;patch
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,insights}
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
@@ -28,7 +32,7 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20200202.Component
 // Generator information:
-// - Generated from: /applicationinsights/resource-manager/Microsoft.Insights/stable/2020-02-02/components_API.json
+// - Generated from: /applicationinsights/resource-manager/Microsoft.Insights/ApplicationInsights/stable/2020-02-02/components_API.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Insights/components/{resourceName}
 type Component struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -49,10 +53,30 @@ func (component *Component) SetConditions(conditions conditions.Conditions) {
 	component.Status.Conditions = conditions
 }
 
-var _ genruntime.KubernetesExporter = &Component{}
+var _ configmaps.Exporter = &Component{}
 
-// ExportKubernetesResources defines a resource which can create other resources in Kubernetes.
-func (component *Component) ExportKubernetesResources(_ context.Context, _ genruntime.MetaObject, _ *genericarmclient.GenericClient, _ logr.Logger) ([]client.Object, error) {
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (component *Component) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if component.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return component.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &Component{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (component *Component) SecretDestinationExpressions() []*core.DestinationExpression {
+	if component.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return component.Spec.OperatorSpec.SecretExpressions
+}
+
+var _ genruntime.KubernetesConfigExporter = &Component{}
+
+// ExportKubernetesConfigMaps defines a resource which can create ConfigMaps in Kubernetes.
+func (component *Component) ExportKubernetesConfigMaps(_ context.Context, _ genruntime.MetaObject, _ *genericarmclient.GenericClient, _ logr.Logger) ([]client.Object, error) {
 	collector := configmaps.NewCollector(component.Namespace)
 	if component.Spec.OperatorSpec != nil && component.Spec.OperatorSpec.ConfigMaps != nil {
 		if component.Status.ConnectionString != nil {
@@ -80,7 +104,7 @@ func (component *Component) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2020-02-02"
 func (component Component) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2020-02-02"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -119,6 +143,10 @@ func (component *Component) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (component *Component) Owner() *genruntime.ResourceReference {
+	if component.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(component.Spec)
 	return component.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -135,7 +163,7 @@ func (component *Component) SetStatus(status genruntime.ConvertibleStatus) error
 	var st Component_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	component.Status = st
@@ -157,7 +185,7 @@ func (component *Component) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20200202.Component
 // Generator information:
-// - Generated from: /applicationinsights/resource-manager/Microsoft.Insights/stable/2020-02-02/components_API.json
+// - Generated from: /applicationinsights/resource-manager/Microsoft.Insights/ApplicationInsights/stable/2020-02-02/components_API.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Insights/components/{resourceName}
 type ComponentList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -214,7 +242,7 @@ var _ genruntime.ConvertibleSpec = &Component_Spec{}
 // ConvertSpecFrom populates our Component_Spec from the provided source
 func (component *Component_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
 	if source == component {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
 	return source.ConvertSpecTo(component)
@@ -223,7 +251,7 @@ func (component *Component_Spec) ConvertSpecFrom(source genruntime.ConvertibleSp
 // ConvertSpecTo populates the provided destination from our Component_Spec
 func (component *Component_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
 	if destination == component {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
 	return destination.ConvertSpecFrom(component)
@@ -272,7 +300,7 @@ var _ genruntime.ConvertibleStatus = &Component_STATUS{}
 // ConvertStatusFrom populates our Component_STATUS from the provided source
 func (component *Component_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
 	if source == component {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return source.ConvertStatusTo(component)
@@ -281,7 +309,7 @@ func (component *Component_STATUS) ConvertStatusFrom(source genruntime.Convertib
 // ConvertStatusTo populates the provided destination from our Component_STATUS
 func (component *Component_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
 	if destination == component {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return destination.ConvertStatusFrom(component)
@@ -290,8 +318,10 @@ func (component *Component_STATUS) ConvertStatusTo(destination genruntime.Conver
 // Storage version of v1api20200202.ComponentOperatorSpec
 // Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
 type ComponentOperatorSpec struct {
-	ConfigMaps  *ComponentOperatorConfigMaps `json:"configMaps,omitempty"`
-	PropertyBag genruntime.PropertyBag       `json:"$propertyBag,omitempty"`
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	ConfigMaps           *ComponentOperatorConfigMaps  `json:"configMaps,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
 }
 
 // Storage version of v1api20200202.PrivateLinkScopedResource_STATUS
@@ -300,6 +330,73 @@ type PrivateLinkScopedResource_STATUS struct {
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	ResourceId  *string                `json:"ResourceId,omitempty"`
 	ScopeId     *string                `json:"ScopeId,omitempty"`
+}
+
+// AssignProperties_From_PrivateLinkScopedResource_STATUS populates our PrivateLinkScopedResource_STATUS from the provided source PrivateLinkScopedResource_STATUS
+func (resource *PrivateLinkScopedResource_STATUS) AssignProperties_From_PrivateLinkScopedResource_STATUS(source *storage.PrivateLinkScopedResource_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ResourceId
+	resource.ResourceId = genruntime.ClonePointerToString(source.ResourceId)
+
+	// ScopeId
+	resource.ScopeId = genruntime.ClonePointerToString(source.ScopeId)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		resource.PropertyBag = propertyBag
+	} else {
+		resource.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForPrivateLinkScopedResource_STATUS interface (if implemented) to customize the conversion
+	var resourceAsAny any = resource
+	if augmentedResource, ok := resourceAsAny.(augmentConversionForPrivateLinkScopedResource_STATUS); ok {
+		err := augmentedResource.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_PrivateLinkScopedResource_STATUS populates the provided destination PrivateLinkScopedResource_STATUS from our PrivateLinkScopedResource_STATUS
+func (resource *PrivateLinkScopedResource_STATUS) AssignProperties_To_PrivateLinkScopedResource_STATUS(destination *storage.PrivateLinkScopedResource_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(resource.PropertyBag)
+
+	// ResourceId
+	destination.ResourceId = genruntime.ClonePointerToString(resource.ResourceId)
+
+	// ScopeId
+	destination.ScopeId = genruntime.ClonePointerToString(resource.ScopeId)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForPrivateLinkScopedResource_STATUS interface (if implemented) to customize the conversion
+	var resourceAsAny any = resource
+	if augmentedResource, ok := resourceAsAny.(augmentConversionForPrivateLinkScopedResource_STATUS); ok {
+		err := augmentedResource.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForPrivateLinkScopedResource_STATUS interface {
+	AssignPropertiesFrom(src *storage.PrivateLinkScopedResource_STATUS) error
+	AssignPropertiesTo(dst *storage.PrivateLinkScopedResource_STATUS) error
 }
 
 // Storage version of v1api20200202.ComponentOperatorConfigMaps

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	documentdb "github.com/Azure/azure-service-operator/v2/api/documentdb/v1api20231115"
@@ -35,9 +36,11 @@ func Test_DocumentDB_MongoDatabase_v20231115_CRUD(t *testing.T) {
 			Location: tc.AzureRegion,
 			Owner:    testcommon.AsOwner(rg),
 			Kind:     &kind,
-			Capabilities: []documentdb.Capability{{
-				Name: to.Ptr("EnableMongo"),
-			}},
+			Capabilities: []documentdb.Capability{
+				{
+					Name: to.Ptr("EnableMongo"),
+				},
+			},
 			DatabaseAccountOfferType: &offerType,
 			Locations: []documentdb.Location{
 				{
@@ -51,7 +54,7 @@ func Test_DocumentDB_MongoDatabase_v20231115_CRUD(t *testing.T) {
 	name := tc.Namer.GenerateName("mongo")
 	db := documentdb.MongodbDatabase{
 		ObjectMeta: tc.MakeObjectMetaWithName(name),
-		Spec: documentdb.DatabaseAccounts_MongodbDatabase_Spec{
+		Spec: documentdb.MongodbDatabase_Spec{
 			Location: tc.AzureRegion,
 			Options: &documentdb.CreateUpdateOptions{
 				AutoscaleSettings: &documentdb.AutoscaleSettings{
@@ -95,7 +98,8 @@ func Test_DocumentDB_MongoDatabase_v20231115_CRUD(t *testing.T) {
 			Test: func(tc *testcommon.KubePerTestContext) {
 				DocumentDB_MongoDB_Database_ThroughputSettings_v20231115_CRUD(tc, &db)
 			},
-		})
+		},
+	)
 
 	// Delete the database and make sure it goes away
 	armId := *db.Status.Id
@@ -104,7 +108,8 @@ func Test_DocumentDB_MongoDatabase_v20231115_CRUD(t *testing.T) {
 	exists, _, err := tc.AzureClient.CheckExistenceWithGetByID(
 		tc.Ctx,
 		armId,
-		string(documentdb.APIVersion_Value))
+		string(documentdb.APIVersion_Value),
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(exists).To(BeFalse())
 
@@ -115,7 +120,8 @@ func Test_DocumentDB_MongoDatabase_v20231115_CRUD(t *testing.T) {
 	exists, _, err = tc.AzureClient.CheckExistenceWithGetByID(
 		tc.Ctx,
 		armId,
-		string(documentdb.APIVersion_Value))
+		string(documentdb.APIVersion_Value),
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(exists).To(BeFalse())
 }
@@ -124,7 +130,7 @@ func DocumentDB_MongoDB_Collection_v20231115_CRUD(tc *testcommon.KubePerTestCont
 	name := tc.Namer.GenerateName("collection")
 	collection := documentdb.MongodbDatabaseCollection{
 		ObjectMeta: tc.MakeObjectMetaWithName(name),
-		Spec: documentdb.DatabaseAccounts_MongodbDatabases_Collection_Spec{
+		Spec: documentdb.MongodbDatabaseCollection_Spec{
 			Location: tc.AzureRegion,
 			Options: &documentdb.CreateUpdateOptions{
 				Throughput: to.Ptr(400),
@@ -178,13 +184,14 @@ func DocumentDB_MongoDB_Collection_v20231115_CRUD(tc *testcommon.KubePerTestCont
 			Test: func(tc *testcommon.KubePerTestContext) {
 				DocumentDB_MongoDB_Database_Collections_ThroughputSettings_v20231515_CRUD(tc, &collection)
 			},
-		})
+		},
+	)
 }
 
 func DocumentDB_MongoDB_Database_ThroughputSettings_v20231115_CRUD(tc *testcommon.KubePerTestContext, db client.Object) {
 	throughputSettings := documentdb.MongodbDatabaseThroughputSetting{
 		ObjectMeta: tc.MakeObjectMetaWithName(tc.Namer.GenerateName("throughput")),
-		Spec: documentdb.DatabaseAccounts_MongodbDatabases_ThroughputSetting_Spec{
+		Spec: documentdb.MongodbDatabaseThroughputSetting_Spec{
 			Owner: testcommon.AsOwner(db),
 			Resource: &documentdb.ThroughputSettingsResource{
 				// We cannot change this to be a fixed throughput as we already created the database using
@@ -196,9 +203,12 @@ func DocumentDB_MongoDB_Database_ThroughputSettings_v20231115_CRUD(tc *testcommo
 		},
 	}
 
+	// Don't try to delete directly, this is not a real resource - to delete it in Azure you must delete its parent.
+	// We can delete it from the cluster by applying this annotation, but this won't change anything in Azure.
+	tc.AddAnnotation(&throughputSettings.ObjectMeta, "serviceoperator.azure.com/reconcile-policy", "detach-on-delete")
+
 	tc.T.Log("creating mongo database throughput")
 	tc.CreateResourceAndWait(&throughputSettings)
-	// no DELETE, this is not a real resource - to delete it you must delete its parent
 
 	// Ensure that the status is what we expect
 	tc.Expect(throughputSettings.Status.Id).ToNot(BeNil())
@@ -217,7 +227,7 @@ func DocumentDB_MongoDB_Database_ThroughputSettings_v20231115_CRUD(tc *testcommo
 func DocumentDB_MongoDB_Database_Collections_ThroughputSettings_v20231515_CRUD(tc *testcommon.KubePerTestContext, collection client.Object) {
 	throughputSettings := documentdb.MongodbDatabaseCollectionThroughputSetting{
 		ObjectMeta: tc.MakeObjectMetaWithName(tc.Namer.GenerateName("throughput")),
-		Spec: documentdb.DatabaseAccounts_MongodbDatabases_Collections_ThroughputSetting_Spec{
+		Spec: documentdb.MongodbDatabaseCollectionThroughputSetting_Spec{
 			Owner: testcommon.AsOwner(collection),
 			Resource: &documentdb.ThroughputSettingsResource{
 				Throughput: to.Ptr(500),
@@ -225,9 +235,12 @@ func DocumentDB_MongoDB_Database_Collections_ThroughputSettings_v20231515_CRUD(t
 		},
 	}
 
+	// Don't try to delete directly, this is not a real resource - to delete it in Azure you must delete its parent.
+	// We can delete it from the cluster by applying this annotation, but this won't change anything in Azure.
+	tc.AddAnnotation(&throughputSettings.ObjectMeta, "serviceoperator.azure.com/reconcile-policy", "detach-on-delete")
+
 	tc.LogSectionf("creating mongo database collections throughput")
 	tc.CreateResourceAndWait(&throughputSettings)
-	// no DELETE, this is not a real resource - to delete it you must delete its parent
 
 	// Ensure that the status is what we expect
 	tc.Expect(throughputSettings.Status.Id).ToNot(BeNil())

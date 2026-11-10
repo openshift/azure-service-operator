@@ -11,36 +11,46 @@ cascade:
 description: Tutorials for using Azure Service Operator
 ---
 
-{{< cardpane >}}
-{{< card header="CosmosDB to-do List">}}
+{{% cardpane %}}
+{{% card header="Create ASO resources and visuals"%}}
 
-Follow the [guided example](https://github.com/Azure-Samples/azure-service-operator-samples/tree/master/cosmos-todo-list)
-to create a to-do list application backed by CosmosDB.
+[Create ASO resources and view them](https://azure-samples.github.io/aks-labs/docs/platform-engineering/aks-capz-aso/#sample-1-create-a-new-aks-cluster-as-an-argo-cd-application) through the Argo CD UI.
 
-The CosmosDB is hosted in Azure but created easily via `kubectl` and Azure Service Operator.
+{{% /card %}}
+{{% card header="Create Your own Manifest"%}}
 
-{{< /card >}}
-{{< card header="CosmosDB to-do List with Managed Identity">}}
+[Create your own deployment manifests](tutorial-deployment-files/) on ASO.
 
-Follow the [guided example](https://github.com/Azure-Samples/azure-service-operator-samples/tree/master/cosmos-todo-list-mi)
-to create a to-do list application backed by CosmosDB using Managed Identity and Workload Identity.
+{{% /card %}}
+{{% /cardpane %}}
 
-{{< /card >}}
-{{< /cardpane >}}
 
-{{< cardpane >}}
-{{< card header="PostgreSQL Votes">}}
+{{% cardpane %}}
+{{% card header="CosmosDB to-do List"%}}
 
-Follow the [guided example](https://github.com/Azure-Samples/azure-service-operator-samples/tree/master/cosmos-todo-list)
-to create a to-do list application backed by CosmosDB.
+[Create a to-do list application](https://github.com/Azure-Samples/azure-service-operator-samples/tree/master/cosmos-todo-list) backed by CosmosDB.
 
 The CosmosDB is hosted in Azure but created easily via `kubectl` and Azure Service Operator.
 
-{{< /card >}}
-{{< card header="Redis Votes">}}
+{{% /card %}}
+{{% card header="CosmosDB to-do List with Managed Identity"%}}
 
-Follow the [guided example](https://github.com/Azure-Samples/azure-service-operator-samples/tree/master/azure-votes-redis)
-to create a simple voting application backed by Azure Redis.
+[Create a to-do list application](https://github.com/Azure-Samples/azure-service-operator-samples/tree/master/cosmos-todo-list-mi) backed by CosmosDB using Managed Identity and Workload Identity.
 
-{{< /card >}}
-{{< /cardpane >}}
+{{% /card %}}
+{{% /cardpane %}}
+
+{{% cardpane %}}
+{{% card header="PostgreSQL Votes"%}}
+
+[Create a to-do list application](https://github.com/Azure-Samples/azure-service-operator-samples/tree/master/azure-votes-postgresql) backed by PostgreSQL.
+
+The CosmosDB is hosted in Azure but created easily via `kubectl` and Azure Service Operator.
+
+{{% /card %}}
+{{% card header="Redis Votes"%}}
+
+[Create a simple voting application](https://github.com/Azure-Samples/azure-service-operator-samples/tree/master/azure-votes-redis) backed by Azure Redis.
+
+{{% /card %}}
+{{% /cardpane %}}

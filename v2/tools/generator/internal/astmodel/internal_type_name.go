@@ -76,7 +76,8 @@ func (tn InternalTypeName) AsTypeExpr(codeGenerationContext *CodeGenerationConte
 			"no reference for %s from %s available in package %s",
 			tn.Name(),
 			tn.packageReference,
-			codeGenerationContext.currentPackage))
+			codeGenerationContext.currentPackage,
+		))
 	}
 
 	return astbuilder.Selector(dst.NewIdent(packageName), tn.Name()), nil
@@ -186,7 +187,7 @@ func (tn InternalTypeName) IsStatus() bool {
 
 // IsARMType returns true if the TypeName identifies an ARM specific type, false otherwise.
 func (tn InternalTypeName) IsARMType() bool {
-	return strings.HasSuffix(tn.Name(), ARMSuffix)
+	return IsARMPackageReference(tn.InternalPackageReference())
 }
 
 func (tn InternalTypeName) IsEmpty() bool {

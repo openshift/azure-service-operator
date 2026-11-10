@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql" // sql drive link
 	. "github.com/onsi/gomega"
+
+	_ "github.com/go-sql-driver/mysql" // sql drive link
 	v1 "k8s.io/api/core/v1"
 
 	mysqlv1 "github.com/Azure/azure-service-operator/v2/api/dbformysql/v1"
@@ -37,10 +38,9 @@ func Test_MySQL_Combined(t *testing.T) {
 	tc.CreateResource(secret)
 
 	flexibleServer := newMySQLServer(tc, rg, adminUsername, adminPasswordKey, secret.Name)
-	tc.CreateResourceAndWait(flexibleServer)
-
 	firewallRule := newMySQLServerOpenFirewallRule(tc, flexibleServer)
-	tc.CreateResourceAndWait(firewallRule)
+
+	tc.CreateResourcesAndWait(flexibleServer, firewallRule)
 
 	tc.Expect(flexibleServer.Status.FullyQualifiedDomainName).ToNot(BeNil())
 	fqdn := *flexibleServer.Status.FullyQualifiedDomainName
@@ -80,7 +80,8 @@ func MySQL_AdminSecret_Rollover(tc *testcommon.KubePerTestContext, fqdn string, 
 		mysqlutil.SystemDatabase,
 		mysqlutil.ServerPort,
 		adminUsername,
-		adminPassword)
+		adminPassword,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	// Close the connection
 	tc.Expect(conn.Close()).To(Succeed())
@@ -106,7 +107,8 @@ func MySQL_AdminSecret_Rollover(tc *testcommon.KubePerTestContext, fqdn string, 
 				mysqlutil.SystemDatabase,
 				mysqlutil.ServerPort,
 				adminUsername,
-				newAdminPassword)
+				newAdminPassword,
+			)
 			if err != nil {
 				return err
 			}
@@ -128,7 +130,8 @@ func MySQL_User_Helpers(tc *testcommon.KubePerTestContext, fqdn string, adminUse
 		mysqlutil.SystemDatabase,
 		mysqlutil.ServerPort,
 		adminUsername,
-		adminPassword)
+		adminPassword,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	defer db.Close()
 
@@ -210,7 +213,8 @@ func MySQL_User_CRUD(tc *testcommon.KubePerTestContext, server *mysql.FlexibleSe
 		mysqlutil.SystemDatabase,
 		mysqlutil.ServerPort,
 		to.Value(server.Spec.AdministratorLogin),
-		adminPassword)
+		adminPassword,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	defer conn.Close()
 
@@ -243,7 +247,8 @@ func MySQL_User_CRUD(tc *testcommon.KubePerTestContext, server *mysql.FlexibleSe
 		"",
 		mysqlutil.ServerPort,
 		user.Spec.AzureName,
-		password)
+		password,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	// Close the connection
 	tc.Expect(conn.Close()).To(Succeed())
@@ -267,7 +272,8 @@ func MySQL_User_CRUD(tc *testcommon.KubePerTestContext, server *mysql.FlexibleSe
 				"",
 				mysqlutil.ServerPort,
 				user.Spec.AzureName,
-				newPassword)
+				newPassword,
+			)
 			if err != nil {
 				return err
 			}
@@ -314,7 +320,8 @@ func MySQL_User_CRUD(tc *testcommon.KubePerTestContext, server *mysql.FlexibleSe
 		mysqlutil.SystemDatabase,
 		mysqlutil.ServerPort,
 		to.Value(server.Spec.AdministratorLogin),
-		adminPassword)
+		adminPassword,
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 
 	exists, err := mysqlutil.DoesUserExist(ctx, conn, user.Name)
@@ -412,9 +419,9 @@ func newSecret(tc *testcommon.KubePerTestContext, key string, password string) *
 func newMySQLServer(tc *testcommon.KubePerTestContext, rg *resources.ResourceGroup, adminUsername string, adminKey string, adminSecretName string) *mysql.FlexibleServer {
 	// Force this test to run in a region that is not capacity constrained.
 	// location := tc.AzureRegion TODO: Uncomment this line when West US 2 is no longer constrained
-	location := to.Ptr("australiaeast")
+	location := to.Ptr("australiacentral2")
 
-	version := mysql.ServerVersion_8021
+	version := "8.0.21"
 	secretRef := genruntime.SecretReference{
 		Name: adminSecretName,
 		Key:  adminKey,
@@ -446,7 +453,7 @@ func newMySQLServerOpenFirewallRule(tc *testcommon.KubePerTestContext, flexibleS
 	// because there's no data in the database anyway
 	firewallRule := &mysql.FlexibleServersFirewallRule{
 		ObjectMeta: tc.MakeObjectMeta("firewall"),
-		Spec: mysql.FlexibleServers_FirewallRule_Spec{
+		Spec: mysql.FlexibleServersFirewallRule_Spec{
 			Owner:          testcommon.AsOwner(flexibleServer),
 			StartIpAddress: to.Ptr("0.0.0.0"),
 			EndIpAddress:   to.Ptr("255.255.255.255"),

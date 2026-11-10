@@ -12,11 +12,11 @@ import (
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
-const AddAPIVersionEnumsStageId = "add-api-version-enums"
+const AddAPIVersionEnumsStageID = "add-api-version-enums"
 
 func AddAPIVersionEnums() *Stage {
 	stage := NewStage(
-		AddAPIVersionEnumsStageId,
+		AddAPIVersionEnumsStageID,
 		"Add enums for API Versions in each package",
 		func(ctx context.Context, state *State) (*State, error) {
 			newDefs := make(astmodel.TypeDefinitionSet)
@@ -59,14 +59,17 @@ func (vs apiVersions) Get(pr astmodel.InternalPackageReference) apiVersion {
 	name := astmodel.MakeInternalTypeName(pr, "APIVersion") // TODO: constant?
 	value := astmodel.MakeEnumValue(
 		"Value",
-		fmt.Sprintf("%q", apiVersionFromPackageReference(pr)))
+		fmt.Sprintf("%q", apiVersionFromPackageReference(pr)),
+	)
 
 	result := apiVersion{name: name, value: value}
 	vs.generated[pr] = result
 	vs.output.Add(
 		astmodel.MakeTypeDefinition(
 			name,
-			astmodel.NewEnumType(astmodel.StringType, value)))
+			astmodel.NewEnumType(astmodel.StringType, value),
+		),
+	)
 	return result
 }
 
@@ -76,5 +79,5 @@ func apiVersionFromPackageReference(pr astmodel.PackageReference) string {
 		panic("all resources should have local package references")
 	}
 
-	return localPR.ApiVersion()
+	return localPR.APIVersion()
 }

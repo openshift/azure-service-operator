@@ -8,9 +8,10 @@ package config
 import (
 	"fmt"
 
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
+
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
 // A TypeTransformer is used to remap types
@@ -62,25 +63,27 @@ func (transformer *TypeTransformer) AppliesToDefinition(def astmodel.TypeDefinit
 
 func (transformer *TypeTransformer) TransformDefinition(def astmodel.TypeDefinition) (astmodel.TypeDefinition, error) {
 	if err := transformer.validate(); err != nil {
-		return astmodel.TypeDefinition{}, errors.Wrapf(err, "validating transformer for %s", def.Name())
+		return astmodel.TypeDefinition{}, eris.Wrapf(err, "validating transformer for %s", def.Name())
 	}
 
 	// Apply our rename if we have one configured
 	if transformer.RenameTo != "" {
 		def = def.WithName(
-			def.Name().WithName(transformer.RenameTo))
+			def.Name().WithName(transformer.RenameTo),
+		)
 	}
 
 	// Transform the whole type if we're not looking for a specific property
 	if transformer.Target != nil && !transformer.Property.IsRestrictive() {
 		resultType, err := transformer.Target.produceTargetType("target", def.Type())
 		if err != nil {
-			return astmodel.TypeDefinition{}, errors.Wrapf(
+			return astmodel.TypeDefinition{}, eris.Wrapf(
 				err,
 				"type transformer for group: %s, version: %s, name: %s",
 				transformer.Group.String(),
 				transformer.Version.String(),
-				transformer.Name.String())
+				transformer.Name.String(),
+			)
 		}
 
 		def = def.WithType(resultType)
@@ -89,18 +92,24 @@ func (transformer *TypeTransformer) TransformDefinition(def astmodel.TypeDefinit
 
 	// Transform any matching properties
 	if transformer.Property.IsRestrictive() {
-		// Don't use AsObjectType() because we don't want to unwrap any MetaTypes
-		if objectType, ok := def.Type().(*astmodel.ObjectType); ok {
-			newObjectType, err := transformer.transformProperties(objectType)
-			if err != nil {
-				return astmodel.TypeDefinition{}, errors.Wrapf(
-					err,
-					"property transform on object type %s",
-					def.Name())
-			}
+		visitor := astmodel.TypeVisitorBuilder[any]{
+			VisitObjectType: func(
+				it *astmodel.ObjectType,
+			) (astmodel.Type, error) {
+				return transformer.transformProperties(it)
+			},
+		}.Build()
 
-			def = def.WithType(newObjectType)
+		d, err := visitor.VisitDefinition(def, nil)
+		if err != nil {
+			return astmodel.TypeDefinition{}, eris.Wrapf(
+				err,
+				"visiting definition %s",
+				def.Name(),
+			)
 		}
+
+		def = d
 	}
 
 	return def, nil
@@ -116,12 +125,13 @@ func (transformer *TypeTransformer) TransformTypeName(typeName astmodel.Internal
 	if transformer.AppliesToType(typeName) {
 		result, err := transformer.Target.produceTargetType("target", typeName)
 		if err != nil {
-			return nil, errors.Wrapf(
+			return nil, eris.Wrapf(
 				err,
 				"type transformer for group: %s, version: %s, name: %s",
 				transformer.Group.String(),
 				transformer.Version.String(),
-				transformer.Name.String())
+				transformer.Name.String(),
+			)
 		}
 
 		return result, nil
@@ -135,23 +145,23 @@ func (transformer *TypeTransformer) validate() error {
 	// Using Remove precludes other transforms
 	if transformer.Remove {
 		if !transformer.Property.IsRestrictive() {
-			return errors.Errorf("remove is only usable with property transforms")
+			return eris.Errorf("remove is only usable with property transforms")
 		}
 		if transformer.Target != nil {
-			return errors.Errorf("remove and target can't both be set")
+			return eris.Errorf("remove and target can't both be set")
 		}
 	}
 
 	// If we're not removing a property, we need either a target or a rename
 	if !transformer.Remove {
 		if transformer.Target == nil && transformer.RenameTo == "" {
-			return errors.Errorf("transformer must either rename or modify")
+			return eris.Errorf("transformer must either rename or modify")
 		}
 	}
 
 	// Property specific transforms should either modify or remove
 	if transformer.Property.IsRestrictive() && !transformer.Remove && transformer.Target == nil {
-		return errors.Errorf("property transforms must either remove or modify")
+		return eris.Errorf("property transforms must either remove or modify")
 	}
 
 	return nil
@@ -170,13 +180,16 @@ type PropertyTransformResult struct {
 // String generates a printable representation of this result.
 func (r PropertyTransformResult) String() string {
 	if r.Removed {
-		return fmt.Sprintf("%s.%s removed because %s",
+		return fmt.Sprintf(
+			"%s.%s removed because %s",
 			r.TypeName,
 			r.Property,
 			r.Because,
 		)
 	}
-	return fmt.Sprintf("%s.%s -> %s because %s",
+
+	return fmt.Sprintf(
+		"%s.%s -> %s because %s",
 		r.TypeName,
 		r.Property,
 		r.NewPropertyType.String(),
@@ -191,7 +204,8 @@ func (r PropertyTransformResult) LogTo(log logr.Logger) {
 			"Removing property",
 			"type", r.TypeName,
 			"property", r.Property,
-			"because", r.Because)
+			"because", r.Because,
+		)
 		return
 	}
 
@@ -200,29 +214,27 @@ func (r PropertyTransformResult) LogTo(log logr.Logger) {
 		"type", r.TypeName,
 		"property", r.Property,
 		"newType", r.NewPropertyType.String(),
-		"because", r.Because)
+		"because", r.Because,
+	)
 }
 
 func (transformer *TypeTransformer) RequiredPropertiesWereMatched() error {
-	// If this transformer applies to entire types (instead of just properties on types), we just defer to
-	// transformer.MatchedRequiredTypes
-	if !transformer.Property.IsRestrictive() {
-		return transformer.RequiredTypesWereMatched()
-	}
-
-	if !transformer.MustMatch() {
-		return nil
-	}
-
 	if err := transformer.RequiredTypesWereMatched(); err != nil {
 		return err
 	}
 
+	// If this transformer applies to entire types (instead of just properties on types),
+	// no further checks are needed
+	if !transformer.Property.IsRestrictive() {
+		return nil
+	}
+
 	if err := transformer.Property.WasMatched(); err != nil {
-		return errors.Wrapf(
+		return eris.Wrapf(
 			err,
 			"%s matched types but all properties were excluded by name or type",
-			transformer.TypeMatcher.String())
+			transformer.String(),
+		)
 	}
 
 	return nil
@@ -252,7 +264,7 @@ func (transformer *TypeTransformer) TransformProperty(
 			if transformer.Target != nil {
 				propertyType, err := transformer.Target.produceTargetType(string(propName), prop.PropertyType())
 				if err != nil {
-					return nil, errors.Wrapf(err, "transforming property %s", propName)
+					return nil, eris.Wrapf(err, "transforming property %s", propName)
 				}
 
 				newProps = append(newProps, prop.WithType(propertyType))
@@ -312,7 +324,18 @@ func (transformer *TypeTransformer) transformProperties(
 		} else if transformer.Target != nil {
 			propertyType, err := transformer.Target.produceTargetType(propertyName, prop.PropertyType())
 			if err != nil {
-				return nil, errors.Wrapf(err, "transforming property %s", propertyName)
+				return nil, eris.Wrapf(err, "transforming property %s", propertyName)
+			}
+
+			// Can't specify both required and optional
+			if transformer.Target.Optional && transformer.Target.Required {
+				return nil, eris.Errorf("transformer for %s must not specify both required and optional", propertyName)
+			}
+
+			if transformer.Target.Optional {
+				prop = prop.MakeOptional()
+			} else if transformer.Target.Required {
+				prop = prop.MakeRequired()
 			}
 
 			objectType = objectType.WithProperty(prop.WithType(propertyType))

@@ -5,32 +5,34 @@ package v1api20200601
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/network/v1api20200601/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/network/v1api20200601/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,network}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /privatedns/resource-manager/Microsoft.Network/stable/2020-06-01/privatedns.json
+// - Generated from: /privatedns/resource-manager/Microsoft.Network/PrivateDns/stable/2020-06-01/privatedns.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/privateDnsZones/{privateZoneName}/virtualNetworkLinks/{virtualNetworkLinkName}
 type PrivateDnsZonesVirtualNetworkLink struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              PrivateDnsZones_VirtualNetworkLink_Spec   `json:"spec,omitempty"`
-	Status            PrivateDnsZones_VirtualNetworkLink_STATUS `json:"status,omitempty"`
+	Spec              PrivateDnsZonesVirtualNetworkLink_Spec   `json:"spec,omitempty"`
+	Status            PrivateDnsZonesVirtualNetworkLink_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &PrivateDnsZonesVirtualNetworkLink{}
@@ -49,56 +51,56 @@ var _ conversion.Convertible = &PrivateDnsZonesVirtualNetworkLink{}
 
 // ConvertFrom populates our PrivateDnsZonesVirtualNetworkLink from the provided hub PrivateDnsZonesVirtualNetworkLink
 func (link *PrivateDnsZonesVirtualNetworkLink) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.PrivateDnsZonesVirtualNetworkLink)
-	if !ok {
-		return fmt.Errorf("expected network/v1api20200601/storage/PrivateDnsZonesVirtualNetworkLink but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.PrivateDnsZonesVirtualNetworkLink
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return link.AssignProperties_From_PrivateDnsZonesVirtualNetworkLink(source)
+	err = link.AssignProperties_From_PrivateDnsZonesVirtualNetworkLink(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to link")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub PrivateDnsZonesVirtualNetworkLink from our PrivateDnsZonesVirtualNetworkLink
 func (link *PrivateDnsZonesVirtualNetworkLink) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.PrivateDnsZonesVirtualNetworkLink)
-	if !ok {
-		return fmt.Errorf("expected network/v1api20200601/storage/PrivateDnsZonesVirtualNetworkLink but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.PrivateDnsZonesVirtualNetworkLink
+	err := link.AssignProperties_To_PrivateDnsZonesVirtualNetworkLink(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from link")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return link.AssignProperties_To_PrivateDnsZonesVirtualNetworkLink(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20200601-privatednszonesvirtualnetworklink,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privatednszonesvirtualnetworklinks,verbs=create;update,versions=v1api20200601,name=default.v1api20200601.privatednszonesvirtualnetworklinks.network.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &PrivateDnsZonesVirtualNetworkLink{}
 
-var _ admission.Defaulter = &PrivateDnsZonesVirtualNetworkLink{}
-
-// Default applies defaults to the PrivateDnsZonesVirtualNetworkLink resource
-func (link *PrivateDnsZonesVirtualNetworkLink) Default() {
-	link.defaultImpl()
-	var temp any = link
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (link *PrivateDnsZonesVirtualNetworkLink) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if link.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return link.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (link *PrivateDnsZonesVirtualNetworkLink) defaultAzureName() {
-	if link.Spec.AzureName == "" {
-		link.Spec.AzureName = link.Name
+var _ secrets.Exporter = &PrivateDnsZonesVirtualNetworkLink{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (link *PrivateDnsZonesVirtualNetworkLink) SecretDestinationExpressions() []*core.DestinationExpression {
+	if link.Spec.OperatorSpec == nil {
+		return nil
 	}
-}
-
-// defaultImpl applies the code generated defaults to the PrivateDnsZonesVirtualNetworkLink resource
-func (link *PrivateDnsZonesVirtualNetworkLink) defaultImpl() { link.defaultAzureName() }
-
-var _ genruntime.ImportableResource = &PrivateDnsZonesVirtualNetworkLink{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (link *PrivateDnsZonesVirtualNetworkLink) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*PrivateDnsZones_VirtualNetworkLink_STATUS); ok {
-		return link.Spec.Initialize_From_PrivateDnsZones_VirtualNetworkLink_STATUS(s)
-	}
-
-	return fmt.Errorf("expected Status of type PrivateDnsZones_VirtualNetworkLink_STATUS but received %T instead", status)
+	return link.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &PrivateDnsZonesVirtualNetworkLink{}
@@ -110,7 +112,7 @@ func (link *PrivateDnsZonesVirtualNetworkLink) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2020-06-01"
 func (link PrivateDnsZonesVirtualNetworkLink) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2020-06-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -144,11 +146,15 @@ func (link *PrivateDnsZonesVirtualNetworkLink) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (link *PrivateDnsZonesVirtualNetworkLink) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &PrivateDnsZones_VirtualNetworkLink_STATUS{}
+	return &PrivateDnsZonesVirtualNetworkLink_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (link *PrivateDnsZonesVirtualNetworkLink) Owner() *genruntime.ResourceReference {
+	if link.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(link.Spec)
 	return link.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -156,101 +162,20 @@ func (link *PrivateDnsZonesVirtualNetworkLink) Owner() *genruntime.ResourceRefer
 // SetStatus sets the status of this resource
 func (link *PrivateDnsZonesVirtualNetworkLink) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*PrivateDnsZones_VirtualNetworkLink_STATUS); ok {
+	if st, ok := status.(*PrivateDnsZonesVirtualNetworkLink_STATUS); ok {
 		link.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st PrivateDnsZones_VirtualNetworkLink_STATUS
+	var st PrivateDnsZonesVirtualNetworkLink_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	link.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-network-azure-com-v1api20200601-privatednszonesvirtualnetworklink,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privatednszonesvirtualnetworklinks,verbs=create;update,versions=v1api20200601,name=validate.v1api20200601.privatednszonesvirtualnetworklinks.network.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &PrivateDnsZonesVirtualNetworkLink{}
-
-// ValidateCreate validates the creation of the resource
-func (link *PrivateDnsZonesVirtualNetworkLink) ValidateCreate() (admission.Warnings, error) {
-	validations := link.createValidations()
-	var temp any = link
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (link *PrivateDnsZonesVirtualNetworkLink) ValidateDelete() (admission.Warnings, error) {
-	validations := link.deleteValidations()
-	var temp any = link
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (link *PrivateDnsZonesVirtualNetworkLink) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := link.updateValidations()
-	var temp any = link
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (link *PrivateDnsZonesVirtualNetworkLink) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){link.validateResourceReferences, link.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (link *PrivateDnsZonesVirtualNetworkLink) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (link *PrivateDnsZonesVirtualNetworkLink) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return link.validateResourceReferences()
-		},
-		link.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return link.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (link *PrivateDnsZonesVirtualNetworkLink) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(link)
-}
-
-// validateResourceReferences validates all resource references
-func (link *PrivateDnsZonesVirtualNetworkLink) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&link.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (link *PrivateDnsZonesVirtualNetworkLink) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*PrivateDnsZonesVirtualNetworkLink)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, link)
 }
 
 // AssignProperties_From_PrivateDnsZonesVirtualNetworkLink populates our PrivateDnsZonesVirtualNetworkLink from the provided source PrivateDnsZonesVirtualNetworkLink
@@ -260,18 +185,18 @@ func (link *PrivateDnsZonesVirtualNetworkLink) AssignProperties_From_PrivateDnsZ
 	link.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec PrivateDnsZones_VirtualNetworkLink_Spec
-	err := spec.AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_Spec(&source.Spec)
+	var spec PrivateDnsZonesVirtualNetworkLink_Spec
+	err := spec.AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_Spec() to populate field Spec")
 	}
 	link.Spec = spec
 
 	// Status
-	var status PrivateDnsZones_VirtualNetworkLink_STATUS
-	err = status.AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_STATUS(&source.Status)
+	var status PrivateDnsZonesVirtualNetworkLink_STATUS
+	err = status.AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_STATUS() to populate field Status")
 	}
 	link.Status = status
 
@@ -286,18 +211,18 @@ func (link *PrivateDnsZonesVirtualNetworkLink) AssignProperties_To_PrivateDnsZon
 	destination.ObjectMeta = *link.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.PrivateDnsZones_VirtualNetworkLink_Spec
-	err := link.Spec.AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_Spec(&spec)
+	var spec storage.PrivateDnsZonesVirtualNetworkLink_Spec
+	err := link.Spec.AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.PrivateDnsZones_VirtualNetworkLink_STATUS
-	err = link.Status.AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_STATUS(&status)
+	var status storage.PrivateDnsZonesVirtualNetworkLink_STATUS
+	err = link.Status.AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +241,7 @@ func (link *PrivateDnsZonesVirtualNetworkLink) OriginalGVK() *schema.GroupVersio
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /privatedns/resource-manager/Microsoft.Network/stable/2020-06-01/privatedns.json
+// - Generated from: /privatedns/resource-manager/Microsoft.Network/PrivateDns/stable/2020-06-01/privatedns.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/privateDnsZones/{privateZoneName}/virtualNetworkLinks/{virtualNetworkLinkName}
 type PrivateDnsZonesVirtualNetworkLinkList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -324,7 +249,7 @@ type PrivateDnsZonesVirtualNetworkLinkList struct {
 	Items           []PrivateDnsZonesVirtualNetworkLink `json:"items"`
 }
 
-type PrivateDnsZones_VirtualNetworkLink_Spec struct {
+type PrivateDnsZonesVirtualNetworkLink_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
 	AzureName string `json:"azureName,omitempty"`
@@ -334,6 +259,10 @@ type PrivateDnsZones_VirtualNetworkLink_Spec struct {
 
 	// Location: The Azure Region where the resource lives
 	Location *string `json:"location,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *PrivateDnsZonesVirtualNetworkLinkOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -352,14 +281,14 @@ type PrivateDnsZones_VirtualNetworkLink_Spec struct {
 	VirtualNetwork *SubResource `json:"virtualNetwork,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &PrivateDnsZones_VirtualNetworkLink_Spec{}
+var _ genruntime.ARMTransformer = &PrivateDnsZonesVirtualNetworkLink_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if link == nil {
 		return nil, nil
 	}
-	result := &PrivateDnsZones_VirtualNetworkLink_Spec_ARM{}
+	result := &arm.PrivateDnsZonesVirtualNetworkLink_Spec{}
 
 	// Set property "Etag":
 	if link.Etag != nil {
@@ -378,18 +307,18 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) ConvertToARM(resolved genru
 
 	// Set property "Properties":
 	if link.RegistrationEnabled != nil || link.VirtualNetwork != nil {
-		result.Properties = &VirtualNetworkLinkProperties_ARM{}
+		result.Properties = &arm.VirtualNetworkLinkProperties{}
 	}
 	if link.RegistrationEnabled != nil {
 		registrationEnabled := *link.RegistrationEnabled
 		result.Properties.RegistrationEnabled = &registrationEnabled
 	}
 	if link.VirtualNetwork != nil {
-		virtualNetwork_ARM, err := (*link.VirtualNetwork).ConvertToARM(resolved)
+		virtualNetwork_ARM, err := link.VirtualNetwork.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		virtualNetwork := *virtualNetwork_ARM.(*SubResource_ARM)
+		virtualNetwork := *virtualNetwork_ARM.(*arm.SubResource)
 		result.Properties.VirtualNetwork = &virtualNetwork
 	}
 
@@ -404,15 +333,15 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) ConvertToARM(resolved genru
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateDnsZones_VirtualNetworkLink_Spec_ARM{}
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.PrivateDnsZonesVirtualNetworkLink_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateDnsZones_VirtualNetworkLink_Spec_ARM)
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.PrivateDnsZonesVirtualNetworkLink_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateDnsZones_VirtualNetworkLink_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateDnsZonesVirtualNetworkLink_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
@@ -429,6 +358,8 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) PopulateFromARM(owner genru
 		location := *typedInput.Location
 		link.Location = &location
 	}
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "Owner":
 	link.Owner = &genruntime.KnownResourceReference{
@@ -471,58 +402,58 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) PopulateFromARM(owner genru
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &PrivateDnsZones_VirtualNetworkLink_Spec{}
+var _ genruntime.ConvertibleSpec = &PrivateDnsZonesVirtualNetworkLink_Spec{}
 
-// ConvertSpecFrom populates our PrivateDnsZones_VirtualNetworkLink_Spec from the provided source
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.PrivateDnsZones_VirtualNetworkLink_Spec)
+// ConvertSpecFrom populates our PrivateDnsZonesVirtualNetworkLink_Spec from the provided source
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.PrivateDnsZonesVirtualNetworkLink_Spec)
 	if ok {
 		// Populate our instance from source
-		return link.AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_Spec(src)
+		return link.AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.PrivateDnsZones_VirtualNetworkLink_Spec{}
+	src = &storage.PrivateDnsZonesVirtualNetworkLink_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = link.AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_Spec(src)
+	err = link.AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our PrivateDnsZones_VirtualNetworkLink_Spec
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.PrivateDnsZones_VirtualNetworkLink_Spec)
+// ConvertSpecTo populates the provided destination from our PrivateDnsZonesVirtualNetworkLink_Spec
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.PrivateDnsZonesVirtualNetworkLink_Spec)
 	if ok {
 		// Populate destination from our instance
-		return link.AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_Spec(dst)
+		return link.AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.PrivateDnsZones_VirtualNetworkLink_Spec{}
-	err := link.AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_Spec(dst)
+	dst = &storage.PrivateDnsZonesVirtualNetworkLink_Spec{}
+	err := link.AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_Spec populates our PrivateDnsZones_VirtualNetworkLink_Spec from the provided source PrivateDnsZones_VirtualNetworkLink_Spec
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_Spec(source *storage.PrivateDnsZones_VirtualNetworkLink_Spec) error {
+// AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_Spec populates our PrivateDnsZonesVirtualNetworkLink_Spec from the provided source PrivateDnsZonesVirtualNetworkLink_Spec
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_Spec(source *storage.PrivateDnsZonesVirtualNetworkLink_Spec) error {
 
 	// AzureName
 	link.AzureName = source.AzureName
@@ -532,6 +463,18 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) AssignProperties_From_Priva
 
 	// Location
 	link.Location = genruntime.ClonePointerToString(source.Location)
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec PrivateDnsZonesVirtualNetworkLinkOperatorSpec
+		err := operatorSpec.AssignProperties_From_PrivateDnsZonesVirtualNetworkLinkOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_PrivateDnsZonesVirtualNetworkLinkOperatorSpec() to populate field OperatorSpec")
+		}
+		link.OperatorSpec = &operatorSpec
+	} else {
+		link.OperatorSpec = nil
+	}
 
 	// Owner
 	if source.Owner != nil {
@@ -557,7 +500,7 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) AssignProperties_From_Priva
 		var virtualNetwork SubResource
 		err := virtualNetwork.AssignProperties_From_SubResource(source.VirtualNetwork)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SubResource() to populate field VirtualNetwork")
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field VirtualNetwork")
 		}
 		link.VirtualNetwork = &virtualNetwork
 	} else {
@@ -568,8 +511,8 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) AssignProperties_From_Priva
 	return nil
 }
 
-// AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_Spec populates the provided destination PrivateDnsZones_VirtualNetworkLink_Spec from our PrivateDnsZones_VirtualNetworkLink_Spec
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_Spec(destination *storage.PrivateDnsZones_VirtualNetworkLink_Spec) error {
+// AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_Spec populates the provided destination PrivateDnsZonesVirtualNetworkLink_Spec from our PrivateDnsZonesVirtualNetworkLink_Spec
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_Spec(destination *storage.PrivateDnsZonesVirtualNetworkLink_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -581,6 +524,18 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) AssignProperties_To_Private
 
 	// Location
 	destination.Location = genruntime.ClonePointerToString(link.Location)
+
+	// OperatorSpec
+	if link.OperatorSpec != nil {
+		var operatorSpec storage.PrivateDnsZonesVirtualNetworkLinkOperatorSpec
+		err := link.OperatorSpec.AssignProperties_To_PrivateDnsZonesVirtualNetworkLinkOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_PrivateDnsZonesVirtualNetworkLinkOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
 
 	// OriginalVersion
 	destination.OriginalVersion = link.OriginalVersion()
@@ -609,7 +564,7 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) AssignProperties_To_Private
 		var virtualNetwork storage.SubResource
 		err := link.VirtualNetwork.AssignProperties_To_SubResource(&virtualNetwork)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SubResource() to populate field VirtualNetwork")
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field VirtualNetwork")
 		}
 		destination.VirtualNetwork = &virtualNetwork
 	} else {
@@ -627,53 +582,17 @@ func (link *PrivateDnsZones_VirtualNetworkLink_Spec) AssignProperties_To_Private
 	return nil
 }
 
-// Initialize_From_PrivateDnsZones_VirtualNetworkLink_STATUS populates our PrivateDnsZones_VirtualNetworkLink_Spec from the provided source PrivateDnsZones_VirtualNetworkLink_STATUS
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) Initialize_From_PrivateDnsZones_VirtualNetworkLink_STATUS(source *PrivateDnsZones_VirtualNetworkLink_STATUS) error {
-
-	// Etag
-	link.Etag = genruntime.ClonePointerToString(source.Etag)
-
-	// Location
-	link.Location = genruntime.ClonePointerToString(source.Location)
-
-	// RegistrationEnabled
-	if source.RegistrationEnabled != nil {
-		registrationEnabled := *source.RegistrationEnabled
-		link.RegistrationEnabled = &registrationEnabled
-	} else {
-		link.RegistrationEnabled = nil
-	}
-
-	// Tags
-	link.Tags = genruntime.CloneMapOfStringToString(source.Tags)
-
-	// VirtualNetwork
-	if source.VirtualNetwork != nil {
-		var virtualNetwork SubResource
-		err := virtualNetwork.Initialize_From_SubResource_STATUS(source.VirtualNetwork)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_SubResource_STATUS() to populate field VirtualNetwork")
-		}
-		link.VirtualNetwork = &virtualNetwork
-	} else {
-		link.VirtualNetwork = nil
-	}
-
-	// No error
-	return nil
-}
-
 // OriginalVersion returns the original API version used to create the resource.
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) OriginalVersion() string {
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
 // SetAzureName sets the Azure name of the resource
-func (link *PrivateDnsZones_VirtualNetworkLink_Spec) SetAzureName(azureName string) {
+func (link *PrivateDnsZonesVirtualNetworkLink_Spec) SetAzureName(azureName string) {
 	link.AzureName = azureName
 }
 
-type PrivateDnsZones_VirtualNetworkLink_STATUS struct {
+type PrivateDnsZonesVirtualNetworkLink_STATUS struct {
 	// Conditions: The observed state of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty"`
 
@@ -712,68 +631,68 @@ type PrivateDnsZones_VirtualNetworkLink_STATUS struct {
 	VirtualNetworkLinkState *VirtualNetworkLinkProperties_VirtualNetworkLinkState_STATUS `json:"virtualNetworkLinkState,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &PrivateDnsZones_VirtualNetworkLink_STATUS{}
+var _ genruntime.ConvertibleStatus = &PrivateDnsZonesVirtualNetworkLink_STATUS{}
 
-// ConvertStatusFrom populates our PrivateDnsZones_VirtualNetworkLink_STATUS from the provided source
-func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.PrivateDnsZones_VirtualNetworkLink_STATUS)
+// ConvertStatusFrom populates our PrivateDnsZonesVirtualNetworkLink_STATUS from the provided source
+func (link *PrivateDnsZonesVirtualNetworkLink_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.PrivateDnsZonesVirtualNetworkLink_STATUS)
 	if ok {
 		// Populate our instance from source
-		return link.AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_STATUS(src)
+		return link.AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.PrivateDnsZones_VirtualNetworkLink_STATUS{}
+	src = &storage.PrivateDnsZonesVirtualNetworkLink_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = link.AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_STATUS(src)
+	err = link.AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our PrivateDnsZones_VirtualNetworkLink_STATUS
-func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.PrivateDnsZones_VirtualNetworkLink_STATUS)
+// ConvertStatusTo populates the provided destination from our PrivateDnsZonesVirtualNetworkLink_STATUS
+func (link *PrivateDnsZonesVirtualNetworkLink_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.PrivateDnsZonesVirtualNetworkLink_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return link.AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_STATUS(dst)
+		return link.AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.PrivateDnsZones_VirtualNetworkLink_STATUS{}
-	err := link.AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_STATUS(dst)
+	dst = &storage.PrivateDnsZonesVirtualNetworkLink_STATUS{}
+	err := link.AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &PrivateDnsZones_VirtualNetworkLink_STATUS{}
+var _ genruntime.FromARMConverter = &PrivateDnsZonesVirtualNetworkLink_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateDnsZones_VirtualNetworkLink_STATUS_ARM{}
+func (link *PrivateDnsZonesVirtualNetworkLink_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.PrivateDnsZonesVirtualNetworkLink_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateDnsZones_VirtualNetworkLink_STATUS_ARM)
+func (link *PrivateDnsZonesVirtualNetworkLink_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.PrivateDnsZonesVirtualNetworkLink_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateDnsZones_VirtualNetworkLink_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateDnsZonesVirtualNetworkLink_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -806,7 +725,9 @@ func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) PopulateFromARM(owner gen
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.ProvisioningState != nil {
-			provisioningState := *typedInput.Properties.ProvisioningState
+			var temp string
+			temp = string(*typedInput.Properties.ProvisioningState)
+			provisioningState := VirtualNetworkLinkProperties_ProvisioningState_STATUS(temp)
 			link.ProvisioningState = &provisioningState
 		}
 	}
@@ -852,7 +773,9 @@ func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) PopulateFromARM(owner gen
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.VirtualNetworkLinkState != nil {
-			virtualNetworkLinkState := *typedInput.Properties.VirtualNetworkLinkState
+			var temp string
+			temp = string(*typedInput.Properties.VirtualNetworkLinkState)
+			virtualNetworkLinkState := VirtualNetworkLinkProperties_VirtualNetworkLinkState_STATUS(temp)
 			link.VirtualNetworkLinkState = &virtualNetworkLinkState
 		}
 	}
@@ -861,8 +784,8 @@ func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) PopulateFromARM(owner gen
 	return nil
 }
 
-// AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_STATUS populates our PrivateDnsZones_VirtualNetworkLink_STATUS from the provided source PrivateDnsZones_VirtualNetworkLink_STATUS
-func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) AssignProperties_From_PrivateDnsZones_VirtualNetworkLink_STATUS(source *storage.PrivateDnsZones_VirtualNetworkLink_STATUS) error {
+// AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_STATUS populates our PrivateDnsZonesVirtualNetworkLink_STATUS from the provided source PrivateDnsZonesVirtualNetworkLink_STATUS
+func (link *PrivateDnsZonesVirtualNetworkLink_STATUS) AssignProperties_From_PrivateDnsZonesVirtualNetworkLink_STATUS(source *storage.PrivateDnsZonesVirtualNetworkLink_STATUS) error {
 
 	// Conditions
 	link.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
@@ -907,7 +830,7 @@ func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) AssignProperties_From_Pri
 		var virtualNetwork SubResource_STATUS
 		err := virtualNetwork.AssignProperties_From_SubResource_STATUS(source.VirtualNetwork)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field VirtualNetwork")
+			return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field VirtualNetwork")
 		}
 		link.VirtualNetwork = &virtualNetwork
 	} else {
@@ -927,8 +850,8 @@ func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) AssignProperties_From_Pri
 	return nil
 }
 
-// AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_STATUS populates the provided destination PrivateDnsZones_VirtualNetworkLink_STATUS from our PrivateDnsZones_VirtualNetworkLink_STATUS
-func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) AssignProperties_To_PrivateDnsZones_VirtualNetworkLink_STATUS(destination *storage.PrivateDnsZones_VirtualNetworkLink_STATUS) error {
+// AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_STATUS populates the provided destination PrivateDnsZonesVirtualNetworkLink_STATUS from our PrivateDnsZonesVirtualNetworkLink_STATUS
+func (link *PrivateDnsZonesVirtualNetworkLink_STATUS) AssignProperties_To_PrivateDnsZonesVirtualNetworkLink_STATUS(destination *storage.PrivateDnsZonesVirtualNetworkLink_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -974,7 +897,7 @@ func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) AssignProperties_To_Priva
 		var virtualNetwork storage.SubResource_STATUS
 		err := link.VirtualNetwork.AssignProperties_To_SubResource_STATUS(&virtualNetwork)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field VirtualNetwork")
+			return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field VirtualNetwork")
 		}
 		destination.VirtualNetwork = &virtualNetwork
 	} else {
@@ -987,6 +910,102 @@ func (link *PrivateDnsZones_VirtualNetworkLink_STATUS) AssignProperties_To_Priva
 		destination.VirtualNetworkLinkState = &virtualNetworkLinkState
 	} else {
 		destination.VirtualNetworkLinkState = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type PrivateDnsZonesVirtualNetworkLinkOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_PrivateDnsZonesVirtualNetworkLinkOperatorSpec populates our PrivateDnsZonesVirtualNetworkLinkOperatorSpec from the provided source PrivateDnsZonesVirtualNetworkLinkOperatorSpec
+func (operator *PrivateDnsZonesVirtualNetworkLinkOperatorSpec) AssignProperties_From_PrivateDnsZonesVirtualNetworkLinkOperatorSpec(source *storage.PrivateDnsZonesVirtualNetworkLinkOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_PrivateDnsZonesVirtualNetworkLinkOperatorSpec populates the provided destination PrivateDnsZonesVirtualNetworkLinkOperatorSpec from our PrivateDnsZonesVirtualNetworkLinkOperatorSpec
+func (operator *PrivateDnsZonesVirtualNetworkLinkOperatorSpec) AssignProperties_To_PrivateDnsZonesVirtualNetworkLinkOperatorSpec(destination *storage.PrivateDnsZonesVirtualNetworkLinkOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
 	}
 
 	// Update the property bag
@@ -1013,7 +1032,7 @@ func (resource *SubResource) ConvertToARM(resolved genruntime.ConvertToARMResolv
 	if resource == nil {
 		return nil, nil
 	}
-	result := &SubResource_ARM{}
+	result := &arm.SubResource{}
 
 	// Set property "Id":
 	if resource.Reference != nil {
@@ -1029,14 +1048,14 @@ func (resource *SubResource) ConvertToARM(resolved genruntime.ConvertToARMResolv
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (resource *SubResource) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SubResource_ARM{}
+	return &arm.SubResource{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (resource *SubResource) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	_, ok := armInput.(SubResource_ARM)
+	_, ok := armInput.(arm.SubResource)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SubResource_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SubResource, got %T", armInput)
 	}
 
 	// no assignment for property "Reference"
@@ -1084,21 +1103,6 @@ func (resource *SubResource) AssignProperties_To_SubResource(destination *storag
 	return nil
 }
 
-// Initialize_From_SubResource_STATUS populates our SubResource from the provided source SubResource_STATUS
-func (resource *SubResource) Initialize_From_SubResource_STATUS(source *SubResource_STATUS) error {
-
-	// Reference
-	if source.Id != nil {
-		reference := genruntime.CreateResourceReferenceFromARMID(*source.Id)
-		resource.Reference = &reference
-	} else {
-		resource.Reference = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Reference to another subresource.
 type SubResource_STATUS struct {
 	// Id: Resource ID.
@@ -1109,14 +1113,14 @@ var _ genruntime.FromARMConverter = &SubResource_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (resource *SubResource_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SubResource_STATUS_ARM{}
+	return &arm.SubResource_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (resource *SubResource_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SubResource_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SubResource_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SubResource_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SubResource_STATUS, got %T", armInput)
 	}
 
 	// Set property "Id":

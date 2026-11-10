@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
 func TestPropertyConfiguration_WhenYAMLWellFormed_ReturnsExpectedResult(t *testing.T) {
@@ -22,7 +25,7 @@ func TestPropertyConfiguration_WhenYAMLWellFormed_ReturnsExpectedResult(t *testi
 	err := yaml.Unmarshal(yamlBytes, &property)
 	g.Expect(err).To(Succeed())
 	g.Expect(*property.NameInNextVersion.value).To(Equal("DemoProperty"))
-	g.Expect(*property.ARMReference.value).To(BeTrue())
+	g.Expect(*property.ReferenceType.value).To(Equal(ReferenceTypeARM))
 }
 
 func TestPropertyConfiguration_WhenYAMLBadlyFormed_ReturnsError(t *testing.T) {
@@ -36,82 +39,81 @@ func TestPropertyConfiguration_WhenYAMLBadlyFormed_ReturnsError(t *testing.T) {
 	g.Expect(err).NotTo(Succeed())
 }
 
-func TestPropertyConfiguration_ARMReference_WhenSpecified_ReturnsExpectedResult(t *testing.T) {
+func TestPropertyConfiguration_ReferenceType_WhenSpecified_ReturnsExpectedResult(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	property := NewPropertyConfiguration("Property")
-	property.ARMReference.Set(true)
+	property.ReferenceType.Set(ReferenceTypeARM)
 
-	isReference, ok := property.ARMReference.Lookup()
+	referenceType, ok := property.ReferenceType.Lookup()
 	g.Expect(ok).To(BeTrue())
-	g.Expect(isReference).To(BeTrue())
+	g.Expect(referenceType).To(Equal(ReferenceTypeARM))
 }
 
-func TestPropertyConfiguration_ARMReference_WhenNotSpecified_ReturnsExpectedResult(t *testing.T) {
+func TestPropertyConfiguration_ReferenceType_WhenNotSpecified_ReturnsExpectedResult(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	property := NewPropertyConfiguration("Property")
 
-	_, ok := property.ARMReference.Lookup()
+	_, ok := property.ReferenceType.Lookup()
 	g.Expect(ok).To(BeFalse())
 }
 
-func TestPropertyConfiguration_VerifyARMReferenceConsumed_WhenNotConfigured_ReturnsNil(t *testing.T) {
+func TestPropertyConfiguration_VerifyReferenceTypeConsumed_WhenNotConfigured_ReturnsNil(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	property := NewPropertyConfiguration("Property")
-	_, _ = property.ARMReference.Lookup()
+	_, _ = property.ReferenceType.Lookup()
 
-	g.Expect(property.ARMReference.VerifyConsumed()).To(Succeed())
+	g.Expect(property.ReferenceType.VerifyConsumed()).To(Succeed())
 }
 
-func TestPropertyConfiguration_VerifyARMReferenceConsumed_WhenReferenceUsed_ReturnsNil(t *testing.T) {
+func TestPropertyConfiguration_VerifyReferenceTypeConsumed_WhenReferenceUsed_ReturnsNil(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	property := NewPropertyConfiguration("Property")
-	property.ARMReference.Set(true)
+	property.ReferenceType.Set(ReferenceTypeARM)
 
-	_, _ = property.ARMReference.Lookup()
+	_, _ = property.ReferenceType.Lookup()
 
-	g.Expect(property.ARMReference.VerifyConsumed()).To(Succeed())
+	g.Expect(property.ReferenceType.VerifyConsumed()).To(Succeed())
 }
 
-func TestPropertyConfiguration_VerifyARMReferenceConsumed_WhenReferenceNotUsed_ReturnsExpectedError(t *testing.T) {
+func TestPropertyConfiguration_VerifyReferenceTypeConsumed_WhenReferenceNotUsed_ReturnsExpectedError(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	property := NewPropertyConfiguration("Property")
-	property.ARMReference.Set(true)
+	property.ReferenceType.Set(ReferenceTypeARM)
 
-	err := property.ARMReference.VerifyConsumed()
-	g.Expect(err).NotTo(BeNil())
-	g.Expect(err.Error()).To(ContainSubstring(property.name))
+	err := property.ReferenceType.VerifyConsumed()
+	g.Expect(err).To(MatchError(ContainSubstring(property.name)))
 }
 
-func TestPropertyConfiguration_IsSecret_WhenSpecified_ReturnsExpectedResult(t *testing.T) {
+func TestPropertyConfiguration_Secrecy_WhenSpecified_ReturnsExpectedResult(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	property := NewPropertyConfiguration("Property")
-	property.IsSecret.Set(true)
+	property.Secrecy.Set(astmodel.ImportSecretModeRequired)
 
-	isSecret, ok := property.IsSecret.Lookup()
+	secrecy, ok := property.Secrecy.Lookup()
 	g.Expect(ok).To(BeTrue())
-	g.Expect(isSecret).To(BeTrue())
+	g.Expect(secrecy).To(Equal(astmodel.ImportSecretModeRequired))
 }
 
-func TestPropertyConfiguration_IsSecret_WhenNotSpecified_ReturnsExpectedResult(t *testing.T) {
+func TestPropertyConfiguration_Secrecy_WhenNotSpecified_ReturnsExpectedResult(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	property := NewPropertyConfiguration("Property")
 
-	isSecret, ok := property.IsSecret.Lookup()
+	secrecy, ok := property.Secrecy.Lookup()
 
-	g.Expect(isSecret).To(BeFalse())
+	g.Expect(secrecy).To(Equal(astmodel.ImportSecretMode("")))
 	g.Expect(ok).To(BeFalse())
 }

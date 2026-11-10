@@ -8,11 +8,10 @@ package pipeline
 import (
 	"testing"
 
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/codegen/storage"
-
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/codegen/storage"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
 )
@@ -32,12 +31,14 @@ func TestCreateConversionGraph(t *testing.T) {
 
 	initialState, err := RunTestPipeline(
 		NewState(defs),
-		CreateStorageTypes())
+		CreateStorageTypes(),
+	)
 	g.Expect(err).To(Succeed())
 
 	finalState, err := RunTestPipeline(
 		initialState,
-		CreateConversionGraph(cfg, "v"))
+		CreateConversionGraph(cfg),
+	)
 	g.Expect(err).To(Succeed())
 
 	g.Expect(finalState.Definitions()).To(HaveLen(6))

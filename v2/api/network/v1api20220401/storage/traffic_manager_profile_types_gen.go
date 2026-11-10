@@ -9,8 +9,10 @@ import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,6 +22,7 @@ import (
 // +kubebuilder:rbac:groups=network.azure.com,resources={trafficmanagerprofiles/status,trafficmanagerprofiles/finalizers},verbs=get;update;patch
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,network}
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
@@ -28,13 +31,13 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20220401.TrafficManagerProfile
 // Generator information:
-// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/stable/2022-04-01/trafficmanager.json
+// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/TrafficManager/stable/2022-04-01/trafficmanager.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficmanagerprofiles/{profileName}
 type TrafficManagerProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Trafficmanagerprofile_Spec   `json:"spec,omitempty"`
-	Status            Trafficmanagerprofile_STATUS `json:"status,omitempty"`
+	Spec              TrafficManagerProfile_Spec   `json:"spec,omitempty"`
+	Status            TrafficManagerProfile_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &TrafficManagerProfile{}
@@ -49,10 +52,30 @@ func (profile *TrafficManagerProfile) SetConditions(conditions conditions.Condit
 	profile.Status.Conditions = conditions
 }
 
-var _ genruntime.KubernetesExporter = &TrafficManagerProfile{}
+var _ configmaps.Exporter = &TrafficManagerProfile{}
 
-// ExportKubernetesResources defines a resource which can create other resources in Kubernetes.
-func (profile *TrafficManagerProfile) ExportKubernetesResources(_ context.Context, _ genruntime.MetaObject, _ *genericarmclient.GenericClient, _ logr.Logger) ([]client.Object, error) {
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (profile *TrafficManagerProfile) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if profile.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return profile.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &TrafficManagerProfile{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (profile *TrafficManagerProfile) SecretDestinationExpressions() []*core.DestinationExpression {
+	if profile.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return profile.Spec.OperatorSpec.SecretExpressions
+}
+
+var _ genruntime.KubernetesConfigExporter = &TrafficManagerProfile{}
+
+// ExportKubernetesConfigMaps defines a resource which can create ConfigMaps in Kubernetes.
+func (profile *TrafficManagerProfile) ExportKubernetesConfigMaps(_ context.Context, _ genruntime.MetaObject, _ *genericarmclient.GenericClient, _ logr.Logger) ([]client.Object, error) {
 	collector := configmaps.NewCollector(profile.Namespace)
 	if profile.Spec.OperatorSpec != nil && profile.Spec.OperatorSpec.ConfigMaps != nil {
 		if profile.Status.DnsConfig != nil {
@@ -77,7 +100,7 @@ func (profile *TrafficManagerProfile) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-04-01"
 func (profile TrafficManagerProfile) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-04-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -111,11 +134,15 @@ func (profile *TrafficManagerProfile) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (profile *TrafficManagerProfile) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Trafficmanagerprofile_STATUS{}
+	return &TrafficManagerProfile_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (profile *TrafficManagerProfile) Owner() *genruntime.ResourceReference {
+	if profile.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(profile.Spec)
 	return profile.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -123,16 +150,16 @@ func (profile *TrafficManagerProfile) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (profile *TrafficManagerProfile) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Trafficmanagerprofile_STATUS); ok {
+	if st, ok := status.(*TrafficManagerProfile_STATUS); ok {
 		profile.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Trafficmanagerprofile_STATUS
+	var st TrafficManagerProfile_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	profile.Status = st
@@ -154,7 +181,7 @@ func (profile *TrafficManagerProfile) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20220401.TrafficManagerProfile
 // Generator information:
-// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/stable/2022-04-01/trafficmanager.json
+// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/TrafficManager/stable/2022-04-01/trafficmanager.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficmanagerprofiles/{profileName}
 type TrafficManagerProfileList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -168,8 +195,8 @@ type APIVersion string
 
 const APIVersion_Value = APIVersion("2022-04-01")
 
-// Storage version of v1api20220401.Trafficmanagerprofile_Spec
-type Trafficmanagerprofile_Spec struct {
+// Storage version of v1api20220401.TrafficManagerProfile_Spec
+type TrafficManagerProfile_Spec struct {
 	AllowedEndpointRecordTypes []string `json:"allowedEndpointRecordTypes,omitempty"`
 
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
@@ -195,28 +222,28 @@ type Trafficmanagerprofile_Spec struct {
 	Type                        *string                            `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Trafficmanagerprofile_Spec{}
+var _ genruntime.ConvertibleSpec = &TrafficManagerProfile_Spec{}
 
-// ConvertSpecFrom populates our Trafficmanagerprofile_Spec from the provided source
-func (trafficmanagerprofile *Trafficmanagerprofile_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == trafficmanagerprofile {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our TrafficManagerProfile_Spec from the provided source
+func (profile *TrafficManagerProfile_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	if source == profile {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
-	return source.ConvertSpecTo(trafficmanagerprofile)
+	return source.ConvertSpecTo(profile)
 }
 
-// ConvertSpecTo populates the provided destination from our Trafficmanagerprofile_Spec
-func (trafficmanagerprofile *Trafficmanagerprofile_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == trafficmanagerprofile {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecTo populates the provided destination from our TrafficManagerProfile_Spec
+func (profile *TrafficManagerProfile_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	if destination == profile {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
-	return destination.ConvertSpecFrom(trafficmanagerprofile)
+	return destination.ConvertSpecFrom(profile)
 }
 
-// Storage version of v1api20220401.Trafficmanagerprofile_STATUS
-type Trafficmanagerprofile_STATUS struct {
+// Storage version of v1api20220401.TrafficManagerProfile_STATUS
+type TrafficManagerProfile_STATUS struct {
 	AllowedEndpointRecordTypes  []string               `json:"allowedEndpointRecordTypes,omitempty"`
 	Conditions                  []conditions.Condition `json:"conditions,omitempty"`
 	DnsConfig                   *DnsConfig_STATUS      `json:"dnsConfig,omitempty"`
@@ -234,24 +261,24 @@ type Trafficmanagerprofile_STATUS struct {
 	Type                        *string                `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Trafficmanagerprofile_STATUS{}
+var _ genruntime.ConvertibleStatus = &TrafficManagerProfile_STATUS{}
 
-// ConvertStatusFrom populates our Trafficmanagerprofile_STATUS from the provided source
-func (trafficmanagerprofile *Trafficmanagerprofile_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == trafficmanagerprofile {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our TrafficManagerProfile_STATUS from the provided source
+func (profile *TrafficManagerProfile_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	if source == profile {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
-	return source.ConvertStatusTo(trafficmanagerprofile)
+	return source.ConvertStatusTo(profile)
 }
 
-// ConvertStatusTo populates the provided destination from our Trafficmanagerprofile_STATUS
-func (trafficmanagerprofile *Trafficmanagerprofile_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == trafficmanagerprofile {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our TrafficManagerProfile_STATUS
+func (profile *TrafficManagerProfile_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	if destination == profile {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
-	return destination.ConvertStatusFrom(trafficmanagerprofile)
+	return destination.ConvertStatusFrom(profile)
 }
 
 // Storage version of v1api20220401.DnsConfig
@@ -274,70 +301,92 @@ type DnsConfig_STATUS struct {
 // Storage version of v1api20220401.Endpoint_STATUS
 // Class representing a Traffic Manager endpoint.
 type Endpoint_STATUS struct {
-	Id          *string                `json:"id,omitempty"`
-	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
+	AlwaysServe           *string                                      `json:"alwaysServe,omitempty"`
+	CustomHeaders         []EndpointPropertiesCustomHeadersItem_STATUS `json:"customHeaders,omitempty"`
+	EndpointLocation      *string                                      `json:"endpointLocation,omitempty"`
+	EndpointMonitorStatus *string                                      `json:"endpointMonitorStatus,omitempty"`
+	EndpointStatus        *string                                      `json:"endpointStatus,omitempty"`
+	GeoMapping            []string                                     `json:"geoMapping,omitempty"`
+	Id                    *string                                      `json:"id,omitempty"`
+	MinChildEndpoints     *int                                         `json:"minChildEndpoints,omitempty"`
+	MinChildEndpointsIPv4 *int                                         `json:"minChildEndpointsIPv4,omitempty"`
+	MinChildEndpointsIPv6 *int                                         `json:"minChildEndpointsIPv6,omitempty"`
+	Name                  *string                                      `json:"name,omitempty"`
+	Priority              *int                                         `json:"priority,omitempty"`
+	PropertyBag           genruntime.PropertyBag                       `json:"$propertyBag,omitempty"`
+	Subnets               []EndpointPropertiesSubnetsItem_STATUS       `json:"subnets,omitempty"`
+	Target                *string                                      `json:"target,omitempty"`
+	TargetResourceId      *string                                      `json:"targetResourceId,omitempty"`
+	Type                  *string                                      `json:"type,omitempty"`
+	Weight                *int                                         `json:"weight,omitempty"`
 }
 
 // Storage version of v1api20220401.MonitorConfig
 // Class containing endpoint monitoring settings in a Traffic Manager profile.
 type MonitorConfig struct {
-	CustomHeaders             []MonitorConfig_CustomHeaders            `json:"customHeaders,omitempty"`
-	ExpectedStatusCodeRanges  []MonitorConfig_ExpectedStatusCodeRanges `json:"expectedStatusCodeRanges,omitempty"`
-	IntervalInSeconds         *int                                     `json:"intervalInSeconds,omitempty"`
-	Path                      *string                                  `json:"path,omitempty"`
-	Port                      *int                                     `json:"port,omitempty"`
-	ProfileMonitorStatus      *string                                  `json:"profileMonitorStatus,omitempty"`
-	PropertyBag               genruntime.PropertyBag                   `json:"$propertyBag,omitempty"`
-	Protocol                  *string                                  `json:"protocol,omitempty"`
-	TimeoutInSeconds          *int                                     `json:"timeoutInSeconds,omitempty"`
-	ToleratedNumberOfFailures *int                                     `json:"toleratedNumberOfFailures,omitempty"`
+	CustomHeaders             []MonitorConfigCustomHeadersItem            `json:"customHeaders,omitempty"`
+	ExpectedStatusCodeRanges  []MonitorConfigExpectedStatusCodeRangesItem `json:"expectedStatusCodeRanges,omitempty"`
+	IntervalInSeconds         *int                                        `json:"intervalInSeconds,omitempty"`
+	Path                      *string                                     `json:"path,omitempty"`
+	Port                      *int                                        `json:"port,omitempty"`
+	ProfileMonitorStatus      *string                                     `json:"profileMonitorStatus,omitempty"`
+	PropertyBag               genruntime.PropertyBag                      `json:"$propertyBag,omitempty"`
+	Protocol                  *string                                     `json:"protocol,omitempty"`
+	TimeoutInSeconds          *int                                        `json:"timeoutInSeconds,omitempty"`
+	ToleratedNumberOfFailures *int                                        `json:"toleratedNumberOfFailures,omitempty"`
 }
 
 // Storage version of v1api20220401.MonitorConfig_STATUS
 // Class containing endpoint monitoring settings in a Traffic Manager profile.
 type MonitorConfig_STATUS struct {
-	CustomHeaders             []MonitorConfig_CustomHeaders_STATUS            `json:"customHeaders,omitempty"`
-	ExpectedStatusCodeRanges  []MonitorConfig_ExpectedStatusCodeRanges_STATUS `json:"expectedStatusCodeRanges,omitempty"`
-	IntervalInSeconds         *int                                            `json:"intervalInSeconds,omitempty"`
-	Path                      *string                                         `json:"path,omitempty"`
-	Port                      *int                                            `json:"port,omitempty"`
-	ProfileMonitorStatus      *string                                         `json:"profileMonitorStatus,omitempty"`
-	PropertyBag               genruntime.PropertyBag                          `json:"$propertyBag,omitempty"`
-	Protocol                  *string                                         `json:"protocol,omitempty"`
-	TimeoutInSeconds          *int                                            `json:"timeoutInSeconds,omitempty"`
-	ToleratedNumberOfFailures *int                                            `json:"toleratedNumberOfFailures,omitempty"`
+	CustomHeaders             []MonitorConfigCustomHeadersItem_STATUS            `json:"customHeaders,omitempty"`
+	ExpectedStatusCodeRanges  []MonitorConfigExpectedStatusCodeRangesItem_STATUS `json:"expectedStatusCodeRanges,omitempty"`
+	IntervalInSeconds         *int                                               `json:"intervalInSeconds,omitempty"`
+	Path                      *string                                            `json:"path,omitempty"`
+	Port                      *int                                               `json:"port,omitempty"`
+	ProfileMonitorStatus      *string                                            `json:"profileMonitorStatus,omitempty"`
+	PropertyBag               genruntime.PropertyBag                             `json:"$propertyBag,omitempty"`
+	Protocol                  *string                                            `json:"protocol,omitempty"`
+	TimeoutInSeconds          *int                                               `json:"timeoutInSeconds,omitempty"`
+	ToleratedNumberOfFailures *int                                               `json:"toleratedNumberOfFailures,omitempty"`
 }
 
 // Storage version of v1api20220401.TrafficManagerProfileOperatorSpec
 // Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
 type TrafficManagerProfileOperatorSpec struct {
-	ConfigMaps  *TrafficManagerProfileOperatorConfigMaps `json:"configMaps,omitempty"`
-	PropertyBag genruntime.PropertyBag                   `json:"$propertyBag,omitempty"`
+	ConfigMapExpressions []*core.DestinationExpression            `json:"configMapExpressions,omitempty"`
+	ConfigMaps           *TrafficManagerProfileOperatorConfigMaps `json:"configMaps,omitempty"`
+	PropertyBag          genruntime.PropertyBag                   `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression            `json:"secretExpressions,omitempty"`
 }
 
-// Storage version of v1api20220401.MonitorConfig_CustomHeaders
-type MonitorConfig_CustomHeaders struct {
+// Storage version of v1api20220401.MonitorConfigCustomHeadersItem
+// Custom header name and value.
+type MonitorConfigCustomHeadersItem struct {
 	Name        *string                `json:"name,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	Value       *string                `json:"value,omitempty"`
 }
 
-// Storage version of v1api20220401.MonitorConfig_CustomHeaders_STATUS
-type MonitorConfig_CustomHeaders_STATUS struct {
+// Storage version of v1api20220401.MonitorConfigCustomHeadersItem_STATUS
+// Custom header name and value.
+type MonitorConfigCustomHeadersItem_STATUS struct {
 	Name        *string                `json:"name,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	Value       *string                `json:"value,omitempty"`
 }
 
-// Storage version of v1api20220401.MonitorConfig_ExpectedStatusCodeRanges
-type MonitorConfig_ExpectedStatusCodeRanges struct {
+// Storage version of v1api20220401.MonitorConfigExpectedStatusCodeRangesItem
+// Min and max value of a status code range.
+type MonitorConfigExpectedStatusCodeRangesItem struct {
 	Max         *int                   `json:"max,omitempty"`
 	Min         *int                   `json:"min,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 }
 
-// Storage version of v1api20220401.MonitorConfig_ExpectedStatusCodeRanges_STATUS
-type MonitorConfig_ExpectedStatusCodeRanges_STATUS struct {
+// Storage version of v1api20220401.MonitorConfigExpectedStatusCodeRangesItem_STATUS
+// Min and max value of a status code range.
+type MonitorConfigExpectedStatusCodeRangesItem_STATUS struct {
 	Max         *int                   `json:"max,omitempty"`
 	Min         *int                   `json:"min,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`

@@ -5,26 +5,28 @@ package v1api20211001
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/signalrservice/v1api20211001/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/signalrservice/v1api20211001/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,signalrservice}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /signalr/resource-manager/Microsoft.SignalRService/stable/2021-10-01/signalr.json
+// - Generated from: /signalr/resource-manager/Microsoft.SignalRService/SignalRService/stable/2021-10-01/signalr.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.SignalRService/signalR/{resourceName}
 type SignalR struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -49,56 +51,56 @@ var _ conversion.Convertible = &SignalR{}
 
 // ConvertFrom populates our SignalR from the provided hub SignalR
 func (signalR *SignalR) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.SignalR)
-	if !ok {
-		return fmt.Errorf("expected signalrservice/v1api20211001/storage/SignalR but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.SignalR
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return signalR.AssignProperties_From_SignalR(source)
+	err = signalR.AssignProperties_From_SignalR(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to signalR")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub SignalR from our SignalR
 func (signalR *SignalR) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.SignalR)
-	if !ok {
-		return fmt.Errorf("expected signalrservice/v1api20211001/storage/SignalR but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.SignalR
+	err := signalR.AssignProperties_To_SignalR(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from signalR")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return signalR.AssignProperties_To_SignalR(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-signalrservice-azure-com-v1api20211001-signalr,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=signalrservice.azure.com,resources=signalrs,verbs=create;update,versions=v1api20211001,name=default.v1api20211001.signalrs.signalrservice.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &SignalR{}
 
-var _ admission.Defaulter = &SignalR{}
-
-// Default applies defaults to the SignalR resource
-func (signalR *SignalR) Default() {
-	signalR.defaultImpl()
-	var temp any = signalR
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (signalR *SignalR) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if signalR.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return signalR.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (signalR *SignalR) defaultAzureName() {
-	if signalR.Spec.AzureName == "" {
-		signalR.Spec.AzureName = signalR.Name
+var _ secrets.Exporter = &SignalR{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (signalR *SignalR) SecretDestinationExpressions() []*core.DestinationExpression {
+	if signalR.Spec.OperatorSpec == nil {
+		return nil
 	}
-}
-
-// defaultImpl applies the code generated defaults to the SignalR resource
-func (signalR *SignalR) defaultImpl() { signalR.defaultAzureName() }
-
-var _ genruntime.ImportableResource = &SignalR{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (signalR *SignalR) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*SignalR_STATUS); ok {
-		return signalR.Spec.Initialize_From_SignalR_STATUS(s)
-	}
-
-	return fmt.Errorf("expected Status of type SignalR_STATUS but received %T instead", status)
+	return signalR.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &SignalR{}
@@ -110,7 +112,7 @@ func (signalR *SignalR) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2021-10-01"
 func (signalR SignalR) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2021-10-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -149,6 +151,10 @@ func (signalR *SignalR) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (signalR *SignalR) Owner() *genruntime.ResourceReference {
+	if signalR.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(signalR.Spec)
 	return signalR.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -165,112 +171,11 @@ func (signalR *SignalR) SetStatus(status genruntime.ConvertibleStatus) error {
 	var st SignalR_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	signalR.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-signalrservice-azure-com-v1api20211001-signalr,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=signalrservice.azure.com,resources=signalrs,verbs=create;update,versions=v1api20211001,name=validate.v1api20211001.signalrs.signalrservice.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &SignalR{}
-
-// ValidateCreate validates the creation of the resource
-func (signalR *SignalR) ValidateCreate() (admission.Warnings, error) {
-	validations := signalR.createValidations()
-	var temp any = signalR
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (signalR *SignalR) ValidateDelete() (admission.Warnings, error) {
-	validations := signalR.deleteValidations()
-	var temp any = signalR
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (signalR *SignalR) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := signalR.updateValidations()
-	var temp any = signalR
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (signalR *SignalR) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){signalR.validateResourceReferences, signalR.validateOwnerReference, signalR.validateSecretDestinations}
-}
-
-// deleteValidations validates the deletion of the resource
-func (signalR *SignalR) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (signalR *SignalR) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return signalR.validateResourceReferences()
-		},
-		signalR.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return signalR.validateOwnerReference()
-		},
-		func(old runtime.Object) (admission.Warnings, error) {
-			return signalR.validateSecretDestinations()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (signalR *SignalR) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(signalR)
-}
-
-// validateResourceReferences validates all resource references
-func (signalR *SignalR) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&signalR.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateSecretDestinations validates there are no colliding genruntime.SecretDestination's
-func (signalR *SignalR) validateSecretDestinations() (admission.Warnings, error) {
-	if signalR.Spec.OperatorSpec == nil {
-		return nil, nil
-	}
-	if signalR.Spec.OperatorSpec.Secrets == nil {
-		return nil, nil
-	}
-	toValidate := []*genruntime.SecretDestination{
-		signalR.Spec.OperatorSpec.Secrets.PrimaryConnectionString,
-		signalR.Spec.OperatorSpec.Secrets.PrimaryKey,
-		signalR.Spec.OperatorSpec.Secrets.SecondaryConnectionString,
-		signalR.Spec.OperatorSpec.Secrets.SecondaryKey,
-	}
-	return genruntime.ValidateSecretDestinations(toValidate)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (signalR *SignalR) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*SignalR)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, signalR)
 }
 
 // AssignProperties_From_SignalR populates our SignalR from the provided source SignalR
@@ -283,7 +188,7 @@ func (signalR *SignalR) AssignProperties_From_SignalR(source *storage.SignalR) e
 	var spec SignalR_Spec
 	err := spec.AssignProperties_From_SignalR_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_SignalR_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_SignalR_Spec() to populate field Spec")
 	}
 	signalR.Spec = spec
 
@@ -291,7 +196,7 @@ func (signalR *SignalR) AssignProperties_From_SignalR(source *storage.SignalR) e
 	var status SignalR_STATUS
 	err = status.AssignProperties_From_SignalR_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_SignalR_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_SignalR_STATUS() to populate field Status")
 	}
 	signalR.Status = status
 
@@ -309,7 +214,7 @@ func (signalR *SignalR) AssignProperties_To_SignalR(destination *storage.SignalR
 	var spec storage.SignalR_Spec
 	err := signalR.Spec.AssignProperties_To_SignalR_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_SignalR_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_SignalR_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
@@ -317,7 +222,7 @@ func (signalR *SignalR) AssignProperties_To_SignalR(destination *storage.SignalR
 	var status storage.SignalR_STATUS
 	err = signalR.Status.AssignProperties_To_SignalR_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_SignalR_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_SignalR_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -336,7 +241,7 @@ func (signalR *SignalR) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /signalr/resource-manager/Microsoft.SignalRService/stable/2021-10-01/signalr.json
+// - Generated from: /signalr/resource-manager/Microsoft.SignalRService/SignalRService/stable/2021-10-01/signalr.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.SignalRService/signalR/{resourceName}
 type SignalRList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -424,21 +329,23 @@ func (signalR *SignalR_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolv
 	if signalR == nil {
 		return nil, nil
 	}
-	result := &SignalR_Spec_ARM{}
+	result := &arm.SignalR_Spec{}
 
 	// Set property "Identity":
 	if signalR.Identity != nil {
-		identity_ARM, err := (*signalR.Identity).ConvertToARM(resolved)
+		identity_ARM, err := signalR.Identity.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		identity := *identity_ARM.(*ManagedIdentity_ARM)
+		identity := *identity_ARM.(*arm.ManagedIdentity)
 		result.Identity = &identity
 	}
 
 	// Set property "Kind":
 	if signalR.Kind != nil {
-		kind := *signalR.Kind
+		var temp string
+		temp = string(*signalR.Kind)
+		kind := arm.ServiceKind(temp)
 		result.Kind = &kind
 	}
 
@@ -461,14 +368,14 @@ func (signalR *SignalR_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolv
 		signalR.ResourceLogConfiguration != nil ||
 		signalR.Tls != nil ||
 		signalR.Upstream != nil {
-		result.Properties = &SignalRProperties_ARM{}
+		result.Properties = &arm.SignalRProperties{}
 	}
 	if signalR.Cors != nil {
-		cors_ARM, err := (*signalR.Cors).ConvertToARM(resolved)
+		cors_ARM, err := signalR.Cors.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		cors := *cors_ARM.(*SignalRCorsSettings_ARM)
+		cors := *cors_ARM.(*arm.SignalRCorsSettings)
 		result.Properties.Cors = &cors
 	}
 	if signalR.DisableAadAuth != nil {
@@ -484,14 +391,14 @@ func (signalR *SignalR_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolv
 		if err != nil {
 			return nil, err
 		}
-		result.Properties.Features = append(result.Properties.Features, *item_ARM.(*SignalRFeature_ARM))
+		result.Properties.Features = append(result.Properties.Features, *item_ARM.(*arm.SignalRFeature))
 	}
 	if signalR.NetworkACLs != nil {
-		networkACLs_ARM, err := (*signalR.NetworkACLs).ConvertToARM(resolved)
+		networkACLs_ARM, err := signalR.NetworkACLs.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		networkACLs := *networkACLs_ARM.(*SignalRNetworkACLs_ARM)
+		networkACLs := *networkACLs_ARM.(*arm.SignalRNetworkACLs)
 		result.Properties.NetworkACLs = &networkACLs
 	}
 	if signalR.PublicNetworkAccess != nil {
@@ -499,37 +406,37 @@ func (signalR *SignalR_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolv
 		result.Properties.PublicNetworkAccess = &publicNetworkAccess
 	}
 	if signalR.ResourceLogConfiguration != nil {
-		resourceLogConfiguration_ARM, err := (*signalR.ResourceLogConfiguration).ConvertToARM(resolved)
+		resourceLogConfiguration_ARM, err := signalR.ResourceLogConfiguration.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		resourceLogConfiguration := *resourceLogConfiguration_ARM.(*ResourceLogConfiguration_ARM)
+		resourceLogConfiguration := *resourceLogConfiguration_ARM.(*arm.ResourceLogConfiguration)
 		result.Properties.ResourceLogConfiguration = &resourceLogConfiguration
 	}
 	if signalR.Tls != nil {
-		tls_ARM, err := (*signalR.Tls).ConvertToARM(resolved)
+		tls_ARM, err := signalR.Tls.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		tls := *tls_ARM.(*SignalRTlsSettings_ARM)
+		tls := *tls_ARM.(*arm.SignalRTlsSettings)
 		result.Properties.Tls = &tls
 	}
 	if signalR.Upstream != nil {
-		upstream_ARM, err := (*signalR.Upstream).ConvertToARM(resolved)
+		upstream_ARM, err := signalR.Upstream.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		upstream := *upstream_ARM.(*ServerlessUpstreamSettings_ARM)
+		upstream := *upstream_ARM.(*arm.ServerlessUpstreamSettings)
 		result.Properties.Upstream = &upstream
 	}
 
 	// Set property "Sku":
 	if signalR.Sku != nil {
-		sku_ARM, err := (*signalR.Sku).ConvertToARM(resolved)
+		sku_ARM, err := signalR.Sku.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		sku := *sku_ARM.(*ResourceSku_ARM)
+		sku := *sku_ARM.(*arm.ResourceSku)
 		result.Sku = &sku
 	}
 
@@ -545,14 +452,14 @@ func (signalR *SignalR_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolv
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (signalR *SignalR_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalR_Spec_ARM{}
+	return &arm.SignalR_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (signalR *SignalR_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalR_Spec_ARM)
+	typedInput, ok := armInput.(arm.SignalR_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalR_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalR_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
@@ -616,7 +523,9 @@ func (signalR *SignalR_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerRefe
 
 	// Set property "Kind":
 	if typedInput.Kind != nil {
-		kind := *typedInput.Kind
+		var temp string
+		temp = string(*typedInput.Kind)
+		kind := ServiceKind(temp)
 		signalR.Kind = &kind
 	}
 
@@ -736,13 +645,13 @@ func (signalR *SignalR_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) 
 	src = &storage.SignalR_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
 	err = signalR.AssignProperties_From_SignalR_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
@@ -760,13 +669,13 @@ func (signalR *SignalR_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpe
 	dst = &storage.SignalR_Spec{}
 	err := signalR.AssignProperties_To_SignalR_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
@@ -783,7 +692,7 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 		var cor SignalRCorsSettings
 		err := cor.AssignProperties_From_SignalRCorsSettings(source.Cors)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SignalRCorsSettings() to populate field Cors")
+			return eris.Wrap(err, "calling AssignProperties_From_SignalRCorsSettings() to populate field Cors")
 		}
 		signalR.Cors = &cor
 	} else {
@@ -810,12 +719,10 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 	if source.Features != nil {
 		featureList := make([]SignalRFeature, len(source.Features))
 		for featureIndex, featureItem := range source.Features {
-			// Shadow the loop variable to avoid aliasing
-			featureItem := featureItem
 			var feature SignalRFeature
 			err := feature.AssignProperties_From_SignalRFeature(&featureItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SignalRFeature() to populate field Features")
+				return eris.Wrap(err, "calling AssignProperties_From_SignalRFeature() to populate field Features")
 			}
 			featureList[featureIndex] = feature
 		}
@@ -829,7 +736,7 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 		var identity ManagedIdentity
 		err := identity.AssignProperties_From_ManagedIdentity(source.Identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ManagedIdentity() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_From_ManagedIdentity() to populate field Identity")
 		}
 		signalR.Identity = &identity
 	} else {
@@ -853,7 +760,7 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 		var networkACL SignalRNetworkACLs
 		err := networkACL.AssignProperties_From_SignalRNetworkACLs(source.NetworkACLs)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SignalRNetworkACLs() to populate field NetworkACLs")
+			return eris.Wrap(err, "calling AssignProperties_From_SignalRNetworkACLs() to populate field NetworkACLs")
 		}
 		signalR.NetworkACLs = &networkACL
 	} else {
@@ -865,7 +772,7 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 		var operatorSpec SignalROperatorSpec
 		err := operatorSpec.AssignProperties_From_SignalROperatorSpec(source.OperatorSpec)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SignalROperatorSpec() to populate field OperatorSpec")
+			return eris.Wrap(err, "calling AssignProperties_From_SignalROperatorSpec() to populate field OperatorSpec")
 		}
 		signalR.OperatorSpec = &operatorSpec
 	} else {
@@ -888,7 +795,7 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 		var resourceLogConfiguration ResourceLogConfiguration
 		err := resourceLogConfiguration.AssignProperties_From_ResourceLogConfiguration(source.ResourceLogConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceLogConfiguration() to populate field ResourceLogConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceLogConfiguration() to populate field ResourceLogConfiguration")
 		}
 		signalR.ResourceLogConfiguration = &resourceLogConfiguration
 	} else {
@@ -900,7 +807,7 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 		var sku ResourceSku
 		err := sku.AssignProperties_From_ResourceSku(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceSku() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceSku() to populate field Sku")
 		}
 		signalR.Sku = &sku
 	} else {
@@ -915,7 +822,7 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 		var tl SignalRTlsSettings
 		err := tl.AssignProperties_From_SignalRTlsSettings(source.Tls)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SignalRTlsSettings() to populate field Tls")
+			return eris.Wrap(err, "calling AssignProperties_From_SignalRTlsSettings() to populate field Tls")
 		}
 		signalR.Tls = &tl
 	} else {
@@ -927,7 +834,7 @@ func (signalR *SignalR_Spec) AssignProperties_From_SignalR_Spec(source *storage.
 		var upstream ServerlessUpstreamSettings
 		err := upstream.AssignProperties_From_ServerlessUpstreamSettings(source.Upstream)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ServerlessUpstreamSettings() to populate field Upstream")
+			return eris.Wrap(err, "calling AssignProperties_From_ServerlessUpstreamSettings() to populate field Upstream")
 		}
 		signalR.Upstream = &upstream
 	} else {
@@ -951,7 +858,7 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		var cor storage.SignalRCorsSettings
 		err := signalR.Cors.AssignProperties_To_SignalRCorsSettings(&cor)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SignalRCorsSettings() to populate field Cors")
+			return eris.Wrap(err, "calling AssignProperties_To_SignalRCorsSettings() to populate field Cors")
 		}
 		destination.Cors = &cor
 	} else {
@@ -978,12 +885,10 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 	if signalR.Features != nil {
 		featureList := make([]storage.SignalRFeature, len(signalR.Features))
 		for featureIndex, featureItem := range signalR.Features {
-			// Shadow the loop variable to avoid aliasing
-			featureItem := featureItem
 			var feature storage.SignalRFeature
 			err := featureItem.AssignProperties_To_SignalRFeature(&feature)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SignalRFeature() to populate field Features")
+				return eris.Wrap(err, "calling AssignProperties_To_SignalRFeature() to populate field Features")
 			}
 			featureList[featureIndex] = feature
 		}
@@ -997,7 +902,7 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		var identity storage.ManagedIdentity
 		err := signalR.Identity.AssignProperties_To_ManagedIdentity(&identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ManagedIdentity() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_To_ManagedIdentity() to populate field Identity")
 		}
 		destination.Identity = &identity
 	} else {
@@ -1020,7 +925,7 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		var networkACL storage.SignalRNetworkACLs
 		err := signalR.NetworkACLs.AssignProperties_To_SignalRNetworkACLs(&networkACL)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SignalRNetworkACLs() to populate field NetworkACLs")
+			return eris.Wrap(err, "calling AssignProperties_To_SignalRNetworkACLs() to populate field NetworkACLs")
 		}
 		destination.NetworkACLs = &networkACL
 	} else {
@@ -1032,7 +937,7 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		var operatorSpec storage.SignalROperatorSpec
 		err := signalR.OperatorSpec.AssignProperties_To_SignalROperatorSpec(&operatorSpec)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SignalROperatorSpec() to populate field OperatorSpec")
+			return eris.Wrap(err, "calling AssignProperties_To_SignalROperatorSpec() to populate field OperatorSpec")
 		}
 		destination.OperatorSpec = &operatorSpec
 	} else {
@@ -1058,7 +963,7 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		var resourceLogConfiguration storage.ResourceLogConfiguration
 		err := signalR.ResourceLogConfiguration.AssignProperties_To_ResourceLogConfiguration(&resourceLogConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceLogConfiguration() to populate field ResourceLogConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceLogConfiguration() to populate field ResourceLogConfiguration")
 		}
 		destination.ResourceLogConfiguration = &resourceLogConfiguration
 	} else {
@@ -1070,7 +975,7 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		var sku storage.ResourceSku
 		err := signalR.Sku.AssignProperties_To_ResourceSku(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceSku() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceSku() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -1085,7 +990,7 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		var tl storage.SignalRTlsSettings
 		err := signalR.Tls.AssignProperties_To_SignalRTlsSettings(&tl)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SignalRTlsSettings() to populate field Tls")
+			return eris.Wrap(err, "calling AssignProperties_To_SignalRTlsSettings() to populate field Tls")
 		}
 		destination.Tls = &tl
 	} else {
@@ -1097,7 +1002,7 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		var upstream storage.ServerlessUpstreamSettings
 		err := signalR.Upstream.AssignProperties_To_ServerlessUpstreamSettings(&upstream)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ServerlessUpstreamSettings() to populate field Upstream")
+			return eris.Wrap(err, "calling AssignProperties_To_ServerlessUpstreamSettings() to populate field Upstream")
 		}
 		destination.Upstream = &upstream
 	} else {
@@ -1109,148 +1014,6 @@ func (signalR *SignalR_Spec) AssignProperties_To_SignalR_Spec(destination *stora
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_SignalR_STATUS populates our SignalR_Spec from the provided source SignalR_STATUS
-func (signalR *SignalR_Spec) Initialize_From_SignalR_STATUS(source *SignalR_STATUS) error {
-
-	// Cors
-	if source.Cors != nil {
-		var cor SignalRCorsSettings
-		err := cor.Initialize_From_SignalRCorsSettings_STATUS(source.Cors)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_SignalRCorsSettings_STATUS() to populate field Cors")
-		}
-		signalR.Cors = &cor
-	} else {
-		signalR.Cors = nil
-	}
-
-	// DisableAadAuth
-	if source.DisableAadAuth != nil {
-		disableAadAuth := *source.DisableAadAuth
-		signalR.DisableAadAuth = &disableAadAuth
-	} else {
-		signalR.DisableAadAuth = nil
-	}
-
-	// DisableLocalAuth
-	if source.DisableLocalAuth != nil {
-		disableLocalAuth := *source.DisableLocalAuth
-		signalR.DisableLocalAuth = &disableLocalAuth
-	} else {
-		signalR.DisableLocalAuth = nil
-	}
-
-	// Features
-	if source.Features != nil {
-		featureList := make([]SignalRFeature, len(source.Features))
-		for featureIndex, featureItem := range source.Features {
-			// Shadow the loop variable to avoid aliasing
-			featureItem := featureItem
-			var feature SignalRFeature
-			err := feature.Initialize_From_SignalRFeature_STATUS(&featureItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_SignalRFeature_STATUS() to populate field Features")
-			}
-			featureList[featureIndex] = feature
-		}
-		signalR.Features = featureList
-	} else {
-		signalR.Features = nil
-	}
-
-	// Identity
-	if source.Identity != nil {
-		var identity ManagedIdentity
-		err := identity.Initialize_From_ManagedIdentity_STATUS(source.Identity)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ManagedIdentity_STATUS() to populate field Identity")
-		}
-		signalR.Identity = &identity
-	} else {
-		signalR.Identity = nil
-	}
-
-	// Kind
-	if source.Kind != nil {
-		kind := genruntime.ToEnum(string(*source.Kind), serviceKind_Values)
-		signalR.Kind = &kind
-	} else {
-		signalR.Kind = nil
-	}
-
-	// Location
-	signalR.Location = genruntime.ClonePointerToString(source.Location)
-
-	// NetworkACLs
-	if source.NetworkACLs != nil {
-		var networkACL SignalRNetworkACLs
-		err := networkACL.Initialize_From_SignalRNetworkACLs_STATUS(source.NetworkACLs)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_SignalRNetworkACLs_STATUS() to populate field NetworkACLs")
-		}
-		signalR.NetworkACLs = &networkACL
-	} else {
-		signalR.NetworkACLs = nil
-	}
-
-	// PublicNetworkAccess
-	signalR.PublicNetworkAccess = genruntime.ClonePointerToString(source.PublicNetworkAccess)
-
-	// ResourceLogConfiguration
-	if source.ResourceLogConfiguration != nil {
-		var resourceLogConfiguration ResourceLogConfiguration
-		err := resourceLogConfiguration.Initialize_From_ResourceLogConfiguration_STATUS(source.ResourceLogConfiguration)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ResourceLogConfiguration_STATUS() to populate field ResourceLogConfiguration")
-		}
-		signalR.ResourceLogConfiguration = &resourceLogConfiguration
-	} else {
-		signalR.ResourceLogConfiguration = nil
-	}
-
-	// Sku
-	if source.Sku != nil {
-		var sku ResourceSku
-		err := sku.Initialize_From_ResourceSku_STATUS(source.Sku)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ResourceSku_STATUS() to populate field Sku")
-		}
-		signalR.Sku = &sku
-	} else {
-		signalR.Sku = nil
-	}
-
-	// Tags
-	signalR.Tags = genruntime.CloneMapOfStringToString(source.Tags)
-
-	// Tls
-	if source.Tls != nil {
-		var tl SignalRTlsSettings
-		err := tl.Initialize_From_SignalRTlsSettings_STATUS(source.Tls)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_SignalRTlsSettings_STATUS() to populate field Tls")
-		}
-		signalR.Tls = &tl
-	} else {
-		signalR.Tls = nil
-	}
-
-	// Upstream
-	if source.Upstream != nil {
-		var upstream ServerlessUpstreamSettings
-		err := upstream.Initialize_From_ServerlessUpstreamSettings_STATUS(source.Upstream)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ServerlessUpstreamSettings_STATUS() to populate field Upstream")
-		}
-		signalR.Upstream = &upstream
-	} else {
-		signalR.Upstream = nil
 	}
 
 	// No error
@@ -1375,13 +1138,13 @@ func (signalR *SignalR_STATUS) ConvertStatusFrom(source genruntime.ConvertibleSt
 	src = &storage.SignalR_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
 	err = signalR.AssignProperties_From_SignalR_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
@@ -1399,13 +1162,13 @@ func (signalR *SignalR_STATUS) ConvertStatusTo(destination genruntime.Convertibl
 	dst = &storage.SignalR_STATUS{}
 	err := signalR.AssignProperties_To_SignalR_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
@@ -1415,14 +1178,14 @@ var _ genruntime.FromARMConverter = &SignalR_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (signalR *SignalR_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalR_STATUS_ARM{}
+	return &arm.SignalR_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (signalR *SignalR_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalR_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SignalR_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalR_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalR_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -1518,7 +1281,9 @@ func (signalR *SignalR_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "Kind":
 	if typedInput.Kind != nil {
-		kind := *typedInput.Kind
+		var temp string
+		temp = string(*typedInput.Kind)
+		kind := ServiceKind_STATUS(temp)
 		signalR.Kind = &kind
 	}
 
@@ -1565,7 +1330,9 @@ func (signalR *SignalR_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.ProvisioningState != nil {
-			provisioningState := *typedInput.Properties.ProvisioningState
+			var temp string
+			temp = string(*typedInput.Properties.ProvisioningState)
+			provisioningState := ProvisioningState_STATUS(temp)
 			signalR.ProvisioningState = &provisioningState
 		}
 	}
@@ -1712,7 +1479,7 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 		var cor SignalRCorsSettings_STATUS
 		err := cor.AssignProperties_From_SignalRCorsSettings_STATUS(source.Cors)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SignalRCorsSettings_STATUS() to populate field Cors")
+			return eris.Wrap(err, "calling AssignProperties_From_SignalRCorsSettings_STATUS() to populate field Cors")
 		}
 		signalR.Cors = &cor
 	} else {
@@ -1742,12 +1509,10 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 	if source.Features != nil {
 		featureList := make([]SignalRFeature_STATUS, len(source.Features))
 		for featureIndex, featureItem := range source.Features {
-			// Shadow the loop variable to avoid aliasing
-			featureItem := featureItem
 			var feature SignalRFeature_STATUS
 			err := feature.AssignProperties_From_SignalRFeature_STATUS(&featureItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SignalRFeature_STATUS() to populate field Features")
+				return eris.Wrap(err, "calling AssignProperties_From_SignalRFeature_STATUS() to populate field Features")
 			}
 			featureList[featureIndex] = feature
 		}
@@ -1770,7 +1535,7 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 		var identity ManagedIdentity_STATUS
 		err := identity.AssignProperties_From_ManagedIdentity_STATUS(source.Identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ManagedIdentity_STATUS() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_From_ManagedIdentity_STATUS() to populate field Identity")
 		}
 		signalR.Identity = &identity
 	} else {
@@ -1797,7 +1562,7 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 		var networkACL SignalRNetworkACLs_STATUS
 		err := networkACL.AssignProperties_From_SignalRNetworkACLs_STATUS(source.NetworkACLs)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SignalRNetworkACLs_STATUS() to populate field NetworkACLs")
+			return eris.Wrap(err, "calling AssignProperties_From_SignalRNetworkACLs_STATUS() to populate field NetworkACLs")
 		}
 		signalR.NetworkACLs = &networkACL
 	} else {
@@ -1808,12 +1573,10 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 	if source.PrivateEndpointConnections != nil {
 		privateEndpointConnectionList := make([]PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded, len(source.PrivateEndpointConnections))
 		for privateEndpointConnectionIndex, privateEndpointConnectionItem := range source.PrivateEndpointConnections {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointConnectionItem := privateEndpointConnectionItem
 			var privateEndpointConnection PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded
 			err := privateEndpointConnection.AssignProperties_From_PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded(&privateEndpointConnectionItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded() to populate field PrivateEndpointConnections")
+				return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded() to populate field PrivateEndpointConnections")
 			}
 			privateEndpointConnectionList[privateEndpointConnectionIndex] = privateEndpointConnection
 		}
@@ -1842,7 +1605,7 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 		var resourceLogConfiguration ResourceLogConfiguration_STATUS
 		err := resourceLogConfiguration.AssignProperties_From_ResourceLogConfiguration_STATUS(source.ResourceLogConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceLogConfiguration_STATUS() to populate field ResourceLogConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceLogConfiguration_STATUS() to populate field ResourceLogConfiguration")
 		}
 		signalR.ResourceLogConfiguration = &resourceLogConfiguration
 	} else {
@@ -1856,12 +1619,10 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 	if source.SharedPrivateLinkResources != nil {
 		sharedPrivateLinkResourceList := make([]SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded, len(source.SharedPrivateLinkResources))
 		for sharedPrivateLinkResourceIndex, sharedPrivateLinkResourceItem := range source.SharedPrivateLinkResources {
-			// Shadow the loop variable to avoid aliasing
-			sharedPrivateLinkResourceItem := sharedPrivateLinkResourceItem
 			var sharedPrivateLinkResource SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded
 			err := sharedPrivateLinkResource.AssignProperties_From_SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded(&sharedPrivateLinkResourceItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded() to populate field SharedPrivateLinkResources")
+				return eris.Wrap(err, "calling AssignProperties_From_SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded() to populate field SharedPrivateLinkResources")
 			}
 			sharedPrivateLinkResourceList[sharedPrivateLinkResourceIndex] = sharedPrivateLinkResource
 		}
@@ -1875,7 +1636,7 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 		var sku ResourceSku_STATUS
 		err := sku.AssignProperties_From_ResourceSku_STATUS(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceSku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceSku_STATUS() to populate field Sku")
 		}
 		signalR.Sku = &sku
 	} else {
@@ -1887,7 +1648,7 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 		var systemDatum SystemData_STATUS
 		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
 		}
 		signalR.SystemData = &systemDatum
 	} else {
@@ -1902,7 +1663,7 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 		var tl SignalRTlsSettings_STATUS
 		err := tl.AssignProperties_From_SignalRTlsSettings_STATUS(source.Tls)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SignalRTlsSettings_STATUS() to populate field Tls")
+			return eris.Wrap(err, "calling AssignProperties_From_SignalRTlsSettings_STATUS() to populate field Tls")
 		}
 		signalR.Tls = &tl
 	} else {
@@ -1917,7 +1678,7 @@ func (signalR *SignalR_STATUS) AssignProperties_From_SignalR_STATUS(source *stor
 		var upstream ServerlessUpstreamSettings_STATUS
 		err := upstream.AssignProperties_From_ServerlessUpstreamSettings_STATUS(source.Upstream)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ServerlessUpstreamSettings_STATUS() to populate field Upstream")
+			return eris.Wrap(err, "calling AssignProperties_From_ServerlessUpstreamSettings_STATUS() to populate field Upstream")
 		}
 		signalR.Upstream = &upstream
 	} else {
@@ -1944,7 +1705,7 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 		var cor storage.SignalRCorsSettings_STATUS
 		err := signalR.Cors.AssignProperties_To_SignalRCorsSettings_STATUS(&cor)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SignalRCorsSettings_STATUS() to populate field Cors")
+			return eris.Wrap(err, "calling AssignProperties_To_SignalRCorsSettings_STATUS() to populate field Cors")
 		}
 		destination.Cors = &cor
 	} else {
@@ -1974,12 +1735,10 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 	if signalR.Features != nil {
 		featureList := make([]storage.SignalRFeature_STATUS, len(signalR.Features))
 		for featureIndex, featureItem := range signalR.Features {
-			// Shadow the loop variable to avoid aliasing
-			featureItem := featureItem
 			var feature storage.SignalRFeature_STATUS
 			err := featureItem.AssignProperties_To_SignalRFeature_STATUS(&feature)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SignalRFeature_STATUS() to populate field Features")
+				return eris.Wrap(err, "calling AssignProperties_To_SignalRFeature_STATUS() to populate field Features")
 			}
 			featureList[featureIndex] = feature
 		}
@@ -2002,7 +1761,7 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 		var identity storage.ManagedIdentity_STATUS
 		err := signalR.Identity.AssignProperties_To_ManagedIdentity_STATUS(&identity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ManagedIdentity_STATUS() to populate field Identity")
+			return eris.Wrap(err, "calling AssignProperties_To_ManagedIdentity_STATUS() to populate field Identity")
 		}
 		destination.Identity = &identity
 	} else {
@@ -2028,7 +1787,7 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 		var networkACL storage.SignalRNetworkACLs_STATUS
 		err := signalR.NetworkACLs.AssignProperties_To_SignalRNetworkACLs_STATUS(&networkACL)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SignalRNetworkACLs_STATUS() to populate field NetworkACLs")
+			return eris.Wrap(err, "calling AssignProperties_To_SignalRNetworkACLs_STATUS() to populate field NetworkACLs")
 		}
 		destination.NetworkACLs = &networkACL
 	} else {
@@ -2039,12 +1798,10 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 	if signalR.PrivateEndpointConnections != nil {
 		privateEndpointConnectionList := make([]storage.PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded, len(signalR.PrivateEndpointConnections))
 		for privateEndpointConnectionIndex, privateEndpointConnectionItem := range signalR.PrivateEndpointConnections {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointConnectionItem := privateEndpointConnectionItem
 			var privateEndpointConnection storage.PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded
 			err := privateEndpointConnectionItem.AssignProperties_To_PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded(&privateEndpointConnection)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded() to populate field PrivateEndpointConnections")
+				return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded() to populate field PrivateEndpointConnections")
 			}
 			privateEndpointConnectionList[privateEndpointConnectionIndex] = privateEndpointConnection
 		}
@@ -2072,7 +1829,7 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 		var resourceLogConfiguration storage.ResourceLogConfiguration_STATUS
 		err := signalR.ResourceLogConfiguration.AssignProperties_To_ResourceLogConfiguration_STATUS(&resourceLogConfiguration)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceLogConfiguration_STATUS() to populate field ResourceLogConfiguration")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceLogConfiguration_STATUS() to populate field ResourceLogConfiguration")
 		}
 		destination.ResourceLogConfiguration = &resourceLogConfiguration
 	} else {
@@ -2086,12 +1843,10 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 	if signalR.SharedPrivateLinkResources != nil {
 		sharedPrivateLinkResourceList := make([]storage.SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded, len(signalR.SharedPrivateLinkResources))
 		for sharedPrivateLinkResourceIndex, sharedPrivateLinkResourceItem := range signalR.SharedPrivateLinkResources {
-			// Shadow the loop variable to avoid aliasing
-			sharedPrivateLinkResourceItem := sharedPrivateLinkResourceItem
 			var sharedPrivateLinkResource storage.SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded
 			err := sharedPrivateLinkResourceItem.AssignProperties_To_SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded(&sharedPrivateLinkResource)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded() to populate field SharedPrivateLinkResources")
+				return eris.Wrap(err, "calling AssignProperties_To_SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded() to populate field SharedPrivateLinkResources")
 			}
 			sharedPrivateLinkResourceList[sharedPrivateLinkResourceIndex] = sharedPrivateLinkResource
 		}
@@ -2105,7 +1860,7 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 		var sku storage.ResourceSku_STATUS
 		err := signalR.Sku.AssignProperties_To_ResourceSku_STATUS(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceSku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceSku_STATUS() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -2117,7 +1872,7 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 		var systemDatum storage.SystemData_STATUS
 		err := signalR.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
 		}
 		destination.SystemData = &systemDatum
 	} else {
@@ -2132,7 +1887,7 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 		var tl storage.SignalRTlsSettings_STATUS
 		err := signalR.Tls.AssignProperties_To_SignalRTlsSettings_STATUS(&tl)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SignalRTlsSettings_STATUS() to populate field Tls")
+			return eris.Wrap(err, "calling AssignProperties_To_SignalRTlsSettings_STATUS() to populate field Tls")
 		}
 		destination.Tls = &tl
 	} else {
@@ -2147,7 +1902,7 @@ func (signalR *SignalR_STATUS) AssignProperties_To_SignalR_STATUS(destination *s
 		var upstream storage.ServerlessUpstreamSettings_STATUS
 		err := signalR.Upstream.AssignProperties_To_ServerlessUpstreamSettings_STATUS(&upstream)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ServerlessUpstreamSettings_STATUS() to populate field Upstream")
+			return eris.Wrap(err, "calling AssignProperties_To_ServerlessUpstreamSettings_STATUS() to populate field Upstream")
 		}
 		destination.Upstream = &upstream
 	} else {
@@ -2184,42 +1939,46 @@ func (identity *ManagedIdentity) ConvertToARM(resolved genruntime.ConvertToARMRe
 	if identity == nil {
 		return nil, nil
 	}
-	result := &ManagedIdentity_ARM{}
+	result := &arm.ManagedIdentity{}
 
 	// Set property "Type":
 	if identity.Type != nil {
-		typeVar := *identity.Type
+		var temp string
+		temp = string(*identity.Type)
+		typeVar := arm.ManagedIdentityType(temp)
 		result.Type = &typeVar
 	}
 
 	// Set property "UserAssignedIdentities":
-	result.UserAssignedIdentities = make(map[string]UserAssignedIdentityDetails_ARM, len(identity.UserAssignedIdentities))
+	result.UserAssignedIdentities = make(map[string]arm.UserAssignedIdentityDetails, len(identity.UserAssignedIdentities))
 	for _, ident := range identity.UserAssignedIdentities {
 		identARMID, err := resolved.ResolvedReferences.Lookup(ident.Reference)
 		if err != nil {
 			return nil, err
 		}
 		key := identARMID
-		result.UserAssignedIdentities[key] = UserAssignedIdentityDetails_ARM{}
+		result.UserAssignedIdentities[key] = arm.UserAssignedIdentityDetails{}
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (identity *ManagedIdentity) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ManagedIdentity_ARM{}
+	return &arm.ManagedIdentity{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (identity *ManagedIdentity) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ManagedIdentity_ARM)
+	typedInput, ok := armInput.(arm.ManagedIdentity)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ManagedIdentity_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ManagedIdentity, got %T", armInput)
 	}
 
 	// Set property "Type":
 	if typedInput.Type != nil {
-		typeVar := *typedInput.Type
+		var temp string
+		temp = string(*typedInput.Type)
+		typeVar := ManagedIdentityType(temp)
 		identity.Type = &typeVar
 	}
 
@@ -2245,12 +2004,10 @@ func (identity *ManagedIdentity) AssignProperties_From_ManagedIdentity(source *s
 	if source.UserAssignedIdentities != nil {
 		userAssignedIdentityList := make([]UserAssignedIdentityDetails, len(source.UserAssignedIdentities))
 		for userAssignedIdentityIndex, userAssignedIdentityItem := range source.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityItem := userAssignedIdentityItem
 			var userAssignedIdentity UserAssignedIdentityDetails
 			err := userAssignedIdentity.AssignProperties_From_UserAssignedIdentityDetails(&userAssignedIdentityItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityList[userAssignedIdentityIndex] = userAssignedIdentity
 		}
@@ -2280,12 +2037,10 @@ func (identity *ManagedIdentity) AssignProperties_To_ManagedIdentity(destination
 	if identity.UserAssignedIdentities != nil {
 		userAssignedIdentityList := make([]storage.UserAssignedIdentityDetails, len(identity.UserAssignedIdentities))
 		for userAssignedIdentityIndex, userAssignedIdentityItem := range identity.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityItem := userAssignedIdentityItem
 			var userAssignedIdentity storage.UserAssignedIdentityDetails
 			err := userAssignedIdentityItem.AssignProperties_To_UserAssignedIdentityDetails(&userAssignedIdentity)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityDetails() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityList[userAssignedIdentityIndex] = userAssignedIdentity
 		}
@@ -2299,33 +2054,6 @@ func (identity *ManagedIdentity) AssignProperties_To_ManagedIdentity(destination
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_ManagedIdentity_STATUS populates our ManagedIdentity from the provided source ManagedIdentity_STATUS
-func (identity *ManagedIdentity) Initialize_From_ManagedIdentity_STATUS(source *ManagedIdentity_STATUS) error {
-
-	// Type
-	if source.Type != nil {
-		typeVar := genruntime.ToEnum(string(*source.Type), managedIdentityType_Values)
-		identity.Type = &typeVar
-	} else {
-		identity.Type = nil
-	}
-
-	// UserAssignedIdentities
-	if source.UserAssignedIdentities != nil {
-		userAssignedIdentityList := make([]UserAssignedIdentityDetails, 0, len(source.UserAssignedIdentities))
-		for userAssignedIdentitiesKey := range source.UserAssignedIdentities {
-			userAssignedIdentitiesRef := genruntime.CreateResourceReferenceFromARMID(userAssignedIdentitiesKey)
-			userAssignedIdentityList = append(userAssignedIdentityList, UserAssignedIdentityDetails{Reference: userAssignedIdentitiesRef})
-		}
-		identity.UserAssignedIdentities = userAssignedIdentityList
-	} else {
-		identity.UserAssignedIdentities = nil
 	}
 
 	// No error
@@ -2353,14 +2081,14 @@ var _ genruntime.FromARMConverter = &ManagedIdentity_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (identity *ManagedIdentity_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ManagedIdentity_STATUS_ARM{}
+	return &arm.ManagedIdentity_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (identity *ManagedIdentity_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ManagedIdentity_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ManagedIdentity_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ManagedIdentity_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ManagedIdentity_STATUS, got %T", armInput)
 	}
 
 	// Set property "PrincipalId":
@@ -2377,7 +2105,9 @@ func (identity *ManagedIdentity_STATUS) PopulateFromARM(owner genruntime.Arbitra
 
 	// Set property "Type":
 	if typedInput.Type != nil {
-		typeVar := *typedInput.Type
+		var temp string
+		temp = string(*typedInput.Type)
+		typeVar := ManagedIdentityType_STATUS(temp)
 		identity.Type = &typeVar
 	}
 
@@ -2420,12 +2150,10 @@ func (identity *ManagedIdentity_STATUS) AssignProperties_From_ManagedIdentity_ST
 	if source.UserAssignedIdentities != nil {
 		userAssignedIdentityMap := make(map[string]UserAssignedIdentityProperty_STATUS, len(source.UserAssignedIdentities))
 		for userAssignedIdentityKey, userAssignedIdentityValue := range source.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityValue := userAssignedIdentityValue
 			var userAssignedIdentity UserAssignedIdentityProperty_STATUS
 			err := userAssignedIdentity.AssignProperties_From_UserAssignedIdentityProperty_STATUS(&userAssignedIdentityValue)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityProperty_STATUS() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_From_UserAssignedIdentityProperty_STATUS() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityMap[userAssignedIdentityKey] = userAssignedIdentity
 		}
@@ -2461,12 +2189,10 @@ func (identity *ManagedIdentity_STATUS) AssignProperties_To_ManagedIdentity_STAT
 	if identity.UserAssignedIdentities != nil {
 		userAssignedIdentityMap := make(map[string]storage.UserAssignedIdentityProperty_STATUS, len(identity.UserAssignedIdentities))
 		for userAssignedIdentityKey, userAssignedIdentityValue := range identity.UserAssignedIdentities {
-			// Shadow the loop variable to avoid aliasing
-			userAssignedIdentityValue := userAssignedIdentityValue
 			var userAssignedIdentity storage.UserAssignedIdentityProperty_STATUS
 			err := userAssignedIdentityValue.AssignProperties_To_UserAssignedIdentityProperty_STATUS(&userAssignedIdentity)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityProperty_STATUS() to populate field UserAssignedIdentities")
+				return eris.Wrap(err, "calling AssignProperties_To_UserAssignedIdentityProperty_STATUS() to populate field UserAssignedIdentities")
 			}
 			userAssignedIdentityMap[userAssignedIdentityKey] = userAssignedIdentity
 		}
@@ -2496,14 +2222,14 @@ var _ genruntime.FromARMConverter = &PrivateEndpointConnection_STATUS_SignalR_Su
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (embedded *PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded_ARM{}
+	return &arm.PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (embedded *PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded_ARM)
+	typedInput, ok := armInput.(arm.PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateEndpointConnection_STATUS_SignalR_SubResourceEmbedded, got %T", armInput)
 	}
 
 	// Set property "Id":
@@ -2586,7 +2312,7 @@ func (configuration *ResourceLogConfiguration) ConvertToARM(resolved genruntime.
 	if configuration == nil {
 		return nil, nil
 	}
-	result := &ResourceLogConfiguration_ARM{}
+	result := &arm.ResourceLogConfiguration{}
 
 	// Set property "Categories":
 	for _, item := range configuration.Categories {
@@ -2594,21 +2320,21 @@ func (configuration *ResourceLogConfiguration) ConvertToARM(resolved genruntime.
 		if err != nil {
 			return nil, err
 		}
-		result.Categories = append(result.Categories, *item_ARM.(*ResourceLogCategory_ARM))
+		result.Categories = append(result.Categories, *item_ARM.(*arm.ResourceLogCategory))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (configuration *ResourceLogConfiguration) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ResourceLogConfiguration_ARM{}
+	return &arm.ResourceLogConfiguration{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (configuration *ResourceLogConfiguration) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ResourceLogConfiguration_ARM)
+	typedInput, ok := armInput.(arm.ResourceLogConfiguration)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ResourceLogConfiguration_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ResourceLogConfiguration, got %T", armInput)
 	}
 
 	// Set property "Categories":
@@ -2632,12 +2358,10 @@ func (configuration *ResourceLogConfiguration) AssignProperties_From_ResourceLog
 	if source.Categories != nil {
 		categoryList := make([]ResourceLogCategory, len(source.Categories))
 		for categoryIndex, categoryItem := range source.Categories {
-			// Shadow the loop variable to avoid aliasing
-			categoryItem := categoryItem
 			var category ResourceLogCategory
 			err := category.AssignProperties_From_ResourceLogCategory(&categoryItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_ResourceLogCategory() to populate field Categories")
+				return eris.Wrap(err, "calling AssignProperties_From_ResourceLogCategory() to populate field Categories")
 			}
 			categoryList[categoryIndex] = category
 		}
@@ -2659,12 +2383,10 @@ func (configuration *ResourceLogConfiguration) AssignProperties_To_ResourceLogCo
 	if configuration.Categories != nil {
 		categoryList := make([]storage.ResourceLogCategory, len(configuration.Categories))
 		for categoryIndex, categoryItem := range configuration.Categories {
-			// Shadow the loop variable to avoid aliasing
-			categoryItem := categoryItem
 			var category storage.ResourceLogCategory
 			err := categoryItem.AssignProperties_To_ResourceLogCategory(&category)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_ResourceLogCategory() to populate field Categories")
+				return eris.Wrap(err, "calling AssignProperties_To_ResourceLogCategory() to populate field Categories")
 			}
 			categoryList[categoryIndex] = category
 		}
@@ -2684,31 +2406,6 @@ func (configuration *ResourceLogConfiguration) AssignProperties_To_ResourceLogCo
 	return nil
 }
 
-// Initialize_From_ResourceLogConfiguration_STATUS populates our ResourceLogConfiguration from the provided source ResourceLogConfiguration_STATUS
-func (configuration *ResourceLogConfiguration) Initialize_From_ResourceLogConfiguration_STATUS(source *ResourceLogConfiguration_STATUS) error {
-
-	// Categories
-	if source.Categories != nil {
-		categoryList := make([]ResourceLogCategory, len(source.Categories))
-		for categoryIndex, categoryItem := range source.Categories {
-			// Shadow the loop variable to avoid aliasing
-			categoryItem := categoryItem
-			var category ResourceLogCategory
-			err := category.Initialize_From_ResourceLogCategory_STATUS(&categoryItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_ResourceLogCategory_STATUS() to populate field Categories")
-			}
-			categoryList[categoryIndex] = category
-		}
-		configuration.Categories = categoryList
-	} else {
-		configuration.Categories = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Resource log configuration of a Microsoft.SignalRService resource.
 type ResourceLogConfiguration_STATUS struct {
 	// Categories: Gets or sets the list of category configurations.
@@ -2719,14 +2416,14 @@ var _ genruntime.FromARMConverter = &ResourceLogConfiguration_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (configuration *ResourceLogConfiguration_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ResourceLogConfiguration_STATUS_ARM{}
+	return &arm.ResourceLogConfiguration_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (configuration *ResourceLogConfiguration_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ResourceLogConfiguration_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ResourceLogConfiguration_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ResourceLogConfiguration_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ResourceLogConfiguration_STATUS, got %T", armInput)
 	}
 
 	// Set property "Categories":
@@ -2750,12 +2447,10 @@ func (configuration *ResourceLogConfiguration_STATUS) AssignProperties_From_Reso
 	if source.Categories != nil {
 		categoryList := make([]ResourceLogCategory_STATUS, len(source.Categories))
 		for categoryIndex, categoryItem := range source.Categories {
-			// Shadow the loop variable to avoid aliasing
-			categoryItem := categoryItem
 			var category ResourceLogCategory_STATUS
 			err := category.AssignProperties_From_ResourceLogCategory_STATUS(&categoryItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_ResourceLogCategory_STATUS() to populate field Categories")
+				return eris.Wrap(err, "calling AssignProperties_From_ResourceLogCategory_STATUS() to populate field Categories")
 			}
 			categoryList[categoryIndex] = category
 		}
@@ -2777,12 +2472,10 @@ func (configuration *ResourceLogConfiguration_STATUS) AssignProperties_To_Resour
 	if configuration.Categories != nil {
 		categoryList := make([]storage.ResourceLogCategory_STATUS, len(configuration.Categories))
 		for categoryIndex, categoryItem := range configuration.Categories {
-			// Shadow the loop variable to avoid aliasing
-			categoryItem := categoryItem
 			var category storage.ResourceLogCategory_STATUS
 			err := categoryItem.AssignProperties_To_ResourceLogCategory_STATUS(&category)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_ResourceLogCategory_STATUS() to populate field Categories")
+				return eris.Wrap(err, "calling AssignProperties_To_ResourceLogCategory_STATUS() to populate field Categories")
 			}
 			categoryList[categoryIndex] = category
 		}
@@ -2827,7 +2520,7 @@ func (resourceSku *ResourceSku) ConvertToARM(resolved genruntime.ConvertToARMRes
 	if resourceSku == nil {
 		return nil, nil
 	}
-	result := &ResourceSku_ARM{}
+	result := &arm.ResourceSku{}
 
 	// Set property "Capacity":
 	if resourceSku.Capacity != nil {
@@ -2843,7 +2536,9 @@ func (resourceSku *ResourceSku) ConvertToARM(resolved genruntime.ConvertToARMRes
 
 	// Set property "Tier":
 	if resourceSku.Tier != nil {
-		tier := *resourceSku.Tier
+		var temp string
+		temp = string(*resourceSku.Tier)
+		tier := arm.SignalRSkuTier(temp)
 		result.Tier = &tier
 	}
 	return result, nil
@@ -2851,14 +2546,14 @@ func (resourceSku *ResourceSku) ConvertToARM(resolved genruntime.ConvertToARMRes
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (resourceSku *ResourceSku) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ResourceSku_ARM{}
+	return &arm.ResourceSku{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (resourceSku *ResourceSku) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ResourceSku_ARM)
+	typedInput, ok := armInput.(arm.ResourceSku)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ResourceSku_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ResourceSku, got %T", armInput)
 	}
 
 	// Set property "Capacity":
@@ -2875,7 +2570,9 @@ func (resourceSku *ResourceSku) PopulateFromARM(owner genruntime.ArbitraryOwnerR
 
 	// Set property "Tier":
 	if typedInput.Tier != nil {
-		tier := *typedInput.Tier
+		var temp string
+		temp = string(*typedInput.Tier)
+		tier := SignalRSkuTier(temp)
 		resourceSku.Tier = &tier
 	}
 
@@ -2935,27 +2632,6 @@ func (resourceSku *ResourceSku) AssignProperties_To_ResourceSku(destination *sto
 	return nil
 }
 
-// Initialize_From_ResourceSku_STATUS populates our ResourceSku from the provided source ResourceSku_STATUS
-func (resourceSku *ResourceSku) Initialize_From_ResourceSku_STATUS(source *ResourceSku_STATUS) error {
-
-	// Capacity
-	resourceSku.Capacity = genruntime.ClonePointerToInt(source.Capacity)
-
-	// Name
-	resourceSku.Name = genruntime.ClonePointerToString(source.Name)
-
-	// Tier
-	if source.Tier != nil {
-		tier := genruntime.ToEnum(string(*source.Tier), signalRSkuTier_Values)
-		resourceSku.Tier = &tier
-	} else {
-		resourceSku.Tier = nil
-	}
-
-	// No error
-	return nil
-}
-
 // The billing information of the resource.
 type ResourceSku_STATUS struct {
 	// Capacity: Optional, integer. The unit count of the resource. 1 by default.
@@ -2983,14 +2659,14 @@ var _ genruntime.FromARMConverter = &ResourceSku_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (resourceSku *ResourceSku_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ResourceSku_STATUS_ARM{}
+	return &arm.ResourceSku_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (resourceSku *ResourceSku_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ResourceSku_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ResourceSku_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ResourceSku_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ResourceSku_STATUS, got %T", armInput)
 	}
 
 	// Set property "Capacity":
@@ -3019,7 +2695,9 @@ func (resourceSku *ResourceSku_STATUS) PopulateFromARM(owner genruntime.Arbitrar
 
 	// Set property "Tier":
 	if typedInput.Tier != nil {
-		tier := *typedInput.Tier
+		var temp string
+		temp = string(*typedInput.Tier)
+		tier := SignalRSkuTier_STATUS(temp)
 		resourceSku.Tier = &tier
 	}
 
@@ -3104,7 +2782,7 @@ func (settings *ServerlessUpstreamSettings) ConvertToARM(resolved genruntime.Con
 	if settings == nil {
 		return nil, nil
 	}
-	result := &ServerlessUpstreamSettings_ARM{}
+	result := &arm.ServerlessUpstreamSettings{}
 
 	// Set property "Templates":
 	for _, item := range settings.Templates {
@@ -3112,21 +2790,21 @@ func (settings *ServerlessUpstreamSettings) ConvertToARM(resolved genruntime.Con
 		if err != nil {
 			return nil, err
 		}
-		result.Templates = append(result.Templates, *item_ARM.(*UpstreamTemplate_ARM))
+		result.Templates = append(result.Templates, *item_ARM.(*arm.UpstreamTemplate))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *ServerlessUpstreamSettings) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ServerlessUpstreamSettings_ARM{}
+	return &arm.ServerlessUpstreamSettings{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *ServerlessUpstreamSettings) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ServerlessUpstreamSettings_ARM)
+	typedInput, ok := armInput.(arm.ServerlessUpstreamSettings)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ServerlessUpstreamSettings_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ServerlessUpstreamSettings, got %T", armInput)
 	}
 
 	// Set property "Templates":
@@ -3150,12 +2828,10 @@ func (settings *ServerlessUpstreamSettings) AssignProperties_From_ServerlessUpst
 	if source.Templates != nil {
 		templateList := make([]UpstreamTemplate, len(source.Templates))
 		for templateIndex, templateItem := range source.Templates {
-			// Shadow the loop variable to avoid aliasing
-			templateItem := templateItem
 			var template UpstreamTemplate
 			err := template.AssignProperties_From_UpstreamTemplate(&templateItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UpstreamTemplate() to populate field Templates")
+				return eris.Wrap(err, "calling AssignProperties_From_UpstreamTemplate() to populate field Templates")
 			}
 			templateList[templateIndex] = template
 		}
@@ -3177,12 +2853,10 @@ func (settings *ServerlessUpstreamSettings) AssignProperties_To_ServerlessUpstre
 	if settings.Templates != nil {
 		templateList := make([]storage.UpstreamTemplate, len(settings.Templates))
 		for templateIndex, templateItem := range settings.Templates {
-			// Shadow the loop variable to avoid aliasing
-			templateItem := templateItem
 			var template storage.UpstreamTemplate
 			err := templateItem.AssignProperties_To_UpstreamTemplate(&template)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UpstreamTemplate() to populate field Templates")
+				return eris.Wrap(err, "calling AssignProperties_To_UpstreamTemplate() to populate field Templates")
 			}
 			templateList[templateIndex] = template
 		}
@@ -3202,31 +2876,6 @@ func (settings *ServerlessUpstreamSettings) AssignProperties_To_ServerlessUpstre
 	return nil
 }
 
-// Initialize_From_ServerlessUpstreamSettings_STATUS populates our ServerlessUpstreamSettings from the provided source ServerlessUpstreamSettings_STATUS
-func (settings *ServerlessUpstreamSettings) Initialize_From_ServerlessUpstreamSettings_STATUS(source *ServerlessUpstreamSettings_STATUS) error {
-
-	// Templates
-	if source.Templates != nil {
-		templateList := make([]UpstreamTemplate, len(source.Templates))
-		for templateIndex, templateItem := range source.Templates {
-			// Shadow the loop variable to avoid aliasing
-			templateItem := templateItem
-			var template UpstreamTemplate
-			err := template.Initialize_From_UpstreamTemplate_STATUS(&templateItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_UpstreamTemplate_STATUS() to populate field Templates")
-			}
-			templateList[templateIndex] = template
-		}
-		settings.Templates = templateList
-	} else {
-		settings.Templates = nil
-	}
-
-	// No error
-	return nil
-}
-
 // The settings for the Upstream when the service is in server-less mode.
 type ServerlessUpstreamSettings_STATUS struct {
 	// Templates: Gets or sets the list of Upstream URL templates. Order matters, and the first matching template takes effects.
@@ -3237,14 +2886,14 @@ var _ genruntime.FromARMConverter = &ServerlessUpstreamSettings_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *ServerlessUpstreamSettings_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ServerlessUpstreamSettings_STATUS_ARM{}
+	return &arm.ServerlessUpstreamSettings_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *ServerlessUpstreamSettings_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ServerlessUpstreamSettings_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ServerlessUpstreamSettings_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ServerlessUpstreamSettings_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ServerlessUpstreamSettings_STATUS, got %T", armInput)
 	}
 
 	// Set property "Templates":
@@ -3268,12 +2917,10 @@ func (settings *ServerlessUpstreamSettings_STATUS) AssignProperties_From_Serverl
 	if source.Templates != nil {
 		templateList := make([]UpstreamTemplate_STATUS, len(source.Templates))
 		for templateIndex, templateItem := range source.Templates {
-			// Shadow the loop variable to avoid aliasing
-			templateItem := templateItem
 			var template UpstreamTemplate_STATUS
 			err := template.AssignProperties_From_UpstreamTemplate_STATUS(&templateItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_UpstreamTemplate_STATUS() to populate field Templates")
+				return eris.Wrap(err, "calling AssignProperties_From_UpstreamTemplate_STATUS() to populate field Templates")
 			}
 			templateList[templateIndex] = template
 		}
@@ -3295,12 +2942,10 @@ func (settings *ServerlessUpstreamSettings_STATUS) AssignProperties_To_Serverles
 	if settings.Templates != nil {
 		templateList := make([]storage.UpstreamTemplate_STATUS, len(settings.Templates))
 		for templateIndex, templateItem := range settings.Templates {
-			// Shadow the loop variable to avoid aliasing
-			templateItem := templateItem
 			var template storage.UpstreamTemplate_STATUS
 			err := templateItem.AssignProperties_To_UpstreamTemplate_STATUS(&template)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_UpstreamTemplate_STATUS() to populate field Templates")
+				return eris.Wrap(err, "calling AssignProperties_To_UpstreamTemplate_STATUS() to populate field Templates")
 			}
 			templateList[templateIndex] = template
 		}
@@ -3320,6 +2965,35 @@ func (settings *ServerlessUpstreamSettings_STATUS) AssignProperties_To_Serverles
 	return nil
 }
 
+// The kind of the service, it can be SignalR or RawWebSockets
+// +kubebuilder:validation:Enum={"RawWebSockets","SignalR"}
+type ServiceKind string
+
+const (
+	ServiceKind_RawWebSockets = ServiceKind("RawWebSockets")
+	ServiceKind_SignalR       = ServiceKind("SignalR")
+)
+
+// Mapping from string to ServiceKind
+var serviceKind_Values = map[string]ServiceKind{
+	"rawwebsockets": ServiceKind_RawWebSockets,
+	"signalr":       ServiceKind_SignalR,
+}
+
+// The kind of the service, it can be SignalR or RawWebSockets
+type ServiceKind_STATUS string
+
+const (
+	ServiceKind_STATUS_RawWebSockets = ServiceKind_STATUS("RawWebSockets")
+	ServiceKind_STATUS_SignalR       = ServiceKind_STATUS("SignalR")
+)
+
+// Mapping from string to ServiceKind_STATUS
+var serviceKind_STATUS_Values = map[string]ServiceKind_STATUS{
+	"rawwebsockets": ServiceKind_STATUS_RawWebSockets,
+	"signalr":       ServiceKind_STATUS_SignalR,
+}
+
 // Describes a Shared Private Link Resource
 type SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded struct {
 	// Id: Fully qualified resource Id for the resource.
@@ -3330,14 +3004,14 @@ var _ genruntime.FromARMConverter = &SharedPrivateLinkResource_STATUS_SignalR_Su
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (embedded *SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded_ARM{}
+	return &arm.SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (embedded *SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded_ARM)
+	typedInput, ok := armInput.(arm.SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SharedPrivateLinkResource_STATUS_SignalR_SubResourceEmbedded, got %T", armInput)
 	}
 
 	// Set property "Id":
@@ -3393,7 +3067,7 @@ func (settings *SignalRCorsSettings) ConvertToARM(resolved genruntime.ConvertToA
 	if settings == nil {
 		return nil, nil
 	}
-	result := &SignalRCorsSettings_ARM{}
+	result := &arm.SignalRCorsSettings{}
 
 	// Set property "AllowedOrigins":
 	for _, item := range settings.AllowedOrigins {
@@ -3404,14 +3078,14 @@ func (settings *SignalRCorsSettings) ConvertToARM(resolved genruntime.ConvertToA
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *SignalRCorsSettings) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalRCorsSettings_ARM{}
+	return &arm.SignalRCorsSettings{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *SignalRCorsSettings) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalRCorsSettings_ARM)
+	typedInput, ok := armInput.(arm.SignalRCorsSettings)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalRCorsSettings_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalRCorsSettings, got %T", armInput)
 	}
 
 	// Set property "AllowedOrigins":
@@ -3452,16 +3126,6 @@ func (settings *SignalRCorsSettings) AssignProperties_To_SignalRCorsSettings(des
 	return nil
 }
 
-// Initialize_From_SignalRCorsSettings_STATUS populates our SignalRCorsSettings from the provided source SignalRCorsSettings_STATUS
-func (settings *SignalRCorsSettings) Initialize_From_SignalRCorsSettings_STATUS(source *SignalRCorsSettings_STATUS) error {
-
-	// AllowedOrigins
-	settings.AllowedOrigins = genruntime.CloneSliceOfString(source.AllowedOrigins)
-
-	// No error
-	return nil
-}
-
 // Cross-Origin Resource Sharing (CORS) settings.
 type SignalRCorsSettings_STATUS struct {
 	// AllowedOrigins: Gets or sets the list of origins that should be allowed to make cross-origin calls (for example:
@@ -3473,14 +3137,14 @@ var _ genruntime.FromARMConverter = &SignalRCorsSettings_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *SignalRCorsSettings_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalRCorsSettings_STATUS_ARM{}
+	return &arm.SignalRCorsSettings_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *SignalRCorsSettings_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalRCorsSettings_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SignalRCorsSettings_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalRCorsSettings_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalRCorsSettings_STATUS, got %T", armInput)
 	}
 
 	// Set property "AllowedOrigins":
@@ -3554,11 +3218,13 @@ func (feature *SignalRFeature) ConvertToARM(resolved genruntime.ConvertToARMReso
 	if feature == nil {
 		return nil, nil
 	}
-	result := &SignalRFeature_ARM{}
+	result := &arm.SignalRFeature{}
 
 	// Set property "Flag":
 	if feature.Flag != nil {
-		flag := *feature.Flag
+		var temp string
+		temp = string(*feature.Flag)
+		flag := arm.FeatureFlags(temp)
 		result.Flag = &flag
 	}
 
@@ -3580,19 +3246,21 @@ func (feature *SignalRFeature) ConvertToARM(resolved genruntime.ConvertToARMReso
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (feature *SignalRFeature) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalRFeature_ARM{}
+	return &arm.SignalRFeature{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (feature *SignalRFeature) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalRFeature_ARM)
+	typedInput, ok := armInput.(arm.SignalRFeature)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalRFeature_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalRFeature, got %T", armInput)
 	}
 
 	// Set property "Flag":
 	if typedInput.Flag != nil {
-		flag := *typedInput.Flag
+		var temp string
+		temp = string(*typedInput.Flag)
+		flag := FeatureFlags(temp)
 		feature.Flag = &flag
 	}
 
@@ -3630,12 +3298,7 @@ func (feature *SignalRFeature) AssignProperties_From_SignalRFeature(source *stor
 	feature.Properties = genruntime.CloneMapOfStringToString(source.Properties)
 
 	// Value
-	if source.Value != nil {
-		value := *source.Value
-		feature.Value = &value
-	} else {
-		feature.Value = nil
-	}
+	feature.Value = genruntime.ClonePointerToString(source.Value)
 
 	// No error
 	return nil
@@ -3658,44 +3321,13 @@ func (feature *SignalRFeature) AssignProperties_To_SignalRFeature(destination *s
 	destination.Properties = genruntime.CloneMapOfStringToString(feature.Properties)
 
 	// Value
-	if feature.Value != nil {
-		value := *feature.Value
-		destination.Value = &value
-	} else {
-		destination.Value = nil
-	}
+	destination.Value = genruntime.ClonePointerToString(feature.Value)
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_SignalRFeature_STATUS populates our SignalRFeature from the provided source SignalRFeature_STATUS
-func (feature *SignalRFeature) Initialize_From_SignalRFeature_STATUS(source *SignalRFeature_STATUS) error {
-
-	// Flag
-	if source.Flag != nil {
-		flag := genruntime.ToEnum(string(*source.Flag), featureFlags_Values)
-		feature.Flag = &flag
-	} else {
-		feature.Flag = nil
-	}
-
-	// Properties
-	feature.Properties = genruntime.CloneMapOfStringToString(source.Properties)
-
-	// Value
-	if source.Value != nil {
-		value := *source.Value
-		feature.Value = &value
-	} else {
-		feature.Value = nil
 	}
 
 	// No error
@@ -3728,19 +3360,21 @@ var _ genruntime.FromARMConverter = &SignalRFeature_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (feature *SignalRFeature_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalRFeature_STATUS_ARM{}
+	return &arm.SignalRFeature_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (feature *SignalRFeature_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalRFeature_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SignalRFeature_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalRFeature_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalRFeature_STATUS, got %T", armInput)
 	}
 
 	// Set property "Flag":
 	if typedInput.Flag != nil {
-		flag := *typedInput.Flag
+		var temp string
+		temp = string(*typedInput.Flag)
+		flag := FeatureFlags_STATUS(temp)
 		feature.Flag = &flag
 	}
 
@@ -3833,11 +3467,13 @@ func (acLs *SignalRNetworkACLs) ConvertToARM(resolved genruntime.ConvertToARMRes
 	if acLs == nil {
 		return nil, nil
 	}
-	result := &SignalRNetworkACLs_ARM{}
+	result := &arm.SignalRNetworkACLs{}
 
 	// Set property "DefaultAction":
 	if acLs.DefaultAction != nil {
-		defaultAction := *acLs.DefaultAction
+		var temp string
+		temp = string(*acLs.DefaultAction)
+		defaultAction := arm.ACLAction(temp)
 		result.DefaultAction = &defaultAction
 	}
 
@@ -3847,16 +3483,16 @@ func (acLs *SignalRNetworkACLs) ConvertToARM(resolved genruntime.ConvertToARMRes
 		if err != nil {
 			return nil, err
 		}
-		result.PrivateEndpoints = append(result.PrivateEndpoints, *item_ARM.(*PrivateEndpointACL_ARM))
+		result.PrivateEndpoints = append(result.PrivateEndpoints, *item_ARM.(*arm.PrivateEndpointACL))
 	}
 
 	// Set property "PublicNetwork":
 	if acLs.PublicNetwork != nil {
-		publicNetwork_ARM, err := (*acLs.PublicNetwork).ConvertToARM(resolved)
+		publicNetwork_ARM, err := acLs.PublicNetwork.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		publicNetwork := *publicNetwork_ARM.(*NetworkACL_ARM)
+		publicNetwork := *publicNetwork_ARM.(*arm.NetworkACL)
 		result.PublicNetwork = &publicNetwork
 	}
 	return result, nil
@@ -3864,19 +3500,21 @@ func (acLs *SignalRNetworkACLs) ConvertToARM(resolved genruntime.ConvertToARMRes
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (acLs *SignalRNetworkACLs) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalRNetworkACLs_ARM{}
+	return &arm.SignalRNetworkACLs{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (acLs *SignalRNetworkACLs) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalRNetworkACLs_ARM)
+	typedInput, ok := armInput.(arm.SignalRNetworkACLs)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalRNetworkACLs_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalRNetworkACLs, got %T", armInput)
 	}
 
 	// Set property "DefaultAction":
 	if typedInput.DefaultAction != nil {
-		defaultAction := *typedInput.DefaultAction
+		var temp string
+		temp = string(*typedInput.DefaultAction)
+		defaultAction := ACLAction(temp)
 		acLs.DefaultAction = &defaultAction
 	}
 
@@ -3921,12 +3559,10 @@ func (acLs *SignalRNetworkACLs) AssignProperties_From_SignalRNetworkACLs(source 
 	if source.PrivateEndpoints != nil {
 		privateEndpointList := make([]PrivateEndpointACL, len(source.PrivateEndpoints))
 		for privateEndpointIndex, privateEndpointItem := range source.PrivateEndpoints {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointItem := privateEndpointItem
 			var privateEndpoint PrivateEndpointACL
 			err := privateEndpoint.AssignProperties_From_PrivateEndpointACL(&privateEndpointItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_PrivateEndpointACL() to populate field PrivateEndpoints")
+				return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointACL() to populate field PrivateEndpoints")
 			}
 			privateEndpointList[privateEndpointIndex] = privateEndpoint
 		}
@@ -3940,7 +3576,7 @@ func (acLs *SignalRNetworkACLs) AssignProperties_From_SignalRNetworkACLs(source 
 		var publicNetwork NetworkACL
 		err := publicNetwork.AssignProperties_From_NetworkACL(source.PublicNetwork)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_NetworkACL() to populate field PublicNetwork")
+			return eris.Wrap(err, "calling AssignProperties_From_NetworkACL() to populate field PublicNetwork")
 		}
 		acLs.PublicNetwork = &publicNetwork
 	} else {
@@ -3968,12 +3604,10 @@ func (acLs *SignalRNetworkACLs) AssignProperties_To_SignalRNetworkACLs(destinati
 	if acLs.PrivateEndpoints != nil {
 		privateEndpointList := make([]storage.PrivateEndpointACL, len(acLs.PrivateEndpoints))
 		for privateEndpointIndex, privateEndpointItem := range acLs.PrivateEndpoints {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointItem := privateEndpointItem
 			var privateEndpoint storage.PrivateEndpointACL
 			err := privateEndpointItem.AssignProperties_To_PrivateEndpointACL(&privateEndpoint)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_PrivateEndpointACL() to populate field PrivateEndpoints")
+				return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointACL() to populate field PrivateEndpoints")
 			}
 			privateEndpointList[privateEndpointIndex] = privateEndpoint
 		}
@@ -3987,7 +3621,7 @@ func (acLs *SignalRNetworkACLs) AssignProperties_To_SignalRNetworkACLs(destinati
 		var publicNetwork storage.NetworkACL
 		err := acLs.PublicNetwork.AssignProperties_To_NetworkACL(&publicNetwork)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_NetworkACL() to populate field PublicNetwork")
+			return eris.Wrap(err, "calling AssignProperties_To_NetworkACL() to populate field PublicNetwork")
 		}
 		destination.PublicNetwork = &publicNetwork
 	} else {
@@ -3999,51 +3633,6 @@ func (acLs *SignalRNetworkACLs) AssignProperties_To_SignalRNetworkACLs(destinati
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_SignalRNetworkACLs_STATUS populates our SignalRNetworkACLs from the provided source SignalRNetworkACLs_STATUS
-func (acLs *SignalRNetworkACLs) Initialize_From_SignalRNetworkACLs_STATUS(source *SignalRNetworkACLs_STATUS) error {
-
-	// DefaultAction
-	if source.DefaultAction != nil {
-		defaultAction := genruntime.ToEnum(string(*source.DefaultAction), aCLAction_Values)
-		acLs.DefaultAction = &defaultAction
-	} else {
-		acLs.DefaultAction = nil
-	}
-
-	// PrivateEndpoints
-	if source.PrivateEndpoints != nil {
-		privateEndpointList := make([]PrivateEndpointACL, len(source.PrivateEndpoints))
-		for privateEndpointIndex, privateEndpointItem := range source.PrivateEndpoints {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointItem := privateEndpointItem
-			var privateEndpoint PrivateEndpointACL
-			err := privateEndpoint.Initialize_From_PrivateEndpointACL_STATUS(&privateEndpointItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_PrivateEndpointACL_STATUS() to populate field PrivateEndpoints")
-			}
-			privateEndpointList[privateEndpointIndex] = privateEndpoint
-		}
-		acLs.PrivateEndpoints = privateEndpointList
-	} else {
-		acLs.PrivateEndpoints = nil
-	}
-
-	// PublicNetwork
-	if source.PublicNetwork != nil {
-		var publicNetwork NetworkACL
-		err := publicNetwork.Initialize_From_NetworkACL_STATUS(source.PublicNetwork)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_NetworkACL_STATUS() to populate field PublicNetwork")
-		}
-		acLs.PublicNetwork = &publicNetwork
-	} else {
-		acLs.PublicNetwork = nil
 	}
 
 	// No error
@@ -4066,19 +3655,21 @@ var _ genruntime.FromARMConverter = &SignalRNetworkACLs_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (acLs *SignalRNetworkACLs_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalRNetworkACLs_STATUS_ARM{}
+	return &arm.SignalRNetworkACLs_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (acLs *SignalRNetworkACLs_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalRNetworkACLs_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SignalRNetworkACLs_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalRNetworkACLs_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalRNetworkACLs_STATUS, got %T", armInput)
 	}
 
 	// Set property "DefaultAction":
 	if typedInput.DefaultAction != nil {
-		defaultAction := *typedInput.DefaultAction
+		var temp string
+		temp = string(*typedInput.DefaultAction)
+		defaultAction := ACLAction_STATUS(temp)
 		acLs.DefaultAction = &defaultAction
 	}
 
@@ -4123,12 +3714,10 @@ func (acLs *SignalRNetworkACLs_STATUS) AssignProperties_From_SignalRNetworkACLs_
 	if source.PrivateEndpoints != nil {
 		privateEndpointList := make([]PrivateEndpointACL_STATUS, len(source.PrivateEndpoints))
 		for privateEndpointIndex, privateEndpointItem := range source.PrivateEndpoints {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointItem := privateEndpointItem
 			var privateEndpoint PrivateEndpointACL_STATUS
 			err := privateEndpoint.AssignProperties_From_PrivateEndpointACL_STATUS(&privateEndpointItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_PrivateEndpointACL_STATUS() to populate field PrivateEndpoints")
+				return eris.Wrap(err, "calling AssignProperties_From_PrivateEndpointACL_STATUS() to populate field PrivateEndpoints")
 			}
 			privateEndpointList[privateEndpointIndex] = privateEndpoint
 		}
@@ -4142,7 +3731,7 @@ func (acLs *SignalRNetworkACLs_STATUS) AssignProperties_From_SignalRNetworkACLs_
 		var publicNetwork NetworkACL_STATUS
 		err := publicNetwork.AssignProperties_From_NetworkACL_STATUS(source.PublicNetwork)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_NetworkACL_STATUS() to populate field PublicNetwork")
+			return eris.Wrap(err, "calling AssignProperties_From_NetworkACL_STATUS() to populate field PublicNetwork")
 		}
 		acLs.PublicNetwork = &publicNetwork
 	} else {
@@ -4170,12 +3759,10 @@ func (acLs *SignalRNetworkACLs_STATUS) AssignProperties_To_SignalRNetworkACLs_ST
 	if acLs.PrivateEndpoints != nil {
 		privateEndpointList := make([]storage.PrivateEndpointACL_STATUS, len(acLs.PrivateEndpoints))
 		for privateEndpointIndex, privateEndpointItem := range acLs.PrivateEndpoints {
-			// Shadow the loop variable to avoid aliasing
-			privateEndpointItem := privateEndpointItem
 			var privateEndpoint storage.PrivateEndpointACL_STATUS
 			err := privateEndpointItem.AssignProperties_To_PrivateEndpointACL_STATUS(&privateEndpoint)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_PrivateEndpointACL_STATUS() to populate field PrivateEndpoints")
+				return eris.Wrap(err, "calling AssignProperties_To_PrivateEndpointACL_STATUS() to populate field PrivateEndpoints")
 			}
 			privateEndpointList[privateEndpointIndex] = privateEndpoint
 		}
@@ -4189,7 +3776,7 @@ func (acLs *SignalRNetworkACLs_STATUS) AssignProperties_To_SignalRNetworkACLs_ST
 		var publicNetwork storage.NetworkACL_STATUS
 		err := acLs.PublicNetwork.AssignProperties_To_NetworkACL_STATUS(&publicNetwork)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_NetworkACL_STATUS() to populate field PublicNetwork")
+			return eris.Wrap(err, "calling AssignProperties_To_NetworkACL_STATUS() to populate field PublicNetwork")
 		}
 		destination.PublicNetwork = &publicNetwork
 	} else {
@@ -4209,6 +3796,12 @@ func (acLs *SignalRNetworkACLs_STATUS) AssignProperties_To_SignalRNetworkACLs_ST
 
 // Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
 type SignalROperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+
 	// Secrets: configures where to place Azure generated secrets.
 	Secrets *SignalROperatorSecrets `json:"secrets,omitempty"`
 }
@@ -4216,12 +3809,44 @@ type SignalROperatorSpec struct {
 // AssignProperties_From_SignalROperatorSpec populates our SignalROperatorSpec from the provided source SignalROperatorSpec
 func (operator *SignalROperatorSpec) AssignProperties_From_SignalROperatorSpec(source *storage.SignalROperatorSpec) error {
 
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
 	// Secrets
 	if source.Secrets != nil {
 		var secret SignalROperatorSecrets
 		err := secret.AssignProperties_From_SignalROperatorSecrets(source.Secrets)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SignalROperatorSecrets() to populate field Secrets")
+			return eris.Wrap(err, "calling AssignProperties_From_SignalROperatorSecrets() to populate field Secrets")
 		}
 		operator.Secrets = &secret
 	} else {
@@ -4237,12 +3862,44 @@ func (operator *SignalROperatorSpec) AssignProperties_To_SignalROperatorSpec(des
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
 	// Secrets
 	if operator.Secrets != nil {
 		var secret storage.SignalROperatorSecrets
 		err := operator.Secrets.AssignProperties_To_SignalROperatorSecrets(&secret)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SignalROperatorSecrets() to populate field Secrets")
+			return eris.Wrap(err, "calling AssignProperties_To_SignalROperatorSecrets() to populate field Secrets")
 		}
 		destination.Secrets = &secret
 	} else {
@@ -4273,7 +3930,7 @@ func (settings *SignalRTlsSettings) ConvertToARM(resolved genruntime.ConvertToAR
 	if settings == nil {
 		return nil, nil
 	}
-	result := &SignalRTlsSettings_ARM{}
+	result := &arm.SignalRTlsSettings{}
 
 	// Set property "ClientCertEnabled":
 	if settings.ClientCertEnabled != nil {
@@ -4285,14 +3942,14 @@ func (settings *SignalRTlsSettings) ConvertToARM(resolved genruntime.ConvertToAR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *SignalRTlsSettings) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalRTlsSettings_ARM{}
+	return &arm.SignalRTlsSettings{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *SignalRTlsSettings) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalRTlsSettings_ARM)
+	typedInput, ok := armInput.(arm.SignalRTlsSettings)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalRTlsSettings_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalRTlsSettings, got %T", armInput)
 	}
 
 	// Set property "ClientCertEnabled":
@@ -4344,21 +4001,6 @@ func (settings *SignalRTlsSettings) AssignProperties_To_SignalRTlsSettings(desti
 	return nil
 }
 
-// Initialize_From_SignalRTlsSettings_STATUS populates our SignalRTlsSettings from the provided source SignalRTlsSettings_STATUS
-func (settings *SignalRTlsSettings) Initialize_From_SignalRTlsSettings_STATUS(source *SignalRTlsSettings_STATUS) error {
-
-	// ClientCertEnabled
-	if source.ClientCertEnabled != nil {
-		clientCertEnabled := *source.ClientCertEnabled
-		settings.ClientCertEnabled = &clientCertEnabled
-	} else {
-		settings.ClientCertEnabled = nil
-	}
-
-	// No error
-	return nil
-}
-
 // TLS settings for the resource
 type SignalRTlsSettings_STATUS struct {
 	// ClientCertEnabled: Request client certificate during TLS handshake if enabled
@@ -4369,14 +4011,14 @@ var _ genruntime.FromARMConverter = &SignalRTlsSettings_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *SignalRTlsSettings_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SignalRTlsSettings_STATUS_ARM{}
+	return &arm.SignalRTlsSettings_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *SignalRTlsSettings_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SignalRTlsSettings_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SignalRTlsSettings_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SignalRTlsSettings_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SignalRTlsSettings_STATUS, got %T", armInput)
 	}
 
 	// Set property "ClientCertEnabled":
@@ -4453,14 +4095,14 @@ var _ genruntime.FromARMConverter = &SystemData_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (data *SystemData_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SystemData_STATUS_ARM{}
+	return &arm.SystemData_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SystemData_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SystemData_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SystemData_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SystemData_STATUS, got %T", armInput)
 	}
 
 	// Set property "CreatedAt":
@@ -4477,7 +4119,9 @@ func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "CreatedByType":
 	if typedInput.CreatedByType != nil {
-		createdByType := *typedInput.CreatedByType
+		var temp string
+		temp = string(*typedInput.CreatedByType)
+		createdByType := SystemData_CreatedByType_STATUS(temp)
 		data.CreatedByType = &createdByType
 	}
 
@@ -4495,7 +4139,9 @@ func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "LastModifiedByType":
 	if typedInput.LastModifiedByType != nil {
-		lastModifiedByType := *typedInput.LastModifiedByType
+		var temp string
+		temp = string(*typedInput.LastModifiedByType)
+		lastModifiedByType := SystemData_LastModifiedByType_STATUS(temp)
 		data.LastModifiedByType = &lastModifiedByType
 	}
 
@@ -4674,6 +4320,39 @@ var featureFlags_STATUS_Values = map[string]FeatureFlags_STATUS{
 	"servicemode":            FeatureFlags_STATUS_ServiceMode,
 }
 
+// Represents the identity type: systemAssigned, userAssigned, None
+// +kubebuilder:validation:Enum={"None","SystemAssigned","UserAssigned"}
+type ManagedIdentityType string
+
+const (
+	ManagedIdentityType_None           = ManagedIdentityType("None")
+	ManagedIdentityType_SystemAssigned = ManagedIdentityType("SystemAssigned")
+	ManagedIdentityType_UserAssigned   = ManagedIdentityType("UserAssigned")
+)
+
+// Mapping from string to ManagedIdentityType
+var managedIdentityType_Values = map[string]ManagedIdentityType{
+	"none":           ManagedIdentityType_None,
+	"systemassigned": ManagedIdentityType_SystemAssigned,
+	"userassigned":   ManagedIdentityType_UserAssigned,
+}
+
+// Represents the identity type: systemAssigned, userAssigned, None
+type ManagedIdentityType_STATUS string
+
+const (
+	ManagedIdentityType_STATUS_None           = ManagedIdentityType_STATUS("None")
+	ManagedIdentityType_STATUS_SystemAssigned = ManagedIdentityType_STATUS("SystemAssigned")
+	ManagedIdentityType_STATUS_UserAssigned   = ManagedIdentityType_STATUS("UserAssigned")
+)
+
+// Mapping from string to ManagedIdentityType_STATUS
+var managedIdentityType_STATUS_Values = map[string]ManagedIdentityType_STATUS{
+	"none":           ManagedIdentityType_STATUS_None,
+	"systemassigned": ManagedIdentityType_STATUS_SystemAssigned,
+	"userassigned":   ManagedIdentityType_STATUS_UserAssigned,
+}
+
 // Network ACL
 type NetworkACL struct {
 	// Allow: Allowed request types. The value can be one or more of: ClientConnection, ServerConnection, RESTAPI.
@@ -4690,40 +4369,48 @@ func (networkACL *NetworkACL) ConvertToARM(resolved genruntime.ConvertToARMResol
 	if networkACL == nil {
 		return nil, nil
 	}
-	result := &NetworkACL_ARM{}
+	result := &arm.NetworkACL{}
 
 	// Set property "Allow":
 	for _, item := range networkACL.Allow {
-		result.Allow = append(result.Allow, item)
+		var temp string
+		temp = string(item)
+		result.Allow = append(result.Allow, arm.SignalRRequestType(temp))
 	}
 
 	// Set property "Deny":
 	for _, item := range networkACL.Deny {
-		result.Deny = append(result.Deny, item)
+		var temp string
+		temp = string(item)
+		result.Deny = append(result.Deny, arm.SignalRRequestType(temp))
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (networkACL *NetworkACL) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &NetworkACL_ARM{}
+	return &arm.NetworkACL{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (networkACL *NetworkACL) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(NetworkACL_ARM)
+	typedInput, ok := armInput.(arm.NetworkACL)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected NetworkACL_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.NetworkACL, got %T", armInput)
 	}
 
 	// Set property "Allow":
 	for _, item := range typedInput.Allow {
-		networkACL.Allow = append(networkACL.Allow, item)
+		var temp string
+		temp = string(item)
+		networkACL.Allow = append(networkACL.Allow, SignalRRequestType(temp))
 	}
 
 	// Set property "Deny":
 	for _, item := range typedInput.Deny {
-		networkACL.Deny = append(networkACL.Deny, item)
+		var temp string
+		temp = string(item)
+		networkACL.Deny = append(networkACL.Deny, SignalRRequestType(temp))
 	}
 
 	// No error
@@ -4737,8 +4424,6 @@ func (networkACL *NetworkACL) AssignProperties_From_NetworkACL(source *storage.N
 	if source.Allow != nil {
 		allowList := make([]SignalRRequestType, len(source.Allow))
 		for allowIndex, allowItem := range source.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
 			allowList[allowIndex] = genruntime.ToEnum(allowItem, signalRRequestType_Values)
 		}
 		networkACL.Allow = allowList
@@ -4750,8 +4435,6 @@ func (networkACL *NetworkACL) AssignProperties_From_NetworkACL(source *storage.N
 	if source.Deny != nil {
 		denyList := make([]SignalRRequestType, len(source.Deny))
 		for denyIndex, denyItem := range source.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
 			denyList[denyIndex] = genruntime.ToEnum(denyItem, signalRRequestType_Values)
 		}
 		networkACL.Deny = denyList
@@ -4772,8 +4455,6 @@ func (networkACL *NetworkACL) AssignProperties_To_NetworkACL(destination *storag
 	if networkACL.Allow != nil {
 		allowList := make([]string, len(networkACL.Allow))
 		for allowIndex, allowItem := range networkACL.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
 			allowList[allowIndex] = string(allowItem)
 		}
 		destination.Allow = allowList
@@ -4785,8 +4466,6 @@ func (networkACL *NetworkACL) AssignProperties_To_NetworkACL(destination *storag
 	if networkACL.Deny != nil {
 		denyList := make([]string, len(networkACL.Deny))
 		for denyIndex, denyItem := range networkACL.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
 			denyList[denyIndex] = string(denyItem)
 		}
 		destination.Deny = denyList
@@ -4799,41 +4478,6 @@ func (networkACL *NetworkACL) AssignProperties_To_NetworkACL(destination *storag
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_NetworkACL_STATUS populates our NetworkACL from the provided source NetworkACL_STATUS
-func (networkACL *NetworkACL) Initialize_From_NetworkACL_STATUS(source *NetworkACL_STATUS) error {
-
-	// Allow
-	if source.Allow != nil {
-		allowList := make([]SignalRRequestType, len(source.Allow))
-		for allowIndex, allowItem := range source.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
-			allow := genruntime.ToEnum(string(allowItem), signalRRequestType_Values)
-			allowList[allowIndex] = allow
-		}
-		networkACL.Allow = allowList
-	} else {
-		networkACL.Allow = nil
-	}
-
-	// Deny
-	if source.Deny != nil {
-		denyList := make([]SignalRRequestType, len(source.Deny))
-		for denyIndex, denyItem := range source.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
-			deny := genruntime.ToEnum(string(denyItem), signalRRequestType_Values)
-			denyList[denyIndex] = deny
-		}
-		networkACL.Deny = denyList
-	} else {
-		networkACL.Deny = nil
 	}
 
 	// No error
@@ -4853,24 +4497,28 @@ var _ genruntime.FromARMConverter = &NetworkACL_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (networkACL *NetworkACL_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &NetworkACL_STATUS_ARM{}
+	return &arm.NetworkACL_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (networkACL *NetworkACL_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(NetworkACL_STATUS_ARM)
+	typedInput, ok := armInput.(arm.NetworkACL_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected NetworkACL_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.NetworkACL_STATUS, got %T", armInput)
 	}
 
 	// Set property "Allow":
 	for _, item := range typedInput.Allow {
-		networkACL.Allow = append(networkACL.Allow, item)
+		var temp string
+		temp = string(item)
+		networkACL.Allow = append(networkACL.Allow, SignalRRequestType_STATUS(temp))
 	}
 
 	// Set property "Deny":
 	for _, item := range typedInput.Deny {
-		networkACL.Deny = append(networkACL.Deny, item)
+		var temp string
+		temp = string(item)
+		networkACL.Deny = append(networkACL.Deny, SignalRRequestType_STATUS(temp))
 	}
 
 	// No error
@@ -4884,8 +4532,6 @@ func (networkACL *NetworkACL_STATUS) AssignProperties_From_NetworkACL_STATUS(sou
 	if source.Allow != nil {
 		allowList := make([]SignalRRequestType_STATUS, len(source.Allow))
 		for allowIndex, allowItem := range source.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
 			allowList[allowIndex] = genruntime.ToEnum(allowItem, signalRRequestType_STATUS_Values)
 		}
 		networkACL.Allow = allowList
@@ -4897,8 +4543,6 @@ func (networkACL *NetworkACL_STATUS) AssignProperties_From_NetworkACL_STATUS(sou
 	if source.Deny != nil {
 		denyList := make([]SignalRRequestType_STATUS, len(source.Deny))
 		for denyIndex, denyItem := range source.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
 			denyList[denyIndex] = genruntime.ToEnum(denyItem, signalRRequestType_STATUS_Values)
 		}
 		networkACL.Deny = denyList
@@ -4919,8 +4563,6 @@ func (networkACL *NetworkACL_STATUS) AssignProperties_To_NetworkACL_STATUS(desti
 	if networkACL.Allow != nil {
 		allowList := make([]string, len(networkACL.Allow))
 		for allowIndex, allowItem := range networkACL.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
 			allowList[allowIndex] = string(allowItem)
 		}
 		destination.Allow = allowList
@@ -4932,8 +4574,6 @@ func (networkACL *NetworkACL_STATUS) AssignProperties_To_NetworkACL_STATUS(desti
 	if networkACL.Deny != nil {
 		denyList := make([]string, len(networkACL.Deny))
 		for denyIndex, denyItem := range networkACL.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
 			denyList[denyIndex] = string(denyItem)
 		}
 		destination.Deny = denyList
@@ -4972,16 +4612,20 @@ func (endpointACL *PrivateEndpointACL) ConvertToARM(resolved genruntime.ConvertT
 	if endpointACL == nil {
 		return nil, nil
 	}
-	result := &PrivateEndpointACL_ARM{}
+	result := &arm.PrivateEndpointACL{}
 
 	// Set property "Allow":
 	for _, item := range endpointACL.Allow {
-		result.Allow = append(result.Allow, item)
+		var temp string
+		temp = string(item)
+		result.Allow = append(result.Allow, arm.SignalRRequestType(temp))
 	}
 
 	// Set property "Deny":
 	for _, item := range endpointACL.Deny {
-		result.Deny = append(result.Deny, item)
+		var temp string
+		temp = string(item)
+		result.Deny = append(result.Deny, arm.SignalRRequestType(temp))
 	}
 
 	// Set property "Name":
@@ -4994,24 +4638,28 @@ func (endpointACL *PrivateEndpointACL) ConvertToARM(resolved genruntime.ConvertT
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (endpointACL *PrivateEndpointACL) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateEndpointACL_ARM{}
+	return &arm.PrivateEndpointACL{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (endpointACL *PrivateEndpointACL) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateEndpointACL_ARM)
+	typedInput, ok := armInput.(arm.PrivateEndpointACL)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateEndpointACL_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateEndpointACL, got %T", armInput)
 	}
 
 	// Set property "Allow":
 	for _, item := range typedInput.Allow {
-		endpointACL.Allow = append(endpointACL.Allow, item)
+		var temp string
+		temp = string(item)
+		endpointACL.Allow = append(endpointACL.Allow, SignalRRequestType(temp))
 	}
 
 	// Set property "Deny":
 	for _, item := range typedInput.Deny {
-		endpointACL.Deny = append(endpointACL.Deny, item)
+		var temp string
+		temp = string(item)
+		endpointACL.Deny = append(endpointACL.Deny, SignalRRequestType(temp))
 	}
 
 	// Set property "Name":
@@ -5031,8 +4679,6 @@ func (endpointACL *PrivateEndpointACL) AssignProperties_From_PrivateEndpointACL(
 	if source.Allow != nil {
 		allowList := make([]SignalRRequestType, len(source.Allow))
 		for allowIndex, allowItem := range source.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
 			allowList[allowIndex] = genruntime.ToEnum(allowItem, signalRRequestType_Values)
 		}
 		endpointACL.Allow = allowList
@@ -5044,8 +4690,6 @@ func (endpointACL *PrivateEndpointACL) AssignProperties_From_PrivateEndpointACL(
 	if source.Deny != nil {
 		denyList := make([]SignalRRequestType, len(source.Deny))
 		for denyIndex, denyItem := range source.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
 			denyList[denyIndex] = genruntime.ToEnum(denyItem, signalRRequestType_Values)
 		}
 		endpointACL.Deny = denyList
@@ -5069,8 +4713,6 @@ func (endpointACL *PrivateEndpointACL) AssignProperties_To_PrivateEndpointACL(de
 	if endpointACL.Allow != nil {
 		allowList := make([]string, len(endpointACL.Allow))
 		for allowIndex, allowItem := range endpointACL.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
 			allowList[allowIndex] = string(allowItem)
 		}
 		destination.Allow = allowList
@@ -5082,8 +4724,6 @@ func (endpointACL *PrivateEndpointACL) AssignProperties_To_PrivateEndpointACL(de
 	if endpointACL.Deny != nil {
 		denyList := make([]string, len(endpointACL.Deny))
 		for denyIndex, denyItem := range endpointACL.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
 			denyList[denyIndex] = string(denyItem)
 		}
 		destination.Deny = denyList
@@ -5105,44 +4745,6 @@ func (endpointACL *PrivateEndpointACL) AssignProperties_To_PrivateEndpointACL(de
 	return nil
 }
 
-// Initialize_From_PrivateEndpointACL_STATUS populates our PrivateEndpointACL from the provided source PrivateEndpointACL_STATUS
-func (endpointACL *PrivateEndpointACL) Initialize_From_PrivateEndpointACL_STATUS(source *PrivateEndpointACL_STATUS) error {
-
-	// Allow
-	if source.Allow != nil {
-		allowList := make([]SignalRRequestType, len(source.Allow))
-		for allowIndex, allowItem := range source.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
-			allow := genruntime.ToEnum(string(allowItem), signalRRequestType_Values)
-			allowList[allowIndex] = allow
-		}
-		endpointACL.Allow = allowList
-	} else {
-		endpointACL.Allow = nil
-	}
-
-	// Deny
-	if source.Deny != nil {
-		denyList := make([]SignalRRequestType, len(source.Deny))
-		for denyIndex, denyItem := range source.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
-			deny := genruntime.ToEnum(string(denyItem), signalRRequestType_Values)
-			denyList[denyIndex] = deny
-		}
-		endpointACL.Deny = denyList
-	} else {
-		endpointACL.Deny = nil
-	}
-
-	// Name
-	endpointACL.Name = genruntime.ClonePointerToString(source.Name)
-
-	// No error
-	return nil
-}
-
 // ACL for a private endpoint
 type PrivateEndpointACL_STATUS struct {
 	// Allow: Allowed request types. The value can be one or more of: ClientConnection, ServerConnection, RESTAPI.
@@ -5159,24 +4761,28 @@ var _ genruntime.FromARMConverter = &PrivateEndpointACL_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (endpointACL *PrivateEndpointACL_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PrivateEndpointACL_STATUS_ARM{}
+	return &arm.PrivateEndpointACL_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (endpointACL *PrivateEndpointACL_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PrivateEndpointACL_STATUS_ARM)
+	typedInput, ok := armInput.(arm.PrivateEndpointACL_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PrivateEndpointACL_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PrivateEndpointACL_STATUS, got %T", armInput)
 	}
 
 	// Set property "Allow":
 	for _, item := range typedInput.Allow {
-		endpointACL.Allow = append(endpointACL.Allow, item)
+		var temp string
+		temp = string(item)
+		endpointACL.Allow = append(endpointACL.Allow, SignalRRequestType_STATUS(temp))
 	}
 
 	// Set property "Deny":
 	for _, item := range typedInput.Deny {
-		endpointACL.Deny = append(endpointACL.Deny, item)
+		var temp string
+		temp = string(item)
+		endpointACL.Deny = append(endpointACL.Deny, SignalRRequestType_STATUS(temp))
 	}
 
 	// Set property "Name":
@@ -5196,8 +4802,6 @@ func (endpointACL *PrivateEndpointACL_STATUS) AssignProperties_From_PrivateEndpo
 	if source.Allow != nil {
 		allowList := make([]SignalRRequestType_STATUS, len(source.Allow))
 		for allowIndex, allowItem := range source.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
 			allowList[allowIndex] = genruntime.ToEnum(allowItem, signalRRequestType_STATUS_Values)
 		}
 		endpointACL.Allow = allowList
@@ -5209,8 +4813,6 @@ func (endpointACL *PrivateEndpointACL_STATUS) AssignProperties_From_PrivateEndpo
 	if source.Deny != nil {
 		denyList := make([]SignalRRequestType_STATUS, len(source.Deny))
 		for denyIndex, denyItem := range source.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
 			denyList[denyIndex] = genruntime.ToEnum(denyItem, signalRRequestType_STATUS_Values)
 		}
 		endpointACL.Deny = denyList
@@ -5234,8 +4836,6 @@ func (endpointACL *PrivateEndpointACL_STATUS) AssignProperties_To_PrivateEndpoin
 	if endpointACL.Allow != nil {
 		allowList := make([]string, len(endpointACL.Allow))
 		for allowIndex, allowItem := range endpointACL.Allow {
-			// Shadow the loop variable to avoid aliasing
-			allowItem := allowItem
 			allowList[allowIndex] = string(allowItem)
 		}
 		destination.Allow = allowList
@@ -5247,8 +4847,6 @@ func (endpointACL *PrivateEndpointACL_STATUS) AssignProperties_To_PrivateEndpoin
 	if endpointACL.Deny != nil {
 		denyList := make([]string, len(endpointACL.Deny))
 		for denyIndex, denyItem := range endpointACL.Deny {
-			// Shadow the loop variable to avoid aliasing
-			denyItem := denyItem
 			denyList[denyIndex] = string(denyItem)
 		}
 		destination.Deny = denyList
@@ -5290,7 +4888,7 @@ func (category *ResourceLogCategory) ConvertToARM(resolved genruntime.ConvertToA
 	if category == nil {
 		return nil, nil
 	}
-	result := &ResourceLogCategory_ARM{}
+	result := &arm.ResourceLogCategory{}
 
 	// Set property "Enabled":
 	if category.Enabled != nil {
@@ -5308,14 +4906,14 @@ func (category *ResourceLogCategory) ConvertToARM(resolved genruntime.ConvertToA
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (category *ResourceLogCategory) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ResourceLogCategory_ARM{}
+	return &arm.ResourceLogCategory{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (category *ResourceLogCategory) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ResourceLogCategory_ARM)
+	typedInput, ok := armInput.(arm.ResourceLogCategory)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ResourceLogCategory_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ResourceLogCategory, got %T", armInput)
 	}
 
 	// Set property "Enabled":
@@ -5369,19 +4967,6 @@ func (category *ResourceLogCategory) AssignProperties_To_ResourceLogCategory(des
 	return nil
 }
 
-// Initialize_From_ResourceLogCategory_STATUS populates our ResourceLogCategory from the provided source ResourceLogCategory_STATUS
-func (category *ResourceLogCategory) Initialize_From_ResourceLogCategory_STATUS(source *ResourceLogCategory_STATUS) error {
-
-	// Enabled
-	category.Enabled = genruntime.ClonePointerToString(source.Enabled)
-
-	// Name
-	category.Name = genruntime.ClonePointerToString(source.Name)
-
-	// No error
-	return nil
-}
-
 // Resource log category configuration of a Microsoft.SignalRService resource.
 type ResourceLogCategory_STATUS struct {
 	// Enabled: Indicates whether or the resource log category is enabled.
@@ -5399,14 +4984,14 @@ var _ genruntime.FromARMConverter = &ResourceLogCategory_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (category *ResourceLogCategory_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ResourceLogCategory_STATUS_ARM{}
+	return &arm.ResourceLogCategory_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (category *ResourceLogCategory_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ResourceLogCategory_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ResourceLogCategory_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ResourceLogCategory_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ResourceLogCategory_STATUS, got %T", armInput)
 	}
 
 	// Set property "Enabled":
@@ -5483,7 +5068,7 @@ func (secrets *SignalROperatorSecrets) AssignProperties_From_SignalROperatorSecr
 
 	// PrimaryConnectionString
 	if source.PrimaryConnectionString != nil {
-		primaryConnectionString := source.PrimaryConnectionString.Copy()
+		primaryConnectionString := *source.PrimaryConnectionString.DeepCopy()
 		secrets.PrimaryConnectionString = &primaryConnectionString
 	} else {
 		secrets.PrimaryConnectionString = nil
@@ -5491,7 +5076,7 @@ func (secrets *SignalROperatorSecrets) AssignProperties_From_SignalROperatorSecr
 
 	// PrimaryKey
 	if source.PrimaryKey != nil {
-		primaryKey := source.PrimaryKey.Copy()
+		primaryKey := *source.PrimaryKey.DeepCopy()
 		secrets.PrimaryKey = &primaryKey
 	} else {
 		secrets.PrimaryKey = nil
@@ -5499,7 +5084,7 @@ func (secrets *SignalROperatorSecrets) AssignProperties_From_SignalROperatorSecr
 
 	// SecondaryConnectionString
 	if source.SecondaryConnectionString != nil {
-		secondaryConnectionString := source.SecondaryConnectionString.Copy()
+		secondaryConnectionString := *source.SecondaryConnectionString.DeepCopy()
 		secrets.SecondaryConnectionString = &secondaryConnectionString
 	} else {
 		secrets.SecondaryConnectionString = nil
@@ -5507,7 +5092,7 @@ func (secrets *SignalROperatorSecrets) AssignProperties_From_SignalROperatorSecr
 
 	// SecondaryKey
 	if source.SecondaryKey != nil {
-		secondaryKey := source.SecondaryKey.Copy()
+		secondaryKey := *source.SecondaryKey.DeepCopy()
 		secrets.SecondaryKey = &secondaryKey
 	} else {
 		secrets.SecondaryKey = nil
@@ -5524,7 +5109,7 @@ func (secrets *SignalROperatorSecrets) AssignProperties_To_SignalROperatorSecret
 
 	// PrimaryConnectionString
 	if secrets.PrimaryConnectionString != nil {
-		primaryConnectionString := secrets.PrimaryConnectionString.Copy()
+		primaryConnectionString := *secrets.PrimaryConnectionString.DeepCopy()
 		destination.PrimaryConnectionString = &primaryConnectionString
 	} else {
 		destination.PrimaryConnectionString = nil
@@ -5532,7 +5117,7 @@ func (secrets *SignalROperatorSecrets) AssignProperties_To_SignalROperatorSecret
 
 	// PrimaryKey
 	if secrets.PrimaryKey != nil {
-		primaryKey := secrets.PrimaryKey.Copy()
+		primaryKey := *secrets.PrimaryKey.DeepCopy()
 		destination.PrimaryKey = &primaryKey
 	} else {
 		destination.PrimaryKey = nil
@@ -5540,7 +5125,7 @@ func (secrets *SignalROperatorSecrets) AssignProperties_To_SignalROperatorSecret
 
 	// SecondaryConnectionString
 	if secrets.SecondaryConnectionString != nil {
-		secondaryConnectionString := secrets.SecondaryConnectionString.Copy()
+		secondaryConnectionString := *secrets.SecondaryConnectionString.DeepCopy()
 		destination.SecondaryConnectionString = &secondaryConnectionString
 	} else {
 		destination.SecondaryConnectionString = nil
@@ -5548,7 +5133,7 @@ func (secrets *SignalROperatorSecrets) AssignProperties_To_SignalROperatorSecret
 
 	// SecondaryKey
 	if secrets.SecondaryKey != nil {
-		secondaryKey := secrets.SecondaryKey.Copy()
+		secondaryKey := *secrets.SecondaryKey.DeepCopy()
 		destination.SecondaryKey = &secondaryKey
 	} else {
 		destination.SecondaryKey = nil
@@ -5563,6 +5148,79 @@ func (secrets *SignalROperatorSecrets) AssignProperties_To_SignalROperatorSecret
 
 	// No error
 	return nil
+}
+
+// Optional tier of this particular SKU. 'Standard' or 'Free'.
+// `Basic` is deprecated, use `Standard` instead.
+// +kubebuilder:validation:Enum={"Basic","Free","Premium","Standard"}
+type SignalRSkuTier string
+
+const (
+	SignalRSkuTier_Basic    = SignalRSkuTier("Basic")
+	SignalRSkuTier_Free     = SignalRSkuTier("Free")
+	SignalRSkuTier_Premium  = SignalRSkuTier("Premium")
+	SignalRSkuTier_Standard = SignalRSkuTier("Standard")
+)
+
+// Mapping from string to SignalRSkuTier
+var signalRSkuTier_Values = map[string]SignalRSkuTier{
+	"basic":    SignalRSkuTier_Basic,
+	"free":     SignalRSkuTier_Free,
+	"premium":  SignalRSkuTier_Premium,
+	"standard": SignalRSkuTier_Standard,
+}
+
+// Optional tier of this particular SKU. 'Standard' or 'Free'.
+// `Basic` is deprecated, use `Standard` instead.
+type SignalRSkuTier_STATUS string
+
+const (
+	SignalRSkuTier_STATUS_Basic    = SignalRSkuTier_STATUS("Basic")
+	SignalRSkuTier_STATUS_Free     = SignalRSkuTier_STATUS("Free")
+	SignalRSkuTier_STATUS_Premium  = SignalRSkuTier_STATUS("Premium")
+	SignalRSkuTier_STATUS_Standard = SignalRSkuTier_STATUS("Standard")
+)
+
+// Mapping from string to SignalRSkuTier_STATUS
+var signalRSkuTier_STATUS_Values = map[string]SignalRSkuTier_STATUS{
+	"basic":    SignalRSkuTier_STATUS_Basic,
+	"free":     SignalRSkuTier_STATUS_Free,
+	"premium":  SignalRSkuTier_STATUS_Premium,
+	"standard": SignalRSkuTier_STATUS_Standard,
+}
+
+type SystemData_CreatedByType_STATUS string
+
+const (
+	SystemData_CreatedByType_STATUS_Application     = SystemData_CreatedByType_STATUS("Application")
+	SystemData_CreatedByType_STATUS_Key             = SystemData_CreatedByType_STATUS("Key")
+	SystemData_CreatedByType_STATUS_ManagedIdentity = SystemData_CreatedByType_STATUS("ManagedIdentity")
+	SystemData_CreatedByType_STATUS_User            = SystemData_CreatedByType_STATUS("User")
+)
+
+// Mapping from string to SystemData_CreatedByType_STATUS
+var systemData_CreatedByType_STATUS_Values = map[string]SystemData_CreatedByType_STATUS{
+	"application":     SystemData_CreatedByType_STATUS_Application,
+	"key":             SystemData_CreatedByType_STATUS_Key,
+	"managedidentity": SystemData_CreatedByType_STATUS_ManagedIdentity,
+	"user":            SystemData_CreatedByType_STATUS_User,
+}
+
+type SystemData_LastModifiedByType_STATUS string
+
+const (
+	SystemData_LastModifiedByType_STATUS_Application     = SystemData_LastModifiedByType_STATUS("Application")
+	SystemData_LastModifiedByType_STATUS_Key             = SystemData_LastModifiedByType_STATUS("Key")
+	SystemData_LastModifiedByType_STATUS_ManagedIdentity = SystemData_LastModifiedByType_STATUS("ManagedIdentity")
+	SystemData_LastModifiedByType_STATUS_User            = SystemData_LastModifiedByType_STATUS("User")
+)
+
+// Mapping from string to SystemData_LastModifiedByType_STATUS
+var systemData_LastModifiedByType_STATUS_Values = map[string]SystemData_LastModifiedByType_STATUS{
+	"application":     SystemData_LastModifiedByType_STATUS_Application,
+	"key":             SystemData_LastModifiedByType_STATUS_Key,
+	"managedidentity": SystemData_LastModifiedByType_STATUS_ManagedIdentity,
+	"user":            SystemData_LastModifiedByType_STATUS_User,
 }
 
 // Upstream template item settings. It defines the Upstream URL of the incoming requests.
@@ -5609,15 +5267,15 @@ func (template *UpstreamTemplate) ConvertToARM(resolved genruntime.ConvertToARMR
 	if template == nil {
 		return nil, nil
 	}
-	result := &UpstreamTemplate_ARM{}
+	result := &arm.UpstreamTemplate{}
 
 	// Set property "Auth":
 	if template.Auth != nil {
-		auth_ARM, err := (*template.Auth).ConvertToARM(resolved)
+		auth_ARM, err := template.Auth.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		auth := *auth_ARM.(*UpstreamAuthSettings_ARM)
+		auth := *auth_ARM.(*arm.UpstreamAuthSettings)
 		result.Auth = &auth
 	}
 
@@ -5649,14 +5307,14 @@ func (template *UpstreamTemplate) ConvertToARM(resolved genruntime.ConvertToARMR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (template *UpstreamTemplate) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &UpstreamTemplate_ARM{}
+	return &arm.UpstreamTemplate{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (template *UpstreamTemplate) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(UpstreamTemplate_ARM)
+	typedInput, ok := armInput.(arm.UpstreamTemplate)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected UpstreamTemplate_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.UpstreamTemplate, got %T", armInput)
 	}
 
 	// Set property "Auth":
@@ -5706,7 +5364,7 @@ func (template *UpstreamTemplate) AssignProperties_From_UpstreamTemplate(source 
 		var auth UpstreamAuthSettings
 		err := auth.AssignProperties_From_UpstreamAuthSettings(source.Auth)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UpstreamAuthSettings() to populate field Auth")
+			return eris.Wrap(err, "calling AssignProperties_From_UpstreamAuthSettings() to populate field Auth")
 		}
 		template.Auth = &auth
 	} else {
@@ -5739,7 +5397,7 @@ func (template *UpstreamTemplate) AssignProperties_To_UpstreamTemplate(destinati
 		var auth storage.UpstreamAuthSettings
 		err := template.Auth.AssignProperties_To_UpstreamAuthSettings(&auth)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UpstreamAuthSettings() to populate field Auth")
+			return eris.Wrap(err, "calling AssignProperties_To_UpstreamAuthSettings() to populate field Auth")
 		}
 		destination.Auth = &auth
 	} else {
@@ -5764,37 +5422,6 @@ func (template *UpstreamTemplate) AssignProperties_To_UpstreamTemplate(destinati
 	} else {
 		destination.PropertyBag = nil
 	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_UpstreamTemplate_STATUS populates our UpstreamTemplate from the provided source UpstreamTemplate_STATUS
-func (template *UpstreamTemplate) Initialize_From_UpstreamTemplate_STATUS(source *UpstreamTemplate_STATUS) error {
-
-	// Auth
-	if source.Auth != nil {
-		var auth UpstreamAuthSettings
-		err := auth.Initialize_From_UpstreamAuthSettings_STATUS(source.Auth)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_UpstreamAuthSettings_STATUS() to populate field Auth")
-		}
-		template.Auth = &auth
-	} else {
-		template.Auth = nil
-	}
-
-	// CategoryPattern
-	template.CategoryPattern = genruntime.ClonePointerToString(source.CategoryPattern)
-
-	// EventPattern
-	template.EventPattern = genruntime.ClonePointerToString(source.EventPattern)
-
-	// HubPattern
-	template.HubPattern = genruntime.ClonePointerToString(source.HubPattern)
-
-	// UrlTemplate
-	template.UrlTemplate = genruntime.ClonePointerToString(source.UrlTemplate)
 
 	// No error
 	return nil
@@ -5840,14 +5467,14 @@ var _ genruntime.FromARMConverter = &UpstreamTemplate_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (template *UpstreamTemplate_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &UpstreamTemplate_STATUS_ARM{}
+	return &arm.UpstreamTemplate_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (template *UpstreamTemplate_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(UpstreamTemplate_STATUS_ARM)
+	typedInput, ok := armInput.(arm.UpstreamTemplate_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected UpstreamTemplate_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.UpstreamTemplate_STATUS, got %T", armInput)
 	}
 
 	// Set property "Auth":
@@ -5897,7 +5524,7 @@ func (template *UpstreamTemplate_STATUS) AssignProperties_From_UpstreamTemplate_
 		var auth UpstreamAuthSettings_STATUS
 		err := auth.AssignProperties_From_UpstreamAuthSettings_STATUS(source.Auth)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_UpstreamAuthSettings_STATUS() to populate field Auth")
+			return eris.Wrap(err, "calling AssignProperties_From_UpstreamAuthSettings_STATUS() to populate field Auth")
 		}
 		template.Auth = &auth
 	} else {
@@ -5930,7 +5557,7 @@ func (template *UpstreamTemplate_STATUS) AssignProperties_To_UpstreamTemplate_ST
 		var auth storage.UpstreamAuthSettings_STATUS
 		err := template.Auth.AssignProperties_To_UpstreamAuthSettings_STATUS(&auth)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_UpstreamAuthSettings_STATUS() to populate field Auth")
+			return eris.Wrap(err, "calling AssignProperties_To_UpstreamAuthSettings_STATUS() to populate field Auth")
 		}
 		destination.Auth = &auth
 	} else {
@@ -6007,14 +5634,14 @@ var _ genruntime.FromARMConverter = &UserAssignedIdentityProperty_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (property *UserAssignedIdentityProperty_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &UserAssignedIdentityProperty_STATUS_ARM{}
+	return &arm.UserAssignedIdentityProperty_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (property *UserAssignedIdentityProperty_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(UserAssignedIdentityProperty_STATUS_ARM)
+	typedInput, ok := armInput.(arm.UserAssignedIdentityProperty_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected UserAssignedIdentityProperty_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.UserAssignedIdentityProperty_STATUS, got %T", armInput)
 	}
 
 	// Set property "ClientId":
@@ -6121,21 +5748,23 @@ func (settings *UpstreamAuthSettings) ConvertToARM(resolved genruntime.ConvertTo
 	if settings == nil {
 		return nil, nil
 	}
-	result := &UpstreamAuthSettings_ARM{}
+	result := &arm.UpstreamAuthSettings{}
 
 	// Set property "ManagedIdentity":
 	if settings.ManagedIdentity != nil {
-		managedIdentity_ARM, err := (*settings.ManagedIdentity).ConvertToARM(resolved)
+		managedIdentity_ARM, err := settings.ManagedIdentity.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		managedIdentity := *managedIdentity_ARM.(*ManagedIdentitySettings_ARM)
+		managedIdentity := *managedIdentity_ARM.(*arm.ManagedIdentitySettings)
 		result.ManagedIdentity = &managedIdentity
 	}
 
 	// Set property "Type":
 	if settings.Type != nil {
-		typeVar := *settings.Type
+		var temp string
+		temp = string(*settings.Type)
+		typeVar := arm.UpstreamAuthType(temp)
 		result.Type = &typeVar
 	}
 	return result, nil
@@ -6143,14 +5772,14 @@ func (settings *UpstreamAuthSettings) ConvertToARM(resolved genruntime.ConvertTo
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *UpstreamAuthSettings) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &UpstreamAuthSettings_ARM{}
+	return &arm.UpstreamAuthSettings{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *UpstreamAuthSettings) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(UpstreamAuthSettings_ARM)
+	typedInput, ok := armInput.(arm.UpstreamAuthSettings)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected UpstreamAuthSettings_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.UpstreamAuthSettings, got %T", armInput)
 	}
 
 	// Set property "ManagedIdentity":
@@ -6166,7 +5795,9 @@ func (settings *UpstreamAuthSettings) PopulateFromARM(owner genruntime.Arbitrary
 
 	// Set property "Type":
 	if typedInput.Type != nil {
-		typeVar := *typedInput.Type
+		var temp string
+		temp = string(*typedInput.Type)
+		typeVar := UpstreamAuthType(temp)
 		settings.Type = &typeVar
 	}
 
@@ -6182,7 +5813,7 @@ func (settings *UpstreamAuthSettings) AssignProperties_From_UpstreamAuthSettings
 		var managedIdentity ManagedIdentitySettings
 		err := managedIdentity.AssignProperties_From_ManagedIdentitySettings(source.ManagedIdentity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ManagedIdentitySettings() to populate field ManagedIdentity")
+			return eris.Wrap(err, "calling AssignProperties_From_ManagedIdentitySettings() to populate field ManagedIdentity")
 		}
 		settings.ManagedIdentity = &managedIdentity
 	} else {
@@ -6212,7 +5843,7 @@ func (settings *UpstreamAuthSettings) AssignProperties_To_UpstreamAuthSettings(d
 		var managedIdentity storage.ManagedIdentitySettings
 		err := settings.ManagedIdentity.AssignProperties_To_ManagedIdentitySettings(&managedIdentity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ManagedIdentitySettings() to populate field ManagedIdentity")
+			return eris.Wrap(err, "calling AssignProperties_To_ManagedIdentitySettings() to populate field ManagedIdentity")
 		}
 		destination.ManagedIdentity = &managedIdentity
 	} else {
@@ -6238,33 +5869,6 @@ func (settings *UpstreamAuthSettings) AssignProperties_To_UpstreamAuthSettings(d
 	return nil
 }
 
-// Initialize_From_UpstreamAuthSettings_STATUS populates our UpstreamAuthSettings from the provided source UpstreamAuthSettings_STATUS
-func (settings *UpstreamAuthSettings) Initialize_From_UpstreamAuthSettings_STATUS(source *UpstreamAuthSettings_STATUS) error {
-
-	// ManagedIdentity
-	if source.ManagedIdentity != nil {
-		var managedIdentity ManagedIdentitySettings
-		err := managedIdentity.Initialize_From_ManagedIdentitySettings_STATUS(source.ManagedIdentity)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ManagedIdentitySettings_STATUS() to populate field ManagedIdentity")
-		}
-		settings.ManagedIdentity = &managedIdentity
-	} else {
-		settings.ManagedIdentity = nil
-	}
-
-	// Type
-	if source.Type != nil {
-		typeVar := genruntime.ToEnum(string(*source.Type), upstreamAuthType_Values)
-		settings.Type = &typeVar
-	} else {
-		settings.Type = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Upstream auth settings. If not set, no auth is used for upstream messages.
 type UpstreamAuthSettings_STATUS struct {
 	// ManagedIdentity: Managed identity settings for upstream.
@@ -6278,14 +5882,14 @@ var _ genruntime.FromARMConverter = &UpstreamAuthSettings_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *UpstreamAuthSettings_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &UpstreamAuthSettings_STATUS_ARM{}
+	return &arm.UpstreamAuthSettings_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *UpstreamAuthSettings_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(UpstreamAuthSettings_STATUS_ARM)
+	typedInput, ok := armInput.(arm.UpstreamAuthSettings_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected UpstreamAuthSettings_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.UpstreamAuthSettings_STATUS, got %T", armInput)
 	}
 
 	// Set property "ManagedIdentity":
@@ -6301,7 +5905,9 @@ func (settings *UpstreamAuthSettings_STATUS) PopulateFromARM(owner genruntime.Ar
 
 	// Set property "Type":
 	if typedInput.Type != nil {
-		typeVar := *typedInput.Type
+		var temp string
+		temp = string(*typedInput.Type)
+		typeVar := UpstreamAuthType_STATUS(temp)
 		settings.Type = &typeVar
 	}
 
@@ -6317,7 +5923,7 @@ func (settings *UpstreamAuthSettings_STATUS) AssignProperties_From_UpstreamAuthS
 		var managedIdentity ManagedIdentitySettings_STATUS
 		err := managedIdentity.AssignProperties_From_ManagedIdentitySettings_STATUS(source.ManagedIdentity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ManagedIdentitySettings_STATUS() to populate field ManagedIdentity")
+			return eris.Wrap(err, "calling AssignProperties_From_ManagedIdentitySettings_STATUS() to populate field ManagedIdentity")
 		}
 		settings.ManagedIdentity = &managedIdentity
 	} else {
@@ -6347,7 +5953,7 @@ func (settings *UpstreamAuthSettings_STATUS) AssignProperties_To_UpstreamAuthSet
 		var managedIdentity storage.ManagedIdentitySettings_STATUS
 		err := settings.ManagedIdentity.AssignProperties_To_ManagedIdentitySettings_STATUS(&managedIdentity)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ManagedIdentitySettings_STATUS() to populate field ManagedIdentity")
+			return eris.Wrap(err, "calling AssignProperties_To_ManagedIdentitySettings_STATUS() to populate field ManagedIdentity")
 		}
 		destination.ManagedIdentity = &managedIdentity
 	} else {
@@ -6387,7 +5993,7 @@ func (settings *ManagedIdentitySettings) ConvertToARM(resolved genruntime.Conver
 	if settings == nil {
 		return nil, nil
 	}
-	result := &ManagedIdentitySettings_ARM{}
+	result := &arm.ManagedIdentitySettings{}
 
 	// Set property "Resource":
 	if settings.Resource != nil {
@@ -6399,14 +6005,14 @@ func (settings *ManagedIdentitySettings) ConvertToARM(resolved genruntime.Conver
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *ManagedIdentitySettings) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ManagedIdentitySettings_ARM{}
+	return &arm.ManagedIdentitySettings{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *ManagedIdentitySettings) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ManagedIdentitySettings_ARM)
+	typedInput, ok := armInput.(arm.ManagedIdentitySettings)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ManagedIdentitySettings_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ManagedIdentitySettings, got %T", armInput)
 	}
 
 	// Set property "Resource":
@@ -6448,16 +6054,6 @@ func (settings *ManagedIdentitySettings) AssignProperties_To_ManagedIdentitySett
 	return nil
 }
 
-// Initialize_From_ManagedIdentitySettings_STATUS populates our ManagedIdentitySettings from the provided source ManagedIdentitySettings_STATUS
-func (settings *ManagedIdentitySettings) Initialize_From_ManagedIdentitySettings_STATUS(source *ManagedIdentitySettings_STATUS) error {
-
-	// Resource
-	settings.Resource = genruntime.ClonePointerToString(source.Resource)
-
-	// No error
-	return nil
-}
-
 // Managed identity settings for upstream.
 type ManagedIdentitySettings_STATUS struct {
 	// Resource: The Resource indicating the App ID URI of the target resource.
@@ -6469,14 +6065,14 @@ var _ genruntime.FromARMConverter = &ManagedIdentitySettings_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *ManagedIdentitySettings_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ManagedIdentitySettings_STATUS_ARM{}
+	return &arm.ManagedIdentitySettings_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *ManagedIdentitySettings_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ManagedIdentitySettings_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ManagedIdentitySettings_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ManagedIdentitySettings_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ManagedIdentitySettings_STATUS, got %T", armInput)
 	}
 
 	// Set property "Resource":

@@ -8,22 +8,21 @@ package pipeline
 import (
 	"context"
 
-	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/codegen/storage"
-
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
+	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/codegen/storage"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/functions"
 )
 
-// ImplementConvertibleInterfaceStageId is the unique identifier for this pipeline stage
-const ImplementConvertibleInterfaceStageId = "implementConvertibleInterface"
+// ImplementConvertibleInterfaceStageID is the unique identifier for this pipeline stage
+const ImplementConvertibleInterfaceStageID = "implementConvertibleInterface"
 
 // ImplementConvertibleInterface injects the functions ConvertTo() and ConvertFrom() into each non-hub Resource
 // Type, providing the required implementation of the Convertible interface needed by the controller
 func ImplementConvertibleInterface(idFactory astmodel.IdentifierFactory) *Stage {
 	stage := NewStage(
-		ImplementConvertibleInterfaceStageId,
+		ImplementConvertibleInterfaceStageID,
 		"Implement the Convertible interface on each non-hub Resource type",
 		func(ctx context.Context, state *State) (*State, error) {
 			injector := astmodel.NewInterfaceInjector()
@@ -32,15 +31,16 @@ func ImplementConvertibleInterface(idFactory astmodel.IdentifierFactory) *Stage 
 				func(def astmodel.TypeDefinition) (*astmodel.TypeDefinition, error) {
 					graph, err := GetStateData[*storage.ConversionGraph](state, ConversionGraphInfo)
 					if err != nil {
-						return nil, errors.Wrapf(err, "couldn't find conversion graph")
+						return nil, eris.Wrapf(err, "couldn't find conversion graph")
 					}
 
 					hub, err := graph.FindHub(def.Name(), state.Definitions())
 					if err != nil {
-						return nil, errors.Wrapf(
+						return nil, eris.Wrapf(
 							err,
 							"finding hub for %s",
-							def.Name())
+							def.Name(),
+						)
 					}
 
 					if astmodel.TypeEquals(def.Name(), hub) {
@@ -64,17 +64,19 @@ func ImplementConvertibleInterface(idFactory astmodel.IdentifierFactory) *Stage 
 
 					modified, err := injector.Inject(def, impl)
 					if err != nil {
-						return nil, errors.Wrapf(err, "injecting conversions.Convertible interface into %s", def.Name())
+						return nil, eris.Wrapf(err, "injecting conversions.Convertible interface into %s", def.Name())
 					}
 
 					return &modified, nil
-				})
+				},
+			)
 			if err != nil {
-				return nil, errors.Wrap(err, "injecting conversions.Convertible implementations")
+				return nil, eris.Wrap(err, "injecting conversions.Convertible implementations")
 			}
 
 			return state.WithOverlaidDefinitions(modifiedTypes), nil
-		})
+		},
+	)
 
 	stage.RequiresPrerequisiteStages(InjectPropertyAssignmentFunctionsStageID)
 	return stage

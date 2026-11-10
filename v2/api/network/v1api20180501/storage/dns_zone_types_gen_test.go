@@ -20,6 +20,11 @@ import (
 
 func Test_DnsZone_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -79,8 +84,73 @@ func AddRelatedPropertyGeneratorsForDnsZone(gens map[string]gopter.Gen) {
 	gens["Status"] = DnsZone_STATUSGenerator()
 }
 
+func Test_DnsZoneOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of DnsZoneOperatorSpec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForDnsZoneOperatorSpec, DnsZoneOperatorSpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForDnsZoneOperatorSpec runs a test to see if a specific instance of DnsZoneOperatorSpec round trips to JSON and back losslessly
+func RunJSONSerializationTestForDnsZoneOperatorSpec(subject DnsZoneOperatorSpec) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual DnsZoneOperatorSpec
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of DnsZoneOperatorSpec instances for property testing - lazily instantiated by
+// DnsZoneOperatorSpecGenerator()
+var dnsZoneOperatorSpecGenerator gopter.Gen
+
+// DnsZoneOperatorSpecGenerator returns a generator of DnsZoneOperatorSpec instances for property testing.
+func DnsZoneOperatorSpecGenerator() gopter.Gen {
+	if dnsZoneOperatorSpecGenerator != nil {
+		return dnsZoneOperatorSpecGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	dnsZoneOperatorSpecGenerator = gen.Struct(reflect.TypeOf(DnsZoneOperatorSpec{}), generators)
+
+	return dnsZoneOperatorSpecGenerator
+}
+
 func Test_DnsZone_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -168,6 +238,11 @@ func AddRelatedPropertyGeneratorsForDnsZone_STATUS(gens map[string]gopter.Gen) {
 
 func Test_DnsZone_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -243,12 +318,18 @@ func AddIndependentPropertyGeneratorsForDnsZone_Spec(gens map[string]gopter.Gen)
 
 // AddRelatedPropertyGeneratorsForDnsZone_Spec is a factory method for creating gopter generators
 func AddRelatedPropertyGeneratorsForDnsZone_Spec(gens map[string]gopter.Gen) {
+	gens["OperatorSpec"] = gen.PtrOf(DnsZoneOperatorSpecGenerator())
 	gens["RegistrationVirtualNetworks"] = gen.SliceOf(SubResourceGenerator())
 	gens["ResolutionVirtualNetworks"] = gen.SliceOf(SubResourceGenerator())
 }
 
 func Test_SubResource_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -291,6 +372,11 @@ func RunPropertyAssignmentTestForSubResource(subject SubResource) string {
 
 func Test_SubResource_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -345,6 +431,11 @@ func SubResourceGenerator() gopter.Gen {
 
 func Test_SubResource_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -387,6 +478,11 @@ func RunPropertyAssignmentTestForSubResource_STATUS(subject SubResource_STATUS) 
 
 func Test_SubResource_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3

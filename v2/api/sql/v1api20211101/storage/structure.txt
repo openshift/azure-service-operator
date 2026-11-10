@@ -3,19 +3,23 @@ github.com/Azure/azure-service-operator/v2/api/sql/v1api20211101/storage
 ------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2021-11-01"
+
 Server: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
 ├── Spec: Object (18 properties)
 │   ├── AdministratorLogin: *string
 │   ├── AdministratorLoginPassword: *genruntime.SecretReference
-│   ├── Administrators: *Object (7 properties)
+│   ├── Administrators: *Object (10 properties)
 │   │   ├── AdministratorType: *string
 │   │   ├── AzureADOnlyAuthentication: *bool
 │   │   ├── Login: *string
+│   │   ├── LoginFromConfig: *genruntime.ConfigMapReference
 │   │   ├── PrincipalType: *string
 │   │   ├── PropertyBag: genruntime.PropertyBag
 │   │   ├── Sid: *string
-│   │   └── TenantId: *string
+│   │   ├── SidFromConfig: *genruntime.ConfigMapReference
+│   │   ├── TenantId: *string
+│   │   └── TenantIdFromConfig: *genruntime.ConfigMapReference
 │   ├── AzureName: string
 │   ├── FederatedClientId: *string
 │   ├── Identity: *Object (3 properties)
@@ -27,11 +31,13 @@ Server: Resource
 │   ├── KeyId: *string
 │   ├── Location: *string
 │   ├── MinimalTlsVersion: *string
-│   ├── OperatorSpec: *Object (2 properties)
+│   ├── OperatorSpec: *Object (4 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
 │   │   ├── ConfigMaps: *Object (2 properties)
 │   │   │   ├── FullyQualifiedDomainName: *genruntime.ConfigMapDestination
 │   │   │   └── PropertyBag: genruntime.PropertyBag
-│   │   └── PropertyBag: genruntime.PropertyBag
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PrimaryUserAssignedIdentityReference: *genruntime.ResourceReference
@@ -92,11 +98,16 @@ Server: Resource
     ├── Type: *string
     ├── Version: *string
     └── WorkspaceFeature: *string
+
 ServersAdministrator: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (9 properties)
+├── Spec: Object (10 properties)
 │   ├── AdministratorType: *string
 │   ├── Login: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -115,9 +126,14 @@ ServersAdministrator: Resource
     ├── Sid: *string
     ├── TenantId: *string
     └── Type: *string
+
 ServersAdvancedThreatProtectionSetting: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (4 properties)
+├── Spec: Object (5 properties)
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -138,14 +154,19 @@ ServersAdvancedThreatProtectionSetting: Resource
     │   ├── LastModifiedByType: *string
     │   └── PropertyBag: genruntime.PropertyBag
     └── Type: *string
+
 ServersAuditingSetting: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (14 properties)
+├── Spec: Object (15 properties)
 │   ├── AuditActionsAndGroups: string[]
 │   ├── IsAzureMonitorTargetEnabled: *bool
 │   ├── IsDevopsAuditEnabled: *bool
 │   ├── IsManagedIdentityInUse: *bool
 │   ├── IsStorageSecondaryKeyInUse: *bool
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -171,10 +192,15 @@ ServersAuditingSetting: Resource
     ├── StorageAccountSubscriptionId: *string
     ├── StorageEndpoint: *string
     └── Type: *string
+
 ServersAzureADOnlyAuthentication: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (4 properties)
+├── Spec: Object (5 properties)
 │   ├── AzureADOnlyAuthentication: *bool
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   └── PropertyBag: genruntime.PropertyBag
@@ -185,10 +211,15 @@ ServersAzureADOnlyAuthentication: Resource
     ├── Name: *string
     ├── PropertyBag: genruntime.PropertyBag
     └── Type: *string
+
 ServersConnectionPolicy: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (4 properties)
+├── Spec: Object (5 properties)
 │   ├── ConnectionType: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   └── PropertyBag: genruntime.PropertyBag
@@ -201,9 +232,10 @@ ServersConnectionPolicy: Resource
     ├── Name: *string
     ├── PropertyBag: genruntime.PropertyBag
     └── Type: *string
+
 ServersDatabase: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (33 properties)
+├── Spec: Object (34 properties)
 │   ├── AutoPauseDelay: *int
 │   ├── AzureName: string
 │   ├── CatalogCollation: *string
@@ -225,6 +257,10 @@ ServersDatabase: Resource
 │   ├── MaintenanceConfigurationId: *string
 │   ├── MaxSizeBytes: *int
 │   ├── MinCapacity: *float64
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -318,9 +354,14 @@ ServersDatabase: Resource
     ├── Tags: map[string]string
     ├── Type: *string
     └── ZoneRedundant: *bool
+
 ServersDatabasesAdvancedThreatProtectionSetting: Resource
 ├── Owner: sql/v1api20211101.ServersDatabase
-├── Spec: Object (4 properties)
+├── Spec: Object (5 properties)
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -341,13 +382,18 @@ ServersDatabasesAdvancedThreatProtectionSetting: Resource
     │   ├── LastModifiedByType: *string
     │   └── PropertyBag: genruntime.PropertyBag
     └── Type: *string
+
 ServersDatabasesAuditingSetting: Resource
 ├── Owner: sql/v1api20211101.ServersDatabase
-├── Spec: Object (13 properties)
+├── Spec: Object (14 properties)
 │   ├── AuditActionsAndGroups: string[]
 │   ├── IsAzureMonitorTargetEnabled: *bool
 │   ├── IsManagedIdentityInUse: *bool
 │   ├── IsStorageSecondaryKeyInUse: *bool
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -373,10 +419,15 @@ ServersDatabasesAuditingSetting: Resource
     ├── StorageAccountSubscriptionId: *string
     ├── StorageEndpoint: *string
     └── Type: *string
+
 ServersDatabasesBackupLongTermRetentionPolicy: Resource
 ├── Owner: sql/v1api20211101.ServersDatabase
-├── Spec: Object (7 properties)
+├── Spec: Object (8 properties)
 │   ├── MonthlyRetention: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -393,10 +444,15 @@ ServersDatabasesBackupLongTermRetentionPolicy: Resource
     ├── WeekOfYear: *int
     ├── WeeklyRetention: *string
     └── YearlyRetention: *string
+
 ServersDatabasesBackupShortTermRetentionPolicy: Resource
 ├── Owner: sql/v1api20211101.ServersDatabase
-├── Spec: Object (5 properties)
+├── Spec: Object (6 properties)
 │   ├── DiffBackupIntervalInHours: *int
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -409,12 +465,17 @@ ServersDatabasesBackupShortTermRetentionPolicy: Resource
     ├── PropertyBag: genruntime.PropertyBag
     ├── RetentionDays: *int
     └── Type: *string
+
 ServersDatabasesSecurityAlertPolicy: Resource
 ├── Owner: sql/v1api20211101.ServersDatabase
-├── Spec: Object (10 properties)
+├── Spec: Object (11 properties)
 │   ├── DisabledAlerts: string[]
 │   ├── EmailAccountAdmins: *bool
 │   ├── EmailAddresses: string[]
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -443,9 +504,14 @@ ServersDatabasesSecurityAlertPolicy: Resource
     │   ├── LastModifiedByType: *string
     │   └── PropertyBag: genruntime.PropertyBag
     └── Type: *string
+
 ServersDatabasesTransparentDataEncryption: Resource
 ├── Owner: sql/v1api20211101.ServersDatabase
-├── Spec: Object (4 properties)
+├── Spec: Object (5 properties)
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -457,9 +523,14 @@ ServersDatabasesTransparentDataEncryption: Resource
     ├── PropertyBag: genruntime.PropertyBag
     ├── State: *string
     └── Type: *string
+
 ServersDatabasesVulnerabilityAssessment: Resource
 ├── Owner: sql/v1api20211101.ServersDatabase
-├── Spec: Object (8 properties)
+├── Spec: Object (9 properties)
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -484,9 +555,10 @@ ServersDatabasesVulnerabilityAssessment: Resource
     │   └── PropertyBag: genruntime.PropertyBag
     ├── StorageContainerPath: *string
     └── Type: *string
+
 ServersElasticPool: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (14 properties)
+├── Spec: Object (15 properties)
 │   ├── AzureName: string
 │   ├── HighAvailabilityReplicaCount: *int
 │   ├── LicenseType: *string
@@ -494,6 +566,10 @@ ServersElasticPool: Resource
 │   ├── MaintenanceConfigurationId: *string
 │   ├── MaxSizeBytes: *int
 │   ├── MinCapacity: *float64
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PerDatabaseSettings: *Object (3 properties)
@@ -538,11 +614,16 @@ ServersElasticPool: Resource
     ├── Tags: map[string]string
     ├── Type: *string
     └── ZoneRedundant: *bool
+
 ServersFailoverGroup: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (9 properties)
+├── Spec: Object (10 properties)
 │   ├── AzureName: string
 │   ├── DatabasesReferences: genruntime.ResourceReference[]
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PartnerServers: Object (2 properties)[]
@@ -580,11 +661,16 @@ ServersFailoverGroup: Resource
     ├── ReplicationState: *string
     ├── Tags: map[string]string
     └── Type: *string
+
 ServersFirewallRule: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (6 properties)
+├── Spec: Object (7 properties)
 │   ├── AzureName: string
 │   ├── EndIpAddress: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -597,11 +683,16 @@ ServersFirewallRule: Resource
     ├── PropertyBag: genruntime.PropertyBag
     ├── StartIpAddress: *string
     └── Type: *string
+
 ServersIPV6FirewallRule: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (6 properties)
+├── Spec: Object (7 properties)
 │   ├── AzureName: string
 │   ├── EndIPv6Address: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -614,10 +705,15 @@ ServersIPV6FirewallRule: Resource
     ├── PropertyBag: genruntime.PropertyBag
     ├── StartIPv6Address: *string
     └── Type: *string
+
 ServersOutboundFirewallRule: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (4 properties)
+├── Spec: Object (5 properties)
 │   ├── AzureName: string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   └── PropertyBag: genruntime.PropertyBag
@@ -628,12 +724,17 @@ ServersOutboundFirewallRule: Resource
     ├── PropertyBag: genruntime.PropertyBag
     ├── ProvisioningState: *string
     └── Type: *string
+
 ServersSecurityAlertPolicy: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (10 properties)
+├── Spec: Object (11 properties)
 │   ├── DisabledAlerts: string[]
 │   ├── EmailAccountAdmins: *bool
 │   ├── EmailAddresses: string[]
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -662,11 +763,16 @@ ServersSecurityAlertPolicy: Resource
     │   ├── LastModifiedByType: *string
     │   └── PropertyBag: genruntime.PropertyBag
     └── Type: *string
+
 ServersVirtualNetworkRule: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (6 properties)
+├── Spec: Object (7 properties)
 │   ├── AzureName: string
 │   ├── IgnoreMissingVnetServiceEndpoint: *bool
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -680,9 +786,14 @@ ServersVirtualNetworkRule: Resource
     ├── State: *string
     ├── Type: *string
     └── VirtualNetworkSubnetId: *string
+
 ServersVulnerabilityAssessment: Resource
 ├── Owner: sql/v1api20211101.Server
-├── Spec: Object (8 properties)
+├── Spec: Object (9 properties)
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -707,3 +818,234 @@ ServersVulnerabilityAssessment: Resource
     │   └── PropertyBag: genruntime.PropertyBag
     ├── StorageContainerPath: *string
     └── Type: *string
+
+augmentConversionForDatabaseIdentity: Interface
+
+augmentConversionForDatabaseIdentity_STATUS: Interface
+
+augmentConversionForDatabaseUserIdentity_STATUS: Interface
+
+augmentConversionForElasticPoolPerDatabaseSettings: Interface
+
+augmentConversionForElasticPoolPerDatabaseSettings_STATUS: Interface
+
+augmentConversionForFailoverGroupReadOnlyEndpoint: Interface
+
+augmentConversionForFailoverGroupReadOnlyEndpoint_STATUS: Interface
+
+augmentConversionForFailoverGroupReadWriteEndpoint: Interface
+
+augmentConversionForFailoverGroupReadWriteEndpoint_STATUS: Interface
+
+augmentConversionForPartnerInfo: Interface
+
+augmentConversionForPartnerInfo_STATUS: Interface
+
+augmentConversionForPrivateEndpointConnectionProperties_STATUS: Interface
+
+augmentConversionForPrivateEndpointProperty_STATUS: Interface
+
+augmentConversionForPrivateLinkServiceConnectionStateProperty_STATUS: Interface
+
+augmentConversionForResourceIdentity: Interface
+
+augmentConversionForResourceIdentity_STATUS: Interface
+
+augmentConversionForServer: Interface
+
+augmentConversionForServerExternalAdministrator: Interface
+
+augmentConversionForServerExternalAdministrator_STATUS: Interface
+
+augmentConversionForServerOperatorConfigMaps: Interface
+
+augmentConversionForServerOperatorSpec: Interface
+
+augmentConversionForServerPrivateEndpointConnection_STATUS: Interface
+
+augmentConversionForServer_STATUS: Interface
+
+augmentConversionForServer_Spec: Interface
+
+augmentConversionForServersAdministrator: Interface
+
+augmentConversionForServersAdministratorOperatorSpec: Interface
+
+augmentConversionForServersAdministrator_STATUS: Interface
+
+augmentConversionForServersAdministrator_Spec: Interface
+
+augmentConversionForServersAdvancedThreatProtectionSetting: Interface
+
+augmentConversionForServersAdvancedThreatProtectionSettingOperatorSpec: Interface
+
+augmentConversionForServersAdvancedThreatProtectionSetting_STATUS: Interface
+
+augmentConversionForServersAdvancedThreatProtectionSetting_Spec: Interface
+
+augmentConversionForServersAuditingSetting: Interface
+
+augmentConversionForServersAuditingSettingOperatorSpec: Interface
+
+augmentConversionForServersAuditingSetting_STATUS: Interface
+
+augmentConversionForServersAuditingSetting_Spec: Interface
+
+augmentConversionForServersAzureADOnlyAuthentication: Interface
+
+augmentConversionForServersAzureADOnlyAuthenticationOperatorSpec: Interface
+
+augmentConversionForServersAzureADOnlyAuthentication_STATUS: Interface
+
+augmentConversionForServersAzureADOnlyAuthentication_Spec: Interface
+
+augmentConversionForServersConnectionPolicy: Interface
+
+augmentConversionForServersConnectionPolicyOperatorSpec: Interface
+
+augmentConversionForServersConnectionPolicy_STATUS: Interface
+
+augmentConversionForServersConnectionPolicy_Spec: Interface
+
+augmentConversionForServersDatabase: Interface
+
+augmentConversionForServersDatabaseOperatorSpec: Interface
+
+augmentConversionForServersDatabase_STATUS: Interface
+
+augmentConversionForServersDatabase_Spec: Interface
+
+augmentConversionForServersDatabasesAdvancedThreatProtectionSetting: Interface
+
+augmentConversionForServersDatabasesAdvancedThreatProtectionSettingOperatorSpec: Interface
+
+augmentConversionForServersDatabasesAdvancedThreatProtectionSetting_STATUS: Interface
+
+augmentConversionForServersDatabasesAdvancedThreatProtectionSetting_Spec: Interface
+
+augmentConversionForServersDatabasesAuditingSetting: Interface
+
+augmentConversionForServersDatabasesAuditingSettingOperatorSpec: Interface
+
+augmentConversionForServersDatabasesAuditingSetting_STATUS: Interface
+
+augmentConversionForServersDatabasesAuditingSetting_Spec: Interface
+
+augmentConversionForServersDatabasesBackupLongTermRetentionPolicy: Interface
+
+augmentConversionForServersDatabasesBackupLongTermRetentionPolicyOperatorSpec: Interface
+
+augmentConversionForServersDatabasesBackupLongTermRetentionPolicy_STATUS: Interface
+
+augmentConversionForServersDatabasesBackupLongTermRetentionPolicy_Spec: Interface
+
+augmentConversionForServersDatabasesBackupShortTermRetentionPolicy: Interface
+
+augmentConversionForServersDatabasesBackupShortTermRetentionPolicyOperatorSpec: Interface
+
+augmentConversionForServersDatabasesBackupShortTermRetentionPolicy_STATUS: Interface
+
+augmentConversionForServersDatabasesBackupShortTermRetentionPolicy_Spec: Interface
+
+augmentConversionForServersDatabasesSecurityAlertPolicy: Interface
+
+augmentConversionForServersDatabasesSecurityAlertPolicyOperatorSpec: Interface
+
+augmentConversionForServersDatabasesSecurityAlertPolicy_STATUS: Interface
+
+augmentConversionForServersDatabasesSecurityAlertPolicy_Spec: Interface
+
+augmentConversionForServersDatabasesTransparentDataEncryption: Interface
+
+augmentConversionForServersDatabasesTransparentDataEncryptionOperatorSpec: Interface
+
+augmentConversionForServersDatabasesTransparentDataEncryption_STATUS: Interface
+
+augmentConversionForServersDatabasesTransparentDataEncryption_Spec: Interface
+
+augmentConversionForServersDatabasesVulnerabilityAssessment: Interface
+
+augmentConversionForServersDatabasesVulnerabilityAssessmentOperatorSpec: Interface
+
+augmentConversionForServersDatabasesVulnerabilityAssessment_STATUS: Interface
+
+augmentConversionForServersDatabasesVulnerabilityAssessment_Spec: Interface
+
+augmentConversionForServersElasticPool: Interface
+
+augmentConversionForServersElasticPoolOperatorSpec: Interface
+
+augmentConversionForServersElasticPool_STATUS: Interface
+
+augmentConversionForServersElasticPool_Spec: Interface
+
+augmentConversionForServersFailoverGroup: Interface
+
+augmentConversionForServersFailoverGroupOperatorSpec: Interface
+
+augmentConversionForServersFailoverGroup_STATUS: Interface
+
+augmentConversionForServersFailoverGroup_Spec: Interface
+
+augmentConversionForServersFirewallRule: Interface
+
+augmentConversionForServersFirewallRuleOperatorSpec: Interface
+
+augmentConversionForServersFirewallRule_STATUS: Interface
+
+augmentConversionForServersFirewallRule_Spec: Interface
+
+augmentConversionForServersIPV6FirewallRule: Interface
+
+augmentConversionForServersIPV6FirewallRuleOperatorSpec: Interface
+
+augmentConversionForServersIPV6FirewallRule_STATUS: Interface
+
+augmentConversionForServersIPV6FirewallRule_Spec: Interface
+
+augmentConversionForServersOutboundFirewallRule: Interface
+
+augmentConversionForServersOutboundFirewallRuleOperatorSpec: Interface
+
+augmentConversionForServersOutboundFirewallRule_STATUS: Interface
+
+augmentConversionForServersOutboundFirewallRule_Spec: Interface
+
+augmentConversionForServersSecurityAlertPolicy: Interface
+
+augmentConversionForServersSecurityAlertPolicyOperatorSpec: Interface
+
+augmentConversionForServersSecurityAlertPolicy_STATUS: Interface
+
+augmentConversionForServersSecurityAlertPolicy_Spec: Interface
+
+augmentConversionForServersVirtualNetworkRule: Interface
+
+augmentConversionForServersVirtualNetworkRuleOperatorSpec: Interface
+
+augmentConversionForServersVirtualNetworkRule_STATUS: Interface
+
+augmentConversionForServersVirtualNetworkRule_Spec: Interface
+
+augmentConversionForServersVulnerabilityAssessment: Interface
+
+augmentConversionForServersVulnerabilityAssessmentOperatorSpec: Interface
+
+augmentConversionForServersVulnerabilityAssessment_STATUS: Interface
+
+augmentConversionForServersVulnerabilityAssessment_Spec: Interface
+
+augmentConversionForSku: Interface
+
+augmentConversionForSku_STATUS: Interface
+
+augmentConversionForSystemData_STATUS: Interface
+
+augmentConversionForUserAssignedIdentityDetails: Interface
+
+augmentConversionForUserIdentity_STATUS: Interface
+
+augmentConversionForVulnerabilityAssessmentRecurringScansProperties: Interface
+
+augmentConversionForVulnerabilityAssessmentRecurringScansProperties_STATUS: Interface
+

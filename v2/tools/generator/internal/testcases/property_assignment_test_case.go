@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -73,7 +73,8 @@ func NewPropertyAssignmentTestCase(
 
 	result.testName = fmt.Sprintf(
 		"%s_WhenPropertiesConverted_RoundTripsWithoutLoss",
-		name.Name())
+		name.Name(),
+	)
 
 	return result
 }
@@ -87,7 +88,8 @@ func (p *PropertyAssignmentTestCase) Name() string {
 func (p *PropertyAssignmentTestCase) References() astmodel.TypeNameSet {
 	return astmodel.NewTypeNameSet(
 		p.subject,
-		p.toFn.ParameterType())
+		p.toFn.ParameterType(),
+	)
 }
 
 // RequiredImports returns a set of the package imports required by this test case
@@ -122,7 +124,7 @@ func (p *PropertyAssignmentTestCase) AsFuncs(
 	testRunner := p.createTestRunner(codeGenerationContext)
 	testMethod, err := p.createTestMethod(receiver, codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating test method for %s", p.testName)
+		return nil, eris.Wrapf(err, "creating test method for %s", p.testName)
 	}
 
 	return []dst.Decl{
@@ -153,7 +155,7 @@ func (p *PropertyAssignmentTestCase) createTestRunner(codegenContext *astmodel.C
 		testingRunMethod = "TestingRun"
 	)
 
-	parametersLocalId := dst.NewIdent(parametersLocal)
+	parametersLocalID := dst.NewIdent(parametersLocal)
 
 	gopterPackage := codegenContext.MustGetImportedPackageName(astmodel.GopterReference)
 	osPackage := codegenContext.MustGetImportedPackageName(astmodel.OSReference)
@@ -165,22 +167,35 @@ func (p *PropertyAssignmentTestCase) createTestRunner(codegenContext *astmodel.C
 	// t.Parallel()
 	declareParallel := astbuilder.CallExprAsStmt(t, "Parallel")
 
+	// if testing.Short() {
+	//     return
+	// }
+	checkShort := astbuilder.SimpleIf(
+		astbuilder.CallQualifiedFunc(testingPackage, "Short"),
+		astbuilder.Returns(),
+	)
+	checkShort.Decs.Before = dst.EmptyLine
+	checkShort.Decs.After = dst.EmptyLine
+
 	// parameters := gopter.DefaultTestParameters()
 	defineParameters := astbuilder.ShortDeclaration(
 		parametersLocal,
-		astbuilder.CallQualifiedFunc(gopterPackage, "DefaultTestParameters"))
+		astbuilder.CallQualifiedFunc(gopterPackage, "DefaultTestParameters"),
+	)
 
 	// parameters.MaxSize = 10
 	configureMaxSize := astbuilder.QualifiedAssignment(
-		parametersLocalId,
+		parametersLocalID,
 		"MaxSize",
 		token.ASSIGN,
-		astbuilder.IntLiteral(10))
+		astbuilder.IntLiteral(10),
+	)
 
 	// properties := gopter.NewProperties(parameters)
 	defineProperties := astbuilder.ShortDeclaration(
 		propertiesLocal,
-		astbuilder.CallQualifiedFunc(gopterPackage, "NewProperties", parametersLocalId))
+		astbuilder.CallQualifiedFunc(gopterPackage, "NewProperties", parametersLocalID),
+	)
 
 	// partial expression: description of the test
 	testName := astbuilder.StringLiteralf("Round trip from %s to %s via %s & %s returns original",
@@ -195,7 +210,8 @@ func (p *PropertyAssignmentTestCase) createTestRunner(codegenContext *astmodel.C
 		propPackage,
 		"ForAll",
 		dst.NewIdent(p.idOfTestMethod()),
-		astbuilder.CallFunc(idOfGeneratorMethod(p.subject, p.idFactory)))
+		astbuilder.CallFunc(idOfGeneratorMethod(p.subject, p.idFactory)),
+	)
 	propForAll.Decs.Before = dst.NewLine
 
 	// properties.Property("...", prop.ForAll(RunTestForX, XGenerator())
@@ -203,7 +219,8 @@ func (p *PropertyAssignmentTestCase) createTestRunner(codegenContext *astmodel.C
 		propertiesLocal,
 		propertyMethod,
 		testName,
-		propForAll)
+		propForAll,
+	)
 
 	// properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
 	createReporter := astbuilder.CallQualifiedFunc(
@@ -211,7 +228,8 @@ func (p *PropertyAssignmentTestCase) createTestRunner(codegenContext *astmodel.C
 		"NewFormatedReporter",
 		dst.NewIdent("false"),
 		astbuilder.IntLiteral(240),
-		astbuilder.Selector(dst.NewIdent(osPackage), "Stdout"))
+		astbuilder.Selector(dst.NewIdent(osPackage), "Stdout"),
+	)
 	runTests := astbuilder.CallQualifiedFuncAsStmt(propertiesLocal, testingRunMethod, t, createReporter)
 
 	// Define our function
@@ -219,11 +237,13 @@ func (p *PropertyAssignmentTestCase) createTestRunner(codegenContext *astmodel.C
 		testingPackage,
 		p.testName,
 		declareParallel,
+		checkShort,
 		defineParameters,
 		configureMaxSize,
 		defineProperties,
 		defineTestCase,
-		runTests)
+		runTests,
+	)
 
 	return fn.DefineFunc()
 }
@@ -234,15 +254,15 @@ func (p *PropertyAssignmentTestCase) createTestMethod(
 	codegenContext *astmodel.CodeGenerationContext,
 ) (dst.Decl, error) {
 	const (
-		errId        = "err"
-		copiedId     = "copied"
-		otherId      = "other"
-		actualId     = "actual"
-		actualFmtId  = "actualFmt"
-		matchId      = "match"
-		subjectId    = "subject"
-		subjectFmtId = "subjectFmt"
-		resultId     = "result"
+		errID        = "err"
+		copiedID     = "copied"
+		otherID      = "other"
+		actualID     = "actual"
+		actualFmtID  = "actualFmt"
+		matchID      = "match"
+		subjectID    = "subject"
+		subjectFmtID = "subjectFmt"
+		resultID     = "result"
 	)
 
 	cmpPackage := codegenContext.MustGetImportedPackageName(astmodel.CmpReference)
@@ -252,101 +272,115 @@ func (p *PropertyAssignmentTestCase) createTestMethod(
 
 	// copied := subject.DeepCopy()
 	assignCopied := astbuilder.ShortDeclaration(
-		copiedId,
-		astbuilder.CallQualifiedFunc(subjectId, "DeepCopy"))
+		copiedID,
+		astbuilder.CallQualifiedFunc(subjectID, "DeepCopy"),
+	)
 	assignCopied.Decorations().Before = dst.NewLine
 	astbuilder.AddComment(&assignCopied.Decorations().Start, "// Copy subject to make sure assignment doesn't modify it")
 
 	// var other OtherType
 	parameterTypeExpr, err := p.toFn.ParameterType().AsTypeExpr(codegenContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", p.toFn.ParameterType())
+		return nil, eris.Wrapf(err, "creating type expression for %s", p.toFn.ParameterType())
 	}
 
 	declareOther := astbuilder.LocalVariableDeclaration(
-		otherId,
+		otherID,
 		parameterTypeExpr,
-		"// Use AssignPropertiesTo() for the first stage of conversion")
+		"// Use AssignPropertiesTo() for the first stage of conversion",
+	)
 	declareOther.Decorations().Before = dst.EmptyLine
 
 	// err := subject.AssignPropertiesTo(other)
 	assignTo := astbuilder.ShortDeclaration(
-		errId,
+		errID,
 		astbuilder.CallQualifiedFunc(
-			copiedId,
+			copiedID,
 			p.toFn.Name(),
-			astbuilder.AddrOf(dst.NewIdent(otherId))))
+			astbuilder.AddrOf(dst.NewIdent(otherID)),
+		),
+	)
 
 	// if err != nil { return err.Error() }
 	assignToFailed := astbuilder.ReturnIfNotNil(
-		dst.NewIdent(errId),
-		astbuilder.CallQualifiedFunc("err", "Error"))
+		dst.NewIdent(errID),
+		astbuilder.CallQualifiedFunc("err", "Error"),
+	)
 
 	// var result OurType
 	subjectExpr, err := subject.AsTypeExpr(codegenContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", subject)
+		return nil, eris.Wrapf(err, "creating type expression for %s", subject)
 	}
 
 	declareResult := astbuilder.LocalVariableDeclaration(
-		actualId,
+		actualID,
 		subjectExpr,
-		"// Use AssignPropertiesFrom() to convert back to our original type")
+		"// Use AssignPropertiesFrom() to convert back to our original type",
+	)
 	declareResult.Decorations().Before = dst.EmptyLine
 
 	// err = result.AssignPropertiesFrom(other)
 	assignFrom := astbuilder.SimpleAssignment(
-		dst.NewIdent(errId),
+		dst.NewIdent(errID),
 		astbuilder.CallQualifiedFunc(
-			actualId,
+			actualID,
 			p.fromFn.Name(),
-			astbuilder.AddrOf(dst.NewIdent(otherId))))
+			astbuilder.AddrOf(dst.NewIdent(otherID)),
+		),
+	)
 
 	// if err != nil { return err.Error() }
 	assignFromFailed := astbuilder.ReturnIfNotNil(
-		dst.NewIdent(errId),
-		astbuilder.CallQualifiedFunc("err", "Error"))
+		dst.NewIdent(errID),
+		astbuilder.CallQualifiedFunc("err", "Error"),
+	)
 
 	// match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
 	// We include cmpopts.EquateEmpty() to allow empty slices and maps to match nil values
 	equateEmpty := astbuilder.CallQualifiedFunc(cmpoptsPackage, "EquateEmpty")
 	compare := astbuilder.ShortDeclaration(
-		matchId,
+		matchID,
 		astbuilder.CallQualifiedFunc(cmpPackage, "Equal",
-			dst.NewIdent(subjectId),
-			dst.NewIdent(actualId),
-			equateEmpty))
+			dst.NewIdent(subjectID),
+			dst.NewIdent(actualID),
+			equateEmpty),
+	)
 	compare.Decorations().Before = dst.EmptyLine
 	astbuilder.AddComment(&compare.Decorations().Start, "Check for a match")
 
 	// actualFmt := pretty.Sprint(actual)
 	declareActual := astbuilder.ShortDeclaration(
-		actualFmtId,
-		astbuilder.CallQualifiedFunc(prettyPackage, "Sprint", dst.NewIdent(actualId)))
+		actualFmtID,
+		astbuilder.CallQualifiedFunc(prettyPackage, "Sprint", dst.NewIdent(actualID)),
+	)
 
 	// subjectFmt := pretty.Sprint(subject)
 	declareSubject := astbuilder.ShortDeclaration(
-		subjectFmtId,
-		astbuilder.CallQualifiedFunc(prettyPackage, "Sprint", dst.NewIdent(subjectId)))
+		subjectFmtID,
+		astbuilder.CallQualifiedFunc(prettyPackage, "Sprint", dst.NewIdent(subjectID)),
+	)
 
 	// result := diff.Diff(subject, actual)
 	declareDiff := astbuilder.ShortDeclaration(
-		resultId,
-		astbuilder.CallQualifiedFunc(diffPackage, "Diff", dst.NewIdent(subjectFmtId), dst.NewIdent(actualFmtId)))
+		resultID,
+		astbuilder.CallQualifiedFunc(diffPackage, "Diff", dst.NewIdent(subjectFmtID), dst.NewIdent(actualFmtID)),
+	)
 
 	// return result
-	returnDiff := astbuilder.Returns(dst.NewIdent(resultId))
+	returnDiff := astbuilder.Returns(dst.NewIdent(resultID))
 
 	// if !match {
 	//     result := diff.Diff(subject, actual);
 	//     return result
 	// }
 	prettyPrint := astbuilder.SimpleIf(
-		astbuilder.NotExpr(dst.NewIdent(matchId)),
+		astbuilder.NotExpr(dst.NewIdent(matchID)),
 		declareActual,
 		declareSubject,
 		declareDiff,
-		returnDiff)
+		returnDiff,
+	)
 
 	// return ""
 	ret := astbuilder.Returns(astbuilder.StringLiteral(""))
@@ -365,19 +399,21 @@ func (p *PropertyAssignmentTestCase) createTestMethod(
 			assignFromFailed,
 			compare,
 			prettyPrint,
-			ret),
+			ret,
+		),
 	}
 
 	subjectExpr, err = p.subject.AsTypeExpr(codegenContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", p.subject)
+		return nil, eris.Wrapf(err, "creating type expression for %s", p.subject)
 	}
 
 	fn.AddParameter("subject", subjectExpr)
 	fn.AddComments(fmt.Sprintf(
 		"tests if a specific instance of %s can be assigned to %s and back losslessly",
 		p.subject.Name(),
-		p.fromFn.ParameterType().PackageReference().PackageName()))
+		p.fromFn.ParameterType().PackageReference().PackageName(),
+	))
 	fn.AddReturns("string")
 
 	return fn.DefineFunc(), nil
@@ -386,5 +422,6 @@ func (p *PropertyAssignmentTestCase) createTestMethod(
 func (p *PropertyAssignmentTestCase) idOfTestMethod() string {
 	return p.idFactory.CreateIdentifier(
 		fmt.Sprintf("RunPropertyAssignmentTestFor%s", p.subject.Name()),
-		astmodel.Exported)
+		astmodel.Exported,
+	)
 }

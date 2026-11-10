@@ -8,83 +8,135 @@ package app
 import (
 	"flag"
 	"fmt"
+	"time"
 
-	"k8s.io/klog/v2"
+	"github.com/rotisserie/eris"
+	"k8s.io/client-go/tools/leaderelection"
 
-	"github.com/Azure/azure-service-operator/v2/internal/version"
+	"github.com/Azure/azure-service-operator/v2/internal/crdmanagement"
+	"github.com/Azure/azure-service-operator/v2/internal/labels"
 )
 
 type Flags struct {
 	MetricsAddr          string
 	ProfilingMetrics     bool
 	SecureMetrics        bool
+	MetricsCertDir       string
 	HealthAddr           string
 	WebhookPort          int
 	WebhookCertDir       string
 	EnableLeaderElection bool
+	LeaseDuration        time.Duration
+	RenewDeadline        time.Duration
+	RetryPeriod          time.Duration
 	CRDManagementMode    string
 	CRDPatterns          string // This is a ';' delimited string containing a collection of patterns
-	PreUpgradeCheck      bool
+	CRDLabels            string // This is a ',' or ';' delimited string containing labels to apply to managed CRDs
+	// EnableAzureCLIAuthentication adds AzureCLICredential to the default chain.
+	// Off by default so in-cluster pods do not invoke az.
+	EnableAzureCLIAuthentication bool
+}
+
+// parseCRDLabels parses the --crd-labels flag, rejecting any label reserved for ASO's own use.
+func parseCRDLabels(value string) (map[string]string, error) {
+	result, err := labels.ParseMap(value)
+	if err != nil {
+		return nil, err
+	}
+
+	// Done as a separate pass so that the general purpose label parsing stays free of CRD specific rules.
+	for key := range result {
+		if crdmanagement.IsReservedLabel(key) {
+			return nil, eris.Errorf("label %q is reserved for use by Azure Service Operator and cannot be overridden", key)
+		}
+	}
+
+	return result, nil
+}
+
+// Validate checks the flag combinations that would otherwise only fail once the manager starts.
+func (f Flags) Validate() error {
+	if f.LeaseDuration <= 0 {
+		return eris.Errorf("leader-lease-duration (%s) must be greater than zero", f.LeaseDuration)
+	}
+
+	if f.RenewDeadline <= 0 {
+		return eris.Errorf("leader-renew-deadline (%s) must be greater than zero", f.RenewDeadline)
+	}
+
+	if f.RetryPeriod <= 0 {
+		return eris.Errorf("leader-retry-period (%s) must be greater than zero", f.RetryPeriod)
+	}
+
+	if f.LeaseDuration <= f.RenewDeadline {
+		return eris.Errorf("leader-lease-duration (%s) must be greater than leader-renew-deadline (%s)", f.LeaseDuration, f.RenewDeadline)
+	}
+
+	if f.RenewDeadline <= f.RetryPeriod {
+		return eris.Errorf(
+			"leader-renew-deadline (%s) must be greater than leader-retry-period (%s)",
+			f.RenewDeadline,
+			f.RetryPeriod,
+		)
+	}
+
+	// Compare as float64 to avoid overflowing time.Duration when applying the jitter factor.
+	minimumRenewDeadline := leaderelection.JitterFactor * float64(f.RetryPeriod)
+	if float64(f.RenewDeadline) <= minimumRenewDeadline {
+		return eris.Errorf(
+			"leader-renew-deadline (%s) must be greater than leader-retry-period (%s) multiplied by the jitter factor (%g)",
+			f.RenewDeadline,
+			f.RetryPeriod,
+			leaderelection.JitterFactor,
+		)
+	}
+
+	return nil
 }
 
 func (f Flags) String() string {
 	return fmt.Sprintf(
-		"MetricsAddr: %s, SecureMetrics: %t, ProfilingMetrics: %t, HealthAddr: %s, WebhookPort: %d, WebhookCertDir: %s, EnableLeaderElection: %t, CRDManagementMode: %s, CRDPatterns: %s, PreUpgradeCheck: %t",
+		"MetricsAddr: %s, SecureMetrics: %t, ProfilingMetrics: %t, MetricsCertDir: %s, HealthAddr: %s, WebhookPort: %d, WebhookCertDir: %s, EnableLeaderElection: %t, LeaseDuration: %s, RenewDeadline: %s, RetryPeriod: %s, CRDManagementMode: %s, CRDPatterns: %s, CRDLabels: %s, EnableAzureCLIAuthentication: %t",
 		f.MetricsAddr,
 		f.SecureMetrics,
 		f.ProfilingMetrics,
+		f.MetricsCertDir,
 		f.HealthAddr,
 		f.WebhookPort,
 		f.WebhookCertDir,
 		f.EnableLeaderElection,
+		f.LeaseDuration,
+		f.RenewDeadline,
+		f.RetryPeriod,
 		f.CRDManagementMode,
 		f.CRDPatterns,
-		f.PreUpgradeCheck)
+		f.CRDLabels,
+		f.EnableAzureCLIAuthentication,
+	)
 }
 
-func ParseFlags(args []string) (Flags, error) {
-	exeName := args[0] + " " + version.BuildVersion
-	flagSet := flag.NewFlagSet(exeName, flag.ExitOnError)
-	klog.InitFlags(flagSet)
-
-	var metricsAddr string
-	var profilingMetrics bool
-	var secureMetrics bool
-	var healthAddr string
-	var webhookPort int
-	var webhookCertDir string
-	var enableLeaderElection bool
-	var crdManagementMode string
-	var crdPatterns string
-	var preUpgradeCheck bool
+func InitFlags(flagSet *flag.FlagSet) *Flags {
+	result := &Flags{}
 
 	// default here for 'MetricsAddr' is set to "0", which sets metrics to be disabled if 'metrics-addr' flag is omitted.
-	flagSet.StringVar(&metricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
-	flagSet.BoolVar(&secureMetrics, "secure-metrics", true, "Enable secure metrics. This secures the pprof and metrics endpoints via Kubernetes RBAC and HTTPS")
-	flagSet.BoolVar(&profilingMetrics, "profiling-metrics", false, "Enable pprof metrics, only enabled in conjunction with secure-metrics. This will enable serving pprof metrics endpoints")
+	flagSet.StringVar(&result.MetricsAddr, "metrics-addr", "0", "The address the metric endpoint binds to.")
+	flagSet.BoolVar(&result.SecureMetrics, "secure-metrics", true, "Enable secure metrics. This secures the pprof and metrics endpoints via Kubernetes RBAC and HTTPS")
+	flagSet.BoolVar(&result.ProfilingMetrics, "profiling-metrics", false, "Enable pprof metrics, only enabled in conjunction with secure-metrics. This will enable serving pprof metrics endpoints")
+	flagSet.StringVar(&result.MetricsCertDir, "metrics-cert-dir", "", "The directory the metrics server's certs are stored.")
+	flagSet.StringVar(&result.HealthAddr, "health-addr", "", "The address the healthz endpoint binds to.")
+	flagSet.IntVar(&result.WebhookPort, "webhook-port", 9443, "The port the webhook endpoint binds to.")
+	flagSet.StringVar(&result.WebhookCertDir, "webhook-cert-dir", "", "The directory the webhook server's certs are stored.")
+	flagSet.BoolVar(&result.EnableLeaderElection, "enable-leader-election", false, "Enable leader election for controllers manager. Enabling this will ensure there is only one active controllers manager.")
 
-	flagSet.StringVar(&healthAddr, "health-addr", "", "The address the healthz endpoint binds to.")
-	flagSet.IntVar(&webhookPort, "webhook-port", 9443, "The port the webhook endpoint binds to.")
-	flagSet.StringVar(&webhookCertDir, "webhook-cert-dir", "", "The directory the webhook server's certs are stored.")
-	flagSet.BoolVar(&enableLeaderElection, "enable-leader-election", false,
-		"Enable leader election for controllers manager. Enabling this will ensure there is only one active controllers manager.")
-	flagSet.StringVar(&crdManagementMode, "crd-management", "auto",
+	flagSet.DurationVar(&result.LeaseDuration, "leader-lease-duration", 15*time.Second, "How long a leader lease is valid for. Operators watching many resources may need a larger value, as the initial informer sync competes with lease renewal.")
+	flagSet.DurationVar(&result.RenewDeadline, "leader-renew-deadline", 10*time.Second, "How long the leader has to renew its lease before giving it up. Must be less than leader-lease-duration.")
+	flagSet.DurationVar(&result.RetryPeriod, "leader-retry-period", 2*time.Second, "How long clients wait between attempts to acquire or renew the lease. leader-renew-deadline must be greater than this value multiplied by the leader-election jitter factor.")
+
+	flagSet.StringVar(&result.CRDManagementMode, "crd-management", "auto",
 		"Instructs the operator on how it should manage the Custom Resource Definitions. One of 'auto', 'none'")
-	flagSet.StringVar(&crdPatterns, "crd-pattern", "", "Install these CRDs. CRDs already in the cluster will also always be upgraded.")
-	flagSet.BoolVar(&preUpgradeCheck, "pre-upgrade-check", false,
-		"Enable pre upgrade check to check if existing crds contain helm 'keep' policy.")
+	flagSet.StringVar(&result.CRDPatterns, "crd-pattern", "", "Install these CRDs. CRDs already in the cluster will also always be upgraded.")
+	flagSet.StringVar(&result.CRDLabels, "crd-labels", "", "Comma-separated (or semicolon-separated) labels to apply to all managed CRDs (for example, example.com/owner=aso,environment=production). Labels reserved by the operator (app.kubernetes.io/name, app.kubernetes.io/version and the serviceoperator.azure.com/ prefix) cannot be set.")
+	flagSet.BoolVar(&result.EnableAzureCLIAuthentication, "enable-azure-cli-authentication", false, "Enable Azure CLI (az login) on the default credential chain. For a local controller process only; leave unset for in-cluster pods.")
 
-	flagSet.Parse(args[1:]) //nolint:errcheck
-
-	return Flags{
-		MetricsAddr:          metricsAddr,
-		SecureMetrics:        secureMetrics,
-		HealthAddr:           healthAddr,
-		WebhookPort:          webhookPort,
-		WebhookCertDir:       webhookCertDir,
-		EnableLeaderElection: enableLeaderElection,
-		CRDManagementMode:    crdManagementMode,
-		CRDPatterns:          crdPatterns,
-		PreUpgradeCheck:      preUpgradeCheck,
-	}, nil
+	return result
 }

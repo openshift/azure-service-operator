@@ -5,11 +5,12 @@ package v20200101
 
 import (
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,person}
 // +kubebuilder:subresource:status
 type Person struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -50,12 +51,10 @@ func (person *Person_Spec) Initialize_From_Person_STATUS(source *Person_STATUS) 
 	if source.Addresses != nil {
 		addressList := make([]Address_Spec, len(source.Addresses))
 		for addressIndex, addressItem := range source.Addresses {
-			// Shadow the loop variable to avoid aliasing
-			addressItem := addressItem
 			var address Address_Spec
 			err := address.Initialize_From_Address_STATUS(&addressItem)
 			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_Address_STATUS() to populate field Addresses")
+				return eris.Wrap(err, "calling Initialize_From_Address_STATUS() to populate field Addresses")
 			}
 			addressList[addressIndex] = address
 		}
@@ -77,12 +76,10 @@ func (person *Person_Spec) Initialize_From_Person_STATUS(source *Person_STATUS) 
 	if source.Locations != nil {
 		locationList := make([]Address_Spec, len(source.Locations))
 		for locationIndex, locationItem := range source.Locations {
-			// Shadow the loop variable to avoid aliasing
-			locationItem := locationItem
 			var location Address_Spec
 			err := location.Initialize_From_Location_STATUS(&locationItem)
 			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_Location_STATUS() to populate field Locations")
+				return eris.Wrap(err, "calling Initialize_From_Location_STATUS() to populate field Locations")
 			}
 			locationList[locationIndex] = location
 		}

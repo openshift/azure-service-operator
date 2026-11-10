@@ -6,11 +6,11 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"strings"
 	"unicode"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/codegen"
@@ -41,7 +41,7 @@ func NewGenTypesCommand() (*cobra.Command, error) {
 
 			if debugMode != nil && *debugMode != "" {
 				var tmpDir string
-				tmpDir, err = ioutil.TempDir("", createDebugPrefix(*debugMode))
+				tmpDir, err = os.MkdirTemp("", createDebugPrefix(*debugMode))
 				if err != nil {
 					log.Error(err, "Error creating temporary directory")
 					return err
@@ -49,19 +49,21 @@ func NewGenTypesCommand() (*cobra.Command, error) {
 
 				log.Info(
 					"Debug output will be written",
-					"folder", tmpDir)
+					"folder", tmpDir,
+				)
 				cg.UseDebugMode(*debugMode, tmpDir)
 				defer func() {
 					// Write the debug folder again so the user doesn't have to scroll back
 					log.Info(
 						"Debug output available",
-						"folder", tmpDir)
+						"folder", tmpDir,
+					)
 				}()
 			}
 
 			err = cg.Generate(ctx, log)
 			if err != nil {
-				err = errors.Wrap(err, "error generating code")
+				err = eris.Wrap(err, "error generating code")
 				return err
 			}
 
@@ -73,36 +75,10 @@ func NewGenTypesCommand() (*cobra.Command, error) {
 		"debug",
 		"d",
 		"",
-		"Write debug logs to a temp folder for a group (e.g. compute), multiple groups (e.g. compute;network), or groups matching a wildcard (e.g. net*)")
+		"Write debug logs to a temp folder for a group (e.g. compute), multiple groups (e.g. compute;network), or groups matching a wildcard (e.g. net*)",
+	)
 
 	return cmd, nil
-}
-
-type stackTracer interface {
-	StackTrace() errors.StackTrace
-}
-
-// findDeepestTrace returns the stack trace from the furthest error
-// down the chain that has one. We can't just use errors.Cause(err)
-// here because the innermost error may not have been created by
-// pkg/errors (gasp).
-func findDeepestTrace(err error) (errors.StackTrace, bool) {
-	nested := errors.Unwrap(err)
-	if nested != nil {
-		if tr, ok := findDeepestTrace(nested); ok {
-			// We've found the deepest trace, ,return it
-			return tr, true
-		}
-	}
-
-	// No stack trace found (yet), see if we have it at this level
-	//nolint:errorlint // We're walking wrapped errors ourselves
-	if tracer, ok := err.(stackTracer); ok {
-		return tracer.StackTrace(), true
-	}
-
-	// No stack found at this, or any deeper, level
-	return nil, false
 }
 
 func createDebugPrefix(debugMode string) string {

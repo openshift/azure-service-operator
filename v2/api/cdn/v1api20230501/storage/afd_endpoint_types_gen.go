@@ -4,32 +4,35 @@
 package storage
 
 import (
+	"fmt"
+	storage "github.com/Azure/azure-service-operator/v2/api/cdn/v20230501/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// +kubebuilder:rbac:groups=cdn.azure.com,resources=afdendpoints,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=cdn.azure.com,resources={afdendpoints/status,afdendpoints/finalizers},verbs=get;update;patch
-
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,cdn}
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20230501.AfdEndpoint
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/afdEndpoints/{endpointName}
 type AfdEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Profiles_AfdEndpoint_Spec   `json:"spec,omitempty"`
-	Status            Profiles_AfdEndpoint_STATUS `json:"status,omitempty"`
+	Spec              AfdEndpoint_Spec   `json:"spec,omitempty"`
+	Status            AfdEndpoint_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &AfdEndpoint{}
@@ -44,6 +47,48 @@ func (endpoint *AfdEndpoint) SetConditions(conditions conditions.Conditions) {
 	endpoint.Status.Conditions = conditions
 }
 
+var _ conversion.Convertible = &AfdEndpoint{}
+
+// ConvertFrom populates our AfdEndpoint from the provided hub AfdEndpoint
+func (endpoint *AfdEndpoint) ConvertFrom(hub conversion.Hub) error {
+	source, ok := hub.(*storage.AfdEndpoint)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20230501/storage/AfdEndpoint but received %T instead", hub)
+	}
+
+	return endpoint.AssignProperties_From_AfdEndpoint(source)
+}
+
+// ConvertTo populates the provided hub AfdEndpoint from our AfdEndpoint
+func (endpoint *AfdEndpoint) ConvertTo(hub conversion.Hub) error {
+	destination, ok := hub.(*storage.AfdEndpoint)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20230501/storage/AfdEndpoint but received %T instead", hub)
+	}
+
+	return endpoint.AssignProperties_To_AfdEndpoint(destination)
+}
+
+var _ configmaps.Exporter = &AfdEndpoint{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (endpoint *AfdEndpoint) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if endpoint.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return endpoint.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &AfdEndpoint{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (endpoint *AfdEndpoint) SecretDestinationExpressions() []*core.DestinationExpression {
+	if endpoint.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return endpoint.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &AfdEndpoint{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +98,7 @@ func (endpoint *AfdEndpoint) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-05-01"
 func (endpoint AfdEndpoint) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-05-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -87,11 +132,15 @@ func (endpoint *AfdEndpoint) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (endpoint *AfdEndpoint) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Profiles_AfdEndpoint_STATUS{}
+	return &AfdEndpoint_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (endpoint *AfdEndpoint) Owner() *genruntime.ResourceReference {
+	if endpoint.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(endpoint.Spec)
 	return endpoint.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -99,24 +148,91 @@ func (endpoint *AfdEndpoint) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (endpoint *AfdEndpoint) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Profiles_AfdEndpoint_STATUS); ok {
+	if st, ok := status.(*AfdEndpoint_STATUS); ok {
 		endpoint.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Profiles_AfdEndpoint_STATUS
+	var st AfdEndpoint_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	endpoint.Status = st
 	return nil
 }
 
-// Hub marks that this AfdEndpoint is the hub type for conversion
-func (endpoint *AfdEndpoint) Hub() {}
+// AssignProperties_From_AfdEndpoint populates our AfdEndpoint from the provided source AfdEndpoint
+func (endpoint *AfdEndpoint) AssignProperties_From_AfdEndpoint(source *storage.AfdEndpoint) error {
+
+	// ObjectMeta
+	endpoint.ObjectMeta = *source.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec AfdEndpoint_Spec
+	err := spec.AssignProperties_From_AfdEndpoint_Spec(&source.Spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_AfdEndpoint_Spec() to populate field Spec")
+	}
+	endpoint.Spec = spec
+
+	// Status
+	var status AfdEndpoint_STATUS
+	err = status.AssignProperties_From_AfdEndpoint_STATUS(&source.Status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_AfdEndpoint_STATUS() to populate field Status")
+	}
+	endpoint.Status = status
+
+	// Invoke the augmentConversionForAfdEndpoint interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForAfdEndpoint); ok {
+		err := augmentedEndpoint.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdEndpoint populates the provided destination AfdEndpoint from our AfdEndpoint
+func (endpoint *AfdEndpoint) AssignProperties_To_AfdEndpoint(destination *storage.AfdEndpoint) error {
+
+	// ObjectMeta
+	destination.ObjectMeta = *endpoint.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec storage.AfdEndpoint_Spec
+	err := endpoint.Spec.AssignProperties_To_AfdEndpoint_Spec(&spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_AfdEndpoint_Spec() to populate field Spec")
+	}
+	destination.Spec = spec
+
+	// Status
+	var status storage.AfdEndpoint_STATUS
+	err = endpoint.Status.AssignProperties_To_AfdEndpoint_STATUS(&status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_AfdEndpoint_STATUS() to populate field Status")
+	}
+	destination.Status = status
+
+	// Invoke the augmentConversionForAfdEndpoint interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForAfdEndpoint); ok {
+		err := augmentedEndpoint.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
 
 // OriginalGVK returns a GroupValueKind for the original API version used to create the resource
 func (endpoint *AfdEndpoint) OriginalGVK() *schema.GroupVersionKind {
@@ -130,7 +246,7 @@ func (endpoint *AfdEndpoint) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20230501.AfdEndpoint
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/afdEndpoints/{endpointName}
 type AfdEndpointList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -138,16 +254,17 @@ type AfdEndpointList struct {
 	Items           []AfdEndpoint `json:"items"`
 }
 
-// Storage version of v1api20230501.Profiles_AfdEndpoint_Spec
-type Profiles_AfdEndpoint_Spec struct {
+// Storage version of v1api20230501.AfdEndpoint_Spec
+type AfdEndpoint_Spec struct {
 	AutoGeneratedDomainNameLabelScope *string `json:"autoGeneratedDomainNameLabelScope,omitempty"`
 
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName       string  `json:"azureName,omitempty"`
-	EnabledState    *string `json:"enabledState,omitempty"`
-	Location        *string `json:"location,omitempty"`
-	OriginalVersion string  `json:"originalVersion,omitempty"`
+	AzureName       string                   `json:"azureName,omitempty"`
+	EnabledState    *string                  `json:"enabledState,omitempty"`
+	Location        *string                  `json:"location,omitempty"`
+	OperatorSpec    *AfdEndpointOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion string                   `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -158,28 +275,184 @@ type Profiles_AfdEndpoint_Spec struct {
 	Tags        map[string]string                  `json:"tags,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Profiles_AfdEndpoint_Spec{}
+var _ genruntime.ConvertibleSpec = &AfdEndpoint_Spec{}
 
-// ConvertSpecFrom populates our Profiles_AfdEndpoint_Spec from the provided source
-func (endpoint *Profiles_AfdEndpoint_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our AfdEndpoint_Spec from the provided source
+func (endpoint *AfdEndpoint_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.AfdEndpoint_Spec)
+	if ok {
+		// Populate our instance from source
+		return endpoint.AssignProperties_From_AfdEndpoint_Spec(src)
 	}
 
-	return source.ConvertSpecTo(endpoint)
-}
-
-// ConvertSpecTo populates the provided destination from our Profiles_AfdEndpoint_Spec
-func (endpoint *Profiles_AfdEndpoint_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	// Convert to an intermediate form
+	src = &storage.AfdEndpoint_Spec{}
+	err := src.ConvertSpecFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
-	return destination.ConvertSpecFrom(endpoint)
+	// Update our instance from src
+	err = endpoint.AssignProperties_From_AfdEndpoint_Spec(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+	}
+
+	return nil
 }
 
-// Storage version of v1api20230501.Profiles_AfdEndpoint_STATUS
-type Profiles_AfdEndpoint_STATUS struct {
+// ConvertSpecTo populates the provided destination from our AfdEndpoint_Spec
+func (endpoint *AfdEndpoint_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.AfdEndpoint_Spec)
+	if ok {
+		// Populate destination from our instance
+		return endpoint.AssignProperties_To_AfdEndpoint_Spec(dst)
+	}
+
+	// Convert to an intermediate form
+	dst = &storage.AfdEndpoint_Spec{}
+	err := endpoint.AssignProperties_To_AfdEndpoint_Spec(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertSpecTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_AfdEndpoint_Spec populates our AfdEndpoint_Spec from the provided source AfdEndpoint_Spec
+func (endpoint *AfdEndpoint_Spec) AssignProperties_From_AfdEndpoint_Spec(source *storage.AfdEndpoint_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AutoGeneratedDomainNameLabelScope
+	endpoint.AutoGeneratedDomainNameLabelScope = genruntime.ClonePointerToString(source.AutoGeneratedDomainNameLabelScope)
+
+	// AzureName
+	endpoint.AzureName = source.AzureName
+
+	// EnabledState
+	endpoint.EnabledState = genruntime.ClonePointerToString(source.EnabledState)
+
+	// Location
+	endpoint.Location = genruntime.ClonePointerToString(source.Location)
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec AfdEndpointOperatorSpec
+		err := operatorSpec.AssignProperties_From_AfdEndpointOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AfdEndpointOperatorSpec() to populate field OperatorSpec")
+		}
+		endpoint.OperatorSpec = &operatorSpec
+	} else {
+		endpoint.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	endpoint.OriginalVersion = source.OriginalVersion
+
+	// Owner
+	if source.Owner != nil {
+		owner := source.Owner.Copy()
+		endpoint.Owner = &owner
+	} else {
+		endpoint.Owner = nil
+	}
+
+	// Tags
+	endpoint.Tags = genruntime.CloneMapOfStringToString(source.Tags)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		endpoint.PropertyBag = propertyBag
+	} else {
+		endpoint.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdEndpoint_Spec interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForAfdEndpoint_Spec); ok {
+		err := augmentedEndpoint.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdEndpoint_Spec populates the provided destination AfdEndpoint_Spec from our AfdEndpoint_Spec
+func (endpoint *AfdEndpoint_Spec) AssignProperties_To_AfdEndpoint_Spec(destination *storage.AfdEndpoint_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(endpoint.PropertyBag)
+
+	// AutoGeneratedDomainNameLabelScope
+	destination.AutoGeneratedDomainNameLabelScope = genruntime.ClonePointerToString(endpoint.AutoGeneratedDomainNameLabelScope)
+
+	// AzureName
+	destination.AzureName = endpoint.AzureName
+
+	// EnabledState
+	destination.EnabledState = genruntime.ClonePointerToString(endpoint.EnabledState)
+
+	// Location
+	destination.Location = genruntime.ClonePointerToString(endpoint.Location)
+
+	// OperatorSpec
+	if endpoint.OperatorSpec != nil {
+		var operatorSpec storage.AfdEndpointOperatorSpec
+		err := endpoint.OperatorSpec.AssignProperties_To_AfdEndpointOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AfdEndpointOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	destination.OriginalVersion = endpoint.OriginalVersion
+
+	// Owner
+	if endpoint.Owner != nil {
+		owner := endpoint.Owner.Copy()
+		destination.Owner = &owner
+	} else {
+		destination.Owner = nil
+	}
+
+	// Tags
+	destination.Tags = genruntime.CloneMapOfStringToString(endpoint.Tags)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdEndpoint_Spec interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForAfdEndpoint_Spec); ok {
+		err := augmentedEndpoint.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20230501.AfdEndpoint_STATUS
+type AfdEndpoint_STATUS struct {
 	AutoGeneratedDomainNameLabelScope *string                `json:"autoGeneratedDomainNameLabelScope,omitempty"`
 	Conditions                        []conditions.Condition `json:"conditions,omitempty"`
 	DeploymentStatus                  *string                `json:"deploymentStatus,omitempty"`
@@ -196,24 +469,342 @@ type Profiles_AfdEndpoint_STATUS struct {
 	Type                              *string                `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Profiles_AfdEndpoint_STATUS{}
+var _ genruntime.ConvertibleStatus = &AfdEndpoint_STATUS{}
 
-// ConvertStatusFrom populates our Profiles_AfdEndpoint_STATUS from the provided source
-func (endpoint *Profiles_AfdEndpoint_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our AfdEndpoint_STATUS from the provided source
+func (endpoint *AfdEndpoint_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.AfdEndpoint_STATUS)
+	if ok {
+		// Populate our instance from source
+		return endpoint.AssignProperties_From_AfdEndpoint_STATUS(src)
 	}
 
-	return source.ConvertStatusTo(endpoint)
+	// Convert to an intermediate form
+	src = &storage.AfdEndpoint_STATUS{}
+	err := src.ConvertStatusFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+	}
+
+	// Update our instance from src
+	err = endpoint.AssignProperties_From_AfdEndpoint_STATUS(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+	}
+
+	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Profiles_AfdEndpoint_STATUS
-func (endpoint *Profiles_AfdEndpoint_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == endpoint {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our AfdEndpoint_STATUS
+func (endpoint *AfdEndpoint_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.AfdEndpoint_STATUS)
+	if ok {
+		// Populate destination from our instance
+		return endpoint.AssignProperties_To_AfdEndpoint_STATUS(dst)
 	}
 
-	return destination.ConvertStatusFrom(endpoint)
+	// Convert to an intermediate form
+	dst = &storage.AfdEndpoint_STATUS{}
+	err := endpoint.AssignProperties_To_AfdEndpoint_STATUS(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertStatusTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_AfdEndpoint_STATUS populates our AfdEndpoint_STATUS from the provided source AfdEndpoint_STATUS
+func (endpoint *AfdEndpoint_STATUS) AssignProperties_From_AfdEndpoint_STATUS(source *storage.AfdEndpoint_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AutoGeneratedDomainNameLabelScope
+	endpoint.AutoGeneratedDomainNameLabelScope = genruntime.ClonePointerToString(source.AutoGeneratedDomainNameLabelScope)
+
+	// Conditions
+	endpoint.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
+
+	// DeploymentStatus
+	endpoint.DeploymentStatus = genruntime.ClonePointerToString(source.DeploymentStatus)
+
+	// EnabledState
+	endpoint.EnabledState = genruntime.ClonePointerToString(source.EnabledState)
+
+	// HostName
+	endpoint.HostName = genruntime.ClonePointerToString(source.HostName)
+
+	// Id
+	endpoint.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Location
+	endpoint.Location = genruntime.ClonePointerToString(source.Location)
+
+	// Name
+	endpoint.Name = genruntime.ClonePointerToString(source.Name)
+
+	// ProfileName
+	endpoint.ProfileName = genruntime.ClonePointerToString(source.ProfileName)
+
+	// ProvisioningState
+	endpoint.ProvisioningState = genruntime.ClonePointerToString(source.ProvisioningState)
+
+	// SystemData
+	if source.SystemData != nil {
+		var systemDatum SystemData_STATUS
+		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+		}
+		endpoint.SystemData = &systemDatum
+	} else {
+		endpoint.SystemData = nil
+	}
+
+	// Tags
+	endpoint.Tags = genruntime.CloneMapOfStringToString(source.Tags)
+
+	// Type
+	endpoint.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		endpoint.PropertyBag = propertyBag
+	} else {
+		endpoint.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdEndpoint_STATUS interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForAfdEndpoint_STATUS); ok {
+		err := augmentedEndpoint.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdEndpoint_STATUS populates the provided destination AfdEndpoint_STATUS from our AfdEndpoint_STATUS
+func (endpoint *AfdEndpoint_STATUS) AssignProperties_To_AfdEndpoint_STATUS(destination *storage.AfdEndpoint_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(endpoint.PropertyBag)
+
+	// AutoGeneratedDomainNameLabelScope
+	destination.AutoGeneratedDomainNameLabelScope = genruntime.ClonePointerToString(endpoint.AutoGeneratedDomainNameLabelScope)
+
+	// Conditions
+	destination.Conditions = genruntime.CloneSliceOfCondition(endpoint.Conditions)
+
+	// DeploymentStatus
+	destination.DeploymentStatus = genruntime.ClonePointerToString(endpoint.DeploymentStatus)
+
+	// EnabledState
+	destination.EnabledState = genruntime.ClonePointerToString(endpoint.EnabledState)
+
+	// HostName
+	destination.HostName = genruntime.ClonePointerToString(endpoint.HostName)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(endpoint.Id)
+
+	// Location
+	destination.Location = genruntime.ClonePointerToString(endpoint.Location)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(endpoint.Name)
+
+	// ProfileName
+	destination.ProfileName = genruntime.ClonePointerToString(endpoint.ProfileName)
+
+	// ProvisioningState
+	destination.ProvisioningState = genruntime.ClonePointerToString(endpoint.ProvisioningState)
+
+	// SystemData
+	if endpoint.SystemData != nil {
+		var systemDatum storage.SystemData_STATUS
+		err := endpoint.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+		}
+		destination.SystemData = &systemDatum
+	} else {
+		destination.SystemData = nil
+	}
+
+	// Tags
+	destination.Tags = genruntime.CloneMapOfStringToString(endpoint.Tags)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(endpoint.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdEndpoint_STATUS interface (if implemented) to customize the conversion
+	var endpointAsAny any = endpoint
+	if augmentedEndpoint, ok := endpointAsAny.(augmentConversionForAfdEndpoint_STATUS); ok {
+		err := augmentedEndpoint.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForAfdEndpoint interface {
+	AssignPropertiesFrom(src *storage.AfdEndpoint) error
+	AssignPropertiesTo(dst *storage.AfdEndpoint) error
+}
+
+// Storage version of v1api20230501.AfdEndpointOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type AfdEndpointOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_AfdEndpointOperatorSpec populates our AfdEndpointOperatorSpec from the provided source AfdEndpointOperatorSpec
+func (operator *AfdEndpointOperatorSpec) AssignProperties_From_AfdEndpointOperatorSpec(source *storage.AfdEndpointOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		operator.PropertyBag = propertyBag
+	} else {
+		operator.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdEndpointOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForAfdEndpointOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdEndpointOperatorSpec populates the provided destination AfdEndpointOperatorSpec from our AfdEndpointOperatorSpec
+func (operator *AfdEndpointOperatorSpec) AssignProperties_To_AfdEndpointOperatorSpec(destination *storage.AfdEndpointOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdEndpointOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForAfdEndpointOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForAfdEndpoint_Spec interface {
+	AssignPropertiesFrom(src *storage.AfdEndpoint_Spec) error
+	AssignPropertiesTo(dst *storage.AfdEndpoint_Spec) error
+}
+
+type augmentConversionForAfdEndpoint_STATUS interface {
+	AssignPropertiesFrom(src *storage.AfdEndpoint_STATUS) error
+	AssignPropertiesTo(dst *storage.AfdEndpoint_STATUS) error
+}
+
+type augmentConversionForAfdEndpointOperatorSpec interface {
+	AssignPropertiesFrom(src *storage.AfdEndpointOperatorSpec) error
+	AssignPropertiesTo(dst *storage.AfdEndpointOperatorSpec) error
 }
 
 func init() {

@@ -3,21 +3,23 @@ github.com/Azure/azure-service-operator/v2/api/insights/v1api20230101/storage
 -----------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2023-01-01"
+
 ActionGroup: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
-├── Spec: Object (19 properties)
+├── Spec: Object (20 properties)
 │   ├── ArmRoleReceivers: Object (4 properties)[]
 │   │   ├── Name: *string
 │   │   ├── PropertyBag: genruntime.PropertyBag
 │   │   ├── RoleId: *string
 │   │   └── UseCommonAlertSchema: *bool
-│   ├── AutomationRunbookReceivers: Object (8 properties)[]
+│   ├── AutomationRunbookReceivers: Object (9 properties)[]
 │   │   ├── AutomationAccountId: *string
 │   │   ├── IsGlobalRunbook: *bool
 │   │   ├── Name: *string
 │   │   ├── PropertyBag: genruntime.PropertyBag
 │   │   ├── RunbookName: *string
 │   │   ├── ServiceUri: *string
+│   │   ├── ServiceUriFromSecret: *genruntime.SecretReference
 │   │   ├── UseCommonAlertSchema: *bool
 │   │   └── WebhookResourceReference: *genruntime.ResourceReference
 │   ├── AzureAppPushReceivers: Object (3 properties)[]
@@ -61,6 +63,10 @@ ActionGroup: Resource
 │   │   ├── PropertyBag: genruntime.PropertyBag
 │   │   ├── ResourceReference: *genruntime.ResourceReference
 │   │   └── UseCommonAlertSchema: *bool
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -75,12 +81,13 @@ ActionGroup: Resource
 │   │   ├── Name: *string
 │   │   ├── PhoneNumber: *string
 │   │   └── PropertyBag: genruntime.PropertyBag
-│   └── WebhookReceivers: Object (8 properties)[]
+│   └── WebhookReceivers: Object (9 properties)[]
 │       ├── IdentifierUri: *string
 │       ├── Name: *string
 │       ├── ObjectId: *string
 │       ├── PropertyBag: genruntime.PropertyBag
 │       ├── ServiceUri: *string
+│       ├── ServiceUriFromSecret: *genruntime.SecretReference
 │       ├── TenantId: *string
 │       ├── UseAadAuth: *bool
 │       └── UseCommonAlertSchema: *bool
@@ -90,13 +97,12 @@ ActionGroup: Resource
     │   ├── PropertyBag: genruntime.PropertyBag
     │   ├── RoleId: *string
     │   └── UseCommonAlertSchema: *bool
-    ├── AutomationRunbookReceivers: Object (8 properties)[]
+    ├── AutomationRunbookReceivers: Object (7 properties)[]
     │   ├── AutomationAccountId: *string
     │   ├── IsGlobalRunbook: *bool
     │   ├── Name: *string
     │   ├── PropertyBag: genruntime.PropertyBag
     │   ├── RunbookName: *string
-    │   ├── ServiceUri: *string
     │   ├── UseCommonAlertSchema: *bool
     │   └── WebhookResourceId: *string
     ├── AzureAppPushReceivers: Object (3 properties)[]
@@ -157,12 +163,12 @@ ActionGroup: Resource
     │   ├── Name: *string
     │   ├── PhoneNumber: *string
     │   └── PropertyBag: genruntime.PropertyBag
-    └── WebhookReceivers: Object (8 properties)[]
+    └── WebhookReceivers: Object (7 properties)[]
         ├── IdentifierUri: *string
         ├── Name: *string
         ├── ObjectId: *string
         ├── PropertyBag: genruntime.PropertyBag
-        ├── ServiceUri: *string
         ├── TenantId: *string
         ├── UseAadAuth: *bool
         └── UseCommonAlertSchema: *bool
+

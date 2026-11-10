@@ -8,7 +8,7 @@ package codegen
 import (
 	"strconv"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/codegen/pipeline"
@@ -32,17 +32,14 @@ func (dr *debugReporter) ReportStage(stage int, description string, state *pipel
 	included := state.Definitions().Where(
 		func(def astmodel.TypeDefinition) bool {
 			// Allow matching just the group (e.g. network)
-			if dr.settings.MatchesGroup(def.Name().InternalPackageReference()) {
-				return true
-			}
-
-			return false
-		})
+			return dr.settings.MatchesGroup(def.Name().InternalPackageReference())
+		},
+	)
 
 	tcr := reporting.NewTypeCatalogReport(included, reporting.IncludeFunctions)
 	name := strconv.Itoa(stage) + "-" + description + ".txt"
 	filename := dr.settings.CreateFileName(name)
 
 	err := tcr.SaveTo(filename)
-	return errors.Wrapf(err, "failed to save type catalog to %s", filename)
+	return eris.Wrapf(err, "failed to save type catalog to %s", filename)
 }

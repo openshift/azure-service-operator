@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 
+	"github.com/google/uuid"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	batch "github.com/Azure/azure-service-operator/v2/api/batch/v1api20210101"
 	"github.com/Azure/azure-service-operator/v2/internal/resolver"
 	"github.com/Azure/azure-service-operator/v2/internal/util/to"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
@@ -93,7 +96,8 @@ func Test_ResourceHierarchy_ResourceGroup_NestedResource(t *testing.T) {
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/%s/providers/Microsoft.Storage/storageAccounts/%s/blobServices/%s",
 		resourceGroupName,
 		resourceName,
-		hierarchy[2].AzureName())
+		hierarchy[2].AzureName(),
+	)
 
 	rg, err := hierarchy.ResourceGroup()
 	g.Expect(err).ToNot(HaveOccurred())
@@ -130,7 +134,8 @@ func Test_ResourceHierarchy_ExtensionOnResourceGroup(t *testing.T) {
 	expectedARMID := fmt.Sprintf(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/%s/providers/Microsoft.SimpleExtension/simpleExtensions/%s",
 		resourceGroupName,
-		extensionName)
+		extensionName,
+	)
 
 	g.Expect(hierarchy.ResourceGroup()).To(Equal(resourceGroupName))
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
@@ -156,7 +161,8 @@ func Test_ResourceHierarchy_ExtensionOnTenantScopeResource(t *testing.T) {
 	expectedARMID := fmt.Sprintf(
 		"/providers/Microsoft.Subscription/aliases/%s/providers/Microsoft.SimpleExtension/simpleExtensions/%s",
 		subscriptionName,
-		extensionName)
+		extensionName,
+	)
 
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
 	g.Expect(hierarchy.AzureName()).To(Equal(extensionName))
@@ -176,7 +182,8 @@ func Test_ResourceHierarchy_ExtensionOnResourceInResourceGroup(t *testing.T) {
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/%s/providers/Microsoft.Batch/batchAccounts/%s/providers/Microsoft.SimpleExtension/simpleExtensions/%s",
 		resourceGroupName,
 		resourceName,
-		extensionName)
+		extensionName,
+	)
 
 	g.Expect(hierarchy.ResourceGroup()).To(Equal(resourceGroupName))
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
@@ -199,7 +206,8 @@ func Test_ResourceHierarchy_ExtensionOnDeepHierarchy(t *testing.T) {
 		resourceGroupName,
 		resourceName,
 		hierarchy[2].AzureName(),
-		extensionName)
+		extensionName,
+	)
 
 	g.Expect(hierarchy.ResourceGroup()).To(Equal(resourceGroupName))
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
@@ -220,7 +228,8 @@ func Test_ResourceHierarchy_OwnerARMIDResourceGroup(t *testing.T) {
 	expectedARMID := fmt.Sprintf(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/%s/providers/Microsoft.Batch/batchAccounts/%s",
 		resourceGroupName,
-		resourceName)
+		resourceName,
+	)
 
 	g.Expect(hierarchy.ResourceGroup()).To(Equal(resourceGroupName))
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
@@ -242,7 +251,8 @@ func Test_ResourceHierarchy_OwnerARMIDParent(t *testing.T) {
 	expectedARMID := fmt.Sprintf(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/%s/providers/Microsoft.Storage/storageAccounts/%s/blobServices/default",
 		resourceGroupName,
-		parentName)
+		parentName,
+	)
 
 	g.Expect(hierarchy.ResourceGroup()).To(Equal(resourceGroupName))
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
@@ -297,7 +307,7 @@ func Test_ResourceHierarchy_OwnerARMIDAnotherWrongType_ReturnsError(t *testing.T
 	g.Expect(err).To(MatchError("expected owner ARM ID to be for a resource group, but was \"Microsoft.Storage/cats\""))
 }
 
-func Test_ResourceHierarchy_OwnerARMIDWrongSubscription_ReturnsError(t *testing.T) {
+func Test_ResourceHierarchy_OwnerARMIDDistinctSubscription_ReturnsSuccess(t *testing.T) {
 	t.Parallel()
 	g := NewGomegaWithT(t)
 
@@ -310,7 +320,7 @@ func Test_ResourceHierarchy_OwnerARMIDWrongSubscription_ReturnsError(t *testing.
 	hierarchy := resolver.ResourceHierarchy{resource}
 
 	_, err := hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")
-	g.Expect(err).To(MatchError(fmt.Sprintf("resource subscription \"00000000-0000-0000-0000-000000000000\" does not match parent subscription \"%s\"", uuid)))
+	g.Expect(err).To(BeNil())
 }
 
 func Test_ResourceHierarchy_OwnerARMIDWithExtension(t *testing.T) {
@@ -329,7 +339,8 @@ func Test_ResourceHierarchy_OwnerARMIDWithExtension(t *testing.T) {
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/%s/providers/Microsoft.Storage/storageAccounts/%s/providers/Microsoft.SimpleExtension/simpleExtensions/%s",
 		resourceGroupName,
 		resourceName,
-		extensionName)
+		extensionName,
+	)
 
 	g.Expect(hierarchy.ResourceGroup()).To(Equal(resourceGroupName))
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
@@ -353,7 +364,8 @@ func Test_ResourceHierarchy_OwnerARMIDWithExtensionOnDeepHierarchy(t *testing.T)
 		resourceGroupName,
 		resourceName,
 		hierarchy[0].AzureName(),
-		extensionName)
+		extensionName,
+	)
 
 	g.Expect(hierarchy.ResourceGroup()).To(Equal(resourceGroupName))
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
@@ -398,8 +410,40 @@ func Test_ResourceHierarchy_ChildResourceIDOverride_ImpactsExtensionResource(t *
 
 	expectedARMID := fmt.Sprintf(
 		"/a/b/c/providers/Microsoft.SimpleExtension/simpleExtensions/%s",
-		extensionName)
+		extensionName,
+	)
 
 	g.Expect(hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")).To(Equal(expectedARMID))
 	g.Expect(hierarchy.AzureName()).To(Equal(extensionName))
+}
+
+func Test_ResourceHierarchy_GivenTopLevelResourceMissingAzureName_ReturnsError(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	resourceGroupName := "myrg"
+	a := createResourceGroup(resourceGroupName)
+
+	name := "myresource"
+	b := &batch.BatchAccount{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "BatchAccount",
+			APIVersion: batch.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: testNamespace,
+		},
+		Spec: batch.BatchAccount_Spec{
+			Owner: &genruntime.KnownResourceReference{
+				Name: resourceGroupName,
+			},
+		},
+	}
+
+	hierarchy := resolver.ResourceHierarchy{a, b}
+	_, err := hierarchy.FullyQualifiedARMID("00000000-0000-0000-0000-000000000000")
+
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("empty AzureName"))
 }

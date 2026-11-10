@@ -54,7 +54,7 @@ type TestLogger struct {
 	ignoredPanicMax   int
 }
 
-func (_ TestLogger) Init(info logr.RuntimeInfo) {
+func (*TestLogger) Init(info logr.RuntimeInfo) {
 }
 
 // kvListFormat was adapted from the klog method of the same name and formats a keysAndValues list into
@@ -70,15 +70,15 @@ func kvListFormat(b *bytes.Buffer, keysAndValues ...interface{}) {
 		}
 		b.WriteByte(' ')
 		if _, ok := v.(fmt.Stringer); ok {
-			b.WriteString(fmt.Sprintf("%s=%q", k, v))
+			fmt.Fprintf(b, "%s=%q", k, v)
 		} else {
-			b.WriteString(fmt.Sprintf("%s=%#v", k, v))
+			fmt.Fprintf(b, "%s=%#v", k, v)
 		}
 	}
 }
 
 func (t *TestLogger) clone() *TestLogger {
-	var clonedValues []interface{}
+	clonedValues := make([]any, 0, len(t.values))
 	clonedValues = append(clonedValues, t.values...)
 
 	result := &TestLogger{
@@ -89,6 +89,7 @@ func (t *TestLogger) clone() *TestLogger {
 		ignoredPanicMax:   t.ignoredPanicMax,
 		ignoredPanicCount: t.ignoredPanicCount,
 	}
+
 	return result
 }
 
@@ -140,7 +141,7 @@ func (t *TestLogger) Info(level int, msg string, keysAndValues ...interface{}) {
 		kvListFormat(b, t.values...)
 		kvListFormat(b, keysAndValues...)
 
-		t.t.Log(fmt.Sprintf("%s \"msg\"=\"%s\"%s", header, msg, b))
+		t.t.Logf("%s \"msg\"=\"%s\"%s", header, msg, b)
 	}
 }
 
@@ -157,7 +158,7 @@ func (t *TestLogger) Error(err error, msg string, keysAndValues ...interface{}) 
 		kvListFormat(b, t.values...)
 		kvListFormat(b, keysAndValues...)
 
-		t.t.Log(fmt.Sprintf("%s \"msg\"=\"%s\" \"err\"=\"%s\"%s", header, msg, err, b))
+		t.t.Logf("%s \"msg\"=\"%s\" \"err\"=\"%s\"%s", header, msg, err, b)
 	}
 }
 

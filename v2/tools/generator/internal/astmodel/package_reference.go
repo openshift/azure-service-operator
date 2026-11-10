@@ -50,10 +50,13 @@ func SortPackageReferencesByPathAndVersion(packages []PackageReference) {
 		packages,
 		func(left PackageReference, right PackageReference) int {
 			return ComparePathAndVersion(left.ImportPath(), right.ImportPath())
-		})
+		},
+	)
 }
 
-// ComparePathAndVersion compares two paths containing versions and returns true if left should go before right
+// ComparePathAndVersion compares two paths containing versions
+// and returns < 0 if left should go before right,
+// > 0 if right should go before left, and 0 if they are equal.
 func ComparePathAndVersion(left string, right string) int {
 	comparer := versionComparer{
 		left:  []rune(left),
@@ -73,11 +76,7 @@ type versionComparer struct {
 }
 
 func (v *versionComparer) Compare() int {
-	for {
-		if v.leftIndex >= len(v.left) && v.rightIndex >= len(v.right) {
-			// Ran out of both arrays at the same time
-			break
-		}
+	for v.leftIndex < len(v.left) || v.rightIndex < len(v.right) {
 
 		if v.leftIndex >= len(v.left) {
 			// Ran out of the left array only; if the right array has an identifier (indicating a preview version),

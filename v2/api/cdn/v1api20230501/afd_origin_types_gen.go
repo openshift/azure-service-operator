@@ -5,32 +5,34 @@ package v1api20230501
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/cdn/v1api20230501/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/cdn/v1api20230501/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,cdn}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/originGroups/{originGroupName}/origins/{originName}
 type AfdOrigin struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Profiles_OriginGroups_Origin_Spec   `json:"spec,omitempty"`
-	Status            Profiles_OriginGroups_Origin_STATUS `json:"status,omitempty"`
+	Spec              AfdOrigin_Spec   `json:"spec,omitempty"`
+	Status            AfdOrigin_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &AfdOrigin{}
@@ -49,56 +51,56 @@ var _ conversion.Convertible = &AfdOrigin{}
 
 // ConvertFrom populates our AfdOrigin from the provided hub AfdOrigin
 func (origin *AfdOrigin) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.AfdOrigin)
-	if !ok {
-		return fmt.Errorf("expected cdn/v1api20230501/storage/AfdOrigin but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.AfdOrigin
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return origin.AssignProperties_From_AfdOrigin(source)
+	err = origin.AssignProperties_From_AfdOrigin(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to origin")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub AfdOrigin from our AfdOrigin
 func (origin *AfdOrigin) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.AfdOrigin)
-	if !ok {
-		return fmt.Errorf("expected cdn/v1api20230501/storage/AfdOrigin but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.AfdOrigin
+	err := origin.AssignProperties_To_AfdOrigin(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from origin")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return origin.AssignProperties_To_AfdOrigin(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-afdorigin,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=afdorigins,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.afdorigins.cdn.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &AfdOrigin{}
 
-var _ admission.Defaulter = &AfdOrigin{}
-
-// Default applies defaults to the AfdOrigin resource
-func (origin *AfdOrigin) Default() {
-	origin.defaultImpl()
-	var temp any = origin
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (origin *AfdOrigin) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if origin.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return origin.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (origin *AfdOrigin) defaultAzureName() {
-	if origin.Spec.AzureName == "" {
-		origin.Spec.AzureName = origin.Name
+var _ secrets.Exporter = &AfdOrigin{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (origin *AfdOrigin) SecretDestinationExpressions() []*core.DestinationExpression {
+	if origin.Spec.OperatorSpec == nil {
+		return nil
 	}
-}
-
-// defaultImpl applies the code generated defaults to the AfdOrigin resource
-func (origin *AfdOrigin) defaultImpl() { origin.defaultAzureName() }
-
-var _ genruntime.ImportableResource = &AfdOrigin{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (origin *AfdOrigin) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*Profiles_OriginGroups_Origin_STATUS); ok {
-		return origin.Spec.Initialize_From_Profiles_OriginGroups_Origin_STATUS(s)
-	}
-
-	return fmt.Errorf("expected Status of type Profiles_OriginGroups_Origin_STATUS but received %T instead", status)
+	return origin.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &AfdOrigin{}
@@ -110,7 +112,7 @@ func (origin *AfdOrigin) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-05-01"
 func (origin AfdOrigin) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-05-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -144,11 +146,15 @@ func (origin *AfdOrigin) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (origin *AfdOrigin) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Profiles_OriginGroups_Origin_STATUS{}
+	return &AfdOrigin_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (origin *AfdOrigin) Owner() *genruntime.ResourceReference {
+	if origin.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(origin.Spec)
 	return origin.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -156,101 +162,20 @@ func (origin *AfdOrigin) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (origin *AfdOrigin) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Profiles_OriginGroups_Origin_STATUS); ok {
+	if st, ok := status.(*AfdOrigin_STATUS); ok {
 		origin.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Profiles_OriginGroups_Origin_STATUS
+	var st AfdOrigin_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	origin.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-afdorigin,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=afdorigins,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.afdorigins.cdn.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &AfdOrigin{}
-
-// ValidateCreate validates the creation of the resource
-func (origin *AfdOrigin) ValidateCreate() (admission.Warnings, error) {
-	validations := origin.createValidations()
-	var temp any = origin
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (origin *AfdOrigin) ValidateDelete() (admission.Warnings, error) {
-	validations := origin.deleteValidations()
-	var temp any = origin
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (origin *AfdOrigin) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := origin.updateValidations()
-	var temp any = origin
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (origin *AfdOrigin) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){origin.validateResourceReferences, origin.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (origin *AfdOrigin) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (origin *AfdOrigin) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return origin.validateResourceReferences()
-		},
-		origin.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return origin.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (origin *AfdOrigin) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(origin)
-}
-
-// validateResourceReferences validates all resource references
-func (origin *AfdOrigin) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&origin.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (origin *AfdOrigin) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*AfdOrigin)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, origin)
 }
 
 // AssignProperties_From_AfdOrigin populates our AfdOrigin from the provided source AfdOrigin
@@ -260,18 +185,18 @@ func (origin *AfdOrigin) AssignProperties_From_AfdOrigin(source *storage.AfdOrig
 	origin.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec Profiles_OriginGroups_Origin_Spec
-	err := spec.AssignProperties_From_Profiles_OriginGroups_Origin_Spec(&source.Spec)
+	var spec AfdOrigin_Spec
+	err := spec.AssignProperties_From_AfdOrigin_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Profiles_OriginGroups_Origin_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_AfdOrigin_Spec() to populate field Spec")
 	}
 	origin.Spec = spec
 
 	// Status
-	var status Profiles_OriginGroups_Origin_STATUS
-	err = status.AssignProperties_From_Profiles_OriginGroups_Origin_STATUS(&source.Status)
+	var status AfdOrigin_STATUS
+	err = status.AssignProperties_From_AfdOrigin_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Profiles_OriginGroups_Origin_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_AfdOrigin_STATUS() to populate field Status")
 	}
 	origin.Status = status
 
@@ -286,18 +211,18 @@ func (origin *AfdOrigin) AssignProperties_To_AfdOrigin(destination *storage.AfdO
 	destination.ObjectMeta = *origin.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.Profiles_OriginGroups_Origin_Spec
-	err := origin.Spec.AssignProperties_To_Profiles_OriginGroups_Origin_Spec(&spec)
+	var spec storage.AfdOrigin_Spec
+	err := origin.Spec.AssignProperties_To_AfdOrigin_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Profiles_OriginGroups_Origin_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_AfdOrigin_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.Profiles_OriginGroups_Origin_STATUS
-	err = origin.Status.AssignProperties_To_Profiles_OriginGroups_Origin_STATUS(&status)
+	var status storage.AfdOrigin_STATUS
+	err = origin.Status.AssignProperties_To_AfdOrigin_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Profiles_OriginGroups_Origin_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_AfdOrigin_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +241,7 @@ func (origin *AfdOrigin) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/originGroups/{originGroupName}/origins/{originName}
 type AfdOriginList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -324,7 +249,7 @@ type AfdOriginList struct {
 	Items           []AfdOrigin `json:"items"`
 }
 
-type Profiles_OriginGroups_Origin_Spec struct {
+type AfdOrigin_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
 	AzureName string `json:"azureName,omitempty"`
@@ -341,7 +266,11 @@ type Profiles_OriginGroups_Origin_Spec struct {
 
 	// HostName: The address of the origin. Domain names, IPv4 addresses, and IPv6 addresses are supported.This should be
 	// unique across all origins in an endpoint.
-	HostName *string `json:"hostName,omitempty"`
+	HostName *string `json:"hostName,omitempty" optionalConfigMapPair:"HostName"`
+
+	// HostNameFromConfig: The address of the origin. Domain names, IPv4 addresses, and IPv6 addresses are supported.This
+	// should be unique across all origins in an endpoint.
+	HostNameFromConfig *genruntime.ConfigMapReference `json:"hostNameFromConfig,omitempty" optionalConfigMapPair:"HostName"`
 
 	// +kubebuilder:validation:Maximum=65535
 	// +kubebuilder:validation:Minimum=1
@@ -352,6 +281,10 @@ type Profiles_OriginGroups_Origin_Spec struct {
 	// +kubebuilder:validation:Minimum=1
 	// HttpsPort: The value of the HTTPS port. Must be between 1 and 65535.
 	HttpsPort *int `json:"httpsPort,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *AfdOriginOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// OriginHostHeader: The host header value sent to the origin with each request. If you leave this blank, the request
 	// hostname determines this value. Azure Front Door origins, such as Web Apps, Blob Storage, and Cloud Services require
@@ -379,14 +312,14 @@ type Profiles_OriginGroups_Origin_Spec struct {
 	Weight *int `json:"weight,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &Profiles_OriginGroups_Origin_Spec{}
+var _ genruntime.ARMTransformer = &AfdOrigin_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (origin *Profiles_OriginGroups_Origin_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (origin *AfdOrigin_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if origin == nil {
 		return nil, nil
 	}
-	result := &Profiles_OriginGroups_Origin_Spec_ARM{}
+	result := &arm.AfdOrigin_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
@@ -396,24 +329,27 @@ func (origin *Profiles_OriginGroups_Origin_Spec) ConvertToARM(resolved genruntim
 		origin.EnabledState != nil ||
 		origin.EnforceCertificateNameCheck != nil ||
 		origin.HostName != nil ||
+		origin.HostNameFromConfig != nil ||
 		origin.HttpPort != nil ||
 		origin.HttpsPort != nil ||
 		origin.OriginHostHeader != nil ||
 		origin.Priority != nil ||
 		origin.SharedPrivateLinkResource != nil ||
 		origin.Weight != nil {
-		result.Properties = &AFDOriginProperties_ARM{}
+		result.Properties = &arm.AFDOriginProperties{}
 	}
 	if origin.AzureOrigin != nil {
-		azureOrigin_ARM, err := (*origin.AzureOrigin).ConvertToARM(resolved)
+		azureOrigin_ARM, err := origin.AzureOrigin.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		azureOrigin := *azureOrigin_ARM.(*ResourceReference_ARM)
+		azureOrigin := *azureOrigin_ARM.(*arm.ResourceReference)
 		result.Properties.AzureOrigin = &azureOrigin
 	}
 	if origin.EnabledState != nil {
-		enabledState := *origin.EnabledState
+		var temp string
+		temp = string(*origin.EnabledState)
+		enabledState := arm.AFDOriginProperties_EnabledState(temp)
 		result.Properties.EnabledState = &enabledState
 	}
 	if origin.EnforceCertificateNameCheck != nil {
@@ -422,6 +358,14 @@ func (origin *Profiles_OriginGroups_Origin_Spec) ConvertToARM(resolved genruntim
 	}
 	if origin.HostName != nil {
 		hostName := *origin.HostName
+		result.Properties.HostName = &hostName
+	}
+	if origin.HostNameFromConfig != nil {
+		hostNameValue, err := resolved.ResolvedConfigMaps.Lookup(*origin.HostNameFromConfig)
+		if err != nil {
+			return nil, eris.Wrap(err, "looking up configmap for property HostName")
+		}
+		hostName := hostNameValue
 		result.Properties.HostName = &hostName
 	}
 	if origin.HttpPort != nil {
@@ -441,11 +385,11 @@ func (origin *Profiles_OriginGroups_Origin_Spec) ConvertToARM(resolved genruntim
 		result.Properties.Priority = &priority
 	}
 	if origin.SharedPrivateLinkResource != nil {
-		sharedPrivateLinkResource_ARM, err := (*origin.SharedPrivateLinkResource).ConvertToARM(resolved)
+		sharedPrivateLinkResource_ARM, err := origin.SharedPrivateLinkResource.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		sharedPrivateLinkResource := *sharedPrivateLinkResource_ARM.(*SharedPrivateLinkResourceProperties_ARM)
+		sharedPrivateLinkResource := *sharedPrivateLinkResource_ARM.(*arm.SharedPrivateLinkResourceProperties)
 		result.Properties.SharedPrivateLinkResource = &sharedPrivateLinkResource
 	}
 	if origin.Weight != nil {
@@ -456,15 +400,15 @@ func (origin *Profiles_OriginGroups_Origin_Spec) ConvertToARM(resolved genruntim
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (origin *Profiles_OriginGroups_Origin_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Profiles_OriginGroups_Origin_Spec_ARM{}
+func (origin *AfdOrigin_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.AfdOrigin_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (origin *Profiles_OriginGroups_Origin_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Profiles_OriginGroups_Origin_Spec_ARM)
+func (origin *AfdOrigin_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.AfdOrigin_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Profiles_OriginGroups_Origin_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AfdOrigin_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
@@ -488,7 +432,9 @@ func (origin *Profiles_OriginGroups_Origin_Spec) PopulateFromARM(owner genruntim
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.EnabledState != nil {
-			enabledState := *typedInput.Properties.EnabledState
+			var temp string
+			temp = string(*typedInput.Properties.EnabledState)
+			enabledState := AFDOriginProperties_EnabledState(temp)
 			origin.EnabledState = &enabledState
 		}
 	}
@@ -511,6 +457,8 @@ func (origin *Profiles_OriginGroups_Origin_Spec) PopulateFromARM(owner genruntim
 		}
 	}
 
+	// no assignment for property "HostNameFromConfig"
+
 	// Set property "HttpPort":
 	// copying flattened property:
 	if typedInput.Properties != nil {
@@ -528,6 +476,8 @@ func (origin *Profiles_OriginGroups_Origin_Spec) PopulateFromARM(owner genruntim
 			origin.HttpsPort = &httpsPort
 		}
 	}
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "OriginHostHeader":
 	// copying flattened property:
@@ -580,58 +530,58 @@ func (origin *Profiles_OriginGroups_Origin_Spec) PopulateFromARM(owner genruntim
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &Profiles_OriginGroups_Origin_Spec{}
+var _ genruntime.ConvertibleSpec = &AfdOrigin_Spec{}
 
-// ConvertSpecFrom populates our Profiles_OriginGroups_Origin_Spec from the provided source
-func (origin *Profiles_OriginGroups_Origin_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.Profiles_OriginGroups_Origin_Spec)
+// ConvertSpecFrom populates our AfdOrigin_Spec from the provided source
+func (origin *AfdOrigin_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.AfdOrigin_Spec)
 	if ok {
 		// Populate our instance from source
-		return origin.AssignProperties_From_Profiles_OriginGroups_Origin_Spec(src)
+		return origin.AssignProperties_From_AfdOrigin_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Profiles_OriginGroups_Origin_Spec{}
+	src = &storage.AfdOrigin_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = origin.AssignProperties_From_Profiles_OriginGroups_Origin_Spec(src)
+	err = origin.AssignProperties_From_AfdOrigin_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our Profiles_OriginGroups_Origin_Spec
-func (origin *Profiles_OriginGroups_Origin_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.Profiles_OriginGroups_Origin_Spec)
+// ConvertSpecTo populates the provided destination from our AfdOrigin_Spec
+func (origin *AfdOrigin_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.AfdOrigin_Spec)
 	if ok {
 		// Populate destination from our instance
-		return origin.AssignProperties_To_Profiles_OriginGroups_Origin_Spec(dst)
+		return origin.AssignProperties_To_AfdOrigin_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Profiles_OriginGroups_Origin_Spec{}
-	err := origin.AssignProperties_To_Profiles_OriginGroups_Origin_Spec(dst)
+	dst = &storage.AfdOrigin_Spec{}
+	err := origin.AssignProperties_To_AfdOrigin_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_Profiles_OriginGroups_Origin_Spec populates our Profiles_OriginGroups_Origin_Spec from the provided source Profiles_OriginGroups_Origin_Spec
-func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_From_Profiles_OriginGroups_Origin_Spec(source *storage.Profiles_OriginGroups_Origin_Spec) error {
+// AssignProperties_From_AfdOrigin_Spec populates our AfdOrigin_Spec from the provided source AfdOrigin_Spec
+func (origin *AfdOrigin_Spec) AssignProperties_From_AfdOrigin_Spec(source *storage.AfdOrigin_Spec) error {
 
 	// AzureName
 	origin.AzureName = source.AzureName
@@ -641,7 +591,7 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_From_Profiles_
 		var azureOrigin ResourceReference
 		err := azureOrigin.AssignProperties_From_ResourceReference(source.AzureOrigin)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field AzureOrigin")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field AzureOrigin")
 		}
 		origin.AzureOrigin = &azureOrigin
 	} else {
@@ -668,20 +618,30 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_From_Profiles_
 	// HostName
 	origin.HostName = genruntime.ClonePointerToString(source.HostName)
 
-	// HttpPort
-	if source.HttpPort != nil {
-		httpPort := *source.HttpPort
-		origin.HttpPort = &httpPort
+	// HostNameFromConfig
+	if source.HostNameFromConfig != nil {
+		hostNameFromConfig := source.HostNameFromConfig.Copy()
+		origin.HostNameFromConfig = &hostNameFromConfig
 	} else {
-		origin.HttpPort = nil
+		origin.HostNameFromConfig = nil
 	}
 
+	// HttpPort
+	origin.HttpPort = genruntime.ClonePointerToInt(source.HttpPort)
+
 	// HttpsPort
-	if source.HttpsPort != nil {
-		httpsPort := *source.HttpsPort
-		origin.HttpsPort = &httpsPort
+	origin.HttpsPort = genruntime.ClonePointerToInt(source.HttpsPort)
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec AfdOriginOperatorSpec
+		err := operatorSpec.AssignProperties_From_AfdOriginOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AfdOriginOperatorSpec() to populate field OperatorSpec")
+		}
+		origin.OperatorSpec = &operatorSpec
 	} else {
-		origin.HttpsPort = nil
+		origin.OperatorSpec = nil
 	}
 
 	// OriginHostHeader
@@ -696,19 +656,14 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_From_Profiles_
 	}
 
 	// Priority
-	if source.Priority != nil {
-		priority := *source.Priority
-		origin.Priority = &priority
-	} else {
-		origin.Priority = nil
-	}
+	origin.Priority = genruntime.ClonePointerToInt(source.Priority)
 
 	// SharedPrivateLinkResource
 	if source.SharedPrivateLinkResource != nil {
 		var sharedPrivateLinkResource SharedPrivateLinkResourceProperties
 		err := sharedPrivateLinkResource.AssignProperties_From_SharedPrivateLinkResourceProperties(source.SharedPrivateLinkResource)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SharedPrivateLinkResourceProperties() to populate field SharedPrivateLinkResource")
+			return eris.Wrap(err, "calling AssignProperties_From_SharedPrivateLinkResourceProperties() to populate field SharedPrivateLinkResource")
 		}
 		origin.SharedPrivateLinkResource = &sharedPrivateLinkResource
 	} else {
@@ -716,19 +671,14 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_From_Profiles_
 	}
 
 	// Weight
-	if source.Weight != nil {
-		weight := *source.Weight
-		origin.Weight = &weight
-	} else {
-		origin.Weight = nil
-	}
+	origin.Weight = genruntime.ClonePointerToInt(source.Weight)
 
 	// No error
 	return nil
 }
 
-// AssignProperties_To_Profiles_OriginGroups_Origin_Spec populates the provided destination Profiles_OriginGroups_Origin_Spec from our Profiles_OriginGroups_Origin_Spec
-func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_To_Profiles_OriginGroups_Origin_Spec(destination *storage.Profiles_OriginGroups_Origin_Spec) error {
+// AssignProperties_To_AfdOrigin_Spec populates the provided destination AfdOrigin_Spec from our AfdOrigin_Spec
+func (origin *AfdOrigin_Spec) AssignProperties_To_AfdOrigin_Spec(destination *storage.AfdOrigin_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -740,7 +690,7 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_To_Profiles_Or
 		var azureOrigin storage.ResourceReference
 		err := origin.AzureOrigin.AssignProperties_To_ResourceReference(&azureOrigin)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field AzureOrigin")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field AzureOrigin")
 		}
 		destination.AzureOrigin = &azureOrigin
 	} else {
@@ -766,20 +716,30 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_To_Profiles_Or
 	// HostName
 	destination.HostName = genruntime.ClonePointerToString(origin.HostName)
 
-	// HttpPort
-	if origin.HttpPort != nil {
-		httpPort := *origin.HttpPort
-		destination.HttpPort = &httpPort
+	// HostNameFromConfig
+	if origin.HostNameFromConfig != nil {
+		hostNameFromConfig := origin.HostNameFromConfig.Copy()
+		destination.HostNameFromConfig = &hostNameFromConfig
 	} else {
-		destination.HttpPort = nil
+		destination.HostNameFromConfig = nil
 	}
 
+	// HttpPort
+	destination.HttpPort = genruntime.ClonePointerToInt(origin.HttpPort)
+
 	// HttpsPort
-	if origin.HttpsPort != nil {
-		httpsPort := *origin.HttpsPort
-		destination.HttpsPort = &httpsPort
+	destination.HttpsPort = genruntime.ClonePointerToInt(origin.HttpsPort)
+
+	// OperatorSpec
+	if origin.OperatorSpec != nil {
+		var operatorSpec storage.AfdOriginOperatorSpec
+		err := origin.OperatorSpec.AssignProperties_To_AfdOriginOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AfdOriginOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
 	} else {
-		destination.HttpsPort = nil
+		destination.OperatorSpec = nil
 	}
 
 	// OriginHostHeader
@@ -797,19 +757,14 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_To_Profiles_Or
 	}
 
 	// Priority
-	if origin.Priority != nil {
-		priority := *origin.Priority
-		destination.Priority = &priority
-	} else {
-		destination.Priority = nil
-	}
+	destination.Priority = genruntime.ClonePointerToInt(origin.Priority)
 
 	// SharedPrivateLinkResource
 	if origin.SharedPrivateLinkResource != nil {
 		var sharedPrivateLinkResource storage.SharedPrivateLinkResourceProperties
 		err := origin.SharedPrivateLinkResource.AssignProperties_To_SharedPrivateLinkResourceProperties(&sharedPrivateLinkResource)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SharedPrivateLinkResourceProperties() to populate field SharedPrivateLinkResource")
+			return eris.Wrap(err, "calling AssignProperties_To_SharedPrivateLinkResourceProperties() to populate field SharedPrivateLinkResource")
 		}
 		destination.SharedPrivateLinkResource = &sharedPrivateLinkResource
 	} else {
@@ -817,12 +772,7 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_To_Profiles_Or
 	}
 
 	// Weight
-	if origin.Weight != nil {
-		weight := *origin.Weight
-		destination.Weight = &weight
-	} else {
-		destination.Weight = nil
-	}
+	destination.Weight = genruntime.ClonePointerToInt(origin.Weight)
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
@@ -835,102 +785,15 @@ func (origin *Profiles_OriginGroups_Origin_Spec) AssignProperties_To_Profiles_Or
 	return nil
 }
 
-// Initialize_From_Profiles_OriginGroups_Origin_STATUS populates our Profiles_OriginGroups_Origin_Spec from the provided source Profiles_OriginGroups_Origin_STATUS
-func (origin *Profiles_OriginGroups_Origin_Spec) Initialize_From_Profiles_OriginGroups_Origin_STATUS(source *Profiles_OriginGroups_Origin_STATUS) error {
-
-	// AzureOrigin
-	if source.AzureOrigin != nil {
-		var azureOrigin ResourceReference
-		err := azureOrigin.Initialize_From_ResourceReference_STATUS(source.AzureOrigin)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ResourceReference_STATUS() to populate field AzureOrigin")
-		}
-		origin.AzureOrigin = &azureOrigin
-	} else {
-		origin.AzureOrigin = nil
-	}
-
-	// EnabledState
-	if source.EnabledState != nil {
-		enabledState := genruntime.ToEnum(string(*source.EnabledState), aFDOriginProperties_EnabledState_Values)
-		origin.EnabledState = &enabledState
-	} else {
-		origin.EnabledState = nil
-	}
-
-	// EnforceCertificateNameCheck
-	if source.EnforceCertificateNameCheck != nil {
-		enforceCertificateNameCheck := *source.EnforceCertificateNameCheck
-		origin.EnforceCertificateNameCheck = &enforceCertificateNameCheck
-	} else {
-		origin.EnforceCertificateNameCheck = nil
-	}
-
-	// HostName
-	origin.HostName = genruntime.ClonePointerToString(source.HostName)
-
-	// HttpPort
-	if source.HttpPort != nil {
-		httpPort := *source.HttpPort
-		origin.HttpPort = &httpPort
-	} else {
-		origin.HttpPort = nil
-	}
-
-	// HttpsPort
-	if source.HttpsPort != nil {
-		httpsPort := *source.HttpsPort
-		origin.HttpsPort = &httpsPort
-	} else {
-		origin.HttpsPort = nil
-	}
-
-	// OriginHostHeader
-	origin.OriginHostHeader = genruntime.ClonePointerToString(source.OriginHostHeader)
-
-	// Priority
-	if source.Priority != nil {
-		priority := *source.Priority
-		origin.Priority = &priority
-	} else {
-		origin.Priority = nil
-	}
-
-	// SharedPrivateLinkResource
-	if source.SharedPrivateLinkResource != nil {
-		var sharedPrivateLinkResource SharedPrivateLinkResourceProperties
-		err := sharedPrivateLinkResource.Initialize_From_SharedPrivateLinkResourceProperties_STATUS(source.SharedPrivateLinkResource)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_SharedPrivateLinkResourceProperties_STATUS() to populate field SharedPrivateLinkResource")
-		}
-		origin.SharedPrivateLinkResource = &sharedPrivateLinkResource
-	} else {
-		origin.SharedPrivateLinkResource = nil
-	}
-
-	// Weight
-	if source.Weight != nil {
-		weight := *source.Weight
-		origin.Weight = &weight
-	} else {
-		origin.Weight = nil
-	}
-
-	// No error
-	return nil
-}
-
 // OriginalVersion returns the original API version used to create the resource.
-func (origin *Profiles_OriginGroups_Origin_Spec) OriginalVersion() string {
+func (origin *AfdOrigin_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
 // SetAzureName sets the Azure name of the resource
-func (origin *Profiles_OriginGroups_Origin_Spec) SetAzureName(azureName string) {
-	origin.AzureName = azureName
-}
+func (origin *AfdOrigin_Spec) SetAzureName(azureName string) { origin.AzureName = azureName }
 
-type Profiles_OriginGroups_Origin_STATUS struct {
+type AfdOrigin_STATUS struct {
 	// AzureOrigin: Resource reference to the Azure origin resource.
 	AzureOrigin *ResourceReference_STATUS `json:"azureOrigin,omitempty"`
 
@@ -989,68 +852,68 @@ type Profiles_OriginGroups_Origin_STATUS struct {
 	Weight *int `json:"weight,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Profiles_OriginGroups_Origin_STATUS{}
+var _ genruntime.ConvertibleStatus = &AfdOrigin_STATUS{}
 
-// ConvertStatusFrom populates our Profiles_OriginGroups_Origin_STATUS from the provided source
-func (origin *Profiles_OriginGroups_Origin_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.Profiles_OriginGroups_Origin_STATUS)
+// ConvertStatusFrom populates our AfdOrigin_STATUS from the provided source
+func (origin *AfdOrigin_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.AfdOrigin_STATUS)
 	if ok {
 		// Populate our instance from source
-		return origin.AssignProperties_From_Profiles_OriginGroups_Origin_STATUS(src)
+		return origin.AssignProperties_From_AfdOrigin_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Profiles_OriginGroups_Origin_STATUS{}
+	src = &storage.AfdOrigin_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = origin.AssignProperties_From_Profiles_OriginGroups_Origin_STATUS(src)
+	err = origin.AssignProperties_From_AfdOrigin_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Profiles_OriginGroups_Origin_STATUS
-func (origin *Profiles_OriginGroups_Origin_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.Profiles_OriginGroups_Origin_STATUS)
+// ConvertStatusTo populates the provided destination from our AfdOrigin_STATUS
+func (origin *AfdOrigin_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.AfdOrigin_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return origin.AssignProperties_To_Profiles_OriginGroups_Origin_STATUS(dst)
+		return origin.AssignProperties_To_AfdOrigin_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Profiles_OriginGroups_Origin_STATUS{}
-	err := origin.AssignProperties_To_Profiles_OriginGroups_Origin_STATUS(dst)
+	dst = &storage.AfdOrigin_STATUS{}
+	err := origin.AssignProperties_To_AfdOrigin_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &Profiles_OriginGroups_Origin_STATUS{}
+var _ genruntime.FromARMConverter = &AfdOrigin_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (origin *Profiles_OriginGroups_Origin_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Profiles_OriginGroups_Origin_STATUS_ARM{}
+func (origin *AfdOrigin_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.AfdOrigin_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (origin *Profiles_OriginGroups_Origin_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Profiles_OriginGroups_Origin_STATUS_ARM)
+func (origin *AfdOrigin_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.AfdOrigin_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Profiles_OriginGroups_Origin_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.AfdOrigin_STATUS, got %T", armInput)
 	}
 
 	// Set property "AzureOrigin":
@@ -1073,7 +936,9 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) PopulateFromARM(owner genrunt
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.DeploymentStatus != nil {
-			deploymentStatus := *typedInput.Properties.DeploymentStatus
+			var temp string
+			temp = string(*typedInput.Properties.DeploymentStatus)
+			deploymentStatus := AFDOriginProperties_DeploymentStatus_STATUS(temp)
 			origin.DeploymentStatus = &deploymentStatus
 		}
 	}
@@ -1082,7 +947,9 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) PopulateFromARM(owner genrunt
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.EnabledState != nil {
-			enabledState := *typedInput.Properties.EnabledState
+			var temp string
+			temp = string(*typedInput.Properties.EnabledState)
+			enabledState := AFDOriginProperties_EnabledState_STATUS(temp)
 			origin.EnabledState = &enabledState
 		}
 	}
@@ -1166,7 +1033,9 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) PopulateFromARM(owner genrunt
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.ProvisioningState != nil {
-			provisioningState := *typedInput.Properties.ProvisioningState
+			var temp string
+			temp = string(*typedInput.Properties.ProvisioningState)
+			provisioningState := AFDOriginProperties_ProvisioningState_STATUS(temp)
 			origin.ProvisioningState = &provisioningState
 		}
 	}
@@ -1215,15 +1084,15 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) PopulateFromARM(owner genrunt
 	return nil
 }
 
-// AssignProperties_From_Profiles_OriginGroups_Origin_STATUS populates our Profiles_OriginGroups_Origin_STATUS from the provided source Profiles_OriginGroups_Origin_STATUS
-func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_From_Profiles_OriginGroups_Origin_STATUS(source *storage.Profiles_OriginGroups_Origin_STATUS) error {
+// AssignProperties_From_AfdOrigin_STATUS populates our AfdOrigin_STATUS from the provided source AfdOrigin_STATUS
+func (origin *AfdOrigin_STATUS) AssignProperties_From_AfdOrigin_STATUS(source *storage.AfdOrigin_STATUS) error {
 
 	// AzureOrigin
 	if source.AzureOrigin != nil {
 		var azureOrigin ResourceReference_STATUS
 		err := azureOrigin.AssignProperties_From_ResourceReference_STATUS(source.AzureOrigin)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field AzureOrigin")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field AzureOrigin")
 		}
 		origin.AzureOrigin = &azureOrigin
 	} else {
@@ -1297,7 +1166,7 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_From_Profile
 		var sharedPrivateLinkResource SharedPrivateLinkResourceProperties_STATUS
 		err := sharedPrivateLinkResource.AssignProperties_From_SharedPrivateLinkResourceProperties_STATUS(source.SharedPrivateLinkResource)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SharedPrivateLinkResourceProperties_STATUS() to populate field SharedPrivateLinkResource")
+			return eris.Wrap(err, "calling AssignProperties_From_SharedPrivateLinkResourceProperties_STATUS() to populate field SharedPrivateLinkResource")
 		}
 		origin.SharedPrivateLinkResource = &sharedPrivateLinkResource
 	} else {
@@ -1309,7 +1178,7 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_From_Profile
 		var systemDatum SystemData_STATUS
 		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
 		}
 		origin.SystemData = &systemDatum
 	} else {
@@ -1326,8 +1195,8 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_From_Profile
 	return nil
 }
 
-// AssignProperties_To_Profiles_OriginGroups_Origin_STATUS populates the provided destination Profiles_OriginGroups_Origin_STATUS from our Profiles_OriginGroups_Origin_STATUS
-func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_To_Profiles_OriginGroups_Origin_STATUS(destination *storage.Profiles_OriginGroups_Origin_STATUS) error {
+// AssignProperties_To_AfdOrigin_STATUS populates the provided destination AfdOrigin_STATUS from our AfdOrigin_STATUS
+func (origin *AfdOrigin_STATUS) AssignProperties_To_AfdOrigin_STATUS(destination *storage.AfdOrigin_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -1336,7 +1205,7 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_To_Profiles_
 		var azureOrigin storage.ResourceReference_STATUS
 		err := origin.AzureOrigin.AssignProperties_To_ResourceReference_STATUS(&azureOrigin)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field AzureOrigin")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field AzureOrigin")
 		}
 		destination.AzureOrigin = &azureOrigin
 	} else {
@@ -1407,7 +1276,7 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_To_Profiles_
 		var sharedPrivateLinkResource storage.SharedPrivateLinkResourceProperties_STATUS
 		err := origin.SharedPrivateLinkResource.AssignProperties_To_SharedPrivateLinkResourceProperties_STATUS(&sharedPrivateLinkResource)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SharedPrivateLinkResourceProperties_STATUS() to populate field SharedPrivateLinkResource")
+			return eris.Wrap(err, "calling AssignProperties_To_SharedPrivateLinkResourceProperties_STATUS() to populate field SharedPrivateLinkResource")
 		}
 		destination.SharedPrivateLinkResource = &sharedPrivateLinkResource
 	} else {
@@ -1419,7 +1288,7 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_To_Profiles_
 		var systemDatum storage.SystemData_STATUS
 		err := origin.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
 		}
 		destination.SystemData = &systemDatum
 	} else {
@@ -1431,6 +1300,102 @@ func (origin *Profiles_OriginGroups_Origin_STATUS) AssignProperties_To_Profiles_
 
 	// Weight
 	destination.Weight = genruntime.ClonePointerToInt(origin.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type AfdOriginOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_AfdOriginOperatorSpec populates our AfdOriginOperatorSpec from the provided source AfdOriginOperatorSpec
+func (operator *AfdOriginOperatorSpec) AssignProperties_From_AfdOriginOperatorSpec(source *storage.AfdOriginOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdOriginOperatorSpec populates the provided destination AfdOriginOperatorSpec from our AfdOriginOperatorSpec
+func (operator *AfdOriginOperatorSpec) AssignProperties_To_AfdOriginOperatorSpec(destination *storage.AfdOriginOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
@@ -1531,7 +1496,7 @@ func (properties *SharedPrivateLinkResourceProperties) ConvertToARM(resolved gen
 	if properties == nil {
 		return nil, nil
 	}
-	result := &SharedPrivateLinkResourceProperties_ARM{}
+	result := &arm.SharedPrivateLinkResourceProperties{}
 
 	// Set property "GroupId":
 	if properties.GroupId != nil {
@@ -1541,11 +1506,11 @@ func (properties *SharedPrivateLinkResourceProperties) ConvertToARM(resolved gen
 
 	// Set property "PrivateLink":
 	if properties.PrivateLink != nil {
-		privateLink_ARM, err := (*properties.PrivateLink).ConvertToARM(resolved)
+		privateLink_ARM, err := properties.PrivateLink.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		privateLink := *privateLink_ARM.(*ResourceReference_ARM)
+		privateLink := *privateLink_ARM.(*arm.ResourceReference)
 		result.PrivateLink = &privateLink
 	}
 
@@ -1563,7 +1528,9 @@ func (properties *SharedPrivateLinkResourceProperties) ConvertToARM(resolved gen
 
 	// Set property "Status":
 	if properties.Status != nil {
-		status := *properties.Status
+		var temp string
+		temp = string(*properties.Status)
+		status := arm.SharedPrivateLinkResourceProperties_Status(temp)
 		result.Status = &status
 	}
 	return result, nil
@@ -1571,14 +1538,14 @@ func (properties *SharedPrivateLinkResourceProperties) ConvertToARM(resolved gen
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (properties *SharedPrivateLinkResourceProperties) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SharedPrivateLinkResourceProperties_ARM{}
+	return &arm.SharedPrivateLinkResourceProperties{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (properties *SharedPrivateLinkResourceProperties) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SharedPrivateLinkResourceProperties_ARM)
+	typedInput, ok := armInput.(arm.SharedPrivateLinkResourceProperties)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SharedPrivateLinkResourceProperties_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SharedPrivateLinkResourceProperties, got %T", armInput)
 	}
 
 	// Set property "GroupId":
@@ -1612,7 +1579,9 @@ func (properties *SharedPrivateLinkResourceProperties) PopulateFromARM(owner gen
 
 	// Set property "Status":
 	if typedInput.Status != nil {
-		status := *typedInput.Status
+		var temp string
+		temp = string(*typedInput.Status)
+		status := SharedPrivateLinkResourceProperties_Status(temp)
 		properties.Status = &status
 	}
 
@@ -1631,7 +1600,7 @@ func (properties *SharedPrivateLinkResourceProperties) AssignProperties_From_Sha
 		var privateLink ResourceReference
 		err := privateLink.AssignProperties_From_ResourceReference(source.PrivateLink)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field PrivateLink")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field PrivateLink")
 		}
 		properties.PrivateLink = &privateLink
 	} else {
@@ -1670,7 +1639,7 @@ func (properties *SharedPrivateLinkResourceProperties) AssignProperties_To_Share
 		var privateLink storage.ResourceReference
 		err := properties.PrivateLink.AssignProperties_To_ResourceReference(&privateLink)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field PrivateLink")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field PrivateLink")
 		}
 		destination.PrivateLink = &privateLink
 	} else {
@@ -1702,42 +1671,6 @@ func (properties *SharedPrivateLinkResourceProperties) AssignProperties_To_Share
 	return nil
 }
 
-// Initialize_From_SharedPrivateLinkResourceProperties_STATUS populates our SharedPrivateLinkResourceProperties from the provided source SharedPrivateLinkResourceProperties_STATUS
-func (properties *SharedPrivateLinkResourceProperties) Initialize_From_SharedPrivateLinkResourceProperties_STATUS(source *SharedPrivateLinkResourceProperties_STATUS) error {
-
-	// GroupId
-	properties.GroupId = genruntime.ClonePointerToString(source.GroupId)
-
-	// PrivateLink
-	if source.PrivateLink != nil {
-		var privateLink ResourceReference
-		err := privateLink.Initialize_From_ResourceReference_STATUS(source.PrivateLink)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ResourceReference_STATUS() to populate field PrivateLink")
-		}
-		properties.PrivateLink = &privateLink
-	} else {
-		properties.PrivateLink = nil
-	}
-
-	// PrivateLinkLocation
-	properties.PrivateLinkLocation = genruntime.ClonePointerToString(source.PrivateLinkLocation)
-
-	// RequestMessage
-	properties.RequestMessage = genruntime.ClonePointerToString(source.RequestMessage)
-
-	// Status
-	if source.Status != nil {
-		status := genruntime.ToEnum(string(*source.Status), sharedPrivateLinkResourceProperties_Status_Values)
-		properties.Status = &status
-	} else {
-		properties.Status = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Describes the properties of an existing Shared Private Link Resource to use when connecting to a private origin.
 type SharedPrivateLinkResourceProperties_STATUS struct {
 	// GroupId: The group id from the provider of resource the shared private link resource is for.
@@ -1760,14 +1693,14 @@ var _ genruntime.FromARMConverter = &SharedPrivateLinkResourceProperties_STATUS{
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (properties *SharedPrivateLinkResourceProperties_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SharedPrivateLinkResourceProperties_STATUS_ARM{}
+	return &arm.SharedPrivateLinkResourceProperties_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (properties *SharedPrivateLinkResourceProperties_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SharedPrivateLinkResourceProperties_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SharedPrivateLinkResourceProperties_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SharedPrivateLinkResourceProperties_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SharedPrivateLinkResourceProperties_STATUS, got %T", armInput)
 	}
 
 	// Set property "GroupId":
@@ -1801,7 +1734,9 @@ func (properties *SharedPrivateLinkResourceProperties_STATUS) PopulateFromARM(ow
 
 	// Set property "Status":
 	if typedInput.Status != nil {
-		status := *typedInput.Status
+		var temp string
+		temp = string(*typedInput.Status)
+		status := SharedPrivateLinkResourceProperties_Status_STATUS(temp)
 		properties.Status = &status
 	}
 
@@ -1820,7 +1755,7 @@ func (properties *SharedPrivateLinkResourceProperties_STATUS) AssignProperties_F
 		var privateLink ResourceReference_STATUS
 		err := privateLink.AssignProperties_From_ResourceReference_STATUS(source.PrivateLink)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field PrivateLink")
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field PrivateLink")
 		}
 		properties.PrivateLink = &privateLink
 	} else {
@@ -1859,7 +1794,7 @@ func (properties *SharedPrivateLinkResourceProperties_STATUS) AssignProperties_T
 		var privateLink storage.ResourceReference_STATUS
 		err := properties.PrivateLink.AssignProperties_To_ResourceReference_STATUS(&privateLink)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field PrivateLink")
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field PrivateLink")
 		}
 		destination.PrivateLink = &privateLink
 	} else {

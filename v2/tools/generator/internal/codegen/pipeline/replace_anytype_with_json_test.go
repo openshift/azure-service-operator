@@ -9,10 +9,10 @@ import (
 	"context"
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
-
-	. "github.com/onsi/gomega"
 )
 
 func TestReplacingAnyTypes(t *testing.T) {
@@ -78,7 +78,8 @@ func TestReplacingMapMapInterface(t *testing.T) {
 	// should be a map[string]JSON.
 	expectedType := astmodel.NewMapType(
 		astmodel.StringType,
-		astmodel.JSONType)
+		astmodel.JSONType,
+	)
 
 	finalDefinitions := finalState.Definitions()
 	aDef := finalDefinitions[aName]

@@ -22,13 +22,14 @@ set -eu
 #
 # -v --verbose          : Generate more logging
 # -s --skip-installed   : Skip anything that's already installed
+# TOOL_DEST overrides the local tool directory when set (for example, in CI).
 #
 
 #
 # This file includes documentation in lines prefixed `#doc#`.
 # These lines are extracted by running `task doc:dependencies` from the root folder.
 #
-# Each depencency should be documented by a single line with the following content:
+# Each dependency should be documented by a single line with the following content:
 #
 # | <name> | <version> | <details> |
 #
@@ -86,7 +87,7 @@ if [ "$DEVCONTAINER" = true ]; then
     KUBEBUILDER_DEST=/usr/local/kubebuilder
     BUILDX_DEST=/usr/lib/docker/cli-plugins
 else
-    TOOL_DEST=$(git rev-parse --show-toplevel)/hack/tools
+    TOOL_DEST=${TOOL_DEST:-$(git rev-parse --show-toplevel)/hack/tools}
     mkdir -p "$TOOL_DEST"
     KUBEBUILDER_DEST="$TOOL_DEST/kubebuilder"
     BUILDX_DEST=$HOME/.docker/cli-plugins
@@ -94,7 +95,7 @@ fi
 
 # Ensure we have the right version of GO
 
-#doc# | Go | 1.22 | https://golang.org/doc/install #
+#doc# | Go | 1.27 | https://golang.org/doc/install #
 if ! command -v go > /dev/null 2>&1; then
     write-error "Go must be installed manually; see https://golang.org/doc/install"
     exit 1
@@ -104,7 +105,7 @@ GOVER=$(go version)
 write-info "Go version: ${GOVER[*]}"
 
 GOVERREGEX=".*go1.([0-9]+).([0-9]+).*"
-GOVERREQUIRED="go1.22.*"
+GOVERREQUIRED="go1.25.*"
 GOVERACTUAL=$(go version | { read _ _ ver _; echo "$ver"; })
 
 if ! [[ $GOVERACTUAL =~ $GOVERREGEX ]]; then
@@ -113,12 +114,18 @@ if ! [[ $GOVERACTUAL =~ $GOVERREGEX ]]; then
 fi
 
 GOMINORVER="${BASH_REMATCH[1]}"
-GOMINORREQUIRED=22
+GOMINORREQUIRED=27
+GOTOOLCHAINMINVER=21
 
-# We allow for Go versions above the min version, but prevent versions below. This is safe given Go's back-compat guarantees
-if ! [[ $GOMINORVER -ge $GOMINORREQUIRED ]]; then
-    write-error "Go must be version 1.$GOMINORREQUIRED, not $GOVERACTUAL; see : https://golang.org/doc/install"
+# Check Go version - we require 1.21+ (for toolchain support), prefer 1.27+
+# Go 1.21+ supports automatic toolchain downloads, so versions 1.21-1.27 can still work
+if [[ $GOMINORVER -lt $GOTOOLCHAINMINVER ]]; then
+    write-error "Go must be at least version 1.$GOTOOLCHAINMINVER (for toolchain support), not $GOVERACTUAL; see: https://golang.org/doc/install"
     exit 1
+elif [[ $GOMINORVER -lt $GOMINORREQUIRED ]]; then
+    write-info "WARNING: Go 1.$GOMINORREQUIRED is recommended, but you have $GOVERACTUAL."
+    write-info "Go's toolchain feature may automatically download the required version when building."
+    write-info "If you encounter issues, please upgrade Go: https://golang.org/doc/install"
 fi
 
 # Define os and arch
@@ -185,84 +192,89 @@ go-install() {
     fi
 }
 
-#doc# | conversion-gen | v0.28.8 | https://pkg.go.dev/k8s.io/code-generator/cmd/conversion-gen |
-go-install conversion-gen k8s.io/code-generator/cmd/conversion-gen@v0.28.8
+#doc# | conversion-gen | v0.34.1 | https://pkg.go.dev/k8s.io/code-generator/cmd/conversion-gen |
+go-install conversion-gen k8s.io/code-generator/cmd/conversion-gen@v0.34.1
 
-#doc# | controller-gen | v0.14.0 | https://book.kubebuilder.io/reference/controller-gen |
-go-install controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+#doc# | controller-gen | v0.19.0 | https://book.kubebuilder.io/reference/controller-gen |
+go-install controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0
 
-#doc# | kind | v0.20.0 | https://kind.sigs.k8s.io/ |
-go-install kind sigs.k8s.io/kind@v0.20.0
+#doc# | kind | v0.31.0 | https://kind.sigs.k8s.io/ |
+go-install kind sigs.k8s.io/kind@v0.31.0
 
 #doc# | kustomize | v4.5.7 | https://kustomize.io/ |
 go-install kustomize sigs.k8s.io/kustomize/kustomize/v4@v4.5.7
 
 # for docs site
 
-#doc# | hugo | v0.88.1 | https://gohugo.io/ |
-go-install hugo -tags extended github.com/gohugoio/hugo@v0.88.1
+#doc# | hugo | v0.166.0 | https://gohugo.io/ |
+go-install hugo -tags extended github.com/gohugoio/hugo@v0.166.0
 
 #doc# | htmltest | latest | https://github.com/wjdp/htmltest (but see https://github.com/theunrepentantgeek/htmltest for our custom build )
 # Restore this to github.com/wjdp/htmltest@v?? once PR#215 is merged with the feature we need
 go-install htmltest github.com/theunrepentantgeek/htmltest@latest
 
-# for api docs 
-# TODO: Replace this with the new release tag.
-# Currently pinned just after a couple of fixes from @theunrepentantgeek
-#doc# | gen-crd-api-reference-docs | 11fe95cb | https://github.com/ahmetb/gen-crd-api-reference-docs |
-go-install gen-crd-api-reference-docs github.com/ahmetb/gen-crd-api-reference-docs@11fe95cbdcb91e9c25446fc99e6f2cdd8cbeb91a
+#doc# | crddoc | latest | https://github.com/theunrepentantgeek/crddoc |
+go-install crddoc github.com/theunrepentantgeek/crddoc@latest
 
-# Install envtest tooling - ideally version here should match that used in v2/go.mod, but only @latest works
-#doc# | setup-envtest | latest | https://book.kubebuilder.io/reference/envtest.html |
-go-install setup-envtest sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+#doc# | go-vcr-tidy | latest | https://github.com/theunrepentantgeek/go-vcr-tidy |
+go-install go-vcr-tidy github.com/theunrepentantgeek/go-vcr-tidy@latest
+
+# Install envtest tooling
+#doc# | setup-envtest | v0.23.1 | https://book.kubebuilder.io/reference/envtest.html |
+write-verbose "Checking for $TOOL_DEST/setup-envtest"
+if should-install "$TOOL_DEST/setup-envtest"; then
+    write-info "Installing setup-envtest"
+    curl -sL "https://github.com/kubernetes-sigs/controller-runtime/releases/download/v0.23.1/setup-envtest-${os}-${arch}" --output "$TOOL_DEST/setup-envtest"
+    chmod +x "$TOOL_DEST/setup-envtest"
+fi
 
 # Stricter GO formatting
-#doc# | gofumpt | latest | https://pkg.go.dev/mvdan.cc/gofumpt |
-go-install gofumpt mvdan.cc/gofumpt@latest
+#doc# | gofumpt | v0.10.0 | https://github.com/mvdan/gofumpt |
+go-install gofumpt mvdan.cc/gofumpt@v0.10.0
 
 # Install golangci-lint
-#doc# | golangci-lint | 1.51.2 | https://github.com/golangci/golangci-lint |
+#doc# | golangci-lint | 2.14.0 | https://github.com/golangci/golangci-lint |
 write-verbose "Checking for $TOOL_DEST/golangci-lint"
 if should-install "$TOOL_DEST/golangci-lint"; then
     write-info "Installing golangci-lint"
     # golangci-lint is provided by base image if in devcontainer
     # this command copied from there
-    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$TOOL_DEST" v1.51.2 2>&1
+    curl -sSfL https://golangci-lint.run/install.sh  | sh -s -- -b "$TOOL_DEST" v2.14.0 2>&1
 fi
 
 # Install Task
-#doc# | Task | v3.31 | https://taskfile.dev/ |
+#doc# | Task | v3.49.1 | https://taskfile.dev/ |
 write-verbose "Checking for $TOOL_DEST/go-task"
 if should-install "$TOOL_DEST/task"; then 
     write-info "Installing go-task"
-    curl -sL "https://github.com/go-task/task/releases/download/v3.31.0/task_${os}_${arch}.tar.gz" | tar xz -C "$TOOL_DEST" task
+    curl -sL "https://github.com/go-task/task/releases/download/v3.49.1/task_${os}_${arch}.tar.gz" | tar xz -C "$TOOL_DEST" task
 fi
 
 # Install Trivy
-#doc# | Trivy | v0.37.3 | https://trivy.dev/ |
+#doc# | Trivy | v0.69.3 | https://trivy.dev/ |
 write-verbose "Checking for $TOOL_DEST/trivy"
 if should-install "$TOOL_DEST/trivy"; then
     write-info "Installing trivy"
-    # This guys decided to use different naming conventions for os(go env GOOS) and arch(go env GOARCH) despite trivy is 98.6% written in Go
+    # These guys decided to use different naming conventions for os(go env GOOS) and arch(go env GOARCH) despite trivy is 98.6% written in Go
     # This fixes macos arm64 architechture. Every other os/arch is named differently. Consider adding a workaround of your own ¯\_(ツ)_/¯
     if [[ ${os} == "darwin" ]] && [[ ${arch} == "arm64" ]]; then
-        curl -sL "https://github.com/aquasecurity/trivy/releases/download/v0.37.3/trivy_0.37.3_macOS-ARM64.tar.gz" | tar xz -C "$TOOL_DEST" trivy
+        curl -sL "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-ARM64.tar.gz" | tar xz -C "$TOOL_DEST" trivy
     else
-        curl -sL "https://github.com/aquasecurity/trivy/releases/download/v0.37.3/trivy_0.37.3_Linux-64bit.tar.gz" | tar xz -C "$TOOL_DEST" trivy
+        curl -sL "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz" | tar xz -C "$TOOL_DEST" trivy
     fi
 fi
 
 # Install helm
-#doc# | Helm | v3.8.0 | https://helm.sh/ |
+#doc# | Helm | v3.19.0 | https://helm.sh/ |
 write-verbose "Checking for $TOOL_DEST/helm"
 if should-install "$TOOL_DEST/helm"; then
     write-info "Installing helm..."
-    curl -sL "https://get.helm.sh/helm-v3.8.0-${os}-${arch}.tar.gz" | tar -C "$TOOL_DEST" --strip-components=1 -xz ${os}-${arch}/helm
+    curl -sL "https://get.helm.sh/helm-v3.19.0-${os}-${arch}.tar.gz" | tar -C "$TOOL_DEST" --strip-components=1 -xz ${os}-${arch}/helm
 fi
 
 # Install yq
-#doc# | YQ | v4.13.0 | https://github.com/mikefarah/yq/ |
-yq_version=v4.13.0
+#doc# | YQ | v4.48.1 | https://github.com/mikefarah/yq/ |
+yq_version=v4.48.1
 yq_binary=yq_${os}_${arch}
 write-verbose "Checking for $TOOL_DEST/yq"
 if should-install "$TOOL_DEST/yq"; then 
@@ -281,33 +293,108 @@ if should-install "$TOOL_DEST/cmctl"; then
 fi
 
 write-verbose "Checking for $BUILDX_DEST/docker-buildx"
-#doc# | BuildX | v0.11.2 | https://github.com/docker/buildx |
+#doc# | BuildX | v0.29.1 | https://github.com/docker/buildx |
 if should-install "$BUILDX_DEST/docker-buildx"; then
     write-info "Installing buildx-${os}_${arch} to $BUILDX_DEST ..."
     if ! test -f $BUILDX_DEST; then
         mkdir -p "$BUILDX_DEST"
     fi
     if ! test -f $BUILDX_DEST/docker-buildx; then
-        curl  -o "$BUILDX_DEST/docker-buildx" -L "https://github.com/docker/buildx/releases/download/v0.11.2/buildx-v0.11.2.${os}-${arch}"
+        curl  -o "$BUILDX_DEST/docker-buildx" -L "https://github.com/docker/buildx/releases/download/v0.29.1/buildx-v0.29.1.${os}-${arch}"
         chmod +x "$BUILDX_DEST/docker-buildx"
     fi
 fi
 
 # Install azwi
-#doc# | AZWI | v1.2.0 | https://github.com/Azure/azure-workload-identity |
+#doc# | AZWI | v1.5.1 | https://github.com/Azure/azure-workload-identity |
 write-verbose "Checking for $TOOL_DEST/azwi"
 if should-install "$TOOL_DEST/azwi"; then
     write-info "Installing azwi..."
-    curl -sL "https://github.com/Azure/azure-workload-identity/releases/download/v1.2.0/azwi-v1.2.0-${os}-${arch}.tar.gz" | tar xz -C "$TOOL_DEST" azwi
+    curl -sL "https://github.com/Azure/azure-workload-identity/releases/download/v1.5.1/azwi-v1.5.1-${os}-${arch}.tar.gz" | tar xz -C "$TOOL_DEST" azwi
 fi
 
 # Ensure tooling for Hugo is available
+#doc# | Node.js | v24.21.0 | https://nodejs.org/ |
+node_version=v24.21.0
+if [[ -x "$TOOL_DEST/node" && -e "$TOOL_DEST/npm" ]]; then
+    export PATH="$TOOL_DEST:$PATH"
+fi
+
+install_node=false
+if [[ "$DEVCONTAINER" == true ]]; then
+    install_node=true
+elif ! command -v node > /dev/null 2>&1 || ! command -v npm > /dev/null 2>&1; then
+    install_node=true
+elif [[ $(node --version) =~ ^v([0-9]+)\. ]] && [[ ${BASH_REMATCH[1]} -lt 24 ]]; then
+    install_node=true
+fi
+
+if [[ "$install_node" == true ]]; then
+    write-info "Installing Node.js"
+    case "$os-$arch" in
+        linux-amd64)
+            node_platform=linux-x64
+            ;;
+        linux-arm64)
+            node_platform=linux-arm64
+            ;;
+        darwin-amd64)
+            node_platform=darwin-x64
+            ;;
+        darwin-arm64)
+            node_platform=darwin-arm64
+            ;;
+        *)
+            write-error "Node.js is not available for $os-$arch"
+            exit 1
+            ;;
+    esac
+
+    rm -rf "$TOOL_DEST/nodejs"
+    mkdir -p "$TOOL_DEST/nodejs"
+    curl -sL "https://nodejs.org/dist/${node_version}/node-${node_version}-${node_platform}.tar.gz" |
+        tar xz --strip-components=1 -C "$TOOL_DEST/nodejs"
+    ln -sf "$TOOL_DEST/nodejs/bin/node" "$TOOL_DEST/node"
+    ln -sf "$TOOL_DEST/nodejs/bin/npm" "$TOOL_DEST/npm"
+    ln -sf "$TOOL_DEST/nodejs/bin/npx" "$TOOL_DEST/npx"
+    export PATH="$TOOL_DEST:$PATH"
+fi
+
+#doc# | Dart Sass | v1.102.0 | https://sass-lang.com/dart-sass/ |
+write-verbose "Checking for $TOOL_DEST/sass"
+if should-install "$TOOL_DEST/sass"; then
+    write-info "Installing Dart Sass"
+    case "$os-$arch" in
+        linux-amd64)
+            sass_platform=linux-x64
+            ;;
+        linux-arm64)
+            sass_platform=linux-arm64
+            ;;
+        darwin-amd64)
+            sass_platform=macos-x64
+            ;;
+        darwin-arm64)
+            sass_platform=macos-arm64
+            ;;
+        *)
+            write-error "Dart Sass is not available for $os-$arch"
+            exit 1
+            ;;
+    esac
+
+    rm -rf "$TOOL_DEST/dart-sass"
+    curl -sL "https://github.com/sass/dart-sass/releases/download/1.102.0/dart-sass-1.102.0-${sass_platform}.tar.gz" | tar xz -C "$TOOL_DEST"
+    ln -sf "$TOOL_DEST/dart-sass/sass" "$TOOL_DEST/sass"
+fi
+
 #doc# | PostCSS | latest | https://postcss.org/ |
 write-verbose "Checking for /usr/bin/postcss"
 if ! which postcss  > /dev/null 2>&1; then 
     write-info "Installing postcss"
     npm config set fund false --location=global
     npm install --global postcss postcss-cli autoprefixer
+    ln -sf "$(npm prefix --global)/bin/postcss" "$TOOL_DEST/postcss"
 fi
 
 if [ "$VERBOSE" == true ]; then 
@@ -331,4 +418,7 @@ fi
 write-info "Setting up python virtual environment"
 
 # Install python virtualenv
-pip3 install virtualenv --break-system-packages
+# Ignore the apt-managed packaging install because it has no RECORD file for pip to uninstall, which causes pip 
+# to fail when trying to upgrade or uninstall it, which happens due to differences between the apt-managed and 
+# pip-managed installations.
+pip3 install virtualenv --break-system-packages --ignore-installed packaging

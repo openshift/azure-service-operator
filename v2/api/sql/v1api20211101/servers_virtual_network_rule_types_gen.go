@@ -5,32 +5,34 @@ package v1api20211101
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/sql/v1api20211101/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/sql/v1api20211101/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,sql}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /sql/resource-manager/Microsoft.Sql/stable/2021-11-01/VirtualNetworkRules.json
+// - Generated from: /sql/resource-manager/Microsoft.Sql/SQL/stable/2021-11-01/VirtualNetworkRules.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/virtualNetworkRules/{virtualNetworkRuleName}
 type ServersVirtualNetworkRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Servers_VirtualNetworkRule_Spec   `json:"spec,omitempty"`
-	Status            Servers_VirtualNetworkRule_STATUS `json:"status,omitempty"`
+	Spec              ServersVirtualNetworkRule_Spec   `json:"spec,omitempty"`
+	Status            ServersVirtualNetworkRule_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &ServersVirtualNetworkRule{}
@@ -49,56 +51,56 @@ var _ conversion.Convertible = &ServersVirtualNetworkRule{}
 
 // ConvertFrom populates our ServersVirtualNetworkRule from the provided hub ServersVirtualNetworkRule
 func (rule *ServersVirtualNetworkRule) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.ServersVirtualNetworkRule)
-	if !ok {
-		return fmt.Errorf("expected sql/v1api20211101/storage/ServersVirtualNetworkRule but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.ServersVirtualNetworkRule
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return rule.AssignProperties_From_ServersVirtualNetworkRule(source)
+	err = rule.AssignProperties_From_ServersVirtualNetworkRule(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to rule")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub ServersVirtualNetworkRule from our ServersVirtualNetworkRule
 func (rule *ServersVirtualNetworkRule) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.ServersVirtualNetworkRule)
-	if !ok {
-		return fmt.Errorf("expected sql/v1api20211101/storage/ServersVirtualNetworkRule but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.ServersVirtualNetworkRule
+	err := rule.AssignProperties_To_ServersVirtualNetworkRule(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from rule")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return rule.AssignProperties_To_ServersVirtualNetworkRule(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversvirtualnetworkrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversvirtualnetworkrules,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversvirtualnetworkrules.sql.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &ServersVirtualNetworkRule{}
 
-var _ admission.Defaulter = &ServersVirtualNetworkRule{}
-
-// Default applies defaults to the ServersVirtualNetworkRule resource
-func (rule *ServersVirtualNetworkRule) Default() {
-	rule.defaultImpl()
-	var temp any = rule
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (rule *ServersVirtualNetworkRule) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if rule.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return rule.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (rule *ServersVirtualNetworkRule) defaultAzureName() {
-	if rule.Spec.AzureName == "" {
-		rule.Spec.AzureName = rule.Name
+var _ secrets.Exporter = &ServersVirtualNetworkRule{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (rule *ServersVirtualNetworkRule) SecretDestinationExpressions() []*core.DestinationExpression {
+	if rule.Spec.OperatorSpec == nil {
+		return nil
 	}
-}
-
-// defaultImpl applies the code generated defaults to the ServersVirtualNetworkRule resource
-func (rule *ServersVirtualNetworkRule) defaultImpl() { rule.defaultAzureName() }
-
-var _ genruntime.ImportableResource = &ServersVirtualNetworkRule{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (rule *ServersVirtualNetworkRule) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*Servers_VirtualNetworkRule_STATUS); ok {
-		return rule.Spec.Initialize_From_Servers_VirtualNetworkRule_STATUS(s)
-	}
-
-	return fmt.Errorf("expected Status of type Servers_VirtualNetworkRule_STATUS but received %T instead", status)
+	return rule.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &ServersVirtualNetworkRule{}
@@ -110,7 +112,7 @@ func (rule *ServersVirtualNetworkRule) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2021-11-01"
 func (rule ServersVirtualNetworkRule) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2021-11-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -144,11 +146,15 @@ func (rule *ServersVirtualNetworkRule) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (rule *ServersVirtualNetworkRule) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Servers_VirtualNetworkRule_STATUS{}
+	return &ServersVirtualNetworkRule_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (rule *ServersVirtualNetworkRule) Owner() *genruntime.ResourceReference {
+	if rule.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(rule.Spec)
 	return rule.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -156,101 +162,20 @@ func (rule *ServersVirtualNetworkRule) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (rule *ServersVirtualNetworkRule) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Servers_VirtualNetworkRule_STATUS); ok {
+	if st, ok := status.(*ServersVirtualNetworkRule_STATUS); ok {
 		rule.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Servers_VirtualNetworkRule_STATUS
+	var st ServersVirtualNetworkRule_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	rule.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversvirtualnetworkrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversvirtualnetworkrules,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversvirtualnetworkrules.sql.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &ServersVirtualNetworkRule{}
-
-// ValidateCreate validates the creation of the resource
-func (rule *ServersVirtualNetworkRule) ValidateCreate() (admission.Warnings, error) {
-	validations := rule.createValidations()
-	var temp any = rule
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (rule *ServersVirtualNetworkRule) ValidateDelete() (admission.Warnings, error) {
-	validations := rule.deleteValidations()
-	var temp any = rule
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (rule *ServersVirtualNetworkRule) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := rule.updateValidations()
-	var temp any = rule
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (rule *ServersVirtualNetworkRule) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){rule.validateResourceReferences, rule.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (rule *ServersVirtualNetworkRule) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (rule *ServersVirtualNetworkRule) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return rule.validateResourceReferences()
-		},
-		rule.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return rule.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (rule *ServersVirtualNetworkRule) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(rule)
-}
-
-// validateResourceReferences validates all resource references
-func (rule *ServersVirtualNetworkRule) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&rule.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (rule *ServersVirtualNetworkRule) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*ServersVirtualNetworkRule)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, rule)
 }
 
 // AssignProperties_From_ServersVirtualNetworkRule populates our ServersVirtualNetworkRule from the provided source ServersVirtualNetworkRule
@@ -260,18 +185,18 @@ func (rule *ServersVirtualNetworkRule) AssignProperties_From_ServersVirtualNetwo
 	rule.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec Servers_VirtualNetworkRule_Spec
-	err := spec.AssignProperties_From_Servers_VirtualNetworkRule_Spec(&source.Spec)
+	var spec ServersVirtualNetworkRule_Spec
+	err := spec.AssignProperties_From_ServersVirtualNetworkRule_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Servers_VirtualNetworkRule_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_ServersVirtualNetworkRule_Spec() to populate field Spec")
 	}
 	rule.Spec = spec
 
 	// Status
-	var status Servers_VirtualNetworkRule_STATUS
-	err = status.AssignProperties_From_Servers_VirtualNetworkRule_STATUS(&source.Status)
+	var status ServersVirtualNetworkRule_STATUS
+	err = status.AssignProperties_From_ServersVirtualNetworkRule_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Servers_VirtualNetworkRule_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_ServersVirtualNetworkRule_STATUS() to populate field Status")
 	}
 	rule.Status = status
 
@@ -286,18 +211,18 @@ func (rule *ServersVirtualNetworkRule) AssignProperties_To_ServersVirtualNetwork
 	destination.ObjectMeta = *rule.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.Servers_VirtualNetworkRule_Spec
-	err := rule.Spec.AssignProperties_To_Servers_VirtualNetworkRule_Spec(&spec)
+	var spec storage.ServersVirtualNetworkRule_Spec
+	err := rule.Spec.AssignProperties_To_ServersVirtualNetworkRule_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Servers_VirtualNetworkRule_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_ServersVirtualNetworkRule_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.Servers_VirtualNetworkRule_STATUS
-	err = rule.Status.AssignProperties_To_Servers_VirtualNetworkRule_STATUS(&status)
+	var status storage.ServersVirtualNetworkRule_STATUS
+	err = rule.Status.AssignProperties_To_ServersVirtualNetworkRule_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Servers_VirtualNetworkRule_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_ServersVirtualNetworkRule_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +241,7 @@ func (rule *ServersVirtualNetworkRule) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /sql/resource-manager/Microsoft.Sql/stable/2021-11-01/VirtualNetworkRules.json
+// - Generated from: /sql/resource-manager/Microsoft.Sql/SQL/stable/2021-11-01/VirtualNetworkRules.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/virtualNetworkRules/{virtualNetworkRuleName}
 type ServersVirtualNetworkRuleList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -324,13 +249,17 @@ type ServersVirtualNetworkRuleList struct {
 	Items           []ServersVirtualNetworkRule `json:"items"`
 }
 
-type Servers_VirtualNetworkRule_Spec struct {
+type ServersVirtualNetworkRule_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
 	AzureName string `json:"azureName,omitempty"`
 
 	// IgnoreMissingVnetServiceEndpoint: Create firewall rule before the virtual network has vnet service endpoint enabled.
 	IgnoreMissingVnetServiceEndpoint *bool `json:"ignoreMissingVnetServiceEndpoint,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *ServersVirtualNetworkRuleOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -343,21 +272,21 @@ type Servers_VirtualNetworkRule_Spec struct {
 	VirtualNetworkSubnetReference *genruntime.ResourceReference `armReference:"VirtualNetworkSubnetId" json:"virtualNetworkSubnetReference,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &Servers_VirtualNetworkRule_Spec{}
+var _ genruntime.ARMTransformer = &ServersVirtualNetworkRule_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (rule *Servers_VirtualNetworkRule_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (rule *ServersVirtualNetworkRule_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if rule == nil {
 		return nil, nil
 	}
-	result := &Servers_VirtualNetworkRule_Spec_ARM{}
+	result := &arm.ServersVirtualNetworkRule_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
 
 	// Set property "Properties":
 	if rule.IgnoreMissingVnetServiceEndpoint != nil || rule.VirtualNetworkSubnetReference != nil {
-		result.Properties = &VirtualNetworkRuleProperties_ARM{}
+		result.Properties = &arm.VirtualNetworkRuleProperties{}
 	}
 	if rule.IgnoreMissingVnetServiceEndpoint != nil {
 		ignoreMissingVnetServiceEndpoint := *rule.IgnoreMissingVnetServiceEndpoint
@@ -375,15 +304,15 @@ func (rule *Servers_VirtualNetworkRule_Spec) ConvertToARM(resolved genruntime.Co
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (rule *Servers_VirtualNetworkRule_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Servers_VirtualNetworkRule_Spec_ARM{}
+func (rule *ServersVirtualNetworkRule_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.ServersVirtualNetworkRule_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (rule *Servers_VirtualNetworkRule_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Servers_VirtualNetworkRule_Spec_ARM)
+func (rule *ServersVirtualNetworkRule_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.ServersVirtualNetworkRule_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Servers_VirtualNetworkRule_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ServersVirtualNetworkRule_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
@@ -398,6 +327,8 @@ func (rule *Servers_VirtualNetworkRule_Spec) PopulateFromARM(owner genruntime.Ar
 		}
 	}
 
+	// no assignment for property "OperatorSpec"
+
 	// Set property "Owner":
 	rule.Owner = &genruntime.KnownResourceReference{
 		Name:  owner.Name,
@@ -410,58 +341,58 @@ func (rule *Servers_VirtualNetworkRule_Spec) PopulateFromARM(owner genruntime.Ar
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &Servers_VirtualNetworkRule_Spec{}
+var _ genruntime.ConvertibleSpec = &ServersVirtualNetworkRule_Spec{}
 
-// ConvertSpecFrom populates our Servers_VirtualNetworkRule_Spec from the provided source
-func (rule *Servers_VirtualNetworkRule_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.Servers_VirtualNetworkRule_Spec)
+// ConvertSpecFrom populates our ServersVirtualNetworkRule_Spec from the provided source
+func (rule *ServersVirtualNetworkRule_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.ServersVirtualNetworkRule_Spec)
 	if ok {
 		// Populate our instance from source
-		return rule.AssignProperties_From_Servers_VirtualNetworkRule_Spec(src)
+		return rule.AssignProperties_From_ServersVirtualNetworkRule_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Servers_VirtualNetworkRule_Spec{}
+	src = &storage.ServersVirtualNetworkRule_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = rule.AssignProperties_From_Servers_VirtualNetworkRule_Spec(src)
+	err = rule.AssignProperties_From_ServersVirtualNetworkRule_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our Servers_VirtualNetworkRule_Spec
-func (rule *Servers_VirtualNetworkRule_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.Servers_VirtualNetworkRule_Spec)
+// ConvertSpecTo populates the provided destination from our ServersVirtualNetworkRule_Spec
+func (rule *ServersVirtualNetworkRule_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.ServersVirtualNetworkRule_Spec)
 	if ok {
 		// Populate destination from our instance
-		return rule.AssignProperties_To_Servers_VirtualNetworkRule_Spec(dst)
+		return rule.AssignProperties_To_ServersVirtualNetworkRule_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Servers_VirtualNetworkRule_Spec{}
-	err := rule.AssignProperties_To_Servers_VirtualNetworkRule_Spec(dst)
+	dst = &storage.ServersVirtualNetworkRule_Spec{}
+	err := rule.AssignProperties_To_ServersVirtualNetworkRule_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_Servers_VirtualNetworkRule_Spec populates our Servers_VirtualNetworkRule_Spec from the provided source Servers_VirtualNetworkRule_Spec
-func (rule *Servers_VirtualNetworkRule_Spec) AssignProperties_From_Servers_VirtualNetworkRule_Spec(source *storage.Servers_VirtualNetworkRule_Spec) error {
+// AssignProperties_From_ServersVirtualNetworkRule_Spec populates our ServersVirtualNetworkRule_Spec from the provided source ServersVirtualNetworkRule_Spec
+func (rule *ServersVirtualNetworkRule_Spec) AssignProperties_From_ServersVirtualNetworkRule_Spec(source *storage.ServersVirtualNetworkRule_Spec) error {
 
 	// AzureName
 	rule.AzureName = source.AzureName
@@ -472,6 +403,18 @@ func (rule *Servers_VirtualNetworkRule_Spec) AssignProperties_From_Servers_Virtu
 		rule.IgnoreMissingVnetServiceEndpoint = &ignoreMissingVnetServiceEndpoint
 	} else {
 		rule.IgnoreMissingVnetServiceEndpoint = nil
+	}
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec ServersVirtualNetworkRuleOperatorSpec
+		err := operatorSpec.AssignProperties_From_ServersVirtualNetworkRuleOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ServersVirtualNetworkRuleOperatorSpec() to populate field OperatorSpec")
+		}
+		rule.OperatorSpec = &operatorSpec
+	} else {
+		rule.OperatorSpec = nil
 	}
 
 	// Owner
@@ -494,8 +437,8 @@ func (rule *Servers_VirtualNetworkRule_Spec) AssignProperties_From_Servers_Virtu
 	return nil
 }
 
-// AssignProperties_To_Servers_VirtualNetworkRule_Spec populates the provided destination Servers_VirtualNetworkRule_Spec from our Servers_VirtualNetworkRule_Spec
-func (rule *Servers_VirtualNetworkRule_Spec) AssignProperties_To_Servers_VirtualNetworkRule_Spec(destination *storage.Servers_VirtualNetworkRule_Spec) error {
+// AssignProperties_To_ServersVirtualNetworkRule_Spec populates the provided destination ServersVirtualNetworkRule_Spec from our ServersVirtualNetworkRule_Spec
+func (rule *ServersVirtualNetworkRule_Spec) AssignProperties_To_ServersVirtualNetworkRule_Spec(destination *storage.ServersVirtualNetworkRule_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -508,6 +451,18 @@ func (rule *Servers_VirtualNetworkRule_Spec) AssignProperties_To_Servers_Virtual
 		destination.IgnoreMissingVnetServiceEndpoint = &ignoreMissingVnetServiceEndpoint
 	} else {
 		destination.IgnoreMissingVnetServiceEndpoint = nil
+	}
+
+	// OperatorSpec
+	if rule.OperatorSpec != nil {
+		var operatorSpec storage.ServersVirtualNetworkRuleOperatorSpec
+		err := rule.OperatorSpec.AssignProperties_To_ServersVirtualNetworkRuleOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ServersVirtualNetworkRuleOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
 	}
 
 	// OriginalVersion
@@ -540,40 +495,17 @@ func (rule *Servers_VirtualNetworkRule_Spec) AssignProperties_To_Servers_Virtual
 	return nil
 }
 
-// Initialize_From_Servers_VirtualNetworkRule_STATUS populates our Servers_VirtualNetworkRule_Spec from the provided source Servers_VirtualNetworkRule_STATUS
-func (rule *Servers_VirtualNetworkRule_Spec) Initialize_From_Servers_VirtualNetworkRule_STATUS(source *Servers_VirtualNetworkRule_STATUS) error {
-
-	// IgnoreMissingVnetServiceEndpoint
-	if source.IgnoreMissingVnetServiceEndpoint != nil {
-		ignoreMissingVnetServiceEndpoint := *source.IgnoreMissingVnetServiceEndpoint
-		rule.IgnoreMissingVnetServiceEndpoint = &ignoreMissingVnetServiceEndpoint
-	} else {
-		rule.IgnoreMissingVnetServiceEndpoint = nil
-	}
-
-	// VirtualNetworkSubnetReference
-	if source.VirtualNetworkSubnetId != nil {
-		virtualNetworkSubnetReference := genruntime.CreateResourceReferenceFromARMID(*source.VirtualNetworkSubnetId)
-		rule.VirtualNetworkSubnetReference = &virtualNetworkSubnetReference
-	} else {
-		rule.VirtualNetworkSubnetReference = nil
-	}
-
-	// No error
-	return nil
-}
-
 // OriginalVersion returns the original API version used to create the resource.
-func (rule *Servers_VirtualNetworkRule_Spec) OriginalVersion() string {
+func (rule *ServersVirtualNetworkRule_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
 // SetAzureName sets the Azure name of the resource
-func (rule *Servers_VirtualNetworkRule_Spec) SetAzureName(azureName string) {
+func (rule *ServersVirtualNetworkRule_Spec) SetAzureName(azureName string) {
 	rule.AzureName = azureName
 }
 
-type Servers_VirtualNetworkRule_STATUS struct {
+type ServersVirtualNetworkRule_STATUS struct {
 	// Conditions: The observed state of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty"`
 
@@ -596,68 +528,68 @@ type Servers_VirtualNetworkRule_STATUS struct {
 	VirtualNetworkSubnetId *string `json:"virtualNetworkSubnetId,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Servers_VirtualNetworkRule_STATUS{}
+var _ genruntime.ConvertibleStatus = &ServersVirtualNetworkRule_STATUS{}
 
-// ConvertStatusFrom populates our Servers_VirtualNetworkRule_STATUS from the provided source
-func (rule *Servers_VirtualNetworkRule_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.Servers_VirtualNetworkRule_STATUS)
+// ConvertStatusFrom populates our ServersVirtualNetworkRule_STATUS from the provided source
+func (rule *ServersVirtualNetworkRule_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.ServersVirtualNetworkRule_STATUS)
 	if ok {
 		// Populate our instance from source
-		return rule.AssignProperties_From_Servers_VirtualNetworkRule_STATUS(src)
+		return rule.AssignProperties_From_ServersVirtualNetworkRule_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Servers_VirtualNetworkRule_STATUS{}
+	src = &storage.ServersVirtualNetworkRule_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = rule.AssignProperties_From_Servers_VirtualNetworkRule_STATUS(src)
+	err = rule.AssignProperties_From_ServersVirtualNetworkRule_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Servers_VirtualNetworkRule_STATUS
-func (rule *Servers_VirtualNetworkRule_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.Servers_VirtualNetworkRule_STATUS)
+// ConvertStatusTo populates the provided destination from our ServersVirtualNetworkRule_STATUS
+func (rule *ServersVirtualNetworkRule_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.ServersVirtualNetworkRule_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return rule.AssignProperties_To_Servers_VirtualNetworkRule_STATUS(dst)
+		return rule.AssignProperties_To_ServersVirtualNetworkRule_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Servers_VirtualNetworkRule_STATUS{}
-	err := rule.AssignProperties_To_Servers_VirtualNetworkRule_STATUS(dst)
+	dst = &storage.ServersVirtualNetworkRule_STATUS{}
+	err := rule.AssignProperties_To_ServersVirtualNetworkRule_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &Servers_VirtualNetworkRule_STATUS{}
+var _ genruntime.FromARMConverter = &ServersVirtualNetworkRule_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (rule *Servers_VirtualNetworkRule_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Servers_VirtualNetworkRule_STATUS_ARM{}
+func (rule *ServersVirtualNetworkRule_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.ServersVirtualNetworkRule_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (rule *Servers_VirtualNetworkRule_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Servers_VirtualNetworkRule_STATUS_ARM)
+func (rule *ServersVirtualNetworkRule_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.ServersVirtualNetworkRule_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Servers_VirtualNetworkRule_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ServersVirtualNetworkRule_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -687,7 +619,9 @@ func (rule *Servers_VirtualNetworkRule_STATUS) PopulateFromARM(owner genruntime.
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.State != nil {
-			state := *typedInput.Properties.State
+			var temp string
+			temp = string(*typedInput.Properties.State)
+			state := VirtualNetworkRuleProperties_State_STATUS(temp)
 			rule.State = &state
 		}
 	}
@@ -711,8 +645,8 @@ func (rule *Servers_VirtualNetworkRule_STATUS) PopulateFromARM(owner genruntime.
 	return nil
 }
 
-// AssignProperties_From_Servers_VirtualNetworkRule_STATUS populates our Servers_VirtualNetworkRule_STATUS from the provided source Servers_VirtualNetworkRule_STATUS
-func (rule *Servers_VirtualNetworkRule_STATUS) AssignProperties_From_Servers_VirtualNetworkRule_STATUS(source *storage.Servers_VirtualNetworkRule_STATUS) error {
+// AssignProperties_From_ServersVirtualNetworkRule_STATUS populates our ServersVirtualNetworkRule_STATUS from the provided source ServersVirtualNetworkRule_STATUS
+func (rule *ServersVirtualNetworkRule_STATUS) AssignProperties_From_ServersVirtualNetworkRule_STATUS(source *storage.ServersVirtualNetworkRule_STATUS) error {
 
 	// Conditions
 	rule.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
@@ -750,8 +684,8 @@ func (rule *Servers_VirtualNetworkRule_STATUS) AssignProperties_From_Servers_Vir
 	return nil
 }
 
-// AssignProperties_To_Servers_VirtualNetworkRule_STATUS populates the provided destination Servers_VirtualNetworkRule_STATUS from our Servers_VirtualNetworkRule_STATUS
-func (rule *Servers_VirtualNetworkRule_STATUS) AssignProperties_To_Servers_VirtualNetworkRule_STATUS(destination *storage.Servers_VirtualNetworkRule_STATUS) error {
+// AssignProperties_To_ServersVirtualNetworkRule_STATUS populates the provided destination ServersVirtualNetworkRule_STATUS from our ServersVirtualNetworkRule_STATUS
+func (rule *ServersVirtualNetworkRule_STATUS) AssignProperties_To_ServersVirtualNetworkRule_STATUS(destination *storage.ServersVirtualNetworkRule_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -785,6 +719,102 @@ func (rule *Servers_VirtualNetworkRule_STATUS) AssignProperties_To_Servers_Virtu
 
 	// VirtualNetworkSubnetId
 	destination.VirtualNetworkSubnetId = genruntime.ClonePointerToString(rule.VirtualNetworkSubnetId)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type ServersVirtualNetworkRuleOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_ServersVirtualNetworkRuleOperatorSpec populates our ServersVirtualNetworkRuleOperatorSpec from the provided source ServersVirtualNetworkRuleOperatorSpec
+func (operator *ServersVirtualNetworkRuleOperatorSpec) AssignProperties_From_ServersVirtualNetworkRuleOperatorSpec(source *storage.ServersVirtualNetworkRuleOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ServersVirtualNetworkRuleOperatorSpec populates the provided destination ServersVirtualNetworkRuleOperatorSpec from our ServersVirtualNetworkRuleOperatorSpec
+func (operator *ServersVirtualNetworkRuleOperatorSpec) AssignProperties_To_ServersVirtualNetworkRuleOperatorSpec(destination *storage.ServersVirtualNetworkRuleOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
 
 	// Update the property bag
 	if len(propertyBag) > 0 {

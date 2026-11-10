@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 )
@@ -37,7 +37,7 @@ func (diagram *PipelineDiagram) WriteDiagram(stages []*Stage) error {
 	dotsrc := diagram.createDiagram(stages)
 	filename := filepath.Join(diagram.debugDir, "pipeline.dot")
 	err := os.WriteFile(filename, dotsrc, 0o600)
-	return errors.Wrapf(err, "failed to write diagram to %s", filename)
+	return eris.Wrapf(err, "failed to write diagram to %s", filename)
 }
 
 // createDiagram creates a dot file for the pipeline
@@ -59,7 +59,8 @@ func (diagram *PipelineDiagram) createDiagram(stages []*Stage) []byte {
 		b.WriteString(
 			fmt.Sprintf("    %s [label=\"%s\"];\n",
 				diagram.idFor(stage),
-				diagram.safeDescription(stage.Description())))
+				diagram.safeDescription(stage.Description())),
+		)
 
 		// If we've reached the end of the block, add a newline
 		if index < len(stages)-1 && index%(blockSize+1) == blockSize {
@@ -79,12 +80,14 @@ func (diagram *PipelineDiagram) createDiagram(stages []*Stage) []byte {
 				b.WriteString(
 					fmt.Sprintf("    %s -> %s [dir=forward];\n",
 						diagram.idFor(stage),
-						diagram.idFor(nextStage)))
+						diagram.idFor(nextStage)),
+				)
 			} else {
 				b.WriteString(
 					fmt.Sprintf("    %s -> %s [dir=back];\n",
 						diagram.idFor(nextStage),
-						diagram.idFor(stage)))
+						diagram.idFor(stage)),
+				)
 			}
 		}
 
@@ -107,7 +110,7 @@ func (diagram *PipelineDiagram) idFor(stage *Stage) string {
 
 	// Generate a new ID for this stage
 	// (We need to do this because the stages are sometimes reused)
-	id := diagram.safeId(stage.Id())
+	id := diagram.safeID(stage.ID())
 	clashes := diagram.stageNames[id]
 
 	if len(clashes) > 0 {
@@ -118,13 +121,13 @@ func (diagram *PipelineDiagram) idFor(stage *Stage) string {
 	diagram.stageIds[stage] = id // Quick lookup if we need it again
 
 	// Keep track of how many times we've seen a particular stage, so we can disambiguate references
-	diagram.stageNames[stage.Id()] = append(clashes, stage)
+	diagram.stageNames[stage.ID()] = append(clashes, stage)
 
 	return id
 }
 
-// safeId returns a string containing only alphanumeric characters
-func (diagram *PipelineDiagram) safeId(id string) string {
+// safeID returns a string containing only alphanumeric characters
+func (diagram *PipelineDiagram) safeID(id string) string {
 	var b strings.Builder
 	for _, r := range id {
 		if unicode.IsLetter(r) || unicode.IsNumber(r) {

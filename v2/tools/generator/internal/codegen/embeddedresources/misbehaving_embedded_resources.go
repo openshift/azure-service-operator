@@ -6,7 +6,7 @@
 package embeddedresources
 
 import (
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -47,7 +47,7 @@ func findMisbehavingResources(
 					// Expected that the property in question is a TypeName
 					propertyType, ok := astmodel.ExtractTypeName(prop.PropertyType())
 					if !ok {
-						return nil, errors.Errorf("property %s of %s doesn't look like a resource because it is not a TypeName", prop.PropertyName(), ctx.typeName.String())
+						return nil, eris.Errorf("property %s of %s doesn't look like a resource because it is not a TypeName", prop.PropertyName(), ctx.typeName.String())
 					}
 
 					if _, ok = resources[ctx.resourceName]; !ok {
@@ -60,7 +60,8 @@ func findMisbehavingResources(
 							typeName:     ctx.typeName,
 							resourceName: ctx.resourceName,
 							propertyType: propertyType,
-						})
+						},
+					)
 				}
 			}
 
@@ -81,10 +82,10 @@ func findMisbehavingResources(
 		return ctx, nil
 	}
 
-	for _, def := range astmodel.FindResourceDefinitions(defs) {
+	for _, def := range defs.AllResources() {
 		_, err := typeWalker.Walk(def)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to walk type %s", def.Name())
+			return nil, eris.Wrapf(err, "failed to walk type %s", def.Name())
 		}
 	}
 

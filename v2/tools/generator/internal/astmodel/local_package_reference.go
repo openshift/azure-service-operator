@@ -31,14 +31,26 @@ var (
 
 const GeneratorVersion string = "v1api"
 
-// MakeLocalPackageReference Creates a new local package reference from a group and version
-func MakeLocalPackageReference(prefix string, group string, versionPrefix string, version string) LocalPackageReference {
+// MakeVersionedLocalPackageReference creates a new local package reference from a group and version
+func MakeVersionedLocalPackageReference(prefix string, group string, version string) LocalPackageReference {
+	gv := VersionPrefixForGroup(group)
 	return LocalPackageReference{
 		localPathPrefix:  prefix,
 		group:            group,
-		generatorVersion: versionPrefix,
 		apiVersion:       version,
-		version:          versionPrefix + sanitizePackageName(version),
+		generatorVersion: gv,
+		version:          gv + sanitizePackageName(version),
+	}
+}
+
+// MakeLocalPackageReference creates a new local package reference from a group and name.
+// This is used for non-versioned packages, such as "customizations"
+func MakeNamedLocalPackageReference(prefix string, group string, name string) LocalPackageReference {
+	return LocalPackageReference{
+		localPathPrefix: prefix,
+		group:           group,
+		apiVersion:      name,
+		version:         sanitizePackageName(name),
 	}
 }
 
@@ -123,13 +135,13 @@ func (pr LocalPackageReference) GeneratorVersion() string {
 	return pr.generatorVersion
 }
 
-// ApiVersion returns the API version of this reference, separate from the generator version
-func (pr LocalPackageReference) ApiVersion() string {
+// APIVersion returns the API version of this reference, separate from the generator version
+func (pr LocalPackageReference) APIVersion() string {
 	return pr.apiVersion
 }
 
-// HasApiVersion returns true if this reference has the specified API version
-func (pr LocalPackageReference) HasApiVersion(ver string) bool {
+// HasAPIVersion returns true if this reference has the specified API version
+func (pr LocalPackageReference) HasAPIVersion(ver string) bool {
 	return strings.EqualFold(pr.apiVersion, ver)
 }
 
@@ -146,25 +158,40 @@ func (pr LocalPackageReference) GroupVersion() (string, string) {
 
 // ImportAlias returns the import alias to use for this package reference
 func (pr LocalPackageReference) ImportAlias(style PackageImportStyle) string {
-	groupForAlias := strings.Replace(pr.group, ".", "", -1)
-
 	switch style {
 	case Name, VersionOnly:
 		return fmt.Sprintf(
 			"%s%s",
 			pr.simplifiedGeneratorVersion(pr.generatorVersion),
-			pr.simplifiedApiVersion(pr.apiVersion))
+			pr.simplifiedAPIVersion(pr.apiVersion),
+		)
 	case GroupOnly:
-		return groupForAlias
+		return pr.simplifiedGroup(pr.group)
 	case GroupAndVersion:
+		// It's not idiomatic for Go to include an underscore in an import alias,
+		// but we judged that this improves readability enough to be worthwhile
+		// as these aliases are often both long and in groups that are similar to each other.
 		return fmt.Sprintf(
 			"%s_%s%s",
-			groupForAlias,
+			pr.simplifiedGroup(pr.group),
 			pr.simplifiedGeneratorVersion(pr.generatorVersion),
-			pr.simplifiedApiVersion(pr.apiVersion))
+			pr.simplifiedAPIVersion(pr.apiVersion),
+		)
+	case GroupAndFullVersion:
+		// As discussed above, it's not idiomatic but we do it anyway.
+		return fmt.Sprintf(
+			"%s_%s%s",
+			pr.simplifiedGroup(pr.group),
+			pr.generatorVersion,
+			pr.simplifiedAPIVersion(pr.apiVersion),
+		)
 	default:
 		panic(fmt.Sprintf("didn't expect PackageImportStyle %q", style))
 	}
+}
+
+func (pr LocalPackageReference) simplifiedGroup(group string) string {
+	return strings.ToLower(strings.ReplaceAll(group, ".", ""))
 }
 
 var apiVersionSimplifier = strings.NewReplacer(
@@ -174,7 +201,7 @@ var apiVersionSimplifier = strings.NewReplacer(
 	"-", "",
 )
 
-func (pr LocalPackageReference) simplifiedApiVersion(version string) string {
+func (pr LocalPackageReference) simplifiedAPIVersion(version string) string {
 	return strings.ToLower(apiVersionSimplifier.Replace(version))
 }
 

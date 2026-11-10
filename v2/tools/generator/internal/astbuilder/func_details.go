@@ -67,7 +67,8 @@ func (fn *FuncDetails) defineFunc(noBody bool) *dst.FuncDecl {
 		reason := fmt.Sprintf(
 			"ReceiverIdent and ReceiverType must both be specified, or both omitted. ReceiverIdent: %q, ReceiverType: %q",
 			fn.ReceiverIdent,
-			fn.ReceiverType)
+			fn.ReceiverType,
+		)
 		panic(reason)
 	}
 
@@ -89,7 +90,7 @@ func (fn *FuncDetails) defineFunc(noBody bool) *dst.FuncDecl {
 	var bodyBlock *dst.BlockStmt
 	if noBody {
 		if len(body) > 0 {
-			panic(fmt.Sprintf("cannot generate fuction header for function that also has body"))
+			panic("cannot generate fuction header for function that also has body")
 		}
 	} else {
 		bodyBlock = &dst.BlockStmt{

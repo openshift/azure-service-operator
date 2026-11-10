@@ -1,0 +1,376 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
+package controllers_test
+
+import (
+	"testing"
+
+	. "github.com/onsi/gomega"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	containerserviceold "github.com/Azure/azure-service-operator/v2/api/containerservice/v1api20240901"
+	managedidentity "github.com/Azure/azure-service-operator/v2/api/managedidentity/v1api20230131"
+	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
+	"github.com/Azure/azure-service-operator/v2/internal/util/to"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+)
+
+func Test_CELExportConfigMap(t *testing.T) {
+	t.Parallel()
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	configMapName := "my-configmap"
+	principalIdKey := "principalId"
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+			OperatorSpec: &managedidentity.UserAssignedIdentityOperatorSpec{
+				ConfigMapExpressions: []*core.DestinationExpression{
+					{
+						Name:  configMapName,
+						Key:   principalIdKey,
+						Value: "self.status.principalId",
+					},
+					{
+						Name:  configMapName,
+						Value: `{"greeting": "hello", "classification": "friend"}`,
+					},
+				},
+			},
+		},
+	}
+
+	tc.CreateResourceAndWait(mi)
+	tc.Expect(mi.Status.TenantId).ToNot(BeNil())
+	tc.Expect(mi.Status.PrincipalId).ToNot(BeNil())
+
+	// The ConfigMap should exist with the expected value
+	tc.ExpectConfigMapHasKeysAndValues(
+		configMapName,
+		"principalId", *mi.Status.PrincipalId,
+		"greeting", "hello",
+		"classification", "friend",
+	)
+}
+
+func Test_CELExportConflictingConfigMaps_Rejected(t *testing.T) {
+	t.Parallel()
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	configMapName := "my-configmap"
+	principalIdKey := "principalId"
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+			OperatorSpec: &managedidentity.UserAssignedIdentityOperatorSpec{
+				ConfigMapExpressions: []*core.DestinationExpression{
+					{
+						Name:  configMapName,
+						Key:   principalIdKey,
+						Value: "self.status.principalId",
+					},
+					{
+						Name:  configMapName,
+						Value: `{"greeting": "hello", "classification": "friend"}`,
+					},
+				},
+				ConfigMaps: &managedidentity.UserAssignedIdentityOperatorConfigMaps{
+					PrincipalId: &genruntime.ConfigMapDestination{
+						Name: configMapName,
+						Key:  principalIdKey,
+					},
+				},
+			},
+		},
+	}
+
+	err := tc.CreateResourceExpectRequestFailure(mi)
+	tc.Expect(err).To(MatchError(ContainSubstring(`cannot write more than one configmap value to destination Name: "my-configmap", Key: "principalId", Value: "self.status.principalId"`)))
+}
+
+func Test_CELExportConfigMap_WithAnnotationsAndLabels(t *testing.T) {
+	t.Parallel()
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	configMapName := "my-annotated-configmap"
+	principalIdKey := "principalId"
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+			OperatorSpec: &managedidentity.UserAssignedIdentityOperatorSpec{
+				ConfigMapExpressions: []*core.DestinationExpression{
+					{
+						Name:  configMapName,
+						Key:   principalIdKey,
+						Value: "self.status.principalId",
+						Annotations: map[string]string{
+							"reflector.v1/reflect": `"true"`,
+							"source-resource":      "self.status.id",
+						},
+						Labels: map[string]string{
+							"app":      `"myapp"`,
+							"location": "self.spec.location",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tc.CreateResourceAndWait(mi)
+	tc.Expect(mi.Status.PrincipalId).ToNot(BeNil())
+	tc.Expect(mi.Status.Id).ToNot(BeNil())
+
+	// The ConfigMap should exist with the expected value
+	tc.ExpectConfigMapHasKeysAndValues(
+		configMapName,
+		principalIdKey, *mi.Status.PrincipalId,
+	)
+
+	// Verify annotations and labels
+	configMapKey := types.NamespacedName{Namespace: tc.Namespace, Name: configMapName}
+	var configMap v1.ConfigMap
+	tc.GetResource(configMapKey, &configMap)
+
+	// Verify literal annotation/label values
+	tc.Expect(configMap.Annotations).To(HaveKeyWithValue("reflector.v1/reflect", "true"))
+	tc.Expect(configMap.Labels).To(HaveKeyWithValue("app", "myapp"))
+
+	// Verify dynamic annotation/label values from CEL expressions
+	tc.Expect(configMap.Annotations).To(HaveKeyWithValue("source-resource", *mi.Status.Id))
+	tc.Expect(configMap.Labels).To(HaveKeyWithValue("location", *tc.AzureRegion))
+}
+
+func Test_CELExportConflictingConfigMapAnnotations_Rejected(t *testing.T) {
+	t.Parallel()
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	configMapName := "my-configmap"
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+			OperatorSpec: &managedidentity.UserAssignedIdentityOperatorSpec{
+				ConfigMapExpressions: []*core.DestinationExpression{
+					{
+						Name:  configMapName,
+						Key:   "key1",
+						Value: "self.status.principalId",
+						Annotations: map[string]string{
+							"reflector.v1/reflect": `"true"`,
+						},
+					},
+					{
+						Name:  configMapName,
+						Key:   "key2",
+						Value: "self.status.tenantId",
+						Annotations: map[string]string{
+							"reflector.v1/reflect": `"true"`,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := tc.CreateResourceExpectRequestFailure(mi)
+	tc.Expect(err).To(MatchError(ContainSubstring(`collision for annotation on configmap "my-configmap": key "reflector.v1/reflect" is set by multiple destinations`)))
+}
+
+func Test_CELExportConflictingConfigMapLabels_Rejected(t *testing.T) {
+	t.Parallel()
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	configMapName := "my-configmap"
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+			OperatorSpec: &managedidentity.UserAssignedIdentityOperatorSpec{
+				ConfigMapExpressions: []*core.DestinationExpression{
+					{
+						Name:  configMapName,
+						Key:   "key1",
+						Value: "self.status.principalId",
+						Labels: map[string]string{
+							"app": `"myapp"`,
+						},
+					},
+					{
+						Name:  configMapName,
+						Key:   "key2",
+						Value: "self.status.tenantId",
+						Labels: map[string]string{
+							"app": `"myapp"`,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := tc.CreateResourceExpectRequestFailure(mi)
+	tc.Expect(err).To(MatchError(ContainSubstring(`collision for label on configmap "my-configmap": key "app" is set by multiple destinations`)))
+}
+
+// Test_CELExportConflictingConfigMaps_MapsConflictBlockedAtRuntime ensures that
+// if the CEL output is a map, conflicts are blocked at runtime. Note that this is not possible
+// to block at webhook time because doing so in general would require us to evaluate the CEL expression, which
+// we cannot always do. For example, the status fields may be empty at webhook time, but the CEL map may be based on
+// status fields.
+func Test_CELExportConflictingConfigMaps_MapsConflictBlockedAtRuntime(t *testing.T) {
+	t.Parallel()
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	configMapName := "my-configmap"
+
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+			OperatorSpec: &managedidentity.UserAssignedIdentityOperatorSpec{
+				ConfigMapExpressions: []*core.DestinationExpression{
+					{
+						Name:  configMapName,
+						Value: `{"greeting": "hello", "classification": "friend"}`,
+					},
+					{
+						Name:  configMapName,
+						Value: `{"greeting": "goodbye", "classification": "everybody"}`,
+					},
+				},
+			},
+		},
+	}
+
+	tc.CreateResourceAndWaitForFailure(mi)
+
+	// We expect that the actual underlying Azure resource was created
+	tc.Expect(mi.Status.TenantId).ToNot(BeNil())
+	tc.Expect(mi.Status.PrincipalId).ToNot(BeNil())
+
+	ready, ok := conditions.GetCondition(mi, conditions.ConditionTypeReady)
+	tc.Expect(ok).To(BeTrue())
+	tc.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+	tc.Expect(ready.Severity).To(Equal(conditions.ConditionSeverityError))
+	tc.Expect(ready.Reason).To(Equal(conditions.ReasonAdditionalKubernetesObjWriteFailure.Name))
+
+	// This should contain details about both key collisions -- note that these errors can come in any order so we don't assert
+	// a particular order.
+	tc.Expect(ready.Message).To(ContainSubstring("key collision, entry exists for key 'greeting' in Data"))
+	tc.Expect(ready.Message).To(ContainSubstring("key collision, entry exists for key 'classification' in Data"))
+
+	tc.DeleteResourceAndWait(mi)
+}
+
+func Test_CELExportInvalidExpressionConfigMap_Rejected(t *testing.T) {
+	t.Parallel()
+	tc := globalTestContext.ForTest(t)
+
+	rg := tc.CreateTestResourceGroupAndWait()
+	mi := &managedidentity.UserAssignedIdentity{
+		ObjectMeta: tc.MakeObjectMeta("mi"),
+		Spec: managedidentity.UserAssignedIdentity_Spec{
+			Location: tc.AzureRegion,
+			Owner:    testcommon.AsOwner(rg),
+			OperatorSpec: &managedidentity.UserAssignedIdentityOperatorSpec{
+				ConfigMapExpressions: []*core.DestinationExpression{
+					{
+						Name:  "my-configmap",
+						Key:   "principalId",
+						Value: "self.status.principalId + 10",
+					},
+				},
+			},
+		},
+	}
+	err := tc.CreateResourceExpectRequestFailure(mi)
+	tc.Expect(err).To(MatchError(ContainSubstring(`failed to compile CEL expression: "self.status.principalId + 10": ERROR: <input>:1:25: found no matching overload for '_+_' applied to '(string, int)'`)))
+}
+
+// Test_CELExportConfigMapPropertyOnDifferentVersion tests that a field which was removed in a later version
+// can still be used in the expression on the old version of the resource. This relies on dockerBridgeCidr in
+// managedCluster which doesn't actually do anything now but is good enough for our test purposes.
+func Test_CELExportConfigMapPropertyOnDifferentVersion(t *testing.T) {
+	t.Parallel()
+	tc := globalTestContext.ForTest(t)
+
+	tc.AzureRegion = to.Ptr("westus3") // TODO: the default test region of westus2 doesn't allow ds2_v2 at the moment
+
+	rg := tc.CreateTestResourceGroupAndWait()
+
+	configMapName := "my-configmap"
+
+	cluster := &containerserviceold.ManagedCluster{
+		ObjectMeta: tc.MakeObjectMeta("mc"),
+		Spec: containerserviceold.ManagedCluster_Spec{
+			Location:  tc.AzureRegion,
+			Owner:     testcommon.AsOwner(rg),
+			DnsPrefix: to.Ptr("aso"),
+			AgentPoolProfiles: []containerserviceold.ManagedClusterAgentPoolProfile{
+				{
+					Name:   to.Ptr("ap1"),
+					Count:  to.Ptr(1),
+					VmSize: to.Ptr("Standard_DS2_v2"),
+					OsType: to.Ptr(containerserviceold.OSType_Linux),
+					Mode:   to.Ptr(containerserviceold.AgentPoolMode_System),
+				},
+			},
+			EnablePodSecurityPolicy: to.Ptr(false),
+			Identity: &containerserviceold.ManagedClusterIdentity{
+				Type: to.Ptr(containerserviceold.ManagedClusterIdentity_Type_SystemAssigned),
+			},
+			OperatorSpec: &containerserviceold.ManagedClusterOperatorSpec{
+				ConfigMapExpressions: []*core.DestinationExpression{
+					{
+						Name:  configMapName,
+						Key:   "policy",
+						Value: "string(self.spec.enablePodSecurityPolicy)",
+					},
+				},
+			},
+		},
+	}
+
+	tc.CreateResourceAndWait(cluster)
+
+	// The ConfigMap should exist with the expected values
+	tc.ExpectConfigMapHasKeysAndValues(
+		configMapName,
+		"policy", "false",
+	)
+}

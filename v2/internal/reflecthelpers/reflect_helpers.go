@@ -10,19 +10,21 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
 )
 
 // ValueOfPtr dereferences a pointer and returns the value the pointer points to.
 // Use this as carefully as you would the * operator
 // TODO: Can we delete this helper later when we have some better code generated functions?
-func ValueOfPtr(ptr interface{}) interface{} {
+func ValueOfPtr(ptr any) any {
 	v := reflect.ValueOf(ptr)
-	if v.Kind() != reflect.Ptr {
+	if v.Kind() != reflect.Pointer {
 		panic(fmt.Sprintf("Can't get value of pointer for non-pointer type %T", ptr))
 	}
 	val := reflect.Indirect(v)
@@ -39,14 +41,14 @@ func DeepCopyInto(in client.Object, out client.Object) {
 }
 
 // FindReferences finds references of the given type on the provided object
-func FindReferences(obj interface{}, t reflect.Type) (map[interface{}]struct{}, error) {
-	result := make(map[interface{}]struct{})
+func FindReferences(obj any, t reflect.Type) ([]any, error) {
+	var result []any
 
 	visitor := NewReflectVisitor()
-	visitor.VisitStruct = func(this *ReflectVisitor, it reflect.Value, ctx interface{}) error {
+	visitor.VisitStruct = func(this *ReflectVisitor, it reflect.Value, ctx any) error {
 		if it.Type() == t {
 			if it.CanInterface() {
-				result[it.Interface()] = struct{}{}
+				result = append(result, it.Interface())
 			}
 			return nil
 		}
@@ -56,7 +58,7 @@ func FindReferences(obj interface{}, t reflect.Type) (map[interface{}]struct{}, 
 
 	err := visitor.Visit(obj, nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "scanning for references of type %s", t.String())
+		return nil, eris.Wrapf(err, "scanning for references of type %s", t.String())
 	}
 
 	return result, nil
@@ -64,11 +66,11 @@ func FindReferences(obj interface{}, t reflect.Type) (map[interface{}]struct{}, 
 
 // FindPropertiesWithTag finds all the properties with the given tag on the specified object and
 // returns a map of the property name to the property value
-func FindPropertiesWithTag(obj interface{}, tag string) (map[string][]interface{}, error) {
-	result := make(map[string][]interface{})
+func FindPropertiesWithTag(obj any, tag string) (map[string][]any, error) {
+	result := make(map[string][]any)
 
 	visitor := NewReflectVisitor()
-	visitor.VisitStruct = func(this *ReflectVisitor, it reflect.Value, ctx interface{}) error {
+	visitor.VisitStruct = func(this *ReflectVisitor, it reflect.Value, ctx any) error {
 		// This was adapted from IdentityVisitStruct
 		for i := 0; i < it.NumField(); i++ {
 			fieldVal := it.Field(i)
@@ -88,7 +90,7 @@ func FindPropertiesWithTag(obj interface{}, tag string) (map[string][]interface{
 			field := it.Field(i)
 			if ok && field.CanInterface() {
 				if len(result[path]) == 0 {
-					result[path] = []interface{}{}
+					result[path] = []any{}
 				}
 				result[path] = append(result[path], field.Interface())
 			}
@@ -104,56 +106,79 @@ func FindPropertiesWithTag(obj interface{}, tag string) (map[string][]interface{
 
 	err := visitor.Visit(obj, "")
 	if err != nil {
-		return nil, errors.Wrapf(err, "scanning for references to tag %s", tag)
+		return nil, eris.Wrapf(err, "scanning for references to tag %s", tag)
 	}
 
 	return result, nil
 }
 
 // FindResourceReferences finds all the genruntime.ResourceReference's on the provided object
-func FindResourceReferences(obj interface{}) (set.Set[genruntime.ResourceReference], error) {
+func FindResourceReferences(obj any) ([]genruntime.ResourceReference, error) {
 	return Find[genruntime.ResourceReference](obj)
 }
 
 // FindSecretReferences finds all the genruntime.SecretReference's on the provided object
-func FindSecretReferences(obj interface{}) (set.Set[genruntime.SecretReference], error) {
+func FindSecretReferences(obj any) ([]genruntime.SecretReference, error) {
 	return Find[genruntime.SecretReference](obj)
 }
 
 // FindSecretMaps finds all the genruntime.SecretMapReference's on the provided object
-func FindSecretMaps(obj interface{}) (set.Set[genruntime.SecretMapReference], error) {
+func FindSecretMaps(obj any) ([]genruntime.SecretMapReference, error) {
 	return Find[genruntime.SecretMapReference](obj)
 }
 
 // FindConfigMapReferences finds all the genruntime.ConfigMapReference's on the provided object
-func FindConfigMapReferences(obj interface{}) (set.Set[genruntime.ConfigMapReference], error) {
+func FindConfigMapReferences(obj any) ([]genruntime.ConfigMapReference, error) {
 	return Find[genruntime.ConfigMapReference](obj)
 }
 
 // Find finds all the references of the given type on the provided object
-func Find[T comparable](obj interface{}) (set.Set[T], error) {
+func Find[T any](obj any) ([]T, error) {
 	var t T
 	untypedResult, err := FindReferences(obj, reflect.TypeOf(t))
 	if err != nil {
 		return nil, err
 	}
 
-	result := set.Make[T]()
-	for k := range untypedResult {
-		result.Add(k.(T))
+	result := make([]T, 0, len(untypedResult))
+	for _, k := range untypedResult {
+		result = append(result, k.(T))
 	}
 
 	return result, nil
 }
 
+// asStringPtr checks if a value is a pointer to a string or a pointer to a named string type
+// (e.g. *AzureCoreUuid where AzureCoreUuid is `type AzureCoreUuid string`). If so, it returns
+// a *string pointing to the underlying string value. Otherwise returns nil, false.
+func asStringPtr(val any) (*string, bool) {
+	if s, ok := val.(*string); ok {
+		return s, true
+	}
+
+	v := reflect.ValueOf(val)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil, true
+		}
+		elem := v.Elem()
+		if elem.Kind() == reflect.String {
+			s := elem.String()
+			return &s, true
+		}
+	}
+
+	return nil, false
+}
+
 // FindOptionalConfigMapReferences finds all the genruntime.ConfigMapReference's on the provided object
-func FindOptionalConfigMapReferences(obj interface{}) ([]*genruntime.OptionalConfigMapReferencePair, error) {
+func FindOptionalConfigMapReferences(obj any) ([]*configmaps.OptionalReferencePair, error) {
 	untypedResult, err := FindPropertiesWithTag(obj, "optionalConfigMapPair") // TODO: This is astmodel.OptionalConfigMapPairTag
 	if err != nil {
 		return nil, err
 	}
 
-	collector := make(map[string][]*genruntime.OptionalConfigMapReferencePair)
+	collector := make(map[string][]*configmaps.OptionalReferencePair)
 	suffix := "FromConfig" // TODO This is astmodel.OptionalConfigMapReferenceSuffix
 
 	// This could probably be more efficient, but this avoids code duplication, and we're not dealing
@@ -163,13 +188,13 @@ func FindOptionalConfigMapReferences(obj interface{}) ([]*genruntime.OptionalCon
 			continue
 		}
 
-		collector[key] = make([]*genruntime.OptionalConfigMapReferencePair, 0, len(values))
+		collector[key] = make([]*configmaps.OptionalReferencePair, 0, len(values))
 		for _, val := range values {
-			typedValue, ok := val.(*string)
+			typedValue, ok := asStringPtr(val)
 			if !ok {
-				return nil, errors.Errorf("value of property %s was not a *string like expected", key)
+				return nil, eris.Errorf("value of property %s was not a *string like expected", key)
 			}
-			collector[key] = append(collector[key], &genruntime.OptionalConfigMapReferencePair{
+			collector[key] = append(collector[key], &configmaps.OptionalReferencePair{
 				Name:  key,
 				Value: typedValue,
 			})
@@ -182,13 +207,13 @@ func FindOptionalConfigMapReferences(obj interface{}) ([]*genruntime.OptionalCon
 		}
 		idx := strings.TrimSuffix(key, suffix)
 		if len(values) != len(collector[idx]) {
-			return nil, errors.Errorf("number of Ref's didn't match number of Values for %s", idx)
+			return nil, eris.Errorf("number of Ref's didn't match number of Values for %s", idx)
 		}
 
 		for i, val := range values {
 			typedValue, ok := val.(*genruntime.ConfigMapReference)
 			if !ok {
-				return nil, errors.Errorf("value of property %s was not a genruntime.ConfigMapReference like expected", key)
+				return nil, eris.Errorf("value of property %s was not a genruntime.ConfigMapReference like expected", key)
 			}
 			collector[idx][i].RefName = key
 			collector[idx][i].Ref = typedValue
@@ -196,11 +221,68 @@ func FindOptionalConfigMapReferences(obj interface{}) ([]*genruntime.OptionalCon
 	}
 
 	// Translate our collector into a simple list
-	var result []*genruntime.OptionalConfigMapReferencePair
+	var result []*configmaps.OptionalReferencePair
 	for _, values := range collector {
-		for _, val := range values {
-			result = append(result, val)
+		result = append(result, values...)
+	}
+
+	return result, nil
+}
+
+// FindOptionalSecretReferences finds all the genruntime.SecretReference's on the provided object
+// that are part of an optional secret pair (tagged with optionalSecretPair).
+func FindOptionalSecretReferences(obj any) ([]*secrets.OptionalReferencePair, error) {
+	untypedResult, err := FindPropertiesWithTag(obj, "optionalSecretPair") // TODO: This is astmodel.OptionalSecretPairTag
+	if err != nil {
+		return nil, err
+	}
+
+	collector := make(map[string][]*secrets.OptionalReferencePair)
+	suffix := "FromSecret" // TODO This is astmodel.OptionalSecretReferenceSuffix
+
+	// Pass 1: Collect all direct string values
+	for key, values := range untypedResult {
+		if strings.HasSuffix(key, suffix) {
+			continue
 		}
+
+		collector[key] = make([]*secrets.OptionalReferencePair, 0, len(values))
+		for _, val := range values {
+			typedValue, ok := asStringPtr(val)
+			if !ok {
+				return nil, eris.Errorf("value of property %s was not a *string like expected", key)
+			}
+			collector[key] = append(collector[key], &secrets.OptionalReferencePair{
+				Name:  key,
+				Value: typedValue,
+			})
+		}
+	}
+
+	// Pass 2: Pair with SecretReferences
+	for key, values := range untypedResult {
+		if !strings.HasSuffix(key, suffix) {
+			continue
+		}
+		idx := strings.TrimSuffix(key, suffix)
+		if len(values) != len(collector[idx]) {
+			return nil, eris.Errorf("number of Ref's didn't match number of Values for %s", idx)
+		}
+
+		for i, val := range values {
+			typedValue, ok := val.(*genruntime.SecretReference)
+			if !ok {
+				return nil, eris.Errorf("value of property %s was not a genruntime.SecretReference like expected", key)
+			}
+			collector[idx][i].RefName = key
+			collector[idx][i].Ref = typedValue
+		}
+	}
+
+	// Translate our collector into a simple list
+	var result []*secrets.OptionalReferencePair
+	for _, values := range collector {
+		result = append(result, values...)
 	}
 
 	return result, nil
@@ -219,14 +301,14 @@ func GetObjectListItems(listPtr client.ObjectList) ([]client.Object, error) {
 
 		if item.Kind() == reflect.Struct {
 			if !item.CanAddr() {
-				return nil, errors.Errorf("provided list elements were not pointers, but cannot be addressed")
+				return nil, eris.Errorf("provided list elements were not pointers, but cannot be addressed")
 			}
 			item = item.Addr()
 		}
 
 		typedItem, ok := item.Interface().(client.Object)
 		if !ok {
-			return nil, errors.Errorf("provided list elements did not implement client.Object interface")
+			return nil, eris.Errorf("provided list elements did not implement client.Object interface")
 		}
 
 		result = append(result, typedItem)
@@ -243,11 +325,11 @@ func SetObjectListItems(listPtr client.ObjectList, items []client.Object) (retur
 	}
 
 	if !itemsField.CanSet() {
-		return errors.Errorf("cannot set items field of %T", listPtr)
+		return eris.Errorf("cannot set items field of %T", listPtr)
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			returnErr = errors.Errorf("failed to set items field of %T: %s", listPtr, recovered)
+			returnErr = eris.Errorf("failed to set items field of %T: %s", listPtr, recovered)
 		}
 	}()
 
@@ -255,7 +337,7 @@ func SetObjectListItems(listPtr client.ObjectList, items []client.Object) (retur
 	for _, item := range items {
 		val := reflect.ValueOf(item)
 
-		if val.Kind() == reflect.Ptr {
+		if val.Kind() == reflect.Pointer {
 			val = val.Elem()
 		}
 		slice = reflect.Append(slice, val)
@@ -267,22 +349,22 @@ func SetObjectListItems(listPtr client.ObjectList, items []client.Object) (retur
 
 func getItemsField(listPtr client.ObjectList) (reflect.Value, error) {
 	val := reflect.ValueOf(listPtr)
-	if val.Kind() != reflect.Ptr {
-		return reflect.Value{}, errors.Errorf("provided list was not a pointer, was %s", val.Kind())
+	if val.Kind() != reflect.Pointer {
+		return reflect.Value{}, eris.Errorf("provided list was not a pointer, was %s", val.Kind())
 	}
 
 	list := val.Elem()
 
 	if list.Kind() != reflect.Struct {
-		return reflect.Value{}, errors.Errorf("provided list was not a struct, was %s", val.Kind())
+		return reflect.Value{}, eris.Errorf("provided list was not a struct, was %s", val.Kind())
 	}
 
 	itemsField := list.FieldByName("Items")
 	if (itemsField == reflect.Value{}) {
-		return reflect.Value{}, errors.Errorf("provided list has no field \"Items\"")
+		return reflect.Value{}, eris.Errorf("provided list has no field \"Items\"")
 	}
 	if itemsField.Kind() != reflect.Slice {
-		return reflect.Value{}, errors.Errorf("provided list \"Items\" field was not of type slice")
+		return reflect.Value{}, eris.Errorf("provided list \"Items\" field was not of type slice")
 	}
 
 	return itemsField, nil
@@ -296,11 +378,11 @@ func getItemsField(listPtr client.ObjectList) (reflect.Value, error) {
 // or if the value provided is incompatible.
 func SetProperty(obj any, propertyPath string, value any) error {
 	if obj == nil {
-		return errors.Errorf("provided object was nil")
+		return eris.Errorf("provided object was nil")
 	}
 
 	if propertyPath == "" {
-		return errors.Errorf("property path was empty")
+		return eris.Errorf("property path was empty")
 	}
 
 	steps := strings.Split(propertyPath, ".")
@@ -311,7 +393,7 @@ func setPropertyCore(obj any, propertyPath []string, value any) (err error) {
 	// Catch any panic that occurs when setting the field and turn it into an error return
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = errors.Errorf("failed to set property %s: %s", propertyPath[0], recovered)
+			err = eris.Errorf("failed to set property %s: %s", propertyPath[0], recovered)
 		}
 	}()
 
@@ -319,13 +401,13 @@ func setPropertyCore(obj any, propertyPath []string, value any) (err error) {
 	subject := reflect.ValueOf(obj)
 
 	// Dereference pointers
-	if subject.Kind() == reflect.Ptr {
+	if subject.Kind() == reflect.Pointer {
 		subject = subject.Elem()
 	}
 
 	// Check we have a struct
 	if subject.Kind() != reflect.Struct {
-		return errors.Errorf("provided object was not a struct, was %s", subject.Kind())
+		return eris.Errorf("provided object was not a struct, was %s", subject.Kind())
 	}
 
 	// Get the field we need to modify
@@ -333,12 +415,12 @@ func setPropertyCore(obj any, propertyPath []string, value any) (err error) {
 
 	// Check the field exists
 	if field == (reflect.Value{}) {
-		return errors.Errorf("provided object did not have a field named %s", propertyPath[0])
+		return eris.Errorf("provided object did not have a field named %s", propertyPath[0])
 	}
 
 	// If this is not the last property in the path, we need to recurse
 	if len(propertyPath) > 1 {
-		if field.Kind() == reflect.Ptr {
+		if field.Kind() == reflect.Pointer {
 			// Field is a pointer; initialize it if needed, then pass the pointer recursively
 			if field.IsNil() {
 				newValue := reflect.New(field.Type().Elem())
@@ -347,7 +429,7 @@ func setPropertyCore(obj any, propertyPath []string, value any) (err error) {
 
 			err = setPropertyCore(field.Interface(), propertyPath[1:], value)
 			if err != nil {
-				return errors.Wrapf(err, "failed to set property %s",
+				return eris.Wrapf(err, "failed to set property %s",
 					propertyPath[0])
 			}
 
@@ -357,7 +439,7 @@ func setPropertyCore(obj any, propertyPath []string, value any) (err error) {
 		// Field is not a pointer, so we need to pass the address of the field recursively
 		err = setPropertyCore(field.Addr().Interface(), propertyPath[1:], value)
 		if err != nil {
-			return errors.Wrapf(err, "failed to set property %s",
+			return eris.Wrapf(err, "failed to set property %s",
 				propertyPath[0])
 		}
 
@@ -366,17 +448,33 @@ func setPropertyCore(obj any, propertyPath []string, value any) (err error) {
 
 	// If this is the last property in the path, we need to set the value, if we can
 	if !field.CanSet() {
-		return errors.Errorf("field %s was not settable", propertyPath[0])
+		return eris.Errorf("field %s was not settable", propertyPath[0])
 	}
 
 	// Cast value to the type required by the field
 	valueKind := reflect.ValueOf(value)
 	if !valueKind.CanConvert(field.Type()) {
-		return errors.Errorf("value of kind %s was not compatible with field %s", valueKind, propertyPath[0])
+		return eris.Errorf("value of kind %s was not compatible with field %s", valueKind, propertyPath[0])
 	}
 
 	value = valueKind.Convert(field.Type()).Interface()
 
 	field.Set(reflect.ValueOf(value))
 	return nil
+}
+
+// GetJSONTags returns a set of JSON keys used in the `json` annotation of a struct
+func GetJSONTags(t reflect.Type) set.Set[string] {
+	tags := set.Make[string]()
+
+	for i := 0; i < t.NumField(); i++ {
+		fieldType := t.Field(i)
+		tag := fieldType.Tag.Get("json")
+		if tag != "" {
+			// Split the tag to handle omitempty and other options
+			tags.Add(strings.Split(tag, ",")[0])
+		}
+	}
+
+	return tags
 }

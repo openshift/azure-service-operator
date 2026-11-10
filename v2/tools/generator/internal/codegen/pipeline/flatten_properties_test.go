@@ -9,8 +9,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/test"
@@ -42,11 +43,12 @@ func TestDuplicateNamesAreCaughtAndRenamed(t *testing.T) {
 
 	// should have a renamed property which is flattened-from "inner"
 	newName := astmodel.PropertyName("InnerDuplicate")
-	newJsonName := "inner_duplicate"
+	newJSONName := "inner_duplicate"
 	newObjType := astmodel.NewObjectType().
 		WithProperties(
 			prop,
-			prop.WithName(newName).WithJsonName(newJsonName).AddFlattenedFrom("Inner"))
+			prop.WithName(newName).WithJSONName(newJSONName).AddFlattenedFrom("Inner"),
+		)
 	expectedDefs := make(astmodel.TypeDefinitionSet)
 	expectedDefs.Add(astmodel.MakeTypeDefinition(astmodel.MakeInternalTypeName(placeholderPackage, "ObjType"), newObjType))
 
@@ -58,15 +60,18 @@ func TestFlatteningWorks(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	inner2Obj := astmodel.NewObjectType().WithProperties(
-		astmodel.NewPropertyDefinition("x", "x", astmodel.StringType))
+		astmodel.NewPropertyDefinition("x", "x", astmodel.StringType),
+	)
 
 	innerObj := astmodel.NewObjectType().WithProperties(
 		astmodel.NewPropertyDefinition("inner2", "inner2", inner2Obj).SetFlatten(true),
-		astmodel.NewPropertyDefinition("y", "y", astmodel.IntType))
+		astmodel.NewPropertyDefinition("y", "y", astmodel.IntType),
+	)
 
 	objType := astmodel.NewObjectType().WithProperties(
 		astmodel.NewPropertyDefinition("inner", "inner", innerObj).SetFlatten(true),
-		astmodel.NewPropertyDefinition("z", "z", astmodel.IntType))
+		astmodel.NewPropertyDefinition("z", "z", astmodel.IntType),
+	)
 
 	defs := make(astmodel.TypeDefinitionSet)
 	defs.Add(astmodel.MakeTypeDefinition(astmodel.MakeInternalTypeName(placeholderPackage, "objType"), objType))
@@ -97,4 +102,45 @@ func TestFlatteningWorks(t *testing.T) {
 	g.Expect(xProp.FlattenedFrom()).To(Equal([]astmodel.PropertyName{"inner", "inner2", "x"}))
 	g.Expect(yProp.FlattenedFrom()).To(Equal([]astmodel.PropertyName{"inner", "y"}))
 	g.Expect(zProp.FlattenedFrom()).To(Equal([]astmodel.PropertyName{"z"}))
+}
+
+// TestFlattenProperties_FlattensSelectedProperties verifies that properties explicitly marked for flattening
+// are inlined while other properties retain their original shape.
+func TestFlattenProperties_FlattensSelectedProperties(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	inner := test.CreateObjectDefinition(
+		test.Pkg2020,
+		"Inner",
+		astmodel.NewPropertyDefinition("Color", "color", astmodel.OptionalStringType),
+		astmodel.NewPropertyDefinition("Name", "name", astmodel.OptionalStringType),
+	)
+
+	outerName := astmodel.MakeInternalTypeName(test.Pkg2020, "Test")
+	outer := astmodel.MakeTypeDefinition(
+		outerName,
+		astmodel.NewObjectType().WithProperties(
+			astmodel.NewPropertyDefinition("InnerFlat", "innerFlat", astmodel.NewOptionalType(inner.Name())).
+				SetFlatten(true),
+			astmodel.NewPropertyDefinition("InnerNotFlat", "innerNotFlat", astmodel.NewOptionalType(inner.Name())),
+		),
+	)
+
+	defs := make(astmodel.TypeDefinitionSet)
+	defs.AddAll(inner, outer)
+
+	state, err := RunTestPipeline(
+		NewState(defs),
+		FlattenProperties(logr.Discard()),
+	)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	result := state.Definitions().MustGetDefinition(outerName)
+	test.AssertPropertyExistsWithType(t, result.Type(), "Color", astmodel.OptionalStringType)
+	test.AssertPropertyExistsWithType(t, result.Type(), "Name", astmodel.OptionalStringType)
+	test.AssertPropertyExistsWithType(t, result.Type(), "InnerNotFlat", astmodel.NewOptionalType(inner.Name()))
+	test.AssertPropertyCount(t, result.Type(), 3)
+
+	test.AssertPackagesGenerateExpectedCode(t, state.Definitions())
 }

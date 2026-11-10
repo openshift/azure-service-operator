@@ -9,7 +9,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -17,7 +17,9 @@ import (
 	"github.com/Azure/azure-service-operator/v2/internal/config"
 	"github.com/Azure/azure-service-operator/v2/internal/reconcilers"
 	"github.com/Azure/azure-service-operator/v2/internal/resolver"
+	asocel "github.com/Azure/azure-service-operator/v2/internal/util/cel"
 	"github.com/Azure/azure-service-operator/v2/internal/util/kubeclient"
+	"github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/extensions"
@@ -37,12 +39,13 @@ const (
 type DeleteAction string
 
 const (
-	DeleteActionBeginDelete   = DeleteAction("BeginDelete")
-	DeleteActionMonitorDelete = DeleteAction("MonitorDelete")
+	DeleteActionBeginDelete        = DeleteAction("BeginDelete")
+	DeleteActionMonitorDelete      = DeleteAction("MonitorDelete")
+	DeleteActionNotPossibleInAzure = DeleteAction("NotPossibleInAzure")
 )
 
 type (
-	CreateOrUpdateActionFunc = func(ctx context.Context) (ctrl.Result, error)
+	CreateOrUpdateActionFunc = func(ctx context.Context, reconcilePolicies annotations.ResolvedReconcilePolicies) (ctrl.Result, error)
 	DeleteActionFunc         = func(ctx context.Context) (ctrl.Result, error)
 )
 
@@ -63,6 +66,7 @@ func NewAzureDeploymentReconciler(
 	kubeClient kubeclient.Client,
 	resourceResolver *resolver.Resolver,
 	positiveConditions *conditions.PositiveConditionBuilder,
+	expressionEvaluator asocel.ExpressionEvaluator,
 	cfg config.Values,
 	extension genruntime.ResourceExtension,
 ) *AzureDeploymentReconciler {
@@ -76,8 +80,9 @@ func NewAzureDeploymentReconciler(
 		ARMOwnedResourceReconcilerCommon: reconcilers.ARMOwnedResourceReconcilerCommon{
 			ResourceResolver: resourceResolver,
 			ReconcilerCommon: reconcilers.ReconcilerCommon{
-				KubeClient:         kubeClient,
-				PositiveConditions: positiveConditions,
+				KubeClient:          kubeClient,
+				PositiveConditions:  positiveConditions,
+				ExpressionEvaluator: expressionEvaluator,
 			},
 		},
 	}
@@ -86,7 +91,7 @@ func NewAzureDeploymentReconciler(
 func (r *AzureDeploymentReconciler) asARMObj(obj genruntime.MetaObject) (genruntime.ARMMetaObject, error) {
 	typedObj, ok := obj.(genruntime.ARMMetaObject)
 	if !ok {
-		return nil, errors.Errorf("cannot modify resource that is not of type ARMMetaObject. Type is %T", obj)
+		return nil, eris.Errorf("cannot modify resource that is not of type ARMMetaObject. Type is %T", obj)
 	}
 
 	return typedObj, nil
@@ -102,6 +107,7 @@ func (r *AzureDeploymentReconciler) makeInstance(
 	if err != nil {
 		return nil, err
 	}
+
 	// Augment Log with ARM specific stuff
 	log = log.WithValues("azureName", typedObj.AzureName())
 
@@ -121,12 +127,14 @@ func (r *AzureDeploymentReconciler) CreateOrUpdate(
 	log logr.Logger,
 	eventRecorder record.EventRecorder,
 	obj genruntime.MetaObject,
+	reconcilePolicies annotations.ResolvedReconcilePolicies,
 ) (ctrl.Result, error) {
 	instance, err := r.makeInstance(ctx, log, eventRecorder, obj)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	return instance.CreateOrUpdate(ctx)
+
+	return instance.CreateOrUpdate(ctx, reconcilePolicies)
 }
 
 func (r *AzureDeploymentReconciler) Delete(
@@ -153,7 +161,7 @@ func (r *AzureDeploymentReconciler) Claim(
 		return err
 	}
 
-	claimer := extensions.CreateClaimer(r.Extension, r.ARMOwnedResourceReconcilerCommon.ClaimResource)
+	claimer := extensions.CreateClaimer(r.Extension, r.ClaimResource)
 	err = claimer(ctx, log, typedObj)
 	if err != nil {
 		return err
@@ -166,7 +174,7 @@ func (r *AzureDeploymentReconciler) Claim(
 	// Add ARM specific details
 	err = instance.AddInitialResourceState(ctx)
 	if err != nil {
-		return errors.Wrapf(err, "failed to add initial resource state")
+		return eris.Wrapf(err, "failed to add initial resource state")
 	}
 
 	return nil
@@ -177,11 +185,12 @@ func (r *AzureDeploymentReconciler) UpdateStatus(
 	log logr.Logger,
 	eventRecorder record.EventRecorder,
 	obj genruntime.MetaObject,
+	reconcilePolicies annotations.ResolvedReconcilePolicies,
 ) error {
 	instance, err := r.makeInstance(ctx, log, eventRecorder, obj)
 	if err != nil {
 		return err
 	}
 
-	return instance.handleCreateOrUpdateSuccess(ctx, WatchResource)
+	return instance.handleCreateOrUpdateSuccess(ctx, WatchResource, reconcilePolicies)
 }

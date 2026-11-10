@@ -3,21 +3,27 @@ github.com/Azure/azure-service-operator/v2/api/authorization/v1api20220401/stora
 ----------------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2022-04-01"
+
 RoleAssignment: Resource
-├── Spec: Object (12 properties)
+├── Spec: Object (13 properties)
 │   ├── AzureName: string
 │   ├── Condition: *string
 │   ├── ConditionVersion: *string
-│   ├── DelegatedManagedIdentityResourceId: *string
+│   ├── DelegatedManagedIdentityResourceReference: *genruntime.ResourceReference
 │   ├── Description: *string
+│   ├── OperatorSpec: *Object (4 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── NamingConvention: *string
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.ArbitraryOwnerReference
 │   ├── PrincipalId: *string
 │   ├── PrincipalIdFromConfig: *genruntime.ConfigMapReference
 │   ├── PrincipalType: *string
 │   ├── PropertyBag: genruntime.PropertyBag
-│   └── RoleDefinitionReference: *genruntime.ResourceReference
-└── Status: Object (17 properties)
+│   └── RoleDefinitionReference: *genruntime.WellKnownResourceReference
+└── Status: Object (18 properties)
     ├── Condition: *string
     ├── ConditionVersion: *string
     ├── Conditions: conditions.Condition[]
@@ -32,14 +38,28 @@ RoleAssignment: Resource
     ├── PropertyBag: genruntime.PropertyBag
     ├── RoleDefinitionId: *string
     ├── Scope: *string
+    ├── SystemData: *Object (7 properties)
+    │   ├── CreatedAt: *string
+    │   ├── CreatedBy: *string
+    │   ├── CreatedByType: *string
+    │   ├── LastModifiedAt: *string
+    │   ├── LastModifiedBy: *string
+    │   ├── LastModifiedByType: *string
+    │   └── PropertyBag: genruntime.PropertyBag
     ├── Type: *string
     ├── UpdatedBy: *string
     └── UpdatedOn: *string
+
 RoleDefinition: Resource
-├── Spec: Object (9 properties)
+├── Spec: Object (10 properties)
 │   ├── AssignableScopesReferences: genruntime.ResourceReference[]
 │   ├── AzureName: string
 │   ├── Description: *string
+│   ├── OperatorSpec: *Object (4 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── NamingConvention: *string
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.ArbitraryOwnerReference
 │   ├── Permissions: Object (5 properties)[]
@@ -71,3 +91,26 @@ RoleDefinition: Resource
     ├── Type: *string
     ├── UpdatedBy: *string
     └── UpdatedOn: *string
+
+augmentConversionForPermission: Interface
+
+augmentConversionForPermission_STATUS: Interface
+
+augmentConversionForRoleAssignment: Interface
+
+augmentConversionForRoleAssignmentOperatorSpec: Interface
+
+augmentConversionForRoleAssignment_STATUS: Interface
+
+augmentConversionForRoleAssignment_Spec: Interface
+
+augmentConversionForRoleDefinition: Interface
+
+augmentConversionForRoleDefinitionOperatorSpec: Interface
+
+augmentConversionForRoleDefinition_STATUS: Interface
+
+augmentConversionForRoleDefinition_Spec: Interface
+
+augmentConversionForSystemData_STATUS: Interface
+

@@ -4,32 +4,35 @@
 package storage
 
 import (
+	"fmt"
+	storage "github.com/Azure/azure-service-operator/v2/api/cdn/v20230501/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// +kubebuilder:rbac:groups=cdn.azure.com,resources=rulesets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=cdn.azure.com,resources={rulesets/status,rulesets/finalizers},verbs=get;update;patch
-
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,cdn}
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20230501.RuleSet
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/ruleSets/{ruleSetName}
 type RuleSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Profiles_RuleSet_Spec   `json:"spec,omitempty"`
-	Status            Profiles_RuleSet_STATUS `json:"status,omitempty"`
+	Spec              RuleSet_Spec   `json:"spec,omitempty"`
+	Status            RuleSet_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &RuleSet{}
@@ -44,6 +47,48 @@ func (ruleSet *RuleSet) SetConditions(conditions conditions.Conditions) {
 	ruleSet.Status.Conditions = conditions
 }
 
+var _ conversion.Convertible = &RuleSet{}
+
+// ConvertFrom populates our RuleSet from the provided hub RuleSet
+func (ruleSet *RuleSet) ConvertFrom(hub conversion.Hub) error {
+	source, ok := hub.(*storage.RuleSet)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20230501/storage/RuleSet but received %T instead", hub)
+	}
+
+	return ruleSet.AssignProperties_From_RuleSet(source)
+}
+
+// ConvertTo populates the provided hub RuleSet from our RuleSet
+func (ruleSet *RuleSet) ConvertTo(hub conversion.Hub) error {
+	destination, ok := hub.(*storage.RuleSet)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20230501/storage/RuleSet but received %T instead", hub)
+	}
+
+	return ruleSet.AssignProperties_To_RuleSet(destination)
+}
+
+var _ configmaps.Exporter = &RuleSet{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (ruleSet *RuleSet) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if ruleSet.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return ruleSet.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &RuleSet{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (ruleSet *RuleSet) SecretDestinationExpressions() []*core.DestinationExpression {
+	if ruleSet.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return ruleSet.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &RuleSet{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +98,7 @@ func (ruleSet *RuleSet) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-05-01"
 func (ruleSet RuleSet) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-05-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -87,11 +132,15 @@ func (ruleSet *RuleSet) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (ruleSet *RuleSet) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Profiles_RuleSet_STATUS{}
+	return &RuleSet_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (ruleSet *RuleSet) Owner() *genruntime.ResourceReference {
+	if ruleSet.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(ruleSet.Spec)
 	return ruleSet.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -99,24 +148,91 @@ func (ruleSet *RuleSet) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (ruleSet *RuleSet) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Profiles_RuleSet_STATUS); ok {
+	if st, ok := status.(*RuleSet_STATUS); ok {
 		ruleSet.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Profiles_RuleSet_STATUS
+	var st RuleSet_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	ruleSet.Status = st
 	return nil
 }
 
-// Hub marks that this RuleSet is the hub type for conversion
-func (ruleSet *RuleSet) Hub() {}
+// AssignProperties_From_RuleSet populates our RuleSet from the provided source RuleSet
+func (ruleSet *RuleSet) AssignProperties_From_RuleSet(source *storage.RuleSet) error {
+
+	// ObjectMeta
+	ruleSet.ObjectMeta = *source.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec RuleSet_Spec
+	err := spec.AssignProperties_From_RuleSet_Spec(&source.Spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_RuleSet_Spec() to populate field Spec")
+	}
+	ruleSet.Spec = spec
+
+	// Status
+	var status RuleSet_STATUS
+	err = status.AssignProperties_From_RuleSet_STATUS(&source.Status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_RuleSet_STATUS() to populate field Status")
+	}
+	ruleSet.Status = status
+
+	// Invoke the augmentConversionForRuleSet interface (if implemented) to customize the conversion
+	var ruleSetAsAny any = ruleSet
+	if augmentedRuleSet, ok := ruleSetAsAny.(augmentConversionForRuleSet); ok {
+		err := augmentedRuleSet.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_RuleSet populates the provided destination RuleSet from our RuleSet
+func (ruleSet *RuleSet) AssignProperties_To_RuleSet(destination *storage.RuleSet) error {
+
+	// ObjectMeta
+	destination.ObjectMeta = *ruleSet.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec storage.RuleSet_Spec
+	err := ruleSet.Spec.AssignProperties_To_RuleSet_Spec(&spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_RuleSet_Spec() to populate field Spec")
+	}
+	destination.Spec = spec
+
+	// Status
+	var status storage.RuleSet_STATUS
+	err = ruleSet.Status.AssignProperties_To_RuleSet_STATUS(&status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_RuleSet_STATUS() to populate field Status")
+	}
+	destination.Status = status
+
+	// Invoke the augmentConversionForRuleSet interface (if implemented) to customize the conversion
+	var ruleSetAsAny any = ruleSet
+	if augmentedRuleSet, ok := ruleSetAsAny.(augmentConversionForRuleSet); ok {
+		err := augmentedRuleSet.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
 
 // OriginalGVK returns a GroupValueKind for the original API version used to create the resource
 func (ruleSet *RuleSet) OriginalGVK() *schema.GroupVersionKind {
@@ -130,7 +246,7 @@ func (ruleSet *RuleSet) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20230501.RuleSet
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/ruleSets/{ruleSetName}
 type RuleSetList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -138,12 +254,18 @@ type RuleSetList struct {
 	Items           []RuleSet `json:"items"`
 }
 
-// Storage version of v1api20230501.Profiles_RuleSet_Spec
-type Profiles_RuleSet_Spec struct {
+type augmentConversionForRuleSet interface {
+	AssignPropertiesFrom(src *storage.RuleSet) error
+	AssignPropertiesTo(dst *storage.RuleSet) error
+}
+
+// Storage version of v1api20230501.RuleSet_Spec
+type RuleSet_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName       string `json:"azureName,omitempty"`
-	OriginalVersion string `json:"originalVersion,omitempty"`
+	AzureName       string               `json:"azureName,omitempty"`
+	OperatorSpec    *RuleSetOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion string               `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -153,28 +275,160 @@ type Profiles_RuleSet_Spec struct {
 	PropertyBag genruntime.PropertyBag             `json:"$propertyBag,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Profiles_RuleSet_Spec{}
+var _ genruntime.ConvertibleSpec = &RuleSet_Spec{}
 
-// ConvertSpecFrom populates our Profiles_RuleSet_Spec from the provided source
-func (ruleSet *Profiles_RuleSet_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == ruleSet {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our RuleSet_Spec from the provided source
+func (ruleSet *RuleSet_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.RuleSet_Spec)
+	if ok {
+		// Populate our instance from source
+		return ruleSet.AssignProperties_From_RuleSet_Spec(src)
 	}
 
-	return source.ConvertSpecTo(ruleSet)
-}
-
-// ConvertSpecTo populates the provided destination from our Profiles_RuleSet_Spec
-func (ruleSet *Profiles_RuleSet_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == ruleSet {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	// Convert to an intermediate form
+	src = &storage.RuleSet_Spec{}
+	err := src.ConvertSpecFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
-	return destination.ConvertSpecFrom(ruleSet)
+	// Update our instance from src
+	err = ruleSet.AssignProperties_From_RuleSet_Spec(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+	}
+
+	return nil
 }
 
-// Storage version of v1api20230501.Profiles_RuleSet_STATUS
-type Profiles_RuleSet_STATUS struct {
+// ConvertSpecTo populates the provided destination from our RuleSet_Spec
+func (ruleSet *RuleSet_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.RuleSet_Spec)
+	if ok {
+		// Populate destination from our instance
+		return ruleSet.AssignProperties_To_RuleSet_Spec(dst)
+	}
+
+	// Convert to an intermediate form
+	dst = &storage.RuleSet_Spec{}
+	err := ruleSet.AssignProperties_To_RuleSet_Spec(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertSpecTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_RuleSet_Spec populates our RuleSet_Spec from the provided source RuleSet_Spec
+func (ruleSet *RuleSet_Spec) AssignProperties_From_RuleSet_Spec(source *storage.RuleSet_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureName
+	ruleSet.AzureName = source.AzureName
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec RuleSetOperatorSpec
+		err := operatorSpec.AssignProperties_From_RuleSetOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_RuleSetOperatorSpec() to populate field OperatorSpec")
+		}
+		ruleSet.OperatorSpec = &operatorSpec
+	} else {
+		ruleSet.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	ruleSet.OriginalVersion = source.OriginalVersion
+
+	// Owner
+	if source.Owner != nil {
+		owner := source.Owner.Copy()
+		ruleSet.Owner = &owner
+	} else {
+		ruleSet.Owner = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		ruleSet.PropertyBag = propertyBag
+	} else {
+		ruleSet.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForRuleSet_Spec interface (if implemented) to customize the conversion
+	var ruleSetAsAny any = ruleSet
+	if augmentedRuleSet, ok := ruleSetAsAny.(augmentConversionForRuleSet_Spec); ok {
+		err := augmentedRuleSet.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_RuleSet_Spec populates the provided destination RuleSet_Spec from our RuleSet_Spec
+func (ruleSet *RuleSet_Spec) AssignProperties_To_RuleSet_Spec(destination *storage.RuleSet_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(ruleSet.PropertyBag)
+
+	// AzureName
+	destination.AzureName = ruleSet.AzureName
+
+	// OperatorSpec
+	if ruleSet.OperatorSpec != nil {
+		var operatorSpec storage.RuleSetOperatorSpec
+		err := ruleSet.OperatorSpec.AssignProperties_To_RuleSetOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_RuleSetOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	destination.OriginalVersion = ruleSet.OriginalVersion
+
+	// Owner
+	if ruleSet.Owner != nil {
+		owner := ruleSet.Owner.Copy()
+		destination.Owner = &owner
+	} else {
+		destination.Owner = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForRuleSet_Spec interface (if implemented) to customize the conversion
+	var ruleSetAsAny any = ruleSet
+	if augmentedRuleSet, ok := ruleSetAsAny.(augmentConversionForRuleSet_Spec); ok {
+		err := augmentedRuleSet.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20230501.RuleSet_STATUS
+type RuleSet_STATUS struct {
 	Conditions        []conditions.Condition `json:"conditions,omitempty"`
 	DeploymentStatus  *string                `json:"deploymentStatus,omitempty"`
 	Id                *string                `json:"id,omitempty"`
@@ -186,24 +440,307 @@ type Profiles_RuleSet_STATUS struct {
 	Type              *string                `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Profiles_RuleSet_STATUS{}
+var _ genruntime.ConvertibleStatus = &RuleSet_STATUS{}
 
-// ConvertStatusFrom populates our Profiles_RuleSet_STATUS from the provided source
-func (ruleSet *Profiles_RuleSet_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == ruleSet {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our RuleSet_STATUS from the provided source
+func (ruleSet *RuleSet_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.RuleSet_STATUS)
+	if ok {
+		// Populate our instance from source
+		return ruleSet.AssignProperties_From_RuleSet_STATUS(src)
 	}
 
-	return source.ConvertStatusTo(ruleSet)
+	// Convert to an intermediate form
+	src = &storage.RuleSet_STATUS{}
+	err := src.ConvertStatusFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+	}
+
+	// Update our instance from src
+	err = ruleSet.AssignProperties_From_RuleSet_STATUS(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+	}
+
+	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Profiles_RuleSet_STATUS
-func (ruleSet *Profiles_RuleSet_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == ruleSet {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our RuleSet_STATUS
+func (ruleSet *RuleSet_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.RuleSet_STATUS)
+	if ok {
+		// Populate destination from our instance
+		return ruleSet.AssignProperties_To_RuleSet_STATUS(dst)
 	}
 
-	return destination.ConvertStatusFrom(ruleSet)
+	// Convert to an intermediate form
+	dst = &storage.RuleSet_STATUS{}
+	err := ruleSet.AssignProperties_To_RuleSet_STATUS(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertStatusTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_RuleSet_STATUS populates our RuleSet_STATUS from the provided source RuleSet_STATUS
+func (ruleSet *RuleSet_STATUS) AssignProperties_From_RuleSet_STATUS(source *storage.RuleSet_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// Conditions
+	ruleSet.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
+
+	// DeploymentStatus
+	ruleSet.DeploymentStatus = genruntime.ClonePointerToString(source.DeploymentStatus)
+
+	// Id
+	ruleSet.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Name
+	ruleSet.Name = genruntime.ClonePointerToString(source.Name)
+
+	// ProfileName
+	ruleSet.ProfileName = genruntime.ClonePointerToString(source.ProfileName)
+
+	// ProvisioningState
+	ruleSet.ProvisioningState = genruntime.ClonePointerToString(source.ProvisioningState)
+
+	// SystemData
+	if source.SystemData != nil {
+		var systemDatum SystemData_STATUS
+		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+		}
+		ruleSet.SystemData = &systemDatum
+	} else {
+		ruleSet.SystemData = nil
+	}
+
+	// Type
+	ruleSet.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		ruleSet.PropertyBag = propertyBag
+	} else {
+		ruleSet.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForRuleSet_STATUS interface (if implemented) to customize the conversion
+	var ruleSetAsAny any = ruleSet
+	if augmentedRuleSet, ok := ruleSetAsAny.(augmentConversionForRuleSet_STATUS); ok {
+		err := augmentedRuleSet.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_RuleSet_STATUS populates the provided destination RuleSet_STATUS from our RuleSet_STATUS
+func (ruleSet *RuleSet_STATUS) AssignProperties_To_RuleSet_STATUS(destination *storage.RuleSet_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(ruleSet.PropertyBag)
+
+	// Conditions
+	destination.Conditions = genruntime.CloneSliceOfCondition(ruleSet.Conditions)
+
+	// DeploymentStatus
+	destination.DeploymentStatus = genruntime.ClonePointerToString(ruleSet.DeploymentStatus)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(ruleSet.Id)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(ruleSet.Name)
+
+	// ProfileName
+	destination.ProfileName = genruntime.ClonePointerToString(ruleSet.ProfileName)
+
+	// ProvisioningState
+	destination.ProvisioningState = genruntime.ClonePointerToString(ruleSet.ProvisioningState)
+
+	// SystemData
+	if ruleSet.SystemData != nil {
+		var systemDatum storage.SystemData_STATUS
+		err := ruleSet.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+		}
+		destination.SystemData = &systemDatum
+	} else {
+		destination.SystemData = nil
+	}
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(ruleSet.Type)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForRuleSet_STATUS interface (if implemented) to customize the conversion
+	var ruleSetAsAny any = ruleSet
+	if augmentedRuleSet, ok := ruleSetAsAny.(augmentConversionForRuleSet_STATUS); ok {
+		err := augmentedRuleSet.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForRuleSet_Spec interface {
+	AssignPropertiesFrom(src *storage.RuleSet_Spec) error
+	AssignPropertiesTo(dst *storage.RuleSet_Spec) error
+}
+
+type augmentConversionForRuleSet_STATUS interface {
+	AssignPropertiesFrom(src *storage.RuleSet_STATUS) error
+	AssignPropertiesTo(dst *storage.RuleSet_STATUS) error
+}
+
+// Storage version of v1api20230501.RuleSetOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type RuleSetOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_RuleSetOperatorSpec populates our RuleSetOperatorSpec from the provided source RuleSetOperatorSpec
+func (operator *RuleSetOperatorSpec) AssignProperties_From_RuleSetOperatorSpec(source *storage.RuleSetOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		operator.PropertyBag = propertyBag
+	} else {
+		operator.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForRuleSetOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForRuleSetOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_RuleSetOperatorSpec populates the provided destination RuleSetOperatorSpec from our RuleSetOperatorSpec
+func (operator *RuleSetOperatorSpec) AssignProperties_To_RuleSetOperatorSpec(destination *storage.RuleSetOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForRuleSetOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForRuleSetOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForRuleSetOperatorSpec interface {
+	AssignPropertiesFrom(src *storage.RuleSetOperatorSpec) error
+	AssignPropertiesTo(dst *storage.RuleSetOperatorSpec) error
 }
 
 func init() {

@@ -8,19 +8,19 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
-// MakeOneOfDiscriminantRequiredStageId is the unique identifier for this pipeline stage
-const MakeOneOfDiscriminantRequiredStageId = "makeOneOfDiscriminantRequired"
+// MakeOneOfDiscriminantRequiredStageID is the unique identifier for this pipeline stage
+const MakeOneOfDiscriminantRequiredStageID = "makeOneOfDiscriminantRequired"
 
 // MakeOneOfDiscriminantRequired walks the type graph and builds new types for communicating
 // with ARM
 func MakeOneOfDiscriminantRequired() *Stage {
 	return NewStage(
-		MakeOneOfDiscriminantRequiredStageId,
+		MakeOneOfDiscriminantRequiredStageID,
 		"Fix one of types to a discriminator which is not omitempty/optional",
 		func(ctx context.Context, state *State) (*State, error) {
 			updatedDefs := make(astmodel.TypeDefinitionSet)
@@ -39,7 +39,8 @@ func MakeOneOfDiscriminantRequired() *Stage {
 			}
 
 			return state.WithOverlaidDefinitions(updatedDefs), nil
-		})
+		},
+	)
 }
 
 type propertyModifier struct {
@@ -79,20 +80,21 @@ func makeOneOfDiscriminantTypeRequired(
 ) (astmodel.TypeDefinitionSet, error) {
 	objectType, ok := astmodel.AsObjectType(oneOf.Type())
 	if !ok {
-		return nil, errors.Errorf(
+		return nil, eris.Errorf(
 			"OneOf %s was not of type Object, instead was: %s",
 			oneOf.Name(),
-			astmodel.DebugDescription(oneOf.Type()))
+			astmodel.DebugDescription(oneOf.Type()),
+		)
 	}
 
 	result := make(astmodel.TypeDefinitionSet)
-	discriminantJson, values, err := astmodel.DetermineDiscriminantAndValues(objectType, defs)
+	discriminantJSON, values, err := astmodel.DetermineDiscriminantAndValues(objectType, defs)
 	if err != nil {
-		return nil, err
+		return nil, eris.Wrapf(err, "determining discriminant and values for %s", oneOf.Name())
 	}
 
 	astmodel.NewPropertyInjector()
-	remover := newPropertyModifier(discriminantJson)
+	remover := newPropertyModifier(discriminantJSON)
 
 	for _, value := range values {
 		def, err := defs.GetDefinition(value.TypeName)
@@ -101,7 +103,7 @@ func makeOneOfDiscriminantTypeRequired(
 		}
 		updatedDef, err := remover.visitor.VisitDefinition(def, nil)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error updating definition %s", def.Name())
+			return nil, eris.Wrapf(err, "error updating definition %s", def.Name())
 		}
 
 		result.Add(updatedDef)

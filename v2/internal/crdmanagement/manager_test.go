@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,6 +24,7 @@ import (
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	"github.com/Azure/azure-service-operator/v2/internal/util/kubeclient"
 	"github.com/Azure/azure-service-operator/v2/internal/util/to"
+	asolabels "github.com/Azure/azure-service-operator/v2/pkg/common/labels"
 )
 
 /*
@@ -40,12 +42,13 @@ func Test_LoadCRDs(t *testing.T) {
 	bytes, err := yaml.Marshal(crd)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	crdPath := filepath.Join(dir, "crd.yaml")
+	crdFilename := crdmanagement.CRDFilePrefix + crd.Name + ".yaml"
+	crdPath := filepath.Join(dir, crdFilename)
 	g.Expect(os.WriteFile(crdPath, bytes, 0o600)).To(Succeed())
 
-	crdManager := crdmanagement.NewManager(logger, nil)
+	crdManager := crdmanagement.NewManager(logger, nil, nil)
 
-	loadedCRDs, err := crdManager.LoadOperatorCRDs(dir, "azureserviceoperator-system")
+	loadedCRDs, err := crdManager.LoadOperatorCRDs(dir, "azureserviceoperator-system", crdManager.BuildCRDFileFilter("*", nil))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	g.Expect(loadedCRDs).To(HaveLen(1))
@@ -79,12 +82,13 @@ func Test_LoadCRDs_FixesNamespace(t *testing.T) {
 	bytes, err := yaml.Marshal(crd)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	crdPath := filepath.Join(dir, "crd.yaml")
+	crdFilename := crdmanagement.CRDFilePrefix + crd.Name + ".yaml"
+	crdPath := filepath.Join(dir, crdFilename)
 	g.Expect(os.WriteFile(crdPath, bytes, 0o600)).To(Succeed())
 
-	crdManager := crdmanagement.NewManager(logger, nil)
+	crdManager := crdmanagement.NewManager(logger, nil, nil)
 
-	loadedCRDs, err := crdManager.LoadOperatorCRDs(dir, "other-namespace")
+	loadedCRDs, err := crdManager.LoadOperatorCRDs(dir, "other-namespace", crdManager.BuildCRDFileFilter("*", nil))
 	g.Expect(err).ToNot(HaveOccurred())
 
 	g.Expect(loadedCRDs).To(HaveLen(1))
@@ -94,175 +98,117 @@ func Test_LoadCRDs_FixesNamespace(t *testing.T) {
 }
 
 /*
- * FindMatchingCRDs tests
+ * CompareCRDs tests
  */
 
-func Test_FindMatchingCRDs_EqualCRDsCompareAsEqual(t *testing.T) {
+func Test_CompareCRDs(t *testing.T) {
 	t.Parallel()
-	g := NewGomegaWithT(t)
 
-	existingCRD := makeBasicCRD("test")
-	goalCRD := makeBasicCRD("test")
-	existing := []apiextensions.CustomResourceDefinition{existingCRD}
-	goal := []apiextensions.CustomResourceDefinition{goalCRD}
-
-	logger := testcommon.NewTestLogger(t)
-	crdManager := crdmanagement.NewManager(logger, nil)
-
-	matching := crdManager.FindMatchingCRDs(existing, goal, crdmanagement.SpecEqual)
-
-	g.Expect(matching).To(HaveLen(1))
-}
-
-func Test_FindMatchingCRDs_MissingCRD(t *testing.T) {
-	t.Parallel()
-	g := NewGomegaWithT(t)
-
-	goalCRD := makeBasicCRD("test")
-	var existing []apiextensions.CustomResourceDefinition
-	goal := []apiextensions.CustomResourceDefinition{goalCRD}
-
-	logger := testcommon.NewTestLogger(t)
-	crdManager := crdmanagement.NewManager(logger, nil)
-
-	matching := crdManager.FindMatchingCRDs(existing, goal, crdmanagement.SpecEqual)
-
-	g.Expect(matching).To(BeEmpty())
-}
-
-func Test_FindMatchingCRDs_CRDsWithDifferentConversionsCompareAsEqual(t *testing.T) {
-	t.Parallel()
-	g := NewGomegaWithT(t)
-
-	var port int32 = 443
-
-	existingCRD := makeBasicCRD("test")
-	existingCRD.Spec.Conversion = &apiextensions.CustomResourceConversion{
-		Strategy: apiextensions.WebhookConverter,
-		Webhook: &apiextensions.WebhookConversion{
-			ClientConfig: &apiextensions.WebhookClientConfig{
-				Service: &apiextensions.ServiceReference{
-					Name:      "azureserviceoperator-webhook-service",
-					Namespace: "azureserviceoperator-system",
-					Path:      to.Ptr("/convert"),
-					Port:      to.Ptr(port),
-				},
-				CABundle: makeFakeCABundle(),
-			},
+	versionComparator := crdmanagement.CRDComparator{
+		Compare:          crdmanagement.VersionEqual,
+		DifferenceReason: crdmanagement.VersionDifferent,
+	}
+	metadataComparator := crdmanagement.CRDComparator{
+		Compare:          crdmanagement.DesiredMetadataEqual,
+		DifferenceReason: crdmanagement.MetadataDifferent,
+	}
+	groupComparator := crdmanagement.CRDComparator{
+		Compare: func(a apiextensions.CustomResourceDefinition, b apiextensions.CustomResourceDefinition) bool {
+			return a.Spec.Group == b.Spec.Group
 		},
+		DifferenceReason: "GroupDifferent",
 	}
 
-	goalCRD := makeBasicCRD("test")
-	goalCRD.Spec.Conversion = &apiextensions.CustomResourceConversion{
-		Strategy: apiextensions.WebhookConverter,
-		Webhook: &apiextensions.WebhookConversion{
-			ClientConfig: &apiextensions.WebhookClientConfig{
-				Service: &apiextensions.ServiceReference{
-					Name:      "azureserviceoperator-webhook-service",
-					Namespace: "azureserviceoperator-system",
-					Path:      to.Ptr("/convert"),
-					Port:      to.Ptr(port),
+	cases := []struct {
+		name        string
+		existing    []apiextensions.CustomResourceDefinition
+		goal        []apiextensions.CustomResourceDefinition
+		comparators []crdmanagement.CRDComparator
+		expected    map[string][]crdmanagement.CRDComparisonResult
+	}{
+		{
+			name:        "Equal CRDs report no difference once",
+			existing:    []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v1.0.0")},
+			goal:        []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v1.0.0")},
+			comparators: []crdmanagement.CRDComparator{versionComparator, metadataComparator, groupComparator},
+			expected: map[string][]crdmanagement.CRDComparisonResult{
+				"test.testrp.azure.com": {
+					{DifferenceResult: crdmanagement.NoDifference},
 				},
 			},
 		},
-	}
-	existing := []apiextensions.CustomResourceDefinition{existingCRD}
-	goal := []apiextensions.CustomResourceDefinition{goalCRD}
-
-	logger := testcommon.NewTestLogger(t)
-	crdManager := crdmanagement.NewManager(logger, nil)
-
-	matching := crdManager.FindMatchingCRDs(existing, goal, crdmanagement.SpecEqual)
-
-	g.Expect(matching).To(HaveLen(1))
-	// Ensure that we still have CABundle set here
-	g.Expect(existing[0].Spec.Conversion.Webhook.ClientConfig.CABundle).ToNot(BeEmpty())
-}
-
-/*
- * FindNonMatchingCRDs tests
- */
-
-func Test_FindNonMatchingCRDs_EqualCRDsCompareAsEqual(t *testing.T) {
-	t.Parallel()
-	g := NewGomegaWithT(t)
-
-	existingCRD := makeBasicCRD("test")
-	goalCRD := makeBasicCRD("test")
-	existing := []apiextensions.CustomResourceDefinition{existingCRD}
-	goal := []apiextensions.CustomResourceDefinition{goalCRD}
-
-	logger := testcommon.NewTestLogger(t)
-	crdManager := crdmanagement.NewManager(logger, nil)
-
-	nonMatching := crdManager.FindNonMatchingCRDs(existing, goal, crdmanagement.SpecEqual)
-
-	g.Expect(nonMatching).To(BeEmpty())
-}
-
-func Test_FindNonMatchingCRDs_MissingCRD(t *testing.T) {
-	t.Parallel()
-	g := NewGomegaWithT(t)
-
-	goalCRD := makeBasicCRD("test")
-	var existing []apiextensions.CustomResourceDefinition
-	goal := []apiextensions.CustomResourceDefinition{goalCRD}
-
-	logger := testcommon.NewTestLogger(t)
-	crdManager := crdmanagement.NewManager(logger, nil)
-
-	nonMatching := crdManager.FindNonMatchingCRDs(existing, goal, crdmanagement.SpecEqual)
-
-	g.Expect(nonMatching).To(HaveLen(1))
-}
-
-func Test_FindNonMatchingCRDs_CRDsWithDifferentConversionsCompareAsEqual(t *testing.T) {
-	t.Parallel()
-	g := NewGomegaWithT(t)
-
-	var port int32 = 443
-
-	existingCRD := makeBasicCRD("test")
-	existingCRD.Spec.Conversion = &apiextensions.CustomResourceConversion{
-		Strategy: apiextensions.WebhookConverter,
-		Webhook: &apiextensions.WebhookConversion{
-			ClientConfig: &apiextensions.WebhookClientConfig{
-				Service: &apiextensions.ServiceReference{
-					Name:      "azureserviceoperator-webhook-service",
-					Namespace: "azureserviceoperator-system",
-					Path:      to.Ptr("/convert"),
-					Port:      to.Ptr(port),
+		{
+			name:        "Missing CRD has a version difference",
+			goal:        []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v1.0.0")},
+			comparators: []crdmanagement.CRDComparator{versionComparator},
+			expected: map[string][]crdmanagement.CRDComparisonResult{
+				"test.testrp.azure.com": {
+					{DifferenceResult: crdmanagement.VersionDifferent},
 				},
-				CABundle: makeFakeCABundle(),
 			},
 		},
-	}
-
-	goalCRD := makeBasicCRD("test")
-	goalCRD.Spec.Conversion = &apiextensions.CustomResourceConversion{
-		Strategy: apiextensions.WebhookConverter,
-		Webhook: &apiextensions.WebhookConversion{
-			ClientConfig: &apiextensions.WebhookClientConfig{
-				Service: &apiextensions.ServiceReference{
-					Name:      "azureserviceoperator-webhook-service",
-					Namespace: "azureserviceoperator-system",
-					Path:      to.Ptr("/convert"),
-					Port:      to.Ptr(port),
+		{
+			name: "Metadata difference omits matching version result",
+			existing: []apiextensions.CustomResourceDefinition{
+				makeBasicCRDWithVersion("test", "v1.0.0"),
+			},
+			goal: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Labels["cluster.x-k8s.io/provider"] = "infrastructure-azure"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			comparators: []crdmanagement.CRDComparator{versionComparator, metadataComparator},
+			expected: map[string][]crdmanagement.CRDComparisonResult{
+				"test.testrp.azure.com": {
+					{DifferenceResult: crdmanagement.MetadataDifferent},
+				},
+			},
+		},
+		{
+			name: "All failed comparators are reported in order",
+			existing: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Spec.Group = "other.azure.com"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			goal:        []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v2.0.0")},
+			comparators: []crdmanagement.CRDComparator{versionComparator, groupComparator},
+			expected: map[string][]crdmanagement.CRDComparisonResult{
+				"test.testrp.azure.com": {
+					{DifferenceResult: crdmanagement.VersionDifferent},
+					{DifferenceResult: "GroupDifferent"},
+				},
+			},
+		},
+		{
+			name: "A later comparator can fail after an earlier comparator succeeds",
+			existing: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Spec.Group = "other.azure.com"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			goal:        []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v1.0.0")},
+			comparators: []crdmanagement.CRDComparator{versionComparator, groupComparator},
+			expected: map[string][]crdmanagement.CRDComparisonResult{
+				"test.testrp.azure.com": {
+					{DifferenceResult: "GroupDifferent"},
 				},
 			},
 		},
 	}
-	existing := []apiextensions.CustomResourceDefinition{existingCRD}
-	goal := []apiextensions.CustomResourceDefinition{goalCRD}
 
-	logger := testcommon.NewTestLogger(t)
-	crdManager := crdmanagement.NewManager(logger, nil)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewGomegaWithT(t)
+			logger := testcommon.NewTestLogger(t)
+			crdManager := crdmanagement.NewManager(logger, nil, nil)
 
-	nonMatching := crdManager.FindNonMatchingCRDs(existing, goal, crdmanagement.SpecEqual)
+			results := crdManager.CompareCRDs(tc.existing, tc.goal, tc.comparators...)
 
-	g.Expect(nonMatching).To(BeEmpty())
-	// Ensure that we still have CABundle set here
-	g.Expect(existing[0].Spec.Conversion.Webhook.ClientConfig.CABundle).ToNot(BeEmpty())
+			g.Expect(results).To(Equal(tc.expected))
+		})
+	}
 }
 
 /*
@@ -294,14 +240,14 @@ func Test_DetermineCRDsToInstallOrUpgrade(t *testing.T) {
 		},
 		{
 			name:     "Matches CRDs if pattern matches",
-			goal:     []apiextensions.CustomResourceDefinition{makeBasicCRD("test")},
+			goal:     []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v1.0.0")},
 			existing: nil,
 			patterns: "testrp.azure.com/*",
 			validate: func(g *WithT, instructions []*crdmanagement.CRDInstallationInstruction) {
 				g.Expect(instructions).To(HaveLen(1))
 				g.Expect(instructions[0].FilterResult).To(Equal(crdmanagement.MatchedPattern))
 				g.Expect(instructions[0].FilterReason).To(Equal("CRD named \"testrp.azure.com/test\" matched pattern \"testrp.azure.com/*\""))
-				g.Expect(instructions[0].DiffResult).To(Equal(crdmanagement.SpecDifferent))
+				g.Expect(instructions[0].DiffResult).To(Equal(crdmanagement.VersionDifferent))
 				apply, _ := instructions[0].ShouldApply()
 				g.Expect(apply).To(BeTrue())
 			},
@@ -349,8 +295,97 @@ func Test_DetermineCRDsToInstallOrUpgrade(t *testing.T) {
 			},
 		},
 		{
+			name: "Applies CRD when a desired label is missing",
+			goal: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Labels["cluster.x-k8s.io/provider"] = "infrastructure-azure"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			existing: []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v1.0.0")},
+			patterns: "testrp.azure.com/*",
+			validate: func(g *WithT, instructions []*crdmanagement.CRDInstallationInstruction) {
+				g.Expect(instructions).To(HaveLen(1))
+				g.Expect(instructions[0].DiffResult).To(Equal(crdmanagement.MetadataDifferent))
+				apply, _ := instructions[0].ShouldApply()
+				g.Expect(apply).To(BeTrue())
+			},
+		},
+		{
+			name: "Applies CRD when the cert-manager annotation namespace has drifted",
+			goal: []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v1.0.0")},
+			existing: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				// Simulates the operator having previously been deployed into a different namespace.
+				crd.Annotations["cert-manager.io/inject-ca-from"] = "old-namespace/azureserviceoperator-serving-cert"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			patterns: "testrp.azure.com/*",
+			validate: func(g *WithT, instructions []*crdmanagement.CRDInstallationInstruction) {
+				g.Expect(instructions).To(HaveLen(1))
+				g.Expect(instructions[0].DiffResult).To(Equal(crdmanagement.MetadataDifferent))
+				apply, _ := instructions[0].ShouldApply()
+				g.Expect(apply).To(BeTrue())
+			},
+		},
+		{
+			name: "Applies CRD when a desired label has a different value",
+			goal: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Labels["cluster.x-k8s.io/provider"] = "infrastructure-azure"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			existing: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Labels["cluster.x-k8s.io/provider"] = "stale-value"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			patterns: "testrp.azure.com/*",
+			validate: func(g *WithT, instructions []*crdmanagement.CRDInstallationInstruction) {
+				g.Expect(instructions).To(HaveLen(1))
+				g.Expect(instructions[0].DiffResult).To(Equal(crdmanagement.MetadataDifferent))
+				apply, _ := instructions[0].ShouldApply()
+				g.Expect(apply).To(BeTrue())
+			},
+		},
+		{
+			name: "Does not apply CRD when the desired label is already present",
+			goal: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Labels["cluster.x-k8s.io/provider"] = "infrastructure-azure"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			existing: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Labels["cluster.x-k8s.io/provider"] = "infrastructure-azure"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			patterns: "testrp.azure.com/*",
+			validate: func(g *WithT, instructions []*crdmanagement.CRDInstallationInstruction) {
+				g.Expect(instructions).To(HaveLen(1))
+				g.Expect(instructions[0].DiffResult).To(Equal(crdmanagement.NoDifference))
+				apply, _ := instructions[0].ShouldApply()
+				g.Expect(apply).To(BeFalse())
+			},
+		},
+		{
+			name: "Does not apply CRD when an extra label exists only on the existing CRD",
+			goal: []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test", "v1.0.0")},
+			existing: func() []apiextensions.CustomResourceDefinition {
+				crd := makeBasicCRDWithVersion("test", "v1.0.0")
+				crd.Labels["externally-applied"] = "preserved"
+				return []apiextensions.CustomResourceDefinition{crd}
+			}(),
+			patterns: "testrp.azure.com/*",
+			validate: func(g *WithT, instructions []*crdmanagement.CRDInstallationInstruction) {
+				g.Expect(instructions).To(HaveLen(1))
+				g.Expect(instructions[0].DiffResult).To(Equal(crdmanagement.NoDifference))
+				apply, _ := instructions[0].ShouldApply()
+				g.Expect(apply).To(BeFalse())
+			},
+		},
+		{
 			name:     "Pattern matches subset of CRDs from group, only that subset is installed",
-			goal:     []apiextensions.CustomResourceDefinition{makeBasicCRD("test1"), makeBasicCRD("test2")},
+			goal:     []apiextensions.CustomResourceDefinition{makeBasicCRDWithVersion("test1", "v1.0.0"), makeBasicCRDWithVersion("test2", "v1.0.0")},
 			existing: nil,
 			patterns: "testrp.azure.com/test1",
 			validate: func(g *WithT, instructions []*crdmanagement.CRDInstallationInstruction) {
@@ -361,7 +396,7 @@ func Test_DetermineCRDsToInstallOrUpgrade(t *testing.T) {
 					if instruction.CRD.Name == "test1.testrp.azure.com" {
 						g.Expect(instruction.FilterResult).To(Equal(crdmanagement.MatchedPattern))
 						g.Expect(instruction.FilterReason).To(Equal("CRD named \"testrp.azure.com/test1\" matched pattern \"testrp.azure.com/test1\""))
-						g.Expect(instruction.DiffResult).To(Equal(crdmanagement.SpecDifferent))
+						g.Expect(instruction.DiffResult).To(Equal(crdmanagement.VersionDifferent))
 						apply, _ := instruction.ShouldApply()
 						g.Expect(apply).To(BeTrue())
 					} else {
@@ -382,7 +417,7 @@ func Test_DetermineCRDsToInstallOrUpgrade(t *testing.T) {
 
 			g := NewGomegaWithT(t)
 			logger := testcommon.NewTestLogger(t)
-			crdManager := crdmanagement.NewManager(logger, nil)
+			crdManager := crdmanagement.NewManager(logger, nil, nil)
 
 			instructions, err := crdManager.DetermineCRDsToInstallOrUpgrade(c.goal, c.existing, c.patterns)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -403,8 +438,8 @@ func Test_ListCRDs_ListsOnlyCRDsMatchingLabel(t *testing.T) {
 	crd3 := makeBasicCRD("test3")
 
 	crd3.Labels = map[string]string{
-		crdmanagement.ServiceOperatorVersionLabel: "123",
-		crdmanagement.ServiceOperatorAppLabel:     crdmanagement.ServiceOperatorAppValue,
+		asolabels.ServiceOperatorVersionLabel: "123",
+		asolabels.ServiceOperatorAppLabel:     asolabels.ServiceOperatorAppValue,
 	}
 
 	g.Expect(kubeClient.Create(ctx, &crd1)).To(Succeed())
@@ -412,11 +447,12 @@ func Test_ListCRDs_ListsOnlyCRDsMatchingLabel(t *testing.T) {
 	g.Expect(kubeClient.Create(ctx, &crd3)).To(Succeed())
 
 	logger := testcommon.NewTestLogger(t)
-	crdManager := crdmanagement.NewManager(logger, kubeClient)
+	crdManager := crdmanagement.NewManager(logger, kubeClient, nil)
 
-	crds, err := crdManager.ListOperatorCRDs(ctx)
+	crds := &apiextensions.CustomResourceDefinitionList{}
+	err := crdManager.ListCRDs(ctx, crds)
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(crds).To(HaveLen(1))
+	g.Expect(crds.Items).To(HaveLen(1))
 }
 
 // This test requires that the task target `bundle-crds` has been run
@@ -425,8 +461,9 @@ func Test_BundledCRDs_HaveExactlyTwoInstancesOfNamespace(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	testData := testSetup(t)
+	g.Expect(testcommon.CheckBundledCRDsDirectory(testData.crdPath)).To(Succeed())
 
-	loadedCRDs, err := testData.crdManager.LoadOperatorCRDs(testData.crdPath, testData.namespace)
+	loadedCRDs, err := testData.crdManager.LoadOperatorCRDs(testData.crdPath, testData.namespace, testData.crdManager.BuildCRDFileFilter("*", nil))
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(loadedCRDs).ToNot(BeEmpty())
 	// The raw JSON should contain exactly 2 locations where the namespace is referenced. If this changes, we need
@@ -438,6 +475,122 @@ func Test_BundledCRDs_HaveExactlyTwoInstancesOfNamespace(t *testing.T) {
 
 	count := strings.Count(string(bytes), testData.namespace)
 	g.Expect(count).To(Equal(2))
+}
+
+func Test_BuildCRDFileFilter(t *testing.T) {
+	t.Parallel()
+
+	const (
+		networkVNets       = "apiextensions.k8s.io_v1_customresourcedefinition_virtualnetworks.network.azure.com.yaml"
+		computeDisks       = "apiextensions.k8s.io_v1_customresourcedefinition_disks.compute.azure.com.yaml"
+		storageAccounts    = "apiextensions.k8s.io_v1_customresourcedefinition_storageaccounts.storage.azure.com.yaml"
+		containerSvcFleets = "apiextensions.k8s.io_v1_customresourcedefinition_fleets.containerservice.azure.com.yaml"
+		invalidFilename    = "not_a_yaml_file.txt"
+		noUnderscores      = "nounderscores.yaml"
+	)
+
+	computeDisksExisting := []apiextensions.CustomResourceDefinition{
+		{ObjectMeta: metav1.ObjectMeta{Name: "disks.compute.azure.com"}},
+	}
+
+	type fileCheck struct {
+		filename       string
+		expected       bool
+		expectedErrStr string
+	}
+
+	tests := []struct {
+		name     string
+		pattern  string
+		existing []apiextensions.CustomResourceDefinition
+		checks   []fileCheck
+	}{
+		{
+			name:    "no patterns no existing loads nothing",
+			pattern: "",
+			checks: []fileCheck{
+				{filename: networkVNets, expected: false},
+			},
+		},
+		{
+			name:    "pattern filters by group",
+			pattern: "network.azure.com/*",
+			checks: []fileCheck{
+				{filename: networkVNets, expected: true},
+				{filename: computeDisks, expected: false},
+				{filename: containerSvcFleets, expected: false},
+			},
+		},
+		{
+			name:     "existing CRDs are always loaded",
+			pattern:  "network.azure.com/*",
+			existing: computeDisksExisting,
+			checks: []fileCheck{
+				{filename: networkVNets, expected: true},
+				{filename: computeDisks, expected: true},
+				{filename: storageAccounts, expected: false},
+			},
+		},
+		{
+			name:    "multiple patterns",
+			pattern: "network.azure.com/*;compute.azure.com/*",
+			checks: []fileCheck{
+				{filename: networkVNets, expected: true},
+				{filename: computeDisks, expected: true},
+				{filename: storageAccounts, expected: false},
+			},
+		},
+		{
+			name:     "no patterns only existing",
+			pattern:  "",
+			existing: computeDisksExisting,
+			checks: []fileCheck{
+				{filename: computeDisks, expected: true},
+				{filename: networkVNets, expected: false},
+			},
+		},
+		{
+			name:    "wildcard group pattern loads everything",
+			pattern: "*",
+			checks: []fileCheck{
+				{filename: networkVNets, expected: true},
+				{filename: computeDisks, expected: true},
+			},
+		},
+		{
+			name:    "invalid filename returns error",
+			pattern: "network.azure.com/*",
+			checks: []fileCheck{
+				{filename: invalidFilename, expectedErrStr: "does not have expected prefix"},
+				{filename: noUnderscores, expectedErrStr: "does not have expected prefix"},
+				{filename: "", expectedErrStr: "does not have expected prefix"},
+			},
+		},
+	}
+
+	logger := testcommon.NewTestLogger(t)
+	m := crdmanagement.NewManager(logger, nil, nil)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewGomegaWithT(t)
+
+			filter := m.BuildCRDFileFilter(tt.pattern, tt.existing)
+			g.Expect(filter).ToNot(BeNil())
+
+			for _, check := range tt.checks {
+				result, err := filter(check.filename)
+				if check.expectedErrStr != "" {
+					g.Expect(err).To(HaveOccurred())
+					g.Expect(err.Error()).To(ContainSubstring(check.expectedErrStr))
+				} else {
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(result).To(Equal(check.expected), "filename: %s", check.filename)
+				}
+			}
+		})
+	}
 }
 
 /*
@@ -506,8 +659,38 @@ func makeBasicCRD(name string) apiextensions.CustomResourceDefinition {
 func makeBasicCRDWithVersion(name string, version string) apiextensions.CustomResourceDefinition {
 	crd := makeBasicCRD(name)
 	crd.Labels = map[string]string{
-		crdmanagement.ServiceOperatorVersionLabelOld: version,
+		asolabels.ServiceOperatorVersionLabel: version,
+		asolabels.ServiceOperatorAppLabel:     asolabels.ServiceOperatorAppValue,
 	}
 
 	return crd
+}
+
+func TestIsReservedLabel(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		key      string
+		expected bool
+	}{
+		"app label":                    {key: asolabels.ServiceOperatorAppLabel, expected: true},
+		"version label":                {key: asolabels.ServiceOperatorVersionLabel, expected: true},
+		"old version label":            {key: asolabels.ServiceOperatorVersionLabelOld, expected: true},
+		"reserved prefix":              {key: asolabels.ServiceOperatorLabelPrefix + "anything", expected: true},
+		"leading whitespace":           {key: " " + asolabels.ServiceOperatorAppLabel, expected: true},
+		"trailing whitespace":          {key: asolabels.ServiceOperatorVersionLabel + " ", expected: true},
+		"surrounding whitespace":       {key: "\t" + asolabels.ServiceOperatorLabelPrefix + "anything\n", expected: true},
+		"unreserved app.kubernetes.io": {key: "app.kubernetes.io/part-of", expected: false},
+		"unreserved prefixed":          {key: "example.com/owner", expected: false},
+		"unreserved bare":              {key: "environment", expected: false},
+		"differing case is distinct":   {key: "app.kubernetes.io/Version", expected: false},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			g.Expect(crdmanagement.IsReservedLabel(c.key)).To(Equal(c.expected))
+		})
+	}
 }
