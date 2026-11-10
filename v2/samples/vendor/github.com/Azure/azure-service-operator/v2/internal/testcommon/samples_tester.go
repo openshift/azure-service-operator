@@ -1,0 +1,559 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
+package testcommon
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/rotisserie/eris"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/yaml"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
+	"github.com/Azure/azure-service-operator/v2/internal/resolver"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+)
+
+const (
+	refsPackage          = "refs"
+	defaultResourceGroup = "aso-sample-rg"
+)
+
+// Regex to match '/00000000-0000-0000-0000-000000000000' strings, to replace with the subscriptionID
+var subRegex = regexp.MustCompile(`/([0]+-?)+`)
+
+// An empty GUID, used to replace the subscriptionID and tenantID in the sample files
+var emptyGUID = uuid.Nil.String()
+
+var wholeSampleExclusions = []*regexp.Regexp{
+	regexp.MustCompile(`/cache/`),                       // Cache has issues with linked caches being able to delete
+	regexp.MustCompile(`/subscription/`),                // Can't easily be run/recorded in our standard subscription
+	regexp.MustCompile(`/redhatopenshift/v1api(?:/|$)`), // This requires SP creation
+	// HCP samples reference external prerequisites (VNet, NSG, managed identities, Key Vault) that
+	// aren't yet self-contained in the sample directory; see v2/internal/controllers/testdata/redhatopenshift-hcp/README.md.
+	regexp.MustCompile(`/redhatopenshift/v20260901preview(?:/|$)`),
+	regexp.MustCompile(`/documentdb/sqldatabase/v1api20210515`), // This is blocked by corp policy (can't set DisableLocalAuth)
+	regexp.MustCompile(`/compute/v20250401`),                    // Quota restrictions mean we can't rerecord capacity reservation
+	// TODO: remove once Test_Keyvault_v20230701_CreationAndDeletion.yaml has been recorded. The VaultKey
+	// samples need a recording that captures both ARM and the Key Vault data plane (the VaultKeyExtension
+	// adopts, updates and deletes keys via azkeys), and without one the test needs live credentials.
+	regexp.MustCompile(`/keyvault/v20230701(?:/|$)`),
+}
+
+var exclusions = []*regexp.Regexp{
+	// ------------------------------
+	// Individual resource exclusions
+	// ------------------------------
+	regexp.MustCompile(`insights/.*_webtest.yaml`), // Excluding webtest as it contains hidden link reference
+
+	// Classic CDN endpoint (Microsoft.Cdn/profiles/endpoints) can only be created under a classic Microsoft
+	// CDN profile, and Azure no longer allows creating new classic Microsoft CDN profiles. Keep the sample
+	// file present so scripts/v2/check_samples.py is satisfied, but skip it in the samples test.
+	regexp.MustCompile(`cdn/v.*20210601/.*_profilesendpoint.yaml`),
+
+	// The containerservice TrustedAccessRoleBinding sample needs a Microsoft.MachineLearningServices
+	// workspace as its source resource, and AML now rejects the workspace payload our sample refs
+	// produce with "ValidationError: Missing dependent resources in workspace json" (it wants
+	// additional dependencies such as Application Insights). Older containerservice versions only
+	// still pass because their recordings predate that service-side change. Keep the sample file
+	// present so scripts/v2/check_samples.py is satisfied, but skip it in the samples test.
+	regexp.MustCompile(`containerservice/v20260501/.*_trustedaccessrolebinding.yaml`),
+
+	// db users aren't ARM resources
+	regexp.MustCompile(`sql/.*_user.yaml`),
+	regexp.MustCompile(`dbformysql/.*_user.yaml`),
+	regexp.MustCompile(`dbformysql/.*_user_aad.yaml`),
+	regexp.MustCompile(`dbforpostgresql/.*_user.yaml`),
+
+	// PostgreSQL virtual endpoints require multiple servers with an established replication link.
+	// Older versions only pass because their recordings predate this service-side validation.
+	regexp.MustCompile(`dbforpostgresql/.*_flexibleserversvirtualendpoint.yaml`),
+
+	// The general SQL samples don't configure these separate AAD resources.
+	// Dedicated scenarios such as sql/aadonly_v1api20211101 do test them.
+	regexp.MustCompile(`sql/v[^/]+/.*_serversadministrator.yaml`),
+	regexp.MustCompile(`sql/v[^/]+/.*_serversazureadonlyauthentication.yaml`),
+
+	// Requires creating multiple linked SQL servers which is hard to do in the samples
+	regexp.MustCompile(`sql/.*_serversfailovergroup.yaml`),
+
+	// SQL Managed Instance takes 30-60 minutes to create and needs a delegated subnet, so it's too slow and expensive
+	// to include in the shared sql samples test. The managed instance resources are covered by dedicated CRUD tests
+	// instead. Keep the sample files present so scripts/v2/check_samples.py is satisfied.
+	regexp.MustCompile(`sql/.*_managedinstance.*\.yaml`),
+
+	// An instance failover group needs two managed instances in different regions with connected networks
+	regexp.MustCompile(`sql/.*_instancefailovergroup.yaml`),
+
+	// Excluding sql serverskey and serversencryptionprotector as they require a keyvault key URI
+	// which can't be created via ASO (no Keyvault/Keys resource support)
+	regexp.MustCompile(`sql/.*_serverskey.yaml`),
+	regexp.MustCompile(`sql/.*_serversencryptionprotector.yaml`),
+
+	// TODO: Unable to test diskencryptionsets sample since it requires keyvault/key URI.
+	// TODO: we don't support Keyvault/Keys to automate the process
+	regexp.MustCompile(`compute/.*_diskencryptionset.yaml`),
+
+	// Don't test these for the old API as it doesn't support basicv2 and is much slower to allocate
+	// as well as has some other issues with these APIs that cause them to be flaky
+	regexp.MustCompile(`apimanagement/.*20220801.*_api.yaml`),
+	regexp.MustCompile(`apimanagement/.*20220801.*_apiversionset.yaml`),
+	regexp.MustCompile(`apimanagement/.*20220801.*_product.yaml`),
+	regexp.MustCompile(`apimanagement/.*20220801.*_subscription.yaml`),
+	regexp.MustCompile(`apimanagement/.*20220801.*_productpolicy.yaml`),
+	regexp.MustCompile(`apimanagement/.*20220801.*_productapi.yaml`),
+
+	// TODO: we should remove this later, but for some reason when re-recording the v1api20240501 variant
+	// I kept getting this error when creating the apimanagement_authorizationprovider
+	// "cannot create API management account cf-f22a30e54c59452994eb4a91319fd87e-asotestwqfwhe
+	// since another account is using the same apim service name asotestwqfwhe."
+	// The weird thing is the apim service (which has the name asotestwqfwhe) is created fine. I _think_
+	// this is some caching/staleness issue on the APIM side as all the other samples recorded fine and
+	// so did this one a few days ago, but in the meantime we just go with the recording we had
+	// that worked and hopefully time will resolve whatever issue was happening on the APIM side.
+	regexp.MustCompile(`apimanagement/.*v1api20240501.*_api.yaml`),
+	regexp.MustCompile(`apimanagement/.*v1api20240501.*_apiversionset.yaml`),
+	regexp.MustCompile(`apimanagement/.*v1api20240501.*_product.yaml`),
+	regexp.MustCompile(`apimanagement/.*v1api20240501.*_subscription.yaml`),
+	regexp.MustCompile(`apimanagement/.*v1api20240501.*_productpolicy.yaml`),
+	regexp.MustCompile(`apimanagement/.*v1api20240501.*_productapi.yaml`),
+
+	// Excluding APIM certificate as it requires actual certificate data
+	regexp.MustCompile(`apimanagement/.*_certificate.yaml`),
+
+	// Excluding APIM self-hosted gateway samples as they require Developer/Standard/Premium tier (not supported on V2 tiers)
+	regexp.MustCompile(`apimanagement/.*_servicegateway.yaml`),
+	regexp.MustCompile(`apimanagement/.*_servicegatewayapi.yaml`),
+	regexp.MustCompile(`apimanagement/.*_servicegatewaycertificateauthority.yaml`),
+	regexp.MustCompile(`apimanagement/.*_servicegatewayhostnameconfiguration.yaml`),
+
+	// Excluding cdn secret as it requires KV secrets
+	regexp.MustCompile(`cdn/.*_secret.yaml`),
+
+	// Excluding SignalR CustomDomain and CustomCertificate because they require KV secrets/certs
+	regexp.MustCompile(`signalrservice/.*_customdomain.yaml`),
+	regexp.MustCompile(`signalrservice/.*_customcertificate.yaml`),
+
+	// [Issue #3091] Exclude backupvaultsbackupinstance as it requires role assignments to be created after backup instance is created to make it land into protection configured state.
+	regexp.MustCompile(`dataprotection/.*_backupvaultsbackupinstance.yaml`),
+
+	regexp.MustCompile(`network/.*_virtualnetworkgateway.yaml`), // blocks RG deletion and causes networking tests to fail
+
+	// Excluding quota as Azure Quota API does not support deletion - quotas are read-only system resources
+	regexp.MustCompile(`quota/.*_quota.yaml`),
+
+	// Excluding databasewatcher sharedprivatelink as its managed private endpoint must be torn
+	// down before the server it points at
+	regexp.MustCompile(`databasewatcher/.*_sharedprivatelink.yaml`),
+}
+
+// referenceKey identifies a resource by its Kind and Name for rename tracking.
+type referenceKey struct {
+	Kind string
+	Name string
+}
+
+type SamplesTester struct {
+	noSpaceNamer      ResourceNamer
+	scheme            *runtime.Scheme
+	groupVersionPath  string
+	namespace         string
+	useRandomName     bool
+	rgName            string
+	azureSubscription string
+	azureTenant       string
+	nameRenames       map[referenceKey]string // maps (Kind, OldName) -> NewName for renamed resources
+}
+
+type SampleObject struct {
+	SamplesMap map[string]client.Object
+	RefsMap    map[string]client.Object
+}
+
+func (s *SampleObject) HasSamples() bool {
+	return len(s.SamplesMap) > 0
+}
+
+func NewSampleObject() *SampleObject {
+	return &SampleObject{
+		SamplesMap: make(map[string]client.Object),
+		RefsMap:    make(map[string]client.Object),
+	}
+}
+
+func NewSamplesTester(
+	noSpaceNamer ResourceNamer,
+	scheme *runtime.Scheme,
+	groupVersionPath string,
+	namespace string,
+	useRandomName bool,
+	rgName string,
+	azureSubscription string,
+	azureTenant string,
+) *SamplesTester {
+	return &SamplesTester{
+		noSpaceNamer:      noSpaceNamer,
+		scheme:            scheme,
+		groupVersionPath:  groupVersionPath,
+		namespace:         namespace,
+		useRandomName:     useRandomName,
+		rgName:            rgName,
+		azureSubscription: azureSubscription,
+		azureTenant:       azureTenant,
+		nameRenames: map[referenceKey]string{
+			{Kind: resolver.ResourceGroupKind, Name: defaultResourceGroup}: rgName,
+		},
+	}
+}
+
+func (t *SamplesTester) LoadSamples() (*SampleObject, error) {
+	samples := NewSampleObject()
+
+	err := filepath.Walk(t.groupVersionPath,
+		func(filePath string, info os.FileInfo, err error) error {
+			if !info.IsDir() && !IsSampleFileExcluded(filePath) {
+				sample, err := t.getObjectFromFile(filePath)
+				if err != nil {
+					return eris.Wrapf(err, "loading sample from %s", filePath)
+				}
+
+				sample.SetNamespace(t.namespace)
+
+				if filepath.Base(filepath.Dir(filePath)) == refsPackage {
+					// We don't change name for dependencies as they have fixed refs which we can't access inside the object
+					// need to make sure we have right names for the refs in samples
+					t.handleObject(sample, samples.RefsMap)
+				} else {
+					if t.useRandomName {
+						oldName := sample.GetName()
+						kind := sample.GetObjectKind().GroupVersionKind().Kind
+						newName := t.noSpaceNamer.GenerateName("")
+						t.nameRenames[referenceKey{Kind: kind, Name: oldName}] = newName
+						sample.SetName(newName)
+					}
+
+					t.handleObject(sample, samples.SamplesMap)
+				}
+			}
+
+			return nil
+		})
+	if err != nil {
+		return nil, eris.Wrapf(err, "loading samples in %s", t.groupVersionPath)
+	}
+
+	// We add ownership once we have all the resources in the map
+	err = t.setSamplesOwnershipAndReferences(samples.SamplesMap, samples.RefsMap)
+	if err != nil {
+		return nil, eris.Wrap(err, "updating ownership of samples")
+	}
+
+	err = t.setRefsOwnershipAndReferences(samples.RefsMap)
+	if err != nil {
+		return nil, eris.Wrap(err, "updating ownership of refs")
+	}
+
+	return samples, nil
+}
+
+// handleObject handles the sample object by adding it into the samples map. If key already exists, then we append a
+// random string to the key and add it to the map so that we don't overwrite the sample. As keys are only used to find
+// if owner Kind actually exist in the map, so it should be fine to append random string here.
+func (t *SamplesTester) handleObject(sample client.Object, samples map[string]client.Object) {
+	kind := sample.GetObjectKind().GroupVersionKind().Kind
+	_, found := samples[kind]
+	if found {
+		kind = kind + t.noSpaceNamer.makeRandomStringOfLength(5, t.noSpaceNamer.runes)
+	}
+	samples[kind] = sample
+}
+
+func (t *SamplesTester) getObjectFromFile(path string) (client.Object, error) {
+	jsonMap := make(map[string]interface{})
+
+	byteData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonBytes, err := yaml.ToJSON(byteData)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(jsonBytes, &jsonMap)
+	if err != nil {
+		return nil, err
+	}
+
+	// We need unstructured object here to fetch the correct GVK for the object
+	unstructuredObj := unstructured.Unstructured{Object: jsonMap}
+
+	obj, err := genruntime.NewObjectFromExemplar(&unstructuredObj, t.scheme)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonBytes))
+	decoder.DisallowUnknownFields()
+	err = decoder.Decode(obj)
+	if err != nil {
+		return nil, eris.Wrapf(err, "while decoding %s", path)
+	}
+
+	return obj, nil
+}
+
+func (t *SamplesTester) setSamplesOwnershipAndReferences(samples map[string]client.Object, refs map[string]client.Object) error {
+	for gk, sample := range samples {
+		asoType, ok := sample.(genruntime.ARMMetaObject)
+		if !ok {
+			continue
+		}
+
+		// We don't apply ownership to the resources which have no owner
+		if asoType.Owner() == nil {
+			continue
+		}
+
+		// We only set the owner name if Owner.Kind is ResourceGroup(as we have random rg names) or if we're using random names for resources.
+		// Otherwise, we let it be the same as on samples.
+		var ownersName string
+		if asoType.Owner().Kind == resolver.ResourceGroupKind {
+			ownersName = t.rgName
+		} else if t.useRandomName {
+			// Check if the owner exists in refs, then continue. We don't use random names for refs so its correct anyway.
+			_, found := refs[asoType.Owner().Kind]
+			if found {
+				continue
+			}
+
+			var owner client.Object
+			owner, found = samples[asoType.Owner().Kind]
+			if !found {
+				return fmt.Errorf("owner: %s, does not exist for resource '%s'", asoType.Owner().Kind, gk)
+			}
+
+			ownersName = owner.GetName()
+		}
+
+		if ownersName != "" {
+			asoType = setOwnersName(asoType, ownersName)
+		}
+
+		err := t.updateFieldsForTest(asoType)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (t *SamplesTester) setRefsOwnershipAndReferences(samples map[string]client.Object) error {
+	for _, sample := range samples {
+		asoType, ok := sample.(genruntime.ARMMetaObject)
+		if !ok {
+			continue
+		}
+
+		// We don't apply ownership to the resources which have no owner
+		if asoType.Owner() == nil {
+			continue
+		}
+
+		// We only set the owner name if Owner.Kind is ResourceGroup(as we have random rg names) or if we're using random names for resources.
+		// Otherwise, we let it be the same as on samples.
+		var ownersName string
+		if asoType.Owner().Kind != resolver.ResourceGroupKind {
+			continue
+		}
+
+		ownersName = t.rgName
+
+		if ownersName != "" {
+			asoType = setOwnersName(asoType, ownersName)
+		}
+
+		err := t.updateFieldsForTest(asoType)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func setOwnersName(sample genruntime.ARMMetaObject, ownerName string) genruntime.ARMMetaObject {
+	specField := reflect.ValueOf(sample.GetSpec()).Elem()
+	ownerField := specField.FieldByName("Owner").Elem()
+	ownerField.FieldByName("Name").SetString(ownerName)
+
+	return sample
+}
+
+func PathContains(path string, matches []string) bool {
+	for _, match := range matches {
+		if strings.Contains(path, match) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func IsSampleFolderExcluded(path string) bool {
+	// Allow the cache v20250401 and v20250701 sample tests to run while keeping all other
+	// cache sample folders excluded (linked-cache deletion issues).
+	if strings.Contains(path, "/cache/v20250401") ||
+		strings.Contains(path, "/cache/v20250701") {
+		return false
+	}
+
+	for _, exclusion := range wholeSampleExclusions {
+		if exclusion.MatchString(path) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func IsSampleFileExcluded(path string) bool {
+	// Exclude everything that's not a yaml file
+	ext := filepath.Ext(path)
+	if ext != ".yaml" && ext != ".yml" {
+		return true
+	}
+
+	// Check all exclusions
+	for _, exclusion := range exclusions {
+		if exclusion.MatchString(path) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// updateFieldsForTest uses ReflectVisitor to update ARMReferences, SubscriptionIDs, and TenantIDs.
+func (t *SamplesTester) updateFieldsForTest(obj genruntime.ARMMetaObject) error {
+	visitor := reflecthelpers.NewReflectVisitor()
+	visitor.VisitStruct = t.visitStruct
+
+	err := visitor.Visit(obj, nil)
+	if err != nil {
+		return eris.Wrapf(err, "updating fields for test")
+	}
+
+	return nil
+}
+
+// visitStruct checks and sets the SubscriptionID and ResourceGroup name for ARM references to current values
+func (t *SamplesTester) visitStruct(this *reflecthelpers.ReflectVisitor, it reflect.Value, ctx any) error {
+	// Configure any ResourceReference we find
+	if it.Type() == reflect.TypeOf(genruntime.ResourceReference{}) {
+		return t.visitResourceReference(this, it, ctx)
+	}
+
+	// Set the value of any SubscriptionID Field that's got an empty GUID as the value
+	if field := it.FieldByNameFunc(isField("subscriptionID")); field.IsValid() {
+		t.conditionalAssignString(field, emptyGUID, t.azureSubscription)
+	}
+
+	// Replace the empty-guid value in any armID field
+	if field := it.FieldByNameFunc(isField("armId")); field.IsValid() {
+		t.replaceString(field, emptyGUID, t.azureSubscription)
+	}
+
+	// Set the value of any TenantID Field that's got an empty GUID as the value
+	if field := it.FieldByNameFunc(isField("tenantID")); field.IsValid() {
+		t.conditionalAssignString(field, emptyGUID, t.azureTenant)
+	}
+
+	return reflecthelpers.IdentityVisitStruct(this, it, ctx)
+}
+
+// isField is a helper used to find fields by case-insensitive matches
+func isField(field string) func(name string) bool {
+	return func(name string) bool {
+		return strings.EqualFold(name, field)
+	}
+}
+
+func (t *SamplesTester) conditionalAssignString(field reflect.Value, match string, value string) {
+	if field.Kind() == reflect.Pointer {
+		field = field.Elem()
+	}
+
+	if field.Kind() != reflect.String {
+		return
+	}
+
+	if field.String() == match {
+		field.SetString(value)
+	}
+}
+
+func (t *SamplesTester) replaceString(field reflect.Value, old string, new string) {
+	if field.Kind() == reflect.Pointer {
+		field = field.Elem()
+	}
+
+	if field.Kind() != reflect.String {
+		return
+	}
+
+	val := field.String()
+	val = strings.ReplaceAll(val, old, new)
+	field.SetString(val)
+}
+
+// visitResourceReference checks and sets the SubscriptionID and ResourceGroup name for ARM references to current values,
+// and updates Kubernetes-style resource references whose targets were renamed.
+func (t *SamplesTester) visitResourceReference(_ *reflecthelpers.ReflectVisitor, it reflect.Value, _ any) error {
+	if !it.CanInterface() {
+		// This should be impossible given how the visitor works
+		panic("genruntime.ResourceReference field was unexpectedly nil")
+	}
+
+	reference := it.Interface().(genruntime.ResourceReference)
+	if reference.ARMID != "" {
+		armIDField := it.FieldByName("ARMID")
+		if !armIDField.CanSet() {
+			return eris.New("cannot set 'ARMID' field of 'genruntime.ResourceReference'")
+		}
+
+		armIDString := armIDField.String()
+		armIDString = strings.ReplaceAll(armIDString, defaultResourceGroup, t.rgName)
+		armIDString = subRegex.ReplaceAllString(armIDString, fmt.Sprint("/", t.azureSubscription))
+
+		armIDField.SetString(armIDString)
+	} else if reference.Name != "" {
+		// Check if this reference points to a resource that was renamed
+		key := referenceKey{Kind: reference.Kind, Name: reference.Name}
+		if newName, ok := t.nameRenames[key]; ok {
+			nameField := it.FieldByName("Name")
+			if !nameField.CanSet() {
+				return eris.New("cannot set 'Name' field of 'genruntime.ResourceReference'")
+			}
+
+			nameField.SetString(newName)
+		}
+	}
+
+	return nil
+}

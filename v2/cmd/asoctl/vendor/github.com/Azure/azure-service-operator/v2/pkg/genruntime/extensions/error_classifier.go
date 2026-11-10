@@ -1,0 +1,82 @@
+/*
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT license.
+*/
+
+package extensions
+
+import (
+	. "github.com/Azure/azure-service-operator/v2/internal/logging"
+
+	"github.com/go-logr/logr"
+
+	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+)
+
+// ErrorClassifier can be implemented to customize how the reconciler reacts to specific errors returned by Azure.
+// This extension is invoked whenever an ARM API call returns an error, allowing resources to classify errors
+// as retryable or fatal, and to provide better error messages to users.
+// Implement this extension when:
+// - Resource-specific error codes need special handling
+// - Certain errors should be retried that would normally be considered fatal (or vice versa)
+// - Error messages need resource-specific clarification
+// - Error behavior varies by API version
+type ErrorClassifier interface {
+	// ClassifyError evaluates the provided error, returning details including whether it is fatal or can be retried.
+	// cloudError is the error returned from ARM.
+	// apiVersion is the ARM API version used for the request.
+	// log is a logger that can be used for telemetry.
+	// next is the default classification implementation to call.
+	// Returns CloudErrorDetails with classification and an error if classification itself fails.
+	ClassifyError(
+		cloudError *genericarmclient.CloudError,
+		apiVersion string,
+		log logr.Logger,
+		next ErrorClassifierFunc) (core.CloudErrorDetails, error)
+}
+
+// ErrorClassifierFunc is the signature of a function that can be used to create a DefaultErrorClassifier
+type ErrorClassifierFunc func(cloudError *genericarmclient.CloudError) (core.CloudErrorDetails, error)
+
+func CreateErrorClassifier(
+	host genruntime.ResourceExtension,
+	classifier ErrorClassifierFunc,
+	apiVersion string,
+	log logr.Logger,
+) ErrorClassifierFunc {
+	impl, ok := host.(ErrorClassifier)
+	if !ok {
+		return classifier
+	}
+
+	return func(cloudError *genericarmclient.CloudError) (core.CloudErrorDetails, error) {
+		log.V(Status).Info(
+			"Classifying CloudError",
+			"Message", cloudError.Message(),
+			"Code", cloudError.Code(),
+			"Target", cloudError.Target(),
+		)
+
+		result, err := impl.ClassifyError(cloudError, apiVersion, log, classifier)
+		if err != nil {
+			log.V(Status).Info(
+				"CloudError classification failed",
+				"Error", err.Error(),
+			)
+
+			return core.CloudErrorDetails{}, err
+		}
+
+		log.V(Status).Info(
+			"CloudError classified",
+			"Classification", result.Classification,
+			"Retry", result.Retry,
+			"Code", result.Code,
+			"Message", result.Message,
+		)
+
+		return result, nil
+	}
+}
