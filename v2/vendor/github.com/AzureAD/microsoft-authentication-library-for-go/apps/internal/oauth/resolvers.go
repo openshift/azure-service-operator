@@ -16,10 +16,8 @@ import (
 
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/authority"
+	"golang.org/x/sync/singleflight"
 )
-
-// ADFS is an active directory federation service authority type.
-const ADFS = "ADFS"
 
 type cacheEntry struct {
 	Endpoints             authority.Endpoints
@@ -36,6 +34,8 @@ type authorityEndpoint struct {
 
 	mu    sync.Mutex
 	cache map[string]cacheEntry
+
+	resolveGroup singleflight.Group
 }
 
 // newAuthorityEndpoint is the constructor for AuthorityEndpoint.
@@ -51,39 +51,59 @@ func (m *authorityEndpoint) ResolveEndpoints(ctx context.Context, authorityInfo 
 		return endpoints, nil
 	}
 
-	endpoint, err := m.openIDConfigurationEndpoint(ctx, authorityInfo, userPrincipalName)
+	key := authorityInfo.CanonicalAuthorityURI
+	v, err, _ := m.resolveGroup.Do(key, func() (interface{}, error) {
+		// Double-check inside the singleflight group: another goroutine may
+		// have populated the cache while we were waiting.
+		if endpoints, found := m.cachedEndpoints(authorityInfo, userPrincipalName); found {
+			return endpoints, nil
+		}
+
+		endpoint, metadata, err := m.openIDConfigurationEndpoint(ctx, authorityInfo)
+		if err != nil {
+			return authority.Endpoints{}, err
+		}
+
+		resp, err := m.rest.Authority().GetTenantDiscoveryResponse(ctx, endpoint)
+		if err != nil {
+			return authority.Endpoints{}, err
+		}
+		if err := resp.Validate(); err != nil {
+			return authority.Endpoints{}, fmt.Errorf("ResolveEndpoints(): %w", err)
+		}
+
+		tenant := authorityInfo.Tenant
+
+		endpoints := authority.NewEndpoints(
+			strings.ReplaceAll(resp.AuthorizationEndpoint, "{tenant}", tenant),
+			strings.ReplaceAll(resp.TokenEndpoint, "{tenant}", tenant),
+			strings.ReplaceAll(resp.Issuer, "{tenant}", tenant),
+			authorityInfo.Host)
+
+		aliases := aliasesFromMetadata(metadata, authorityInfo.Host)
+
+		if err := resp.ValidateIssuerMatchesAuthority(authorityInfo.CanonicalAuthorityURI,
+			aliases); err != nil {
+			return authority.Endpoints{}, fmt.Errorf("ResolveEndpoints(): %w", err)
+		}
+
+		m.addCachedEndpoints(authorityInfo, userPrincipalName, endpoints)
+		return endpoints, nil
+	})
 	if err != nil {
 		return authority.Endpoints{}, err
 	}
 
-	resp, err := m.rest.Authority().GetTenantDiscoveryResponse(ctx, endpoint)
-	if err != nil {
-		return authority.Endpoints{}, err
-	}
-	if err := resp.Validate(); err != nil {
-		return authority.Endpoints{}, fmt.Errorf("ResolveEndpoints(): %w", err)
-	}
-
-	tenant := authorityInfo.Tenant
-
-	endpoints := authority.NewEndpoints(
-		strings.Replace(resp.AuthorizationEndpoint, "{tenant}", tenant, -1),
-		strings.Replace(resp.TokenEndpoint, "{tenant}", tenant, -1),
-		strings.Replace(resp.Issuer, "{tenant}", tenant, -1),
-		authorityInfo.Host)
-
-	m.addCachedEndpoints(authorityInfo, userPrincipalName, endpoints)
-
-	return endpoints, nil
+	return v.(authority.Endpoints), nil
 }
 
-// cachedEndpoints returns a the cached endpoints if they exists. If not, we return false.
+// cachedEndpoints returns the cached endpoints if they exist. If not, we return false.
 func (m *authorityEndpoint) cachedEndpoints(authorityInfo authority.Info, userPrincipalName string) (authority.Endpoints, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if cacheEntry, ok := m.cache[authorityInfo.CanonicalAuthorityURI]; ok {
-		if authorityInfo.AuthorityType == ADFS {
+		if authorityInfo.AuthorityType == authority.ADFS {
 			domain, err := adfsDomainFromUpn(userPrincipalName)
 			if err == nil {
 				if _, ok := cacheEntry.ValidForDomainsInList[domain]; ok {
@@ -96,13 +116,28 @@ func (m *authorityEndpoint) cachedEndpoints(authorityInfo authority.Info, userPr
 	return authority.Endpoints{}, false
 }
 
+func aliasesFromMetadata(metadata []authority.InstanceDiscoveryMetadata, authorityHost string) map[string]bool {
+	for _, entry := range metadata {
+		for _, alias := range entry.Aliases {
+			if strings.EqualFold(alias, authorityHost) {
+				aliases := make(map[string]bool, len(entry.Aliases))
+				for _, alias := range entry.Aliases {
+					aliases[alias] = true
+				}
+				return aliases
+			}
+		}
+	}
+	return map[string]bool{}
+}
+
 func (m *authorityEndpoint) addCachedEndpoints(authorityInfo authority.Info, userPrincipalName string, endpoints authority.Endpoints) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	updatedCacheEntry := createcacheEntry(endpoints)
 
-	if authorityInfo.AuthorityType == ADFS {
+	if authorityInfo.AuthorityType == authority.ADFS {
 		// Since we're here, we've made a call to the backend.  We want to ensure we're caching
 		// the latest values from the server.
 		if cacheEntry, ok := m.cache[authorityInfo.CanonicalAuthorityURI]; ok {
@@ -119,25 +154,27 @@ func (m *authorityEndpoint) addCachedEndpoints(authorityInfo authority.Info, use
 	m.cache[authorityInfo.CanonicalAuthorityURI] = updatedCacheEntry
 }
 
-func (m *authorityEndpoint) openIDConfigurationEndpoint(ctx context.Context, authorityInfo authority.Info, userPrincipalName string) (string, error) {
-	if authorityInfo.Tenant == "adfs" {
-		return fmt.Sprintf("https://%s/adfs/.well-known/openid-configuration", authorityInfo.Host), nil
+func (m *authorityEndpoint) openIDConfigurationEndpoint(ctx context.Context, authorityInfo authority.Info) (string, []authority.InstanceDiscoveryMetadata, error) {
+	if authorityInfo.AuthorityType == authority.ADFS {
+		return fmt.Sprintf("https://%s/adfs/.well-known/openid-configuration", authorityInfo.Host), authorityInfo.InstanceDiscoveryMetadata, nil
+	} else if authorityInfo.AuthorityType == authority.DSTS {
+		return fmt.Sprintf("https://%s/dstsv2/%s/v2.0/.well-known/openid-configuration", authorityInfo.Host, authority.DSTSTenant), authorityInfo.InstanceDiscoveryMetadata, nil
+
 	} else if authorityInfo.ValidateAuthority && !authority.TrustedHost(authorityInfo.Host) {
 		resp, err := m.rest.Authority().AADInstanceDiscovery(ctx, authorityInfo)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
-		return resp.TenantDiscoveryEndpoint, nil
+		return resp.TenantDiscoveryEndpoint, resp.Metadata, nil
 	} else if authorityInfo.Region != "" {
 		resp, err := m.rest.Authority().AADInstanceDiscovery(ctx, authorityInfo)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
-		return resp.TenantDiscoveryEndpoint, nil
-
+		return resp.TenantDiscoveryEndpoint, resp.Metadata, nil
 	}
 
-	return authorityInfo.CanonicalAuthorityURI + "v2.0/.well-known/openid-configuration", nil
+	return authorityInfo.CanonicalAuthorityURI + "v2.0/.well-known/openid-configuration", authorityInfo.InstanceDiscoveryMetadata, nil
 }
 
 func adfsDomainFromUpn(userPrincipalName string) (string, error) {
