@@ -8,9 +8,10 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"go/token"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -21,36 +22,45 @@ import (
 
 const ApplyDefaulterAndValidatorInterfaceStageID = "applyDefaulterAndValidatorInterfaces"
 
-// ApplyDefaulterAndValidatorInterfaces add the admission.Defaulter and admission.Validator interfaces to each resource that requires them
+// We need to:
+// - Move location of validators to internal folder?
+// - change how we attach validators to objects validators, see https://github.com/kubernetes-sigs/kubebuilder/blob/v4.3.0/docs/book/src/cronjob-tutorial/testdata/project/internal/webhook/v1/cronjob_webhook.go#L51
+// - Validators are no longer
+
+// ApplyDefaulterAndValidatorInterfaces add the webhook.CustomDefaulter and webhook.CustomValidator interfaces to each resource that requires them
 func ApplyDefaulterAndValidatorInterfaces(configuration *config.Configuration, idFactory astmodel.IdentifierFactory) *Stage {
 	stage := NewStage(
 		ApplyDefaulterAndValidatorInterfaceStageID,
-		"Add the admission.Defaulter and admission.Validator interfaces to each resource that requires them",
+		"Add the webhook.CustomDefaulter and webhook.CustomValidator interfaces to a Resource webhook type for each resource that requires them",
 		func(ctx context.Context, state *State) (*State, error) {
 			defs := state.Definitions()
 			updatedDefs := make(astmodel.TypeDefinitionSet)
 
-			for _, resourceDef := range astmodel.FindResourceDefinitions(defs) {
+			for _, resourceDef := range defs.AllResources() {
+				// Create an object to hold the implementation of the validator and defaulter interfaces
+				name := astmodel.CreateWebhookTypeName(resourceDef.Name())
+				webhookDef := astmodel.MakeTypeDefinition(name, astmodel.NewObjectType())
+
 				defaults, err := getDefaults(configuration, resourceDef, idFactory, state.Definitions())
 				if err != nil {
-					return nil, errors.Wrap(err, "failed to get defaults")
+					return nil, eris.Wrap(err, "failed to get defaults")
 				}
 
-				resource, err := interfaces.AddDefaulterInterface(resourceDef, idFactory, defaults)
+				webhookDef, err = interfaces.AddDefaulterInterface(resourceDef.Name(), webhookDef, idFactory, defaults)
 				if err != nil {
 					return nil, err
 				}
 
-				validations, err := getValidations(resource, idFactory, state.Definitions())
+				validations, err := getValidations(resourceDef, idFactory, state.Definitions())
 				if err != nil {
-					return nil, errors.Wrapf(err, "error getting validation functions")
+					return nil, eris.Wrapf(err, "error getting validation functions")
 				}
-				resource, err = interfaces.AddValidatorInterface(resource, idFactory, defs, validations)
+				webhookDef, err = interfaces.AddValidatorInterface(resourceDef.Name(), webhookDef, idFactory, validations)
 				if err != nil {
 					return nil, err
 				}
 
-				updatedDefs.Add(resource)
+				updatedDefs.Add(webhookDef)
 			}
 
 			err := configuration.ObjectModelConfiguration.DefaultAzureName.VerifyConsumed()
@@ -59,7 +69,8 @@ func ApplyDefaulterAndValidatorInterfaces(configuration *config.Configuration, i
 			}
 
 			return state.WithOverlaidDefinitions(updatedDefs), nil
-		})
+		},
+	)
 
 	stage.RequiresPrerequisiteStages(ApplyKubernetesResourceInterfaceStageID, AddOperatorSpecStageID)
 	return stage
@@ -70,12 +81,12 @@ func getDefaults(
 	resourceDef astmodel.TypeDefinition,
 	idFactory astmodel.IdentifierFactory,
 	defs astmodel.TypeDefinitionSet,
-) ([]*functions.ResourceFunction, error) {
-	var result []*functions.ResourceFunction
+) ([]*functions.DefaultFunction, error) {
+	var result []*functions.DefaultFunction
 
 	resolved, err := defs.ResolveResourceSpecAndStatus(resourceDef)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to resolve resource %s", resourceDef.Name())
+		return nil, eris.Wrapf(err, "unable to resolve resource %s", resourceDef.Name())
 	}
 
 	defaultAzureName := true
@@ -85,7 +96,13 @@ func getDefaults(
 
 	// Determine if the resource has a SetName function
 	if resolved.SpecType.HasFunctionWithName(astmodel.SetAzureNameFunc) && defaultAzureName {
-		result = append(result, functions.NewDefaultAzureNameFunction(resolved.ResourceType, idFactory))
+		// If the spec has AzureNameFromConfig property, use the variant that skips defaulting when it's set
+		azureNameFromConfigProp := idFactory.CreatePropertyName(astmodel.AzureNameFromConfigProperty, astmodel.Exported)
+		if _, hasAzureNameFromConfig := resolved.SpecType.Property(azureNameFromConfigProp); hasAzureNameFromConfig {
+			result = append(result, functions.NewDefaultAzureNameWithConfigFunction(resolved.ResourceDef, idFactory))
+		} else {
+			result = append(result, functions.NewDefaultAzureNameFunction(resolved.ResourceDef, idFactory))
+		}
 	}
 
 	return result, nil
@@ -95,57 +112,52 @@ func getValidations(
 	resourceDef astmodel.TypeDefinition,
 	idFactory astmodel.IdentifierFactory,
 	defs astmodel.TypeDefinitionSet,
-) (map[functions.ValidationKind][]*functions.ResourceFunction, error) {
+) (map[functions.ValidationKind][]*functions.ValidateFunction, error) {
 	resource, ok := resourceDef.Type().(*astmodel.ResourceType)
 	if !ok {
-		return nil, errors.Errorf("resource %s did not have type of kind *astmodel.ResourceType, instead %T", resourceDef.Name(), resourceDef.Type())
+		return nil, eris.Errorf("resource %s did not have type of kind *astmodel.ResourceType, instead %T", resourceDef.Name(), resourceDef.Type())
 	}
 
-	validations := map[functions.ValidationKind][]*functions.ResourceFunction{
+	validations := map[functions.ValidationKind][]*functions.ValidateFunction{
 		functions.ValidationKindCreate: {
-			functions.NewValidateResourceReferencesFunction(resource, idFactory),
+			functions.NewValidateResourceReferencesFunction(resourceDef, idFactory),
 		},
 		functions.ValidationKindUpdate: {
-			functions.NewValidateResourceReferencesFunction(resource, idFactory),
-			functions.NewValidateWriteOncePropertiesFunction(resource, idFactory),
+			functions.NewValidateResourceReferencesFunction(resourceDef, idFactory),
+			functions.NewValidateWriteOncePropertiesFunction(resourceDef, idFactory),
 		},
 	}
 
 	if !resource.Owner().IsEmpty() {
 		validations[functions.ValidationKindCreate] = append(
 			validations[functions.ValidationKindCreate],
-			functions.NewValidateOwnerReferenceFunction(resource, idFactory))
+			functions.NewValidateOwnerReferenceFunction(resourceDef, idFactory),
+		)
 		validations[functions.ValidationKindUpdate] = append(
 			validations[functions.ValidationKindUpdate],
-			functions.NewValidateOwnerReferenceFunction(resource, idFactory))
+			functions.NewValidateOwnerReferenceFunction(resourceDef, idFactory),
+		)
 	}
 
-	secrets, err := getOperatorSpecSubType(defs, resource, astmodel.OperatorSpecSecretsProperty)
-	if err != nil {
-		return nil, err
-	}
-
-	if secrets != nil {
-		validations[functions.ValidationKindCreate] = append(
-			validations[functions.ValidationKindCreate],
-			NewValidateSecretDestinationsFunction(resource, idFactory))
-		validations[functions.ValidationKindUpdate] = append(
-			validations[functions.ValidationKindUpdate],
-			NewValidateSecretDestinationsFunction(resource, idFactory))
-	}
-
-	configMaps, err := getOperatorSpecSubType(defs, resource, astmodel.OperatorSpecConfigMapsProperty)
-	if err != nil {
-		return nil, err
-	}
-	if configMaps != nil {
-		validations[functions.ValidationKindCreate] = append(
-			validations[functions.ValidationKindCreate],
-			NewValidateConfigMapDestinationsFunction(resource, idFactory))
-		validations[functions.ValidationKindUpdate] = append(
-			validations[functions.ValidationKindUpdate],
-			NewValidateConfigMapDestinationsFunction(resource, idFactory))
-	}
+	// The expectation is that every resource has an Spec.OperatorSpec.SecretExpressions and
+	// Spec.OperatorSpec.ConfigMapExpressions field, so we always include their validations.
+	// If this assumption has been violated, generating the validation function will raise an error.
+	validations[functions.ValidationKindCreate] = append(
+		validations[functions.ValidationKindCreate],
+		NewValidateSecretDestinationsFunction(resourceDef, idFactory),
+	)
+	validations[functions.ValidationKindUpdate] = append(
+		validations[functions.ValidationKindUpdate],
+		NewValidateSecretDestinationsFunction(resourceDef, idFactory),
+	)
+	validations[functions.ValidationKindCreate] = append(
+		validations[functions.ValidationKindCreate],
+		NewValidateConfigMapDestinationsFunction(resourceDef, idFactory),
+	)
+	validations[functions.ValidationKindUpdate] = append(
+		validations[functions.ValidationKindUpdate],
+		NewValidateConfigMapDestinationsFunction(resourceDef, idFactory),
+	)
 
 	hasConfigMapReferencePairs, err := hasOptionalConfigMapReferencePairs(resourceDef, defs)
 	if err != nil {
@@ -154,10 +166,44 @@ func getValidations(
 	if hasConfigMapReferencePairs {
 		validations[functions.ValidationKindCreate] = append(
 			validations[functions.ValidationKindCreate],
-			functions.NewValidateOptionalConfigMapReferenceFunction(resource, idFactory))
+			functions.NewValidateOptionalConfigMapReferenceFunction(resourceDef, idFactory),
+		)
 		validations[functions.ValidationKindUpdate] = append(
 			validations[functions.ValidationKindUpdate],
-			functions.NewValidateOptionalConfigMapReferenceFunction(resource, idFactory))
+			functions.NewValidateOptionalConfigMapReferenceFunction(resourceDef, idFactory),
+		)
+	}
+
+	hasSecretReferencePairs, err := hasOptionalSecretReferencePairs(resourceDef, defs)
+	if err != nil {
+		return nil, err
+	}
+	if hasSecretReferencePairs {
+		validations[functions.ValidationKindCreate] = append(
+			validations[functions.ValidationKindCreate],
+			functions.NewValidateOptionalSecretReferenceFunction(resourceDef, idFactory),
+		)
+		validations[functions.ValidationKindUpdate] = append(
+			validations[functions.ValidationKindUpdate],
+			functions.NewValidateOptionalSecretReferenceFunction(resourceDef, idFactory),
+		)
+	}
+
+	// If the resource supports AzureNameFromConfig, add a validator to ensure AzureName and AzureNameFromConfig
+	// are not both set at the same time.
+	resolved, err := defs.ResolveResourceSpecAndStatus(resourceDef)
+	if err != nil {
+		return nil, eris.Wrapf(err, "unable to resolve resource %s", resourceDef.Name())
+	}
+	if resolved.SpecType.HasFunctionWithName(astmodel.GetAzureNameFromConfigFunc) {
+		validations[functions.ValidationKindCreate] = append(
+			validations[functions.ValidationKindCreate],
+			NewValidateAzureNameFunction(resourceDef, idFactory),
+		)
+		validations[functions.ValidationKindUpdate] = append(
+			validations[functions.ValidationKindUpdate],
+			NewValidateAzureNameFunction(resourceDef, idFactory),
+		)
 	}
 
 	return validations, nil
@@ -167,171 +213,279 @@ func getValidations(
 // doesn't make a lot of sense to put into astmodel. Functions can't import code from pipelines though, so we just
 // define this function here.
 
-func NewValidateSecretDestinationsFunction(resource *astmodel.ResourceType, idFactory astmodel.IdentifierFactory) *functions.ResourceFunction {
-	return functions.NewResourceFunction(
+// NewValidateSecretDestinationsFunction creates a function for validating secret destinations:
+//
+//	func (account *<obj>) validateSecretDestinations(ctx context.Context, obj *<obj>) (admission.Warnings, error) {
+//		if obj.Spec.OperatorSpec == nil {
+//			return nil, nil
+//		}
+//		return secrets.ValidateDestinations(obj, <operatorSpecSecrets>, <operatorSpecCELSecrets>)
+//	}
+func NewValidateSecretDestinationsFunction(resourceDef astmodel.TypeDefinition, idFactory astmodel.IdentifierFactory) *functions.ValidateFunction {
+	return functions.NewValidateFunction(
 		"validateSecretDestinations",
-		resource,
+		resourceDef.Name(),
 		idFactory,
-		validateSecretDestinations,
-		astmodel.NewPackageReferenceSet(astmodel.GenRuntimeReference))
+		validateSecretDestinations(resourceDef),
+		astmodel.GenRuntimeSecretsReference,
+	)
 }
 
-func validateSecretDestinations(
-	k *functions.ResourceFunction,
-	codeGenerationContext *astmodel.CodeGenerationContext,
-	receiver astmodel.TypeName,
-	methodName string,
-) (*dst.FuncDecl, error) {
-	receiverIdent := k.IdFactory().CreateReceiver(receiver.Name())
-	receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
-	if err != nil {
-		return nil, errors.Wrapf(err, "creating receiver expression")
+func validateSecretDestinations(resourceDef astmodel.TypeDefinition) functions.DataFunctionHandler[astmodel.InternalTypeName] {
+	resourceType, ok := astmodel.AsResourceType(resourceDef.Type())
+	if !ok {
+		// This is not expected
+		panic("resource type was not a ResourceType")
 	}
 
-	body, err := validateOperatorSpecSliceBody(
-		codeGenerationContext,
-		k.Resource(),
-		receiverIdent,
-		astmodel.OperatorSpecSecretsProperty,
-		astmodel.NewOptionalType(astmodel.SecretDestinationType),
-		"ValidateSecretDestinations")
-	if err != nil {
-		return nil, errors.Wrapf(err, "creating body of method %s", methodName)
+	return func(k *functions.ValidateFunction, codeGenerationContext *astmodel.CodeGenerationContext, receiver astmodel.TypeName, methodName string) (*dst.FuncDecl, error) {
+		objIdent := "obj"
+		contextIdent := "ctx"
+
+		receiverIdent := k.IDFactory().CreateReceiver(receiver.Name())
+		receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating receiver expression")
+		}
+
+		body, err := validateOperatorSpecSliceBody(
+			codeGenerationContext,
+			resourceType,
+			objIdent,
+			astmodel.OperatorSpecSecretsProperty,
+			astmodel.OperatorSpecSecretExpressionsProperty,
+			astmodel.NewOptionalType(astmodel.SecretDestinationType),
+			astmodel.GenRuntimeSecretsReference,
+			"ValidateDestinations",
+		)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating body of method %s", methodName)
+		}
+
+		fn := &astbuilder.FuncDetails{
+			Name:          methodName,
+			ReceiverIdent: receiverIdent,
+			ReceiverType:  astbuilder.PointerTo(receiverExpr),
+			Body:          body,
+		}
+
+		contextTypeExpr, err := astmodel.ContextType.AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrap(err, "creating context type expression")
+		}
+		fn.AddParameter(contextIdent, contextTypeExpr)
+
+		resourceTypeExpr, err := k.Data().AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrap(err, "creating resource type expression")
+		}
+		fn.AddParameter(objIdent, astbuilder.PointerTo(resourceTypeExpr))
+
+		fn.AddReturn(astbuilder.QualifiedTypeName(codeGenerationContext.MustGetImportedPackageName(astmodel.ControllerRuntimeAdmission), "Warnings"))
+		fn.AddReturn(dst.NewIdent("error"))
+		fn.AddComments("validates there are no colliding genruntime.SecretDestination's")
+
+		return fn.DefineFunc(), nil
 	}
-
-	fn := &astbuilder.FuncDetails{
-		Name:          methodName,
-		ReceiverIdent: receiverIdent,
-		ReceiverType:  astbuilder.PointerTo(receiverExpr),
-		Body:          body,
-	}
-
-	fn.AddReturn(astbuilder.QualifiedTypeName(codeGenerationContext.MustGetImportedPackageName(astmodel.ControllerRuntimeAdmission), "Warnings"))
-	fn.AddReturn(dst.NewIdent("error"))
-	fn.AddComments("validates there are no colliding genruntime.SecretDestination's")
-
-	return fn.DefineFunc(), nil
 }
 
-func NewValidateConfigMapDestinationsFunction(resource *astmodel.ResourceType, idFactory astmodel.IdentifierFactory) *functions.ResourceFunction {
-	return functions.NewResourceFunction(
+// NewValidateConfigMapDestinationsFunction creates a function for validating configmap destinations
+//
+//	func (endpoint *<obj>) validateConfigMapDestinations(ctx context.Context, obj *<obj>) (admission.Warnings, error) {
+//		if obj.Spec.OperatorSpec == nil {
+//			return nil, nil
+//		}
+//		return configmaps.ValidateDestinations(obj, <operatorSpecSecrets>, <operatorSpecCELSecrets>)
+//	}
+func NewValidateConfigMapDestinationsFunction(resourceDef astmodel.TypeDefinition, idFactory astmodel.IdentifierFactory) *functions.ValidateFunction {
+	return functions.NewValidateFunction(
 		"validateConfigMapDestinations",
-		resource,
+		resourceDef.Name(),
 		idFactory,
-		validateConfigMapDestinations,
-		astmodel.NewPackageReferenceSet(astmodel.GenRuntimeReference))
+		validateConfigMapDestinations(resourceDef),
+		astmodel.GenRuntimeConfigMapsReference,
+	)
 }
 
-func validateConfigMapDestinations(
-	k *functions.ResourceFunction,
-	codeGenerationContext *astmodel.CodeGenerationContext,
-	receiver astmodel.TypeName,
-	methodName string,
-) (*dst.FuncDecl, error) {
-	receiverIdent := k.IdFactory().CreateReceiver(receiver.Name())
-	receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
-	if err != nil {
-		return nil, errors.Wrapf(err, "creating receiver expression")
+func validateConfigMapDestinations(resourceDef astmodel.TypeDefinition) functions.DataFunctionHandler[astmodel.InternalTypeName] {
+	resourceType, ok := astmodel.AsResourceType(resourceDef.Type())
+	if !ok {
+		// This is not expected
+		panic("resource type was not a ResourceType")
 	}
 
-	body, err := validateOperatorSpecSliceBody(
-		codeGenerationContext,
-		k.Resource(),
-		receiverIdent,
-		astmodel.OperatorSpecConfigMapsProperty,
-		astmodel.NewOptionalType(astmodel.ConfigMapDestinationType),
-		"ValidateConfigMapDestinations")
-	if err != nil {
-		return nil, errors.Wrapf(err, "creating body of method %s", methodName)
+	return func(k *functions.ValidateFunction, codeGenerationContext *astmodel.CodeGenerationContext, receiver astmodel.TypeName, methodName string) (*dst.FuncDecl, error) {
+		objIdent := "obj"
+		contextIdent := "ctx"
+
+		receiverIdent := k.IDFactory().CreateReceiver(receiver.Name())
+		receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating receiver expression")
+		}
+
+		body, err := validateOperatorSpecSliceBody(
+			codeGenerationContext,
+			resourceType,
+			objIdent,
+			astmodel.OperatorSpecConfigMapsProperty,
+			astmodel.OperatorSpecConfigMapExpressionsProperty,
+			astmodel.NewOptionalType(astmodel.ConfigMapDestinationType),
+			astmodel.GenRuntimeConfigMapsReference,
+			"ValidateDestinations",
+		)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating body of method %s", methodName)
+		}
+
+		fn := &astbuilder.FuncDetails{
+			Name:          methodName,
+			ReceiverIdent: receiverIdent,
+			ReceiverType:  astbuilder.PointerTo(receiverExpr),
+			Body:          body,
+		}
+
+		contextTypeExpr, err := astmodel.ContextType.AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrap(err, "creating context type expression")
+		}
+		fn.AddParameter(contextIdent, contextTypeExpr)
+
+		resourceTypeExpr, err := k.Data().AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrap(err, "creating resource type expression")
+		}
+		fn.AddParameter(objIdent, astbuilder.PointerTo(resourceTypeExpr))
+
+		runtimeAdmission := codeGenerationContext.MustGetImportedPackageName(astmodel.ControllerRuntimeAdmission)
+		fn.AddReturn(astbuilder.QualifiedTypeName(runtimeAdmission, "Warnings"))
+		fn.AddReturn(dst.NewIdent("error"))
+		fn.AddComments("validates there are no colliding genruntime.ConfigMapDestinations")
+
+		return fn.DefineFunc(), nil
 	}
-
-	fn := &astbuilder.FuncDetails{
-		Name:          methodName,
-		ReceiverIdent: receiverIdent,
-		ReceiverType:  astbuilder.PointerTo(receiverExpr),
-		Body:          body,
-	}
-
-	runtimeAdmission := codeGenerationContext.MustGetImportedPackageName(astmodel.ControllerRuntimeAdmission)
-	fn.AddReturn(astbuilder.QualifiedTypeName(runtimeAdmission, "Warnings"))
-	fn.AddReturn(dst.NewIdent("error"))
-	fn.AddComments("validates there are no colliding genruntime.ConfigMapDestinations")
-
-	return fn.DefineFunc(), nil
 }
 
 // validateOperatorSpecSliceBody helps generate the body of the validateResourceReferences function:
 //
-//	func (account *DatabaseAccount) validateConfigMapDestinations() error {
-//	    if <receiver>.Spec.OperatorSpec == nil {
-//	        return nil
+//	func (account *DatabaseAccount) validateConfigMapDestinations(ctx context.Context, obj *T) error {
+//	    if <obj>.Spec.OperatorSpec == nil {
+//		       return nil
+//		}
+//
+//	    var toValidate []<validateType>
+//	    if <obj>.Spec.OperatorSpec.<property> != nil {
+//	        toValidate = []<validateType>{
+//	            account.Spec.OperatorSpec.Secrets.PrimaryReadonlyMasterKey,
+//	            account.Spec.OperatorSpec.Secrets.SecondaryReadonlyMasterKey,
+//	            ...
 //	    }
-//	    if <receiver>.Spec.OperatorSpec.<operatorSpecProperty> == nil {
-//	        return nil
-//	    }
-//	    toValidate := []*<validateType>{
-//	        account.Spec.OperatorSpec.ConfigMaps.ClientId,
-//	        account.Spec.OperatorSpec.ConfigMaps.PrincipalId,
-//	        ...
-//	    }
-//	    return genruntime.<validateFunctionName>(toValidate)
+//	    return <validatePkg>.<validateFunctionName>(account, toValidate, <receiver>.Spec.OperatorSpec.<expressionsProperty>)
 //	}
 func validateOperatorSpecSliceBody(
 	codeGenerationContext *astmodel.CodeGenerationContext,
 	resource *astmodel.ResourceType,
-	receiverIdent string,
-	operatorSpecProperty string,
+	objIdent string,
+	property string,
+	expressionsProperty string,
 	validateType astmodel.Type,
+	validatePackage astmodel.ExternalPackageReference,
 	validateFunctionName string,
 ) ([]dst.Stmt, error) {
-	genRuntime := codeGenerationContext.MustGetImportedPackageName(astmodel.GenRuntimeReference)
+	pkg := codeGenerationContext.MustGetImportedPackageName(validatePackage)
 
-	operatorSpecPropertyObj, err := getOperatorSpecSubType(codeGenerationContext, resource, operatorSpecProperty)
+	// operatorSpecPropertyObj and expressionsOperatorSpecPropertyObj may be nil. If BOTH are nil this method shouldn't
+	// have ever been called, but one can be nil.
+	operatorSpecPropertyObj, err := getOperatorSpecSubType(codeGenerationContext, resource, property)
 	if err != nil {
-		return nil, errors.Wrapf(err, "getting operator spec sub type for %s", operatorSpecProperty)
+		return nil, eris.Wrapf(err, "getting operator spec sub type for %s", property)
+	}
+	expressionsOperatorSpecPropertySlice, err := getOperatorSpecExpressionType(codeGenerationContext, resource, expressionsProperty)
+	if err != nil {
+		return nil, eris.Wrapf(err, "getting operator spec sub type for %s", expressionsProperty)
+	}
+
+	if operatorSpecPropertyObj == nil && expressionsOperatorSpecPropertySlice == nil {
+		return nil, eris.Errorf(
+			"can't generate method for validating OperatorSpec %s and %s if both fields don't exist",
+			property,
+			expressionsProperty,
+		)
 	}
 
 	var body []dst.Stmt
 
-	specSelector := astbuilder.Selector(dst.NewIdent(receiverIdent), "Spec")
+	specSelector := astbuilder.Selector(dst.NewIdent(objIdent), "Spec")
 	// if <receiver>.Spec.OperatorSpec == nil {
 	//     return nil, nil
 	// }
 	operatorSpecSelector := astbuilder.Selector(specSelector, astmodel.OperatorSpecProperty)
 	body = append(body, astbuilder.ReturnIfNil(operatorSpecSelector, astbuilder.Nil(), astbuilder.Nil()))
 
-	// if <receiver>.Spec.OperatorSpec.<operatorSpecProperty> == nil {
-	//     return nil, nil
-	// }
-	specPropertySelector := astbuilder.Selector(operatorSpecSelector, operatorSpecProperty)
-	body = append(body, astbuilder.ReturnIfNil(specPropertySelector, astbuilder.Nil(), astbuilder.Nil()))
+	propertySelector := astbuilder.Selector(operatorSpecSelector, property)
+	expressionsPropertySelector := astbuilder.Selector(operatorSpecSelector, expressionsProperty)
 
-	// secrets := []<validateType>{
-	//     account.Spec.OperatorSpec.Secrets.PrimaryReadonlyMasterKey,
-	//     account.Spec.OperatorSpec.Secrets.SecondaryReadonlyMasterKey,
-	//     ...
-	// }
-	validateTypeExpr, err := validateType.AsTypeExpr(codeGenerationContext)
-	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", validateType)
-	}
-
-	sliceBuilder := astbuilder.NewSliceLiteralBuilder(validateTypeExpr, true)
-	for _, prop := range operatorSpecPropertyObj.Properties().AsSlice() {
-		propSelector := astbuilder.Selector(specPropertySelector, prop.PropertyName().String())
-		sliceBuilder.AddElement(propSelector)
-	}
 	toValidateVar := "toValidate"
-	body = append(body, astbuilder.ShortDeclaration(toValidateVar, sliceBuilder.Build()))
+	if operatorSpecPropertyObj != nil {
+		// var toValidate []<validateType>
+		validateTypeExpr, err := validateType.AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating type expression for %s", validateType)
+		}
+		validateVarSliceExpr, err := astmodel.NewArrayType(validateType).AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating type expression for %s", astmodel.NewArrayType(validateType))
+		}
+		body = append(body, astbuilder.LocalVariableDeclaration(toValidateVar, validateVarSliceExpr, ""))
 
-	// return genruntime.<validateFunctionName>(secrets)
+		// if <receiver>.Spec.OperatorSpec.<property> != nil {
+		//     toValidate = []<validateType>{
+		//         account.Spec.OperatorSpec.Secrets.PrimaryReadonlyMasterKey,
+		//         account.Spec.OperatorSpec.Secrets.SecondaryReadonlyMasterKey,
+		//         ...
+		//     }
+		// }
+
+		sliceBuilder := astbuilder.NewSliceLiteralBuilder(validateTypeExpr, true)
+		for _, prop := range operatorSpecPropertyObj.Properties().AsSlice() {
+			propSelector := astbuilder.Selector(propertySelector, prop.PropertyName().String())
+			sliceBuilder.AddElement(propSelector)
+		}
+		body = append(
+			body,
+			astbuilder.IfNotNil(
+				propertySelector,
+				astbuilder.AssignmentStatement(dst.NewIdent(toValidateVar), token.ASSIGN, sliceBuilder.Build()),
+			),
+		)
+	}
+
+	selfParameter := dst.NewIdent(objIdent)
+
+	toValidateParameter := astbuilder.Nil()
+	if operatorSpecPropertyObj != nil {
+		toValidateParameter = dst.NewIdent(toValidateVar)
+	}
+
+	var expressionsToValidateParameter dst.Expr
+	expressionsToValidateParameter = astbuilder.Nil()
+	if expressionsOperatorSpecPropertySlice != nil {
+		expressionsToValidateParameter = expressionsPropertySelector
+	}
+
+	// return <validatePkg>.<validateFunctionName>(self, toValidate, expressionsToValidate)
 	body = append(
 		body,
 		astbuilder.Returns(
 			astbuilder.CallQualifiedFunc(
-				genRuntime,
+				pkg,
 				validateFunctionName,
-				dst.NewIdent(toValidateVar))))
+				selfParameter,
+				toValidateParameter,
+				expressionsToValidateParameter,
+			),
+		),
+	)
 
 	return body, nil
 }
@@ -344,7 +498,7 @@ func getOperatorSpecType(defs astmodel.ReadonlyTypeDefinitions, resource *astmod
 
 	typedSpec, ok := astmodel.AsObjectType(spec.Type())
 	if !ok {
-		return nil, errors.Errorf("resource spec was not of expected type *astmodel.ObjectType, instead %T", spec.Type())
+		return nil, eris.Errorf("resource spec was not of expected type *astmodel.ObjectType, instead %T", spec.Type())
 	}
 
 	operatorSpecProp, ok := typedSpec.Property(astmodel.OperatorSpecProperty)
@@ -354,10 +508,11 @@ func getOperatorSpecType(defs astmodel.ReadonlyTypeDefinitions, resource *astmod
 	}
 	operatorSpecTypeName, ok := astmodel.AsInternalTypeName(operatorSpecProp.PropertyType())
 	if !ok {
-		return nil, errors.Errorf(
+		return nil, eris.Errorf(
 			"expected %s to be an astmodel.TypeName, but it was %T",
 			astmodel.OperatorSpecProperty,
-			operatorSpecProp.PropertyType())
+			operatorSpecProp.PropertyType(),
+		)
 	}
 
 	operatorSpecDef, err := defs.GetDefinition(operatorSpecTypeName)
@@ -366,13 +521,34 @@ func getOperatorSpecType(defs astmodel.ReadonlyTypeDefinitions, resource *astmod
 	}
 	operatorSpecType, ok := astmodel.AsObjectType(operatorSpecDef.Type())
 	if !ok {
-		return nil, errors.Errorf(
+		return nil, eris.Errorf(
 			"expected %s to be an astmodel.ObjectType but it was %T",
 			operatorSpecTypeName,
-			operatorSpecDef.Type())
+			operatorSpecDef.Type(),
+		)
 	}
 
 	return operatorSpecType, nil
+}
+
+func getOperatorSpecExpressionType(defs astmodel.ReadonlyTypeDefinitions, resource *astmodel.ResourceType, name string) (astmodel.Type, error) {
+	operatorSpecType, err := getOperatorSpecType(defs, resource)
+	if err != nil {
+		return nil, err
+	}
+	if operatorSpecType == nil {
+		// Not found, just return
+		return nil, nil
+	}
+
+	prop, ok := operatorSpecType.Property(astmodel.PropertyName(name))
+	if !ok {
+		// No property
+		return nil, nil
+	}
+
+	propType := astmodel.Unwrap(prop.PropertyType())
+	return propType, nil
 }
 
 func getOperatorSpecSubType(defs astmodel.ReadonlyTypeDefinitions, resource *astmodel.ResourceType, name string) (*astmodel.ObjectType, error) {
@@ -385,29 +561,30 @@ func getOperatorSpecSubType(defs astmodel.ReadonlyTypeDefinitions, resource *ast
 		return nil, nil
 	}
 
-	secretsProp, ok := operatorSpecType.Property(astmodel.PropertyName(name))
+	prop, ok := operatorSpecType.Property(astmodel.PropertyName(name))
 	if !ok {
-		// No secrets property
+		// No property
 		return nil, nil
 	}
 
-	secretsTypeName, ok := astmodel.AsInternalTypeName(secretsProp.PropertyType())
+	typeName, ok := astmodel.AsInternalTypeName(prop.PropertyType())
 	if !ok {
-		return nil, errors.Errorf(
-			"expected %s to be an astmodel.TypeName, but it was %T",
+		return nil, eris.Errorf(
+			"expected %s to be an astmodel.InternalTypeName, but it was %T",
 			name,
-			secretsProp.PropertyType())
+			prop.PropertyType(),
+		)
 	}
-	secretsDef, err := defs.GetDefinition(secretsTypeName)
+	def, err := defs.GetDefinition(typeName)
 	if err != nil {
 		return nil, err
 	}
-	secretsType, ok := astmodel.AsObjectType(secretsDef.Type())
+	defType, ok := astmodel.AsObjectType(def.Type())
 	if !ok {
-		panic(fmt.Sprintf("expected %s to be an astmodel.ObjectType but it was %T", secretsTypeName, secretsDef.Type()))
+		panic(fmt.Sprintf("expected %s to be an astmodel.ObjectType but it was %T", typeName, def.Type()))
 	}
 
-	return secretsType, nil
+	return defType, nil
 }
 
 // hasOptionalConfigMapReferencePairs returns true if the type has optional genruntime.ConfigMapReference pairs
@@ -421,7 +598,8 @@ func hasOptionalConfigMapReferencePairs(resourceDef astmodel.TypeDefinition, def
 				}
 
 				return ctx, nil
-			}),
+			},
+		),
 	}.Build()
 
 	walker := astmodel.NewTypeWalker(defs, visitor)
@@ -431,4 +609,111 @@ func hasOptionalConfigMapReferencePairs(resourceDef astmodel.TypeDefinition, def
 	}
 
 	return result, nil
+}
+
+// hasOptionalSecretReferencePairs returns true if the type has optional genruntime.SecretReference pairs
+func hasOptionalSecretReferencePairs(resourceDef astmodel.TypeDefinition, defs astmodel.TypeDefinitionSet) (bool, error) {
+	result := false
+	visitor := astmodel.TypeVisitorBuilder[any]{
+		VisitObjectType: astmodel.MakeIdentityVisitOfObjectType(
+			func(ot *astmodel.ObjectType, prop *astmodel.PropertyDefinition, ctx any) (any, error) {
+				if prop.HasTag(astmodel.OptionalSecretPairTag) {
+					result = true
+				}
+
+				return ctx, nil
+			},
+		),
+	}.Build()
+
+	walker := astmodel.NewTypeWalker(defs, visitor)
+	_, err := walker.Walk(resourceDef)
+	if err != nil {
+		return false, err
+	}
+
+	return result, nil
+}
+
+// NewValidateAzureNameFunction creates a function for validating that azureName and azureNameFromConfig
+// are not both set at the same time:
+//
+//	func (resource *<obj>) validateAzureName(ctx context.Context, obj *<obj>) (admission.Warnings, error) {
+//	    if obj.Spec.AzureName != "" && obj.Spec.AzureNameFromConfig != nil {
+//	        return nil, eris.Errorf("cannot specify both azureName and azureNameFromConfig")
+//	    }
+//	    return nil, nil
+//	}
+func NewValidateAzureNameFunction(resourceDef astmodel.TypeDefinition, idFactory astmodel.IdentifierFactory) *functions.ValidateFunction {
+	return functions.NewValidateFunction(
+		"validateAzureName",
+		resourceDef.Name(),
+		idFactory,
+		validateAzureNameBody(),
+		astmodel.ErisReference,
+	)
+}
+
+func validateAzureNameBody() functions.DataFunctionHandler[astmodel.InternalTypeName] {
+	return func(k *functions.ValidateFunction, codeGenerationContext *astmodel.CodeGenerationContext, receiver astmodel.TypeName, methodName string) (*dst.FuncDecl, error) {
+		objIdent := "obj"
+		contextIdent := "ctx"
+
+		receiverIdent := k.IDFactory().CreateReceiver(receiver.Name())
+		receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating receiver expression")
+		}
+
+		azureNameProp := astbuilder.Selector(dst.NewIdent(objIdent), "Spec", astmodel.AzureNameProperty)
+		azureNameFromConfigProp := astbuilder.Selector(dst.NewIdent(objIdent), "Spec", astmodel.AzureNameFromConfigProperty)
+
+		erisPackage := codeGenerationContext.MustGetImportedPackageName(astmodel.ErisReference)
+
+		// if obj.Spec.AzureName != "" && obj.Spec.AzureNameFromConfig != nil {
+		//     return nil, eris.Errorf("cannot specify both azureName and azureNameFromConfig")
+		// }
+		condition := astbuilder.JoinAnd(
+			astbuilder.AreNotEqual(azureNameProp, astbuilder.StringLiteral("")),
+			astbuilder.NotNil(azureNameFromConfigProp),
+		)
+
+		body := astbuilder.Statements(
+			astbuilder.SimpleIf(
+				condition,
+				astbuilder.Returns(
+					astbuilder.Nil(),
+					astbuilder.CallQualifiedFunc(erisPackage, "Errorf",
+						astbuilder.StringLiteral("cannot specify both azureName and azureNameFromConfig")),
+				),
+			),
+			astbuilder.Returns(astbuilder.Nil(), astbuilder.Nil()),
+		)
+
+		fn := &astbuilder.FuncDetails{
+			Name:          methodName,
+			ReceiverIdent: receiverIdent,
+			ReceiverType:  astbuilder.PointerTo(receiverExpr),
+			Body:          body,
+		}
+
+		contextTypeExpr, err := astmodel.ContextType.AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrap(err, "creating context type expression")
+		}
+		fn.AddParameter(contextIdent, contextTypeExpr)
+
+		resourceTypeExpr, err := k.Data().AsTypeExpr(codeGenerationContext)
+		if err != nil {
+			return nil, eris.Wrap(err, "creating resource type expression")
+		}
+		fn.AddParameter(objIdent, astbuilder.PointerTo(resourceTypeExpr))
+
+		runtimeAdmission := codeGenerationContext.MustGetImportedPackageName(astmodel.ControllerRuntimeAdmission)
+		fn.AddReturn(astbuilder.QualifiedTypeName(runtimeAdmission, "Warnings"))
+		fn.AddReturn(dst.NewIdent("error"))
+		fn.AddComments("validates that azureName and azureNameFromConfig are not both set")
+
+		return fn.DefineFunc(), nil
+	}
 }

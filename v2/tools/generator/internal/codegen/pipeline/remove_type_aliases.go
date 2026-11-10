@@ -9,9 +9,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/pkg/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
@@ -21,10 +20,11 @@ const RemoveTypeAliasesStageID = "removeAliases"
 
 // RemoveTypeAliases creates a pipeline stage removing type aliases
 func RemoveTypeAliases() *Stage {
-	return NewLegacyStage(
+	return NewStage(
 		RemoveTypeAliasesStageID,
 		"Remove type aliases",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			definitions := state.Definitions()
 			simplifyAliases := func(this *astmodel.TypeVisitor[any], it astmodel.InternalTypeName, ctx any) (astmodel.Type, error) {
 				return resolveTypeName(this, it, definitions)
 			}
@@ -49,8 +49,9 @@ func RemoveTypeAliases() *Stage {
 				return nil, kerrors.NewAggregate(errs)
 			}
 
-			return result, nil
-		})
+			return state.WithDefinitions(result), nil
+		},
+	)
 }
 
 func resolveTypeName(
@@ -65,7 +66,7 @@ func resolveTypeName(
 
 	def, ok := definitions[name]
 	if !ok {
-		return nil, errors.Errorf("couldn't find definition for type name %s", name)
+		return nil, eris.Errorf("couldn't find definition for type name %s", name)
 	}
 
 	// If this typeName definition has a type of object, enum, validated, flagged, resource, or resourceList

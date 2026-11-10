@@ -17,9 +17,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	azcoreruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
+	"github.com/Azure/azure-service-operator/v2/internal/httpclient"
 	"github.com/Azure/azure-service-operator/v2/internal/metrics"
 	"github.com/Azure/azure-service-operator/v2/internal/version"
 )
@@ -27,6 +27,7 @@ import (
 const (
 	CreatePollerID = "GenericClient.CreateOrUpdateByID"
 	DeletePollerID = "GenericClient.DeleteByID"
+	ActionPollerID = "GenericClient.PostActionByID"
 )
 
 // NOTE: All of these methods (and types) were adapted from
@@ -34,18 +35,21 @@ const (
 // which was then moved to here: https://github.com/Azure/azure-sdk-for-go/blob/main/sdk/resourcemanager/resources/armresources/client.go
 
 type GenericClient struct {
-	endpoint string
-	pl       runtime.Pipeline
-	creds    azcore.TokenCredential
-	opts     *arm.ClientOptions
+	endpoint   string
+	pl         runtime.Pipeline
+	creds      azcore.TokenCredential
+	opts       *arm.ClientOptions
+	userAgent  string
+	httpClient *http.Client
 }
 
 // TODO: Need to do retryAfter detection in each call?
 
 type GenericClientOptions struct {
-	HttpClient *http.Client
-	Metrics    *metrics.ARMClientMetrics
-	UserAgent  string
+	HTTPClient        *http.Client
+	Metrics           *metrics.ARMClientMetrics
+	UserAgent         string
+	AdditionalTenants []string
 }
 
 // NewGenericClient creates a new instance of GenericClient
@@ -56,10 +60,15 @@ func NewGenericClient(
 ) (*GenericClient, error) {
 	rmConfig, ok := cloudCfg.Services[cloud.ResourceManager]
 	if !ok {
-		return nil, errors.Errorf("provided cloud missing %q entry", cloud.ResourceManager)
+		return nil, eris.Errorf("provided cloud missing %q entry", cloud.ResourceManager)
 	}
 	if rmConfig.Endpoint == "" {
-		return nil, errors.New("provided cloud missing resourceManager.Endpoint entry")
+		return nil, eris.New("provided cloud missing resourceManager.Endpoint entry")
+	}
+
+	allowed, err := httpclient.NewOrigin(rmConfig.Endpoint)
+	if err != nil {
+		return nil, eris.Wrap(err, "invalid Resource Manager endpoint")
 	}
 
 	if options == nil {
@@ -78,9 +87,11 @@ func NewGenericClient(
 				MaxRetries: -1, // Have to use a value less than 0 means no retries (0 does NOT, 0 gets you 3...)
 			},
 			PerCallPolicies: []policy.Policy{
+				newDestinationPolicy(allowed),
 				NewUserAgentPolicy(ua),
 			},
 		},
+		AuxiliaryTenants: options.AdditionalTenants,
 		// Disabled here because we don't want the default configuration, it polls for 5+ minutes which is
 		// far too long to block an operator.
 		DisableRPRegistration: true,
@@ -89,17 +100,18 @@ func NewGenericClient(
 	// We assign this HTTPClient like this because if we actually set it to nil, due to the way
 	// go interfaces wrap values, the subsequent if httpClient == nil check returns false (even though
 	// the value IN the interface IS nil).
-	if options.HttpClient != nil {
-		opts.Transport = options.HttpClient
-	} else {
-		opts.Transport = defaultHttpClient
+	httpClient := options.HTTPClient
+	if httpClient == nil {
+		httpClient = defaultHTTPClient
 	}
+	opts.Transport = httpclient.NewRedirectGuardedClient(httpClient, allowed)
 
 	rpRegistrationPolicy, err := NewRPRegistrationPolicy(
 		creds,
-		&opts.ClientOptions)
+		&opts.ClientOptions,
+	)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create rp registration policy")
+		return nil, eris.Wrapf(err, "failed to create rp registration policy")
 	}
 
 	opts.PerCallPolicies = append([]policy.Policy{rpRegistrationPolicy}, opts.PerCallPolicies...)
@@ -112,10 +124,12 @@ func NewGenericClient(
 	}
 
 	return &GenericClient{
-		endpoint: rmConfig.Endpoint,
-		pl:       pipeline,
-		creds:    creds,
-		opts:     opts,
+		endpoint:   rmConfig.Endpoint,
+		pl:         pipeline,
+		creds:      creds,
+		opts:       opts,
+		userAgent:  ua,
+		httpClient: httpClient,
 	}, nil
 }
 
@@ -131,6 +145,25 @@ func (client *GenericClient) ClientOptions() *arm.ClientOptions {
 	return client.opts
 }
 
+// DataPlaneClientOptions returns options for an Azure data-plane SDK client (e.g.
+// for Key Vault, storage, etc).
+// Cloud, retry, logging, telemetry, and user-agent settings match the ARM client.
+// The original HTTP client and its connection pool are shared without ARM-specific
+// policies or redirect restrictions. The transport must not be modified by callers.
+// Logging settings remain shared, including request and response body logging.
+func (client *GenericClient) DataPlaneClientOptions() policy.ClientOptions {
+	return policy.ClientOptions{
+		Cloud:     client.opts.Cloud,
+		Logging:   client.opts.Logging,
+		Retry:     client.opts.Retry,
+		Telemetry: client.opts.Telemetry,
+		Transport: client.httpClient,
+		PerCallPolicies: []policy.Policy{
+			NewUserAgentPolicy(client.userAgent),
+		},
+	}
+}
+
 func (client *GenericClient) BeginCreateOrUpdateByID(
 	ctx context.Context,
 	resourceID string,
@@ -139,7 +172,7 @@ func (client *GenericClient) BeginCreateOrUpdateByID(
 ) (*PollerResponse[GenericResource], error) {
 	// The linter doesn't realize that the response is closed in the course of
 	// the autorest.NewPoller call below. Suppressing it as it is a false positive.
-	// nolint:bodyclose
+	//nolint:bodyclose
 	resp, err := client.createOrUpdateByID(ctx, resourceID, apiVersion, resource)
 	if err != nil {
 		return nil, err
@@ -150,7 +183,7 @@ func (client *GenericClient) BeginCreateOrUpdateByID(
 		ErrorHandler: client.handleError,
 	}
 
-	pt, err := azcoreruntime.NewPoller[GenericResource](resp, client.pl, nil)
+	pt, err := runtime.NewPoller[GenericResource](resp, client.pl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +222,7 @@ func (client *GenericClient) createOrUpdateByIDCreateRequest(
 	resource interface{},
 ) (*policy.Request, error) {
 	if resourceID == "" {
-		return nil, errors.New("parameter resourceID cannot be empty")
+		return nil, eris.New("parameter resourceID cannot be empty")
 	}
 
 	urlPath := resourceID
@@ -202,6 +235,97 @@ func (client *GenericClient) createOrUpdateByIDCreateRequest(
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header.Set("Accept", "application/json")
 	return req, runtime.MarshalAsJSON(req, resource)
+}
+
+// BeginPostActionByID invokes an action, such as start or stop, on the resource with the given ID.
+// Actions aren't properties of a resource, so they can't be expressed in a spec and are instead invoked by
+// resource extensions. Whether one succeeded is reported by the operation it returns rather than by the
+// resource, so the caller is given a poller to follow.
+// If the operation fails it returns the *CloudError error type.
+func (client *GenericClient) BeginPostActionByID(
+	ctx context.Context,
+	resourceID string,
+	action string,
+	apiVersion string,
+) (*PollerResponse[GenericActionResponse], error) {
+	// The linter doesn't realize that the response is closed by the runtime.Drain call below.
+	// Suppressing it as it is a false positive.
+	//nolint:bodyclose
+	resp, err := client.postActionByID(ctx, resourceID, action, apiVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	result := PollerResponse[GenericActionResponse]{
+		RawResponse:  resp,
+		ID:           ActionPollerID,
+		ErrorHandler: client.handleError,
+	}
+
+	// ARM answers an action with the resource it acted on, whose provisioningState describes the resource
+	// and not the action, so an action only just accepted looks finished. Dropping the body leaves the
+	// poller to follow the operation's own status URL. Drain it first so the connection can be reused.
+	runtime.Drain(resp)
+	resp.Body = http.NoBody
+	resp.ContentLength = 0
+
+	pt, err := runtime.NewPoller[GenericActionResponse](resp, client.pl, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	result.Poller = pt
+	return &result, nil
+}
+
+func (client *GenericClient) postActionByID(
+	ctx context.Context,
+	resourceID string,
+	action string,
+	apiVersion string,
+) (*http.Response, error) {
+	req, err := client.postActionByIDCreateRequest(ctx, resourceID, action, apiVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.pl.Do(req)
+	if err != nil {
+		return resp, err
+	}
+
+	if !runtime.HasStatusCode(resp, http.StatusOK, http.StatusAccepted, http.StatusNoContent) {
+		return nil, client.handleError(resp)
+	}
+
+	return resp, nil
+}
+
+// postActionByIDCreateRequest creates the PostActionByID request.
+func (client *GenericClient) postActionByIDCreateRequest(
+	ctx context.Context,
+	resourceID string,
+	action string,
+	apiVersion string,
+) (*policy.Request, error) {
+	if resourceID == "" {
+		return nil, eris.New("parameter resourceID cannot be empty")
+	}
+
+	if action == "" {
+		return nil, eris.New("parameter action cannot be empty")
+	}
+
+	req, err := runtime.NewRequest(ctx, http.MethodPost, runtime.JoinPaths(client.endpoint, resourceID, action))
+	if err != nil {
+		return nil, err
+	}
+
+	reqQP := req.Raw().URL.Query()
+	reqQP.Set("api-version", apiVersion)
+	req.Raw().URL.RawQuery = reqQP.Encode()
+	req.Raw().Header.Set("Accept", "application/json")
+	return req, nil
 }
 
 // handleError handles the CreateOrUpdateByID error response.
@@ -228,14 +352,14 @@ func (client *GenericClient) GetByID(
 	}
 	// The linter doesn't realize that the response is closed in the course of
 	// the getByIDHandleResponse call below. Suppressing it as it is a false positive.
-	// nolint:bodyclose
+	//nolint:bodyclose
 	resp, err := client.pl.Do(req)
 	retryAfter := GetRetryAfter(resp)
 	if err != nil {
 		return retryAfter, err
 	}
 	if !runtime.HasStatusCode(resp, http.StatusOK) {
-		return retryAfter, runtime.NewResponseError(resp)
+		return retryAfter, client.handleError(resp)
 	}
 	return zeroDuration, client.getByIDHandleResponse(resp, resource)
 }
@@ -244,7 +368,7 @@ func (client *GenericClient) GetByID(
 func (client *GenericClient) getByIDCreateRequest(ctx context.Context, resourceID string, apiVersion string) (*policy.Request, error) {
 	urlPath := "/{resourceId}"
 	if resourceID == "" {
-		return nil, errors.New("parameter resourceID cannot be empty")
+		return nil, eris.New("parameter resourceID cannot be empty")
 	}
 	urlPath = strings.ReplaceAll(urlPath, "{resourceId}", resourceID)
 	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.endpoint, urlPath))
@@ -294,14 +418,14 @@ func (client *GenericClient) checkExistenceByIDImpl(
 		return zeroDuration, err
 	}
 	// The linter doesn't realize that the response is closed as part of the pipeline
-	// nolint:bodyclose
+	//nolint:bodyclose
 	resp, err := client.pl.Do(req)
 	retryAfter := GetRetryAfter(resp)
 	if err != nil {
 		return retryAfter, err
 	}
 	if !runtime.HasStatusCode(resp, http.StatusNoContent, http.StatusNotFound) {
-		return retryAfter, runtime.NewResponseError(resp)
+		return retryAfter, client.handleError(resp)
 	}
 	return zeroDuration, nil
 }
@@ -309,7 +433,7 @@ func (client *GenericClient) checkExistenceByIDImpl(
 func (client *GenericClient) checkExistenceByIDCreateRequest(ctx context.Context, resourceID string, apiVersion string) (*policy.Request, error) {
 	urlPath := "/{resourceId}"
 	if resourceID == "" {
-		return nil, errors.New("parameter resourceID cannot be empty")
+		return nil, eris.New("parameter resourceID cannot be empty")
 	}
 	urlPath = strings.ReplaceAll(urlPath, "{resourceId}", resourceID)
 	req, err := runtime.NewRequest(ctx, http.MethodHead, runtime.JoinPaths(client.endpoint, urlPath))
@@ -354,14 +478,14 @@ func (p *listPageResponse[T]) NextPage(
 
 	// The linter doesn't realize that the response is closed in the course of
 	// the runtime.UnmarshalAsJSON() call below. Suppressing it as it is a false positive.
-	// nolint:bodyclose
+	//nolint:bodyclose
 	resp, err := client.pl.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
 	if !runtime.HasStatusCode(resp, http.StatusOK) {
-		return nil, runtime.NewResponseError(resp)
+		return nil, client.handleError(resp)
 	}
 
 	newPage := listPageResponse[T]{}
@@ -400,7 +524,8 @@ func ListByContainerID[T any](
 
 				return *nextPage, nil
 			},
-		})
+		},
+	)
 
 	var result []T
 	for pager.More() {
@@ -426,7 +551,7 @@ func (client *GenericClient) listByContainerIDCreateRequest(
 ) (*policy.Request, error) {
 	urlPath := "/{containerId}"
 	if containerID == "" {
-		return nil, errors.New("parameter containerID cannot be empty")
+		return nil, eris.New("parameter containerID cannot be empty")
 	}
 	urlPath = strings.ReplaceAll(urlPath, "{containerId}", containerID)
 	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.endpoint, urlPath))
@@ -445,7 +570,7 @@ func (client *GenericClient) listByContainerIDCreateRequest(
 func (client *GenericClient) BeginDeleteByID(ctx context.Context, resourceID string, apiVersion string) (*PollerResponse[GenericDeleteResponse], error) {
 	// The linter doesn't realize that the response is closed in the course of
 	// the autorest.NewPoller call below. Suppressing it as it is a false positive.
-	// nolint:bodyclose
+	//nolint:bodyclose
 	resp, err := client.deleteByID(ctx, resourceID, apiVersion)
 	if err != nil {
 		return nil, err
@@ -456,7 +581,7 @@ func (client *GenericClient) BeginDeleteByID(ctx context.Context, resourceID str
 		ID:           DeletePollerID,
 		ErrorHandler: client.handleError,
 	}
-	pt, err := azcoreruntime.NewPoller[GenericDeleteResponse](resp, client.pl, nil)
+	pt, err := runtime.NewPoller[GenericDeleteResponse](resp, client.pl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +603,7 @@ func (client *GenericClient) deleteByID(ctx context.Context, resourceID string, 
 	}
 
 	if !runtime.HasStatusCode(resp, http.StatusOK, http.StatusAccepted, http.StatusNoContent) {
-		return nil, runtime.NewResponseError(resp)
+		return nil, client.handleError(resp)
 	}
 	return resp, nil
 }
@@ -487,7 +612,7 @@ func (client *GenericClient) deleteByID(ctx context.Context, resourceID string, 
 func (client *GenericClient) deleteByIDCreateRequest(ctx context.Context, resourceID string, apiVersion string) (*policy.Request, error) {
 	urlPath := "/{resourceId}"
 	if resourceID == "" {
-		return nil, errors.New("parameter resourceID cannot be empty")
+		return nil, eris.New("parameter resourceID cannot be empty")
 	}
 	urlPath = strings.ReplaceAll(urlPath, "{resourceId}", resourceID)
 	req, err := runtime.NewRequest(ctx, http.MethodDelete, runtime.JoinPaths(client.endpoint, urlPath))
@@ -503,7 +628,7 @@ func (client *GenericClient) deleteByIDCreateRequest(ctx context.Context, resour
 
 func (client *GenericClient) CheckExistenceWithGetByID(ctx context.Context, resourceID string, apiVersion string) (bool, time.Duration, error) {
 	if resourceID == "" {
-		return false, zeroDuration, errors.New("parameter resourceID cannot be empty")
+		return false, zeroDuration, eris.New("parameter resourceID cannot be empty")
 	}
 
 	ignored := struct{}{}
@@ -521,7 +646,7 @@ func (client *GenericClient) CheckExistenceWithGetByID(ctx context.Context, reso
 
 func IsNotFoundError(err error) bool {
 	var typedError *azcore.ResponseError
-	if errors.As(err, &typedError) {
+	if eris.As(err, &typedError) {
 		if typedError.StatusCode == http.StatusNotFound {
 			return true
 		}
@@ -531,9 +656,22 @@ func IsNotFoundError(err error) bool {
 }
 
 func (client *GenericClient) ResumeDeletePoller(id string) *PollerResponse[GenericDeleteResponse] {
-	return &PollerResponse[GenericDeleteResponse]{ID: id, ErrorHandler: client.handleError}
+	return &PollerResponse[GenericDeleteResponse]{
+		ID:           id,
+		ErrorHandler: client.handleError,
+	}
 }
 
 func (client *GenericClient) ResumeCreatePoller(id string) *PollerResponse[GenericResource] {
-	return &PollerResponse[GenericResource]{ID: id, ErrorHandler: client.handleError}
+	return &PollerResponse[GenericResource]{
+		ID:           id,
+		ErrorHandler: client.handleError,
+	}
+}
+
+func (client *GenericClient) ResumeActionPoller(id string) *PollerResponse[GenericActionResponse] {
+	return &PollerResponse[GenericActionResponse]{
+		ID:           id,
+		ErrorHandler: client.handleError,
+	}
 }

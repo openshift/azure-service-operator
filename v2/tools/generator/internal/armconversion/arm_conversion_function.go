@@ -7,7 +7,7 @@ package armconversion
 
 import (
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
@@ -52,9 +52,11 @@ func (c *ARMConversionFunction) RequiredPackageReferences() *astmodel.PackageRef
 	// We need these because we're going to be constructing/casting to the types
 	// of the properties in the ARM object, so we need to import those.
 	result := astmodel.NewPackageReferenceSet(
+		c.armTypeName.PackageReference(),
 		astmodel.GenRuntimeReference,
-		astmodel.GitHubErrorsReference,
-		astmodel.MakeExternalPackageReference("fmt"))
+		astmodel.ErisReference,
+		astmodel.FmtReference,
+	)
 	result.Merge(c.armType.RequiredPackageReferences())
 	return result
 }
@@ -63,7 +65,9 @@ func (c *ARMConversionFunction) RequiredPackageReferences() *astmodel.PackageRef
 // SHOULD include any types which this function references but its receiver doesn't.
 // SHOULD NOT include the receiver of this function.
 func (c *ARMConversionFunction) References() astmodel.TypeNameSet {
-	return c.armType.References()
+	result := astmodel.NewTypeNameSet(c.armTypeName)
+	result.AddAll(c.armType.References())
+	return result
 }
 
 // AsFunc returns the function as a Go AST
@@ -75,20 +79,23 @@ func (c *ConvertToARMFunction) AsFunc(
 		&c.ARMConversionFunction,
 		codeGenerationContext,
 		receiver,
-		c.Name())
+		c.Name(),
+	)
 	if err != nil {
-		return nil, errors.Wrapf(
+		return nil, eris.Wrapf(
 			err,
 			"error creating ConvertToARM function for %s",
-			receiver.Name())
+			receiver.Name(),
+		)
 	}
 
 	decl, err := builder.functionDeclaration()
 	if err != nil {
-		return nil, errors.Wrapf(
+		return nil, eris.Wrapf(
 			err,
 			"error generating ConvertToARM function for %s",
-			c.Name())
+			c.Name(),
+		)
 	}
 
 	return decl, nil
@@ -102,20 +109,23 @@ func (c *PopulateFromARMFunction) AsFunc(
 		&c.ARMConversionFunction,
 		codeGenerationContext,
 		receiver,
-		c.Name())
+		c.Name(),
+	)
 	if err != nil {
-		return nil, errors.Wrapf(
+		return nil, eris.Wrapf(
 			err,
 			"error creating ConvertFromARM function for %s",
-			receiver.Name())
+			receiver.Name(),
+		)
 	}
 
 	decl, err := builder.functionDeclaration()
 	if err != nil {
-		return nil, errors.Wrapf(
+		return nil, eris.Wrapf(
 			err,
 			"error generating ConvertFromARM function for %s",
-			c.Name())
+			c.Name(),
+		)
 	}
 
 	return decl, nil

@@ -6,7 +6,7 @@
 package conversions
 
 import (
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/codegen/storage"
@@ -165,6 +165,23 @@ func (c *PropertyConversionContext) FindNextType(name astmodel.InternalTypeName)
 	return c.conversionGraph.FindNextType(name, c.definitions)
 }
 
+// PropertyConversionStrategy returns true if the specified property has been configured to use manual conversion.
+func (c *PropertyConversionContext) PropertyConversionStrategy(
+	container astmodel.InternalTypeName,
+	property astmodel.PropertyName,
+) config.ConversionStrategy {
+	if c.configuration == nil {
+		return config.ConversionStrategyAuto
+	}
+
+	strategy, ok := c.configuration.ConversionStrategy.Lookup(container, property)
+	if !ok {
+		return config.ConversionStrategyAuto
+	}
+
+	return strategy
+}
+
 // PathExists returns true if a path exists in the conversion graph starting from the specified type name and ending
 // at the specified type name. If no conversion graph is available, returns false.
 func (c *PropertyConversionContext) PathExists(
@@ -179,7 +196,8 @@ func (c *PropertyConversionContext) PathExists(
 		start,
 		func(name astmodel.InternalTypeName) bool {
 			return name == finish
-		})
+		},
+	)
 
 	return found
 }
@@ -196,14 +214,16 @@ func (c *PropertyConversionContext) FindPivotType(
 		func(name astmodel.InternalTypeName) bool {
 			candidates.Add(name)
 			return false
-		})
+		},
+	)
 
 	// Walk the path from 'finish' to find the first type that's also visible from 'start'
 	pivot, found := c.conversionGraph.FindInPath(
 		finish,
 		func(name astmodel.InternalTypeName) bool {
 			return candidates.Contains(name)
-		})
+		},
+	)
 	return pivot, found
 }
 
@@ -247,20 +267,22 @@ func (c *PropertyConversionContext) validateTypeRename(
 	if !ok {
 		// No rename configured, but we can't proceed without one. Return an error - it'll be wrapped with property
 		// details by CreateTypeConversion() so we only need the specific details here
-		return errors.Errorf(
+		return eris.Errorf(
 			"no configuration to rename %s to %s",
 			earlier.Name(),
-			later.Name())
+			later.Name(),
+		)
 	}
 
 	if later.Name() != name {
 		// Configured rename doesn't match what we found. Return an error - it'll be wrapped with property details
 		// by CreateTypeConversion() so we only need the specific details here
-		return errors.Errorf(
+		return eris.Errorf(
 			"configuration includes rename of %s to %s, but found %s",
 			earlier.Name(),
 			name,
-			later.Name())
+			later.Name(),
+		)
 	}
 
 	return nil

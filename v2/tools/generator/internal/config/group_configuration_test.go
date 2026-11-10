@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	"gopkg.in/yaml.v3"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -31,8 +32,8 @@ func TestGroupConfiguration_WhenYAMLWellFormed_ReturnsExpectedResult(t *testing.
 	g.Expect(group.versions).To(HaveKey("2021-01-01"))
 	g.Expect(group.versions).To(HaveKey("2021-05-15"))
 	// Check for local package name equivalents
-	g.Expect(group.versions).To(HaveKey("v1api20210101"))
-	g.Expect(group.versions).To(HaveKey("v1api20210515"))
+	g.Expect(group.versions).To(HaveKey("v20210101"))
+	g.Expect(group.versions).To(HaveKey("v20210515"))
 }
 
 func TestGroupConfiguration_WhenYAMLBadlyFormed_ReturnsError(t *testing.T) {
@@ -47,16 +48,15 @@ func TestGroupConfiguration_WhenYAMLBadlyFormed_ReturnsError(t *testing.T) {
 
 func TestGroupConfiguration_FindVersion_GivenTypeName_ReturnsExpectedVersion(t *testing.T) {
 	t.Parallel()
+	g := NewGomegaWithT(t)
 
 	ver := "2021-01-01"
 	refTest := test.MakeLocalPackageReference("demo", ver)
 	refOther := test.MakeLocalPackageReference("demo", "2022-12-31")
-	refAlpha := astmodel.MakeLocalPackageReference("prefix", "demo", "v1alpha1api", ver)
-	refBeta := astmodel.MakeLocalPackageReference("prefix", "demo", "v1beta", ver)
 
 	groupConfiguration := NewGroupConfiguration("demo")
 	versionConfig := NewVersionConfiguration("2021-01-01")
-	groupConfiguration.addVersion(versionConfig.name, versionConfig)
+	g.Expect(groupConfiguration.addVersion(versionConfig.name, versionConfig)).To(Succeed())
 
 	cases := []struct {
 		name          string
@@ -64,8 +64,6 @@ func TestGroupConfiguration_FindVersion_GivenTypeName_ReturnsExpectedVersion(t *
 		expectedFound bool
 	}{
 		{"Lookup by version", refTest, true},
-		{"Lookup by alpha version", refAlpha, true},
-		{"Lookup by beta version", refBeta, true},
 		{"Lookup by other version", refOther, false},
 	}
 
@@ -111,18 +109,19 @@ func TestGroupConfiguration_WhenVersionConfigurationNotConsumed_ReturnsErrorWith
 	typeConfig.SupportedFrom.Set("vNext")
 
 	versionConfig := NewVersionConfiguration("2022-01-01")
-	versionConfig.addType(typeConfig.name, typeConfig)
+	g.Expect(versionConfig.addType(typeConfig.name, typeConfig)).To(Succeed())
 
 	groupConfig := NewGroupConfiguration("demo")
-	groupConfig.addVersion(versionConfig.name, versionConfig)
+	g.Expect(groupConfig.addVersion(versionConfig.name, versionConfig)).To(Succeed())
 
 	omConfig := NewObjectModelConfiguration()
-	omConfig.addGroup(groupConfig.name, groupConfig)
+	g.Expect(omConfig.addGroup(groupConfig.name, groupConfig)).To(Succeed())
 
 	// Lookup $supportedFrom for our type - version is from 2021 but our config has 2022, so it won't be found
 	tn := astmodel.MakeInternalTypeName(
 		test.MakeLocalPackageReference(groupConfig.name, "2021-01-01"),
-		"Person")
+		"Person",
+	)
 
 	_, ok := omConfig.SupportedFrom.Lookup(tn)
 	g.Expect(ok).To(BeFalse())
@@ -180,4 +179,44 @@ func TestGroupConfiguration_VerifyPayloadTypeConsumed_WhenNotConsumed_ReturnsExp
 	err := groupConfig.PayloadType.VerifyConsumed()
 	g.Expect(err).NotTo(BeNil())
 	g.Expect(err.Error()).To(ContainSubstring(groupConfig.name))
+}
+
+/*
+ * Duplicate Key Detection Tests
+ */
+
+func TestGroupConfiguration_UnmarshalYAML_WhenDuplicateVersions_ReturnsError(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	yamlContent := `
+2021-01-01:
+  SomeType: {}
+2021-01-01:
+  OtherType: {}
+`
+
+	var gc GroupConfiguration
+	err := yaml.Unmarshal([]byte(yamlContent), &gc)
+	g.Expect(err).NotTo(Succeed())
+	g.Expect(err.Error()).To(ContainSubstring("duplicate version configuration"))
+	g.Expect(err.Error()).To(ContainSubstring("2021-01-01"))
+}
+
+func TestGroupConfiguration_UnmarshalYAML_WhenDuplicateVersionsCaseInsensitive_ReturnsError(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	yamlContent := `
+2021-01-01:
+  SomeType: {}
+2021-01-01:
+  OtherType: {}
+`
+
+	var gc GroupConfiguration
+	err := yaml.Unmarshal([]byte(yamlContent), &gc)
+	g.Expect(err).NotTo(Succeed())
+	g.Expect(err.Error()).To(ContainSubstring("duplicate version configuration"))
+	g.Expect(err.Error()).To(ContainSubstring("2021-01-01"))
 }

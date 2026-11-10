@@ -8,7 +8,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -36,14 +36,14 @@ func InjectSpecInitializationFunctions(
 
 			graph, err := GetStateData[*storage.ConversionGraph](state, ConversionGraphInfo)
 			if err != nil {
-				return nil, errors.Wrapf(err, "couldn't find conversion graph")
+				return nil, eris.Wrapf(err, "couldn't find conversion graph")
 			}
 
 			// Scan for the object definitions that need spec initialization functions injected
 			scanner := newSpecInitializationScanner(state.Definitions(), graph, configuration)
 			mappings, err := scanner.scanResources()
 			if err != nil {
-				return nil, errors.Wrap(err, "scanning for spec/status mappings")
+				return nil, eris.Wrap(err, "scanning for spec/status mappings")
 			}
 
 			functionInjector := astmodel.NewFunctionInjector()
@@ -63,13 +63,13 @@ func InjectSpecInitializationFunctions(
 					initializationBuilder.AddSuffixMatchingAssignmentSelector("Id", "Reference")
 					initializationFn, err := initializationBuilder.Build(assignmentContext)
 					if err != nil {
-						errs = append(errs, errors.Wrapf(err, "creating Initialize_From_*() function for %q", specName))
+						errs = append(errs, eris.Wrapf(err, "creating Initialize_From_*() function for %q", specName))
 						continue
 					}
 
 					spec, err = functionInjector.Inject(spec, initializationFn)
 					if err != nil {
-						errs = append(errs, errors.Wrapf(err, "failed to inject %s function into %q", initializationFn.Name(), specName))
+						errs = append(errs, eris.Wrapf(err, "failed to inject %s function into %q", initializationFn.Name(), specName))
 						continue
 					}
 				}
@@ -78,14 +78,15 @@ func InjectSpecInitializationFunctions(
 			}
 
 			if len(errs) > 0 {
-				return nil, errors.Wrapf(kerrors.NewAggregate(errs), "failed to inject spec initialization functions")
+				return nil, eris.Wrapf(kerrors.NewAggregate(errs), "failed to inject spec initialization functions")
 			}
 
 			return state.WithOverlaidDefinitions(newDefs), nil
-		})
+		},
+	)
 
 	// Needed to populate the conversion graph
-	stage.RequiresPrerequisiteStages(CreateStorageTypesStageID, CreateConversionGraphStageId)
+	stage.RequiresPrerequisiteStages(CreateStorageTypesStageID, CreateConversionGraphStageID)
 	return stage
 }
 
@@ -153,7 +154,7 @@ func (s *specInitializationScanner) findResources() (astmodel.TypeDefinitionSet,
 
 	var errs []error
 	result := make(astmodel.TypeDefinitionSet, capacity)
-	for _, def := range astmodel.FindResourceDefinitions(s.defs) {
+	for _, def := range s.defs.AllResources() {
 		// Skip storage types, only need spec initialization on API resources
 		if astmodel.IsStoragePackageReference(def.Name().PackageReference()) {
 			continue
@@ -166,7 +167,7 @@ func (s *specInitializationScanner) findResources() (astmodel.TypeDefinitionSet,
 		// preview versions
 		_, distance, err := s.conversionGraph.FindHubAndDistance(def.Name(), s.defs)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "finding hub for %s", def.Name()))
+			errs = append(errs, eris.Wrapf(err, "finding hub for %s", def.Name()))
 			continue
 		}
 
@@ -183,7 +184,7 @@ func (s *specInitializationScanner) findResources() (astmodel.TypeDefinitionSet,
 		result.Add(def)
 	}
 
-	return result, errors.Wrapf(kerrors.NewAggregate(errs), "finding importable resources")
+	return result, eris.Wrapf(kerrors.NewAggregate(errs), "finding importable resources")
 }
 
 // visitTypeName is called for each TypeName in the spec and status types of a resource
@@ -225,12 +226,13 @@ func (s *specInitializationScanner) visitInternalTypeName(
 	// Recursively visit the definitions of these types
 	_, err := visitor.Visit(specDef.Type(), statusDef.Type())
 	if err != nil {
-		return nil, errors.Wrapf(
+		return nil, eris.Wrapf(
 			err,
 			"visiting definitions of spec type %s and status type %s in package %s",
 			specName.Name(),
 			statusName.Name(),
-			specName.InternalPackageReference().FolderPath())
+			specName.InternalPackageReference().FolderPath(),
+		)
 	}
 
 	return specName, nil
@@ -263,8 +265,9 @@ func (s *specInitializationScanner) visitObjectType(
 		if err != nil {
 			// I know that both the property names will be the same, so only log once
 			// (including the name twice was tried, but was confusing)
-			errs = append(errs, errors.Wrapf(
-				err, "visiting spec and status properties %s", specProperty.PropertyName()))
+			errs = append(errs, eris.Wrapf(
+				err, "visiting spec and status properties %s", specProperty.PropertyName(),
+			))
 		}
 	}
 
@@ -281,18 +284,22 @@ func (s *specInitializationScanner) visitMapType(
 	if !ok {
 		// If the status type DOESN'T have a map here, something is awry - they should have very similar structures
 		// as they're both created from the same Swagger spec
-		return nil, errors.Errorf("status type does not have a map where spec type does")
+		return nil, eris.Errorf(
+			"status type does not have a map where spec type does (spec %s, status %s)",
+			astmodel.DebugDescription(spec),
+			astmodel.DebugDescription(ctx),
+		)
 	}
 
 	// Visit the key and value types
 	_, err := visitor.Visit(spec.KeyType(), status.KeyType())
 	if err != nil {
-		return nil, errors.Wrap(err, "visiting map key types")
+		return nil, eris.Wrap(err, "visiting map key types")
 	}
 
 	_, err = visitor.Visit(spec.ValueType(), status.ValueType())
 	if err != nil {
-		return nil, errors.Wrap(err, "visiting map value types")
+		return nil, eris.Wrap(err, "visiting map value types")
 	}
 
 	return spec, nil
@@ -319,13 +326,13 @@ func (s *specInitializationScanner) visitArrayType(
 
 		// If the status type DOESN'T have an array here, something is awry - they should have very similar structures
 		// as they're both created from the same Swagger spec
-		return nil, errors.Errorf("status type does not have an array where spec type does")
+		return nil, eris.Errorf("status type does not have an array where spec type does")
 	}
 
 	// Visit the element types
 	_, err := visitor.Visit(spec.Element(), status.Element())
 	if err != nil {
-		return nil, errors.Wrap(err, "visiting array element types")
+		return nil, eris.Wrap(err, "visiting array element types")
 	}
 
 	return spec, nil

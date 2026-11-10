@@ -10,16 +10,16 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
-const FlattenPropertiesStageId = "flattenProperties"
+const FlattenPropertiesStageID = "flattenProperties"
 
 func FlattenProperties(log logr.Logger) *Stage {
 	return NewStage(
-		FlattenPropertiesStageId,
+		FlattenPropertiesStageID,
 		"Apply flattening to properties marked for flattening",
 		func(ctx context.Context, state *State) (*State, error) {
 			defs := state.Definitions()
@@ -36,7 +36,8 @@ func FlattenProperties(log logr.Logger) *Stage {
 			}
 
 			return state.WithDefinitions(result), nil
-		})
+		},
+	)
 }
 
 func makeFlatteningVisitor(defs astmodel.TypeDefinitionSet, log logr.Logger) astmodel.TypeVisitor[astmodel.TypeName] {
@@ -127,8 +128,8 @@ func fixCollisions(props []*astmodel.PropertyDefinition) []*astmodel.PropertyDef
 
 				// disambiguate by prefixing with properties
 				newName := astmodel.PropertyName(strings.Join(stringNames, "") + string(p.PropertyName()))
-				newJsonName := strings.ToLower(strings.Join(stringNames, "_") + string(p.PropertyName()))
-				p = p.WithName(newName).WithJsonName(newJsonName)
+				newJSONName := strings.ToLower(strings.Join(stringNames, "_") + string(p.PropertyName()))
+				p = p.WithName(newName).WithJSONName(newJSONName)
 			}
 		}
 
@@ -160,7 +161,8 @@ func collectAndFlattenProperties(
 				"Skipping flatten",
 				"property", prop.PropertyName(),
 				"container", container,
-				"reason", err)
+				"reason", err,
+			)
 
 			innerProps = []*astmodel.PropertyDefinition{
 				prop.SetFlatten(false),
@@ -181,7 +183,7 @@ func flattenProperty(
 ) ([]*astmodel.PropertyDefinition, error) {
 	props, err := flattenPropType(container, prop.PropertyType(), defs, log)
 	if err != nil {
-		return nil, errors.Wrapf(err, "flattening property %s", prop.PropertyName())
+		return nil, eris.Wrapf(err, "flattening property %s", prop.PropertyName())
 	}
 
 	for i, p := range props {
@@ -221,7 +223,7 @@ func flattenPropType(
 	case *astmodel.OptionalType:
 		innerProps, err := flattenPropType(container, propType.Element(), defs, log)
 		if err != nil {
-			return nil, errors.Wrap(err, "wrapping optional type")
+			return nil, eris.Wrap(err, "wrapping optional type")
 		}
 
 		for ix := range innerProps {
@@ -232,6 +234,6 @@ func flattenPropType(
 
 	default:
 		desc := astmodel.DebugDescription(propType)
-		return nil, errors.Errorf("flatten applied to non-object type: %s", desc)
+		return nil, eris.Errorf("flatten applied to non-object type: %s", desc)
 	}
 }

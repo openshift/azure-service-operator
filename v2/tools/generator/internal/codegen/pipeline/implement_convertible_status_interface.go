@@ -8,19 +8,19 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/conversions"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/functions"
 )
 
-// ImplementConvertibleStatusInterfaceStageId is the unique identifier for this pipeline stage
-const ImplementConvertibleStatusInterfaceStageId = "implementConvertibleStatusInterface"
+// ImplementConvertibleStatusInterfaceStageID is the unique identifier for this pipeline stage
+const ImplementConvertibleStatusInterfaceStageID = "implementConvertibleStatusInterface"
 
 func ImplementConvertibleStatusInterface(idFactory astmodel.IdentifierFactory) *Stage {
 	stage := NewStage(
-		ImplementConvertibleStatusInterfaceStageId,
+		ImplementConvertibleStatusInterfaceStageID,
 		"Inject ConvertStatusTo() and ConvertStatusFrom() to implement genruntime.ConvertibleStatus on each Status type",
 		func(ctx context.Context, state *State) (*State, error) {
 			injector := astmodel.NewInterfaceInjector()
@@ -31,14 +31,15 @@ func ImplementConvertibleStatusInterface(idFactory astmodel.IdentifierFactory) *
 				convertible := createConvertibleStatusInterfaceImplementation(def, idFactory)
 				modified, err := injector.Inject(def, convertible)
 				if err != nil {
-					return nil, errors.Wrapf(err, "injecting Convertible interface into %s", name)
+					return nil, eris.Wrapf(err, "injecting Convertible interface into %s", name)
 				}
 
 				modifiedDefs.Add(modified)
 			}
 
 			return state.WithOverlaidDefinitions(modifiedDefs), nil
-		})
+		},
+	)
 
 	stage.RequiresPrerequisiteStages(InjectPropertyAssignmentFunctionsStageID)
 	return stage

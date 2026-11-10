@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/pkg/errors"
-
 	"github.com/dave/dst"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -59,18 +58,18 @@ func (f *OneOfJSONUnmarshalFunction) AsFunc(
 	codeGenerationContext *astmodel.CodeGenerationContext,
 	receiver astmodel.InternalTypeName,
 ) (*dst.FuncDecl, error) {
-	jsonPackage := codeGenerationContext.MustGetImportedPackageName(astmodel.JsonReference)
+	jsonPackage := codeGenerationContext.MustGetImportedPackageName(astmodel.JSONReference)
 	receiverName := f.idFactory.CreateReceiver(receiver.Name())
 	receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", receiver)
+		return nil, eris.Wrapf(err, "creating type expression for %s", receiver)
 	}
 
 	allDefinitions := codeGenerationContext.GetAllReachableDefinitions()
 	discrimJSONName, valuesMapping, err := astmodel.DetermineDiscriminantAndValues(f.oneOfObject, allDefinitions)
 	if err != nil {
 		// Something went wrong; this late in the process we can't do anything about it
-		return nil, errors.Wrap(err, "unable to determine discriminant and values")
+		return nil, eris.Wrap(err, "unable to determine discriminant and values")
 	}
 
 	paramName := "data"
@@ -78,7 +77,7 @@ func (f *OneOfJSONUnmarshalFunction) AsFunc(
 	discrimName := "discriminator"
 	errName := "err"
 
-	statements := []dst.Stmt{
+	statements := astbuilder.Statements(
 		astbuilder.LocalVariableDeclaration(mapName, &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("interface{}")}, ""),
 		astbuilder.ShortDeclaration(errName,
 			astbuilder.CallQualifiedFunc(jsonPackage, "Unmarshal", dst.NewIdent(paramName), astbuilder.AddrOf(dst.NewIdent(mapName)))),
@@ -87,7 +86,7 @@ func (f *OneOfJSONUnmarshalFunction) AsFunc(
 			X:     dst.NewIdent(mapName),
 			Index: astbuilder.StringLiteral(discrimJSONName),
 		}),
-	}
+	)
 
 	// must order this for consistent output
 	values := make([]string, 0, len(valuesMapping))
@@ -128,5 +127,5 @@ func (f *OneOfJSONUnmarshalFunction) AsFunc(
 
 // RequiredPackageReferences returns a set of references to packages required by this
 func (f *OneOfJSONUnmarshalFunction) RequiredPackageReferences() *astmodel.PackageReferenceSet {
-	return astmodel.NewPackageReferenceSet(astmodel.JsonReference)
+	return astmodel.NewPackageReferenceSet(astmodel.JSONReference)
 }

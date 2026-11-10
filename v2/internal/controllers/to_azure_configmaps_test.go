@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -60,17 +61,23 @@ func Test_MissingConfigMap_ReturnsError(t *testing.T) {
 				Name: configMapName,
 				Key:  principalIdKey,
 			},
-			RoleDefinitionReference: &genruntime.ResourceReference{
-				ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+			RoleDefinitionReference: &genruntime.WellKnownResourceReference{
+				ResourceReference: genruntime.ResourceReference{
+					ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+				},
 			},
 		},
 	}
 
 	tc.CreateResourceAndWaitForState(roleAssignment, metav1.ConditionFalse, conditions.ConditionSeverityWarning)
+
 	// We expect the ready condition to include details of the error
-	tc.Expect(roleAssignment.Status.Conditions[0].Reason).To(Equal(conditions.ReasonConfigMapNotFound.Name))
-	tc.Expect(roleAssignment.Status.Conditions[0].Message).To(
-		ContainSubstring("failed resolving config map references: %s/%s does not exist", tc.Namespace, configMapName))
+	reason := roleAssignment.Status.Conditions[0].Reason
+	tc.Expect(reason).To(Equal(conditions.ReasonConfigMapNotFound.Name))
+
+	message := roleAssignment.Status.Conditions[0].Message
+	tc.Expect(message).To(ContainSubstring("failed resolving config map references"))
+	tc.Expect(message).To(ContainSubstring("%s/%s does not exist", tc.Namespace, configMapName))
 }
 
 func Test_ConfigMapUpdated_TriggersReconcile(t *testing.T) {
@@ -115,8 +122,10 @@ func Test_ConfigMapUpdated_TriggersReconcile(t *testing.T) {
 				Name: configMapName,
 				Key:  principalIdKey,
 			},
-			RoleDefinitionReference: &genruntime.ResourceReference{
-				ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+			RoleDefinitionReference: &genruntime.WellKnownResourceReference{
+				ResourceReference: genruntime.ResourceReference{
+					ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+				},
 			},
 		},
 	}
@@ -162,8 +171,10 @@ func Test_MissingConfigMapKey_ReturnsError(t *testing.T) {
 				Name: configMapName,
 				Key:  principalIdKey,
 			},
-			RoleDefinitionReference: &genruntime.ResourceReference{
-				ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+			RoleDefinitionReference: &genruntime.WellKnownResourceReference{
+				ResourceReference: genruntime.ResourceReference{
+					ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+				},
 			},
 		},
 	}
@@ -172,7 +183,8 @@ func Test_MissingConfigMapKey_ReturnsError(t *testing.T) {
 	// We expect the ready condition to include details of the error
 	tc.Expect(roleAssignment.Status.Conditions[0].Reason).To(Equal(conditions.ReasonConfigMapNotFound.Name))
 	tc.Expect(roleAssignment.Status.Conditions[0].Message).To(
-		ContainSubstring("ConfigMap \"%s/%s\" does not contain key \"%s\"", tc.Namespace, configMap.Name, principalIdKey))
+		ContainSubstring("ConfigMap \"%s/%s\" does not contain key \"%s\"", tc.Namespace, configMap.Name, principalIdKey),
+	)
 
 	tc.DeleteResourceAndWait(rg)
 }
@@ -210,17 +222,22 @@ func Test_ConfigMapInDifferentNamespace_ConfigMapNotFound(t *testing.T) {
 				Name: configMapName,
 				Key:  principalIdKey,
 			},
-			RoleDefinitionReference: &genruntime.ResourceReference{
-				ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+			RoleDefinitionReference: &genruntime.WellKnownResourceReference{
+				ResourceReference: genruntime.ResourceReference{
+					ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+				},
 			},
 		},
 	}
 
 	tc.CreateResourceAndWaitForState(roleAssignment, metav1.ConditionFalse, conditions.ConditionSeverityWarning)
 	// We expect the ready condition to include details of the error
-	tc.Expect(roleAssignment.Status.Conditions[0].Reason).To(Equal(conditions.ReasonConfigMapNotFound.Name))
-	tc.Expect(roleAssignment.Status.Conditions[0].Message).To(
-		ContainSubstring("failed resolving config map references: %s/%s does not exist", tc.Namespace, configMapName))
+	reason := roleAssignment.Status.Conditions[0].Reason
+	tc.Expect(reason).To(Equal(conditions.ReasonConfigMapNotFound.Name))
+
+	message := roleAssignment.Status.Conditions[0].Message
+	tc.Expect(message).To(ContainSubstring("failed resolving config map references"))
+	tc.Expect(message).To(ContainSubstring("%s/%s does not exist", tc.Namespace, configMapName))
 
 	tc.DeleteResourceAndWait(rg)
 }
@@ -312,8 +329,10 @@ func Test_UserConfigMapInDifferentNamespace_ShouldNotTriggerReconcile(t *testing
 				Name: configMapName,
 				Key:  principalIdKey,
 			},
-			RoleDefinitionReference: &genruntime.ResourceReference{
-				ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+			RoleDefinitionReference: &genruntime.WellKnownResourceReference{
+				ResourceReference: genruntime.ResourceReference{
+					ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+				},
 			},
 		},
 	}
@@ -341,8 +360,10 @@ func Test_UserConfigMapInDifferentNamespace_ShouldNotTriggerReconcile(t *testing
 				Name: configMapName,
 				Key:  principalIdKey,
 			},
-			RoleDefinitionReference: &genruntime.ResourceReference{
-				ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+			RoleDefinitionReference: &genruntime.WellKnownResourceReference{
+				ResourceReference: genruntime.ResourceReference{
+					ARMID: fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c", tc.AzureSubscription), // This is contributor
+				},
 			},
 		},
 	}

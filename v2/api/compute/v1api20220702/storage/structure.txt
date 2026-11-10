@@ -3,9 +3,10 @@ github.com/Azure/azure-service-operator/v2/api/compute/v1api20220702/storage
 ----------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2022-07-02"
+
 DiskEncryptionSet: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
-├── Spec: Object (12 properties)
+├── Spec: Object (13 properties)
 │   ├── ActiveKey: *Object (4 properties)
 │   │   ├── KeyUrl: *string
 │   │   ├── KeyUrlFromConfig: *genruntime.ConfigMapReference
@@ -24,6 +25,10 @@ DiskEncryptionSet: Resource
 │   │       ├── PropertyBag: genruntime.PropertyBag
 │   │       └── Reference: genruntime.ResourceReference
 │   ├── Location: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -77,3 +82,34 @@ DiskEncryptionSet: Resource
     ├── RotationToLatestKeyVersionEnabled: *bool
     ├── Tags: map[string]string
     └── Type: *string
+
+augmentConversionForApiErrorBase_STATUS: Interface
+
+augmentConversionForApiError_STATUS: Interface
+
+augmentConversionForDiskEncryptionSet: Interface
+
+augmentConversionForDiskEncryptionSetOperatorSpec: Interface
+
+augmentConversionForDiskEncryptionSet_STATUS: Interface
+
+augmentConversionForDiskEncryptionSet_Spec: Interface
+
+augmentConversionForEncryptionSetIdentity: Interface
+
+augmentConversionForEncryptionSetIdentity_STATUS: Interface
+
+augmentConversionForInnerError_STATUS: Interface
+
+augmentConversionForKeyForDiskEncryptionSet: Interface
+
+augmentConversionForKeyForDiskEncryptionSet_STATUS: Interface
+
+augmentConversionForSourceVault: Interface
+
+augmentConversionForSourceVault_STATUS: Interface
+
+augmentConversionForUserAssignedIdentitiesValue_STATUS: Interface
+
+augmentConversionForUserAssignedIdentityDetails: Interface
+

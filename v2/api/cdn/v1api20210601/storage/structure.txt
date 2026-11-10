@@ -3,11 +3,16 @@ github.com/Azure/azure-service-operator/v2/api/cdn/v1api20210601/storage
 ------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2021-06-01"
+
 Profile: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
-├── Spec: Object (8 properties)
+├── Spec: Object (9 properties)
 │   ├── AzureName: string
 │   ├── Location: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginResponseTimeoutSeconds: *int
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
@@ -40,9 +45,10 @@ Profile: Resource
     │   └── PropertyBag: genruntime.PropertyBag
     ├── Tags: map[string]string
     └── Type: *string
+
 ProfilesEndpoint: Resource
 ├── Owner: cdn/v1api20210601.Profile
-├── Spec: Object (22 properties)
+├── Spec: Object (23 properties)
 │   ├── AzureName: string
 │   ├── ContentTypesToCompress: string[]
 │   ├── DefaultOriginGroup: *Object (2 properties)
@@ -356,6 +362,10 @@ ProfilesEndpoint: Resource
 │   ├── IsHttpAllowed: *bool
 │   ├── IsHttpsAllowed: *bool
 │   ├── Location: *string
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OptimizationType: *string
 │   ├── OriginGroups: Object (6 properties)[]
 │   │   ├── HealthProbeSettings: *Object (5 properties)
@@ -804,133 +814,316 @@ ProfilesEndpoint: Resource
     └── WebApplicationFirewallPolicyLink: *Object (2 properties)
         ├── Id: *string
         └── PropertyBag: genruntime.PropertyBag
+
 augmentConversionForCacheConfiguration: Interface
+
 augmentConversionForCacheConfiguration_STATUS: Interface
+
 augmentConversionForCacheExpirationActionParameters: Interface
+
 augmentConversionForCacheExpirationActionParameters_STATUS: Interface
+
 augmentConversionForCacheKeyQueryStringActionParameters: Interface
+
 augmentConversionForCacheKeyQueryStringActionParameters_STATUS: Interface
+
 augmentConversionForClientPortMatchConditionParameters: Interface
+
 augmentConversionForClientPortMatchConditionParameters_STATUS: Interface
+
 augmentConversionForCookiesMatchConditionParameters: Interface
+
 augmentConversionForCookiesMatchConditionParameters_STATUS: Interface
+
+augmentConversionForDeepCreatedCustomDomain_STATUS: Interface
+
+augmentConversionForDeepCreatedOrigin: Interface
+
+augmentConversionForDeepCreatedOriginGroup: Interface
+
+augmentConversionForDeepCreatedOriginGroup_STATUS: Interface
+
+augmentConversionForDeepCreatedOrigin_STATUS: Interface
+
+augmentConversionForDeliveryRule: Interface
+
 augmentConversionForDeliveryRuleAction: Interface
+
 augmentConversionForDeliveryRuleAction_STATUS: Interface
+
 augmentConversionForDeliveryRuleCacheExpirationAction: Interface
+
 augmentConversionForDeliveryRuleCacheExpirationAction_STATUS: Interface
+
 augmentConversionForDeliveryRuleCacheKeyQueryStringAction: Interface
+
 augmentConversionForDeliveryRuleCacheKeyQueryStringAction_STATUS: Interface
+
 augmentConversionForDeliveryRuleClientPortCondition: Interface
+
 augmentConversionForDeliveryRuleClientPortCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleCondition: Interface
+
 augmentConversionForDeliveryRuleCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleCookiesCondition: Interface
+
 augmentConversionForDeliveryRuleCookiesCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleHostNameCondition: Interface
+
 augmentConversionForDeliveryRuleHostNameCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleHttpVersionCondition: Interface
+
 augmentConversionForDeliveryRuleHttpVersionCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleIsDeviceCondition: Interface
+
 augmentConversionForDeliveryRuleIsDeviceCondition_STATUS: Interface
+
 augmentConversionForDeliveryRulePostArgsCondition: Interface
+
 augmentConversionForDeliveryRulePostArgsCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleQueryStringCondition: Interface
+
 augmentConversionForDeliveryRuleQueryStringCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleRemoteAddressCondition: Interface
+
 augmentConversionForDeliveryRuleRemoteAddressCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleRequestBodyCondition: Interface
+
 augmentConversionForDeliveryRuleRequestBodyCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleRequestHeaderAction: Interface
+
 augmentConversionForDeliveryRuleRequestHeaderAction_STATUS: Interface
+
 augmentConversionForDeliveryRuleRequestHeaderCondition: Interface
+
 augmentConversionForDeliveryRuleRequestHeaderCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleRequestMethodCondition: Interface
+
 augmentConversionForDeliveryRuleRequestMethodCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleRequestSchemeCondition: Interface
+
 augmentConversionForDeliveryRuleRequestSchemeCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleRequestUriCondition: Interface
+
 augmentConversionForDeliveryRuleRequestUriCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleResponseHeaderAction: Interface
+
 augmentConversionForDeliveryRuleResponseHeaderAction_STATUS: Interface
+
 augmentConversionForDeliveryRuleRouteConfigurationOverrideAction: Interface
+
 augmentConversionForDeliveryRuleRouteConfigurationOverrideAction_STATUS: Interface
+
 augmentConversionForDeliveryRuleServerPortCondition: Interface
+
 augmentConversionForDeliveryRuleServerPortCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleSocketAddrCondition: Interface
+
 augmentConversionForDeliveryRuleSocketAddrCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleSslProtocolCondition: Interface
+
 augmentConversionForDeliveryRuleSslProtocolCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleUrlFileExtensionCondition: Interface
+
 augmentConversionForDeliveryRuleUrlFileExtensionCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleUrlFileNameCondition: Interface
+
 augmentConversionForDeliveryRuleUrlFileNameCondition_STATUS: Interface
+
 augmentConversionForDeliveryRuleUrlPathCondition: Interface
+
 augmentConversionForDeliveryRuleUrlPathCondition_STATUS: Interface
+
+augmentConversionForDeliveryRule_STATUS: Interface
+
+augmentConversionForEndpointProperties_DeliveryPolicy: Interface
+
+augmentConversionForEndpointProperties_DeliveryPolicy_STATUS: Interface
+
+augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink: Interface
+
+augmentConversionForEndpointProperties_WebApplicationFirewallPolicyLink_STATUS: Interface
+
+augmentConversionForGeoFilter: Interface
+
+augmentConversionForGeoFilter_STATUS: Interface
+
 augmentConversionForHeaderActionParameters: Interface
+
 augmentConversionForHeaderActionParameters_STATUS: Interface
+
 augmentConversionForHealthProbeParameters: Interface
+
 augmentConversionForHealthProbeParameters_STATUS: Interface
+
 augmentConversionForHostNameMatchConditionParameters: Interface
+
 augmentConversionForHostNameMatchConditionParameters_STATUS: Interface
+
+augmentConversionForHttpErrorRangeParameters: Interface
+
+augmentConversionForHttpErrorRangeParameters_STATUS: Interface
+
 augmentConversionForHttpVersionMatchConditionParameters: Interface
+
 augmentConversionForHttpVersionMatchConditionParameters_STATUS: Interface
+
 augmentConversionForIsDeviceMatchConditionParameters: Interface
+
 augmentConversionForIsDeviceMatchConditionParameters_STATUS: Interface
+
+augmentConversionForKeyVaultSigningKeyParameters: Interface
+
+augmentConversionForKeyVaultSigningKeyParameters_STATUS: Interface
+
 augmentConversionForOriginGroupOverride: Interface
+
 augmentConversionForOriginGroupOverrideAction: Interface
+
 augmentConversionForOriginGroupOverrideActionParameters: Interface
+
 augmentConversionForOriginGroupOverrideActionParameters_STATUS: Interface
+
 augmentConversionForOriginGroupOverrideAction_STATUS: Interface
+
 augmentConversionForOriginGroupOverride_STATUS: Interface
+
 augmentConversionForPostArgsMatchConditionParameters: Interface
+
 augmentConversionForPostArgsMatchConditionParameters_STATUS: Interface
+
 augmentConversionForProfile: Interface
+
+augmentConversionForProfileOperatorSpec: Interface
+
 augmentConversionForProfile_STATUS: Interface
+
 augmentConversionForProfile_Spec: Interface
+
+augmentConversionForProfilesEndpoint: Interface
+
+augmentConversionForProfilesEndpointOperatorSpec: Interface
+
+augmentConversionForProfilesEndpoint_STATUS: Interface
+
+augmentConversionForProfilesEndpoint_Spec: Interface
+
 augmentConversionForQueryStringMatchConditionParameters: Interface
+
 augmentConversionForQueryStringMatchConditionParameters_STATUS: Interface
+
 augmentConversionForRemoteAddressMatchConditionParameters: Interface
+
 augmentConversionForRemoteAddressMatchConditionParameters_STATUS: Interface
+
 augmentConversionForRequestBodyMatchConditionParameters: Interface
+
 augmentConversionForRequestBodyMatchConditionParameters_STATUS: Interface
+
 augmentConversionForRequestHeaderMatchConditionParameters: Interface
+
 augmentConversionForRequestHeaderMatchConditionParameters_STATUS: Interface
+
 augmentConversionForRequestMethodMatchConditionParameters: Interface
+
 augmentConversionForRequestMethodMatchConditionParameters_STATUS: Interface
+
 augmentConversionForRequestSchemeMatchConditionParameters: Interface
+
 augmentConversionForRequestSchemeMatchConditionParameters_STATUS: Interface
+
 augmentConversionForRequestUriMatchConditionParameters: Interface
+
 augmentConversionForRequestUriMatchConditionParameters_STATUS: Interface
+
 augmentConversionForResourceReference: Interface
+
 augmentConversionForResourceReference_STATUS: Interface
+
+augmentConversionForResponseBasedOriginErrorDetectionParameters: Interface
+
+augmentConversionForResponseBasedOriginErrorDetectionParameters_STATUS: Interface
+
 augmentConversionForRouteConfigurationOverrideActionParameters: Interface
+
 augmentConversionForRouteConfigurationOverrideActionParameters_STATUS: Interface
+
 augmentConversionForServerPortMatchConditionParameters: Interface
+
 augmentConversionForServerPortMatchConditionParameters_STATUS: Interface
+
 augmentConversionForSku: Interface
+
 augmentConversionForSku_STATUS: Interface
+
 augmentConversionForSocketAddrMatchConditionParameters: Interface
+
 augmentConversionForSocketAddrMatchConditionParameters_STATUS: Interface
+
 augmentConversionForSslProtocolMatchConditionParameters: Interface
+
 augmentConversionForSslProtocolMatchConditionParameters_STATUS: Interface
+
 augmentConversionForSystemData_STATUS: Interface
+
 augmentConversionForUrlFileExtensionMatchConditionParameters: Interface
+
 augmentConversionForUrlFileExtensionMatchConditionParameters_STATUS: Interface
+
 augmentConversionForUrlFileNameMatchConditionParameters: Interface
+
 augmentConversionForUrlFileNameMatchConditionParameters_STATUS: Interface
+
 augmentConversionForUrlPathMatchConditionParameters: Interface
+
 augmentConversionForUrlPathMatchConditionParameters_STATUS: Interface
+
 augmentConversionForUrlRedirectAction: Interface
+
 augmentConversionForUrlRedirectActionParameters: Interface
+
 augmentConversionForUrlRedirectActionParameters_STATUS: Interface
+
 augmentConversionForUrlRedirectAction_STATUS: Interface
+
 augmentConversionForUrlRewriteAction: Interface
+
 augmentConversionForUrlRewriteActionParameters: Interface
+
 augmentConversionForUrlRewriteActionParameters_STATUS: Interface
+
 augmentConversionForUrlRewriteAction_STATUS: Interface
+
 augmentConversionForUrlSigningAction: Interface
+
 augmentConversionForUrlSigningActionParameters: Interface
+
 augmentConversionForUrlSigningActionParameters_STATUS: Interface
+
 augmentConversionForUrlSigningAction_STATUS: Interface
+
+augmentConversionForUrlSigningKey: Interface
+
+augmentConversionForUrlSigningKey_STATUS: Interface
+
 augmentConversionForUrlSigningParamIdentifier: Interface
+
 augmentConversionForUrlSigningParamIdentifier_STATUS: Interface
+

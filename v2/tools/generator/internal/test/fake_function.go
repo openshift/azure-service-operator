@@ -7,7 +7,7 @@ package test
 
 import (
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -58,7 +58,7 @@ func (fake *FakeFunction) AsFunc(
 	receiverType := astmodel.NewOptionalType(receiver)
 	receiverTypeExpr, err := receiverType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating receiver type expression")
+		return nil, eris.Wrap(err, "creating receiver type expression")
 	}
 
 	details := astbuilder.FuncDetails{
@@ -70,7 +70,7 @@ func (fake *FakeFunction) AsFunc(
 	if fake.TypeReturned != nil {
 		typeReturnedExpr, err := fake.TypeReturned.AsTypeExpr(codeGenerationContext)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating type returned expression")
+			return nil, eris.Wrap(err, "creating type returned expression")
 		}
 
 		details.AddReturn(typeReturnedExpr)
@@ -103,7 +103,7 @@ func (fake *FakeFunction) Equals(f astmodel.Function, _ astmodel.EqualityOverrid
 		return false
 	}
 
-	for _, imp := range fake.Imported.AsSlice() {
+	for imp := range fake.Imported.All() {
 		if !fn.Imported.Contains(imp) {
 			return false
 		}

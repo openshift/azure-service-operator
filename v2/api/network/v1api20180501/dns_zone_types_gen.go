@@ -5,26 +5,28 @@ package v1api20180501
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/network/v1api20180501/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/network/v1api20180501/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,network}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /dns/resource-manager/Microsoft.Network/stable/2018-05-01/dns.json
+// - Generated from: /dns/resource-manager/Microsoft.Network/Dns/stable/2018-05-01/dns.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/dnsZones/{zoneName}
 type DnsZone struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -67,28 +69,25 @@ func (zone *DnsZone) ConvertTo(hub conversion.Hub) error {
 	return zone.AssignProperties_To_DnsZone(destination)
 }
 
-// +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20180501-dnszone,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnszones,verbs=create;update,versions=v1api20180501,name=default.v1api20180501.dnszones.network.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &DnsZone{}
 
-var _ admission.Defaulter = &DnsZone{}
-
-// Default applies defaults to the DnsZone resource
-func (zone *DnsZone) Default() {
-	zone.defaultImpl()
-	var temp any = zone
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (zone *DnsZone) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if zone.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return zone.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (zone *DnsZone) defaultAzureName() {
-	if zone.Spec.AzureName == "" {
-		zone.Spec.AzureName = zone.Name
-	}
-}
+var _ secrets.Exporter = &DnsZone{}
 
-// defaultImpl applies the code generated defaults to the DnsZone resource
-func (zone *DnsZone) defaultImpl() { zone.defaultAzureName() }
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (zone *DnsZone) SecretDestinationExpressions() []*core.DestinationExpression {
+	if zone.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return zone.Spec.OperatorSpec.SecretExpressions
+}
 
 var _ genruntime.ImportableResource = &DnsZone{}
 
@@ -110,7 +109,7 @@ func (zone *DnsZone) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2018-05-01"
 func (zone DnsZone) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2018-05-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -149,6 +148,10 @@ func (zone *DnsZone) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (zone *DnsZone) Owner() *genruntime.ResourceReference {
+	if zone.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(zone.Spec)
 	return zone.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -165,92 +168,11 @@ func (zone *DnsZone) SetStatus(status genruntime.ConvertibleStatus) error {
 	var st DnsZone_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	zone.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-network-azure-com-v1api20180501-dnszone,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnszones,verbs=create;update,versions=v1api20180501,name=validate.v1api20180501.dnszones.network.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &DnsZone{}
-
-// ValidateCreate validates the creation of the resource
-func (zone *DnsZone) ValidateCreate() (admission.Warnings, error) {
-	validations := zone.createValidations()
-	var temp any = zone
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (zone *DnsZone) ValidateDelete() (admission.Warnings, error) {
-	validations := zone.deleteValidations()
-	var temp any = zone
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (zone *DnsZone) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := zone.updateValidations()
-	var temp any = zone
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (zone *DnsZone) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){zone.validateResourceReferences, zone.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (zone *DnsZone) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (zone *DnsZone) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return zone.validateResourceReferences()
-		},
-		zone.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return zone.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (zone *DnsZone) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(zone)
-}
-
-// validateResourceReferences validates all resource references
-func (zone *DnsZone) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&zone.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (zone *DnsZone) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*DnsZone)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, zone)
 }
 
 // AssignProperties_From_DnsZone populates our DnsZone from the provided source DnsZone
@@ -263,7 +185,7 @@ func (zone *DnsZone) AssignProperties_From_DnsZone(source *storage.DnsZone) erro
 	var spec DnsZone_Spec
 	err := spec.AssignProperties_From_DnsZone_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_DnsZone_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_DnsZone_Spec() to populate field Spec")
 	}
 	zone.Spec = spec
 
@@ -271,7 +193,7 @@ func (zone *DnsZone) AssignProperties_From_DnsZone(source *storage.DnsZone) erro
 	var status DnsZone_STATUS
 	err = status.AssignProperties_From_DnsZone_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_DnsZone_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_DnsZone_STATUS() to populate field Status")
 	}
 	zone.Status = status
 
@@ -289,7 +211,7 @@ func (zone *DnsZone) AssignProperties_To_DnsZone(destination *storage.DnsZone) e
 	var spec storage.DnsZone_Spec
 	err := zone.Spec.AssignProperties_To_DnsZone_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_DnsZone_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_DnsZone_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
@@ -297,7 +219,7 @@ func (zone *DnsZone) AssignProperties_To_DnsZone(destination *storage.DnsZone) e
 	var status storage.DnsZone_STATUS
 	err = zone.Status.AssignProperties_To_DnsZone_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_DnsZone_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_DnsZone_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +238,7 @@ func (zone *DnsZone) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /dns/resource-manager/Microsoft.Network/stable/2018-05-01/dns.json
+// - Generated from: /dns/resource-manager/Microsoft.Network/Dns/stable/2018-05-01/dns.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/dnsZones/{zoneName}
 type DnsZoneList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -337,6 +259,10 @@ type DnsZone_Spec struct {
 	// +kubebuilder:validation:Required
 	// Location: Resource location.
 	Location *string `json:"location,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *DnsZoneOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -366,7 +292,7 @@ func (zone *DnsZone_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 	if zone == nil {
 		return nil, nil
 	}
-	result := &DnsZone_Spec_ARM{}
+	result := &arm.DnsZone_Spec{}
 
 	// Set property "Location":
 	if zone.Location != nil {
@@ -381,24 +307,26 @@ func (zone *DnsZone_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 	if zone.RegistrationVirtualNetworks != nil ||
 		zone.ResolutionVirtualNetworks != nil ||
 		zone.ZoneType != nil {
-		result.Properties = &ZoneProperties_ARM{}
+		result.Properties = &arm.ZoneProperties{}
 	}
 	for _, item := range zone.RegistrationVirtualNetworks {
 		item_ARM, err := item.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		result.Properties.RegistrationVirtualNetworks = append(result.Properties.RegistrationVirtualNetworks, *item_ARM.(*SubResource_ARM))
+		result.Properties.RegistrationVirtualNetworks = append(result.Properties.RegistrationVirtualNetworks, *item_ARM.(*arm.SubResource))
 	}
 	for _, item := range zone.ResolutionVirtualNetworks {
 		item_ARM, err := item.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		result.Properties.ResolutionVirtualNetworks = append(result.Properties.ResolutionVirtualNetworks, *item_ARM.(*SubResource_ARM))
+		result.Properties.ResolutionVirtualNetworks = append(result.Properties.ResolutionVirtualNetworks, *item_ARM.(*arm.SubResource))
 	}
 	if zone.ZoneType != nil {
-		zoneType := *zone.ZoneType
+		var temp string
+		temp = string(*zone.ZoneType)
+		zoneType := arm.ZoneProperties_ZoneType(temp)
 		result.Properties.ZoneType = &zoneType
 	}
 
@@ -414,14 +342,14 @@ func (zone *DnsZone_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (zone *DnsZone_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &DnsZone_Spec_ARM{}
+	return &arm.DnsZone_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (zone *DnsZone_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(DnsZone_Spec_ARM)
+	typedInput, ok := armInput.(arm.DnsZone_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected DnsZone_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.DnsZone_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
@@ -432,6 +360,8 @@ func (zone *DnsZone_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReferen
 		location := *typedInput.Location
 		zone.Location = &location
 	}
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "Owner":
 	zone.Owner = &genruntime.KnownResourceReference{
@@ -477,7 +407,9 @@ func (zone *DnsZone_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReferen
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.ZoneType != nil {
-			zoneType := *typedInput.Properties.ZoneType
+			var temp string
+			temp = string(*typedInput.Properties.ZoneType)
+			zoneType := ZoneProperties_ZoneType(temp)
 			zone.ZoneType = &zoneType
 		}
 	}
@@ -500,13 +432,13 @@ func (zone *DnsZone_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) err
 	src = &storage.DnsZone_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
 	err = zone.AssignProperties_From_DnsZone_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
@@ -524,13 +456,13 @@ func (zone *DnsZone_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) 
 	dst = &storage.DnsZone_Spec{}
 	err := zone.AssignProperties_To_DnsZone_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
@@ -545,6 +477,18 @@ func (zone *DnsZone_Spec) AssignProperties_From_DnsZone_Spec(source *storage.Dns
 	// Location
 	zone.Location = genruntime.ClonePointerToString(source.Location)
 
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec DnsZoneOperatorSpec
+		err := operatorSpec.AssignProperties_From_DnsZoneOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_DnsZoneOperatorSpec() to populate field OperatorSpec")
+		}
+		zone.OperatorSpec = &operatorSpec
+	} else {
+		zone.OperatorSpec = nil
+	}
+
 	// Owner
 	if source.Owner != nil {
 		owner := source.Owner.Copy()
@@ -557,12 +501,10 @@ func (zone *DnsZone_Spec) AssignProperties_From_DnsZone_Spec(source *storage.Dns
 	if source.RegistrationVirtualNetworks != nil {
 		registrationVirtualNetworkList := make([]SubResource, len(source.RegistrationVirtualNetworks))
 		for registrationVirtualNetworkIndex, registrationVirtualNetworkItem := range source.RegistrationVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			registrationVirtualNetworkItem := registrationVirtualNetworkItem
 			var registrationVirtualNetwork SubResource
 			err := registrationVirtualNetwork.AssignProperties_From_SubResource(&registrationVirtualNetworkItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SubResource() to populate field RegistrationVirtualNetworks")
+				return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field RegistrationVirtualNetworks")
 			}
 			registrationVirtualNetworkList[registrationVirtualNetworkIndex] = registrationVirtualNetwork
 		}
@@ -575,12 +517,10 @@ func (zone *DnsZone_Spec) AssignProperties_From_DnsZone_Spec(source *storage.Dns
 	if source.ResolutionVirtualNetworks != nil {
 		resolutionVirtualNetworkList := make([]SubResource, len(source.ResolutionVirtualNetworks))
 		for resolutionVirtualNetworkIndex, resolutionVirtualNetworkItem := range source.ResolutionVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			resolutionVirtualNetworkItem := resolutionVirtualNetworkItem
 			var resolutionVirtualNetwork SubResource
 			err := resolutionVirtualNetwork.AssignProperties_From_SubResource(&resolutionVirtualNetworkItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SubResource() to populate field ResolutionVirtualNetworks")
+				return eris.Wrap(err, "calling AssignProperties_From_SubResource() to populate field ResolutionVirtualNetworks")
 			}
 			resolutionVirtualNetworkList[resolutionVirtualNetworkIndex] = resolutionVirtualNetwork
 		}
@@ -616,6 +556,18 @@ func (zone *DnsZone_Spec) AssignProperties_To_DnsZone_Spec(destination *storage.
 	// Location
 	destination.Location = genruntime.ClonePointerToString(zone.Location)
 
+	// OperatorSpec
+	if zone.OperatorSpec != nil {
+		var operatorSpec storage.DnsZoneOperatorSpec
+		err := zone.OperatorSpec.AssignProperties_To_DnsZoneOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_DnsZoneOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
 	// OriginalVersion
 	destination.OriginalVersion = zone.OriginalVersion()
 
@@ -631,12 +583,10 @@ func (zone *DnsZone_Spec) AssignProperties_To_DnsZone_Spec(destination *storage.
 	if zone.RegistrationVirtualNetworks != nil {
 		registrationVirtualNetworkList := make([]storage.SubResource, len(zone.RegistrationVirtualNetworks))
 		for registrationVirtualNetworkIndex, registrationVirtualNetworkItem := range zone.RegistrationVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			registrationVirtualNetworkItem := registrationVirtualNetworkItem
 			var registrationVirtualNetwork storage.SubResource
 			err := registrationVirtualNetworkItem.AssignProperties_To_SubResource(&registrationVirtualNetwork)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SubResource() to populate field RegistrationVirtualNetworks")
+				return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field RegistrationVirtualNetworks")
 			}
 			registrationVirtualNetworkList[registrationVirtualNetworkIndex] = registrationVirtualNetwork
 		}
@@ -649,12 +599,10 @@ func (zone *DnsZone_Spec) AssignProperties_To_DnsZone_Spec(destination *storage.
 	if zone.ResolutionVirtualNetworks != nil {
 		resolutionVirtualNetworkList := make([]storage.SubResource, len(zone.ResolutionVirtualNetworks))
 		for resolutionVirtualNetworkIndex, resolutionVirtualNetworkItem := range zone.ResolutionVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			resolutionVirtualNetworkItem := resolutionVirtualNetworkItem
 			var resolutionVirtualNetwork storage.SubResource
 			err := resolutionVirtualNetworkItem.AssignProperties_To_SubResource(&resolutionVirtualNetwork)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SubResource() to populate field ResolutionVirtualNetworks")
+				return eris.Wrap(err, "calling AssignProperties_To_SubResource() to populate field ResolutionVirtualNetworks")
 			}
 			resolutionVirtualNetworkList[resolutionVirtualNetworkIndex] = resolutionVirtualNetwork
 		}
@@ -695,12 +643,10 @@ func (zone *DnsZone_Spec) Initialize_From_DnsZone_STATUS(source *DnsZone_STATUS)
 	if source.RegistrationVirtualNetworks != nil {
 		registrationVirtualNetworkList := make([]SubResource, len(source.RegistrationVirtualNetworks))
 		for registrationVirtualNetworkIndex, registrationVirtualNetworkItem := range source.RegistrationVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			registrationVirtualNetworkItem := registrationVirtualNetworkItem
 			var registrationVirtualNetwork SubResource
 			err := registrationVirtualNetwork.Initialize_From_SubResource_STATUS(&registrationVirtualNetworkItem)
 			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_SubResource_STATUS() to populate field RegistrationVirtualNetworks")
+				return eris.Wrap(err, "calling Initialize_From_SubResource_STATUS() to populate field RegistrationVirtualNetworks")
 			}
 			registrationVirtualNetworkList[registrationVirtualNetworkIndex] = registrationVirtualNetwork
 		}
@@ -713,12 +659,10 @@ func (zone *DnsZone_Spec) Initialize_From_DnsZone_STATUS(source *DnsZone_STATUS)
 	if source.ResolutionVirtualNetworks != nil {
 		resolutionVirtualNetworkList := make([]SubResource, len(source.ResolutionVirtualNetworks))
 		for resolutionVirtualNetworkIndex, resolutionVirtualNetworkItem := range source.ResolutionVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			resolutionVirtualNetworkItem := resolutionVirtualNetworkItem
 			var resolutionVirtualNetwork SubResource
 			err := resolutionVirtualNetwork.Initialize_From_SubResource_STATUS(&resolutionVirtualNetworkItem)
 			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_SubResource_STATUS() to populate field ResolutionVirtualNetworks")
+				return eris.Wrap(err, "calling Initialize_From_SubResource_STATUS() to populate field ResolutionVirtualNetworks")
 			}
 			resolutionVirtualNetworkList[resolutionVirtualNetworkIndex] = resolutionVirtualNetwork
 		}
@@ -814,13 +758,13 @@ func (zone *DnsZone_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatu
 	src = &storage.DnsZone_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
 	err = zone.AssignProperties_From_DnsZone_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
@@ -838,13 +782,13 @@ func (zone *DnsZone_STATUS) ConvertStatusTo(destination genruntime.ConvertibleSt
 	dst = &storage.DnsZone_STATUS{}
 	err := zone.AssignProperties_To_DnsZone_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
@@ -854,14 +798,14 @@ var _ genruntime.FromARMConverter = &DnsZone_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (zone *DnsZone_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &DnsZone_STATUS_ARM{}
+	return &arm.DnsZone_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (zone *DnsZone_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(DnsZone_STATUS_ARM)
+	typedInput, ok := armInput.(arm.DnsZone_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected DnsZone_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.DnsZone_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -969,7 +913,9 @@ func (zone *DnsZone_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRefer
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.ZoneType != nil {
-			zoneType := *typedInput.Properties.ZoneType
+			var temp string
+			temp = string(*typedInput.Properties.ZoneType)
+			zoneType := ZoneProperties_ZoneType_STATUS(temp)
 			zone.ZoneType = &zoneType
 		}
 	}
@@ -1012,12 +958,10 @@ func (zone *DnsZone_STATUS) AssignProperties_From_DnsZone_STATUS(source *storage
 	if source.RegistrationVirtualNetworks != nil {
 		registrationVirtualNetworkList := make([]SubResource_STATUS, len(source.RegistrationVirtualNetworks))
 		for registrationVirtualNetworkIndex, registrationVirtualNetworkItem := range source.RegistrationVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			registrationVirtualNetworkItem := registrationVirtualNetworkItem
 			var registrationVirtualNetwork SubResource_STATUS
 			err := registrationVirtualNetwork.AssignProperties_From_SubResource_STATUS(&registrationVirtualNetworkItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field RegistrationVirtualNetworks")
+				return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field RegistrationVirtualNetworks")
 			}
 			registrationVirtualNetworkList[registrationVirtualNetworkIndex] = registrationVirtualNetwork
 		}
@@ -1030,12 +974,10 @@ func (zone *DnsZone_STATUS) AssignProperties_From_DnsZone_STATUS(source *storage
 	if source.ResolutionVirtualNetworks != nil {
 		resolutionVirtualNetworkList := make([]SubResource_STATUS, len(source.ResolutionVirtualNetworks))
 		for resolutionVirtualNetworkIndex, resolutionVirtualNetworkItem := range source.ResolutionVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			resolutionVirtualNetworkItem := resolutionVirtualNetworkItem
 			var resolutionVirtualNetwork SubResource_STATUS
 			err := resolutionVirtualNetwork.AssignProperties_From_SubResource_STATUS(&resolutionVirtualNetworkItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field ResolutionVirtualNetworks")
+				return eris.Wrap(err, "calling AssignProperties_From_SubResource_STATUS() to populate field ResolutionVirtualNetworks")
 			}
 			resolutionVirtualNetworkList[resolutionVirtualNetworkIndex] = resolutionVirtualNetwork
 		}
@@ -1099,12 +1041,10 @@ func (zone *DnsZone_STATUS) AssignProperties_To_DnsZone_STATUS(destination *stor
 	if zone.RegistrationVirtualNetworks != nil {
 		registrationVirtualNetworkList := make([]storage.SubResource_STATUS, len(zone.RegistrationVirtualNetworks))
 		for registrationVirtualNetworkIndex, registrationVirtualNetworkItem := range zone.RegistrationVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			registrationVirtualNetworkItem := registrationVirtualNetworkItem
 			var registrationVirtualNetwork storage.SubResource_STATUS
 			err := registrationVirtualNetworkItem.AssignProperties_To_SubResource_STATUS(&registrationVirtualNetwork)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field RegistrationVirtualNetworks")
+				return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field RegistrationVirtualNetworks")
 			}
 			registrationVirtualNetworkList[registrationVirtualNetworkIndex] = registrationVirtualNetwork
 		}
@@ -1117,12 +1057,10 @@ func (zone *DnsZone_STATUS) AssignProperties_To_DnsZone_STATUS(destination *stor
 	if zone.ResolutionVirtualNetworks != nil {
 		resolutionVirtualNetworkList := make([]storage.SubResource_STATUS, len(zone.ResolutionVirtualNetworks))
 		for resolutionVirtualNetworkIndex, resolutionVirtualNetworkItem := range zone.ResolutionVirtualNetworks {
-			// Shadow the loop variable to avoid aliasing
-			resolutionVirtualNetworkItem := resolutionVirtualNetworkItem
 			var resolutionVirtualNetwork storage.SubResource_STATUS
 			err := resolutionVirtualNetworkItem.AssignProperties_To_SubResource_STATUS(&resolutionVirtualNetwork)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field ResolutionVirtualNetworks")
+				return eris.Wrap(err, "calling AssignProperties_To_SubResource_STATUS() to populate field ResolutionVirtualNetworks")
 			}
 			resolutionVirtualNetworkList[resolutionVirtualNetworkIndex] = resolutionVirtualNetwork
 		}
@@ -1156,6 +1094,102 @@ func (zone *DnsZone_STATUS) AssignProperties_To_DnsZone_STATUS(destination *stor
 	return nil
 }
 
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type DnsZoneOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_DnsZoneOperatorSpec populates our DnsZoneOperatorSpec from the provided source DnsZoneOperatorSpec
+func (operator *DnsZoneOperatorSpec) AssignProperties_From_DnsZoneOperatorSpec(source *storage.DnsZoneOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DnsZoneOperatorSpec populates the provided destination DnsZoneOperatorSpec from our DnsZoneOperatorSpec
+func (operator *DnsZoneOperatorSpec) AssignProperties_To_DnsZoneOperatorSpec(destination *storage.DnsZoneOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
 // A reference to a another resource
 type SubResource struct {
 	// Reference: Resource Id.
@@ -1169,7 +1203,7 @@ func (resource *SubResource) ConvertToARM(resolved genruntime.ConvertToARMResolv
 	if resource == nil {
 		return nil, nil
 	}
-	result := &SubResource_ARM{}
+	result := &arm.SubResource{}
 
 	// Set property "Id":
 	if resource.Reference != nil {
@@ -1185,14 +1219,14 @@ func (resource *SubResource) ConvertToARM(resolved genruntime.ConvertToARMResolv
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (resource *SubResource) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SubResource_ARM{}
+	return &arm.SubResource{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (resource *SubResource) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	_, ok := armInput.(SubResource_ARM)
+	_, ok := armInput.(arm.SubResource)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SubResource_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SubResource, got %T", armInput)
 	}
 
 	// no assignment for property "Reference"
@@ -1265,14 +1299,14 @@ var _ genruntime.FromARMConverter = &SubResource_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (resource *SubResource_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SubResource_STATUS_ARM{}
+	return &arm.SubResource_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (resource *SubResource_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SubResource_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SubResource_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SubResource_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SubResource_STATUS, got %T", armInput)
 	}
 
 	// Set property "Id":

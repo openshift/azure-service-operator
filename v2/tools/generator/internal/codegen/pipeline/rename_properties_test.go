@@ -8,9 +8,9 @@ package pipeline
 import (
 	"testing"
 
-	"github.com/go-logr/logr"
-
 	. "github.com/onsi/gomega"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -35,15 +35,18 @@ func Test_RenameProperties_RenamesExpectedProperty(t *testing.T) {
 		func(p *config.PropertyConfiguration) error {
 			p.RenameTo.Set("Alias")
 			return nil
-		})).To(Succeed())
+		},
+	)).To(Succeed())
 
 	initialState, err := RunTestPipeline(
-		NewState(defs))
+		NewState(defs),
+	)
 	g.Expect(err).To(Succeed())
 
 	finalState, err := RunTestPipeline(
 		initialState,
-		RenameProperties(omc))
+		RenameProperties(omc),
+	)
 	g.Expect(err).To(Succeed())
 
 	// When verifying the golden file, ensure the property has been renamed as expected
@@ -58,10 +61,11 @@ func Test_RenameProperties_PopulatesExpectedARMProperty(t *testing.T) {
 
 	// Arrange API Version
 
-	apiVersionValue := astmodel.MakeEnumValue("apiVersion", "2020-06-01")
+	apiVersionValue := astmodel.MakeEnumValue("apiVersion", `"2020-06-01"`)
 	apiVersion := astmodel.MakeTypeDefinition(
 		astmodel.MakeInternalTypeName(test.Pkg2020, "APIVersion"),
-		astmodel.NewEnumType(astmodel.StringType, apiVersionValue))
+		astmodel.NewEnumType(astmodel.StringType, apiVersionValue),
+	)
 
 	apiVersionProperty := astmodel.NewPropertyDefinition("APIVersion", "apiVersion", apiVersion.Name()).
 		MakeTypeOptional().
@@ -76,7 +80,8 @@ func Test_RenameProperties_PopulatesExpectedARMProperty(t *testing.T) {
 		apiVersionProperty,
 		test.FullNameProperty,
 		test.KnownAsProperty,
-		test.FamilyNameProperty)
+		test.FamilyNameProperty,
+	)
 
 	personStatus := test.CreateStatus(
 		test.Pkg2020,
@@ -84,7 +89,8 @@ func Test_RenameProperties_PopulatesExpectedARMProperty(t *testing.T) {
 		test.NameProperty,
 		test.FullNameProperty,
 		test.KnownAsProperty,
-		test.FamilyNameProperty)
+		test.FamilyNameProperty,
+	)
 
 	personResourceType := astmodel.NewResourceType(personSpec.Name(), personStatus.Name()).
 		WithAPIVersion(apiVersion.Name(), apiVersionValue)
@@ -97,7 +103,8 @@ func Test_RenameProperties_PopulatesExpectedARMProperty(t *testing.T) {
 		person,
 		personSpec,
 		personStatus,
-		apiVersion)
+		apiVersion,
+	)
 
 	cfg := config.NewConfiguration()
 	omc := cfg.ObjectModelConfiguration
@@ -107,7 +114,8 @@ func Test_RenameProperties_PopulatesExpectedARMProperty(t *testing.T) {
 		func(p *config.PropertyConfiguration) error {
 			p.RenameTo.Set("Alias")
 			return nil
-		})).To(Succeed())
+		},
+	)).To(Succeed())
 
 	initialState, err := RunTestPipeline(
 		NewState(defs),
@@ -137,10 +145,11 @@ func Test_RenameProperties_WhenFlattening_PopulatesExpectedARMProperty(t *testin
 
 	// Arrange API Version
 
-	apiVersionValue := astmodel.MakeEnumValue("apiVersion", "2020-06-01")
+	apiVersionValue := astmodel.MakeEnumValue("apiVersion", `"2020-06-01"`)
 	apiVersion := astmodel.MakeTypeDefinition(
 		astmodel.MakeInternalTypeName(test.Pkg2020, "APIVersion"),
-		astmodel.NewEnumType(astmodel.StringType, apiVersionValue))
+		astmodel.NewEnumType(astmodel.StringType, apiVersionValue),
+	)
 
 	apiVersionProperty := astmodel.NewPropertyDefinition("APIVersion", "apiVersion", apiVersion.Name()).
 		MakeTypeOptional().
@@ -186,7 +195,8 @@ func Test_RenameProperties_WhenFlattening_PopulatesExpectedARMProperty(t *testin
 		personSpec,
 		personStatus,
 		apiVersion,
-		address)
+		address,
+	)
 
 	cfg := config.NewConfiguration()
 	omc := cfg.ObjectModelConfiguration
@@ -196,7 +206,8 @@ func Test_RenameProperties_WhenFlattening_PopulatesExpectedARMProperty(t *testin
 		func(p *config.PropertyConfiguration) error {
 			p.RenameTo.Set("PostalAddress")
 			return nil
-		})).To(Succeed())
+		},
+	)).To(Succeed())
 
 	initialState, err := RunTestPipeline(
 		NewState(defs),

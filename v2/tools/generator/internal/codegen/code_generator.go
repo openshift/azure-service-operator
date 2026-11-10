@@ -8,13 +8,12 @@ package codegen
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"runtime/debug"
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
-
-	"github.com/Azure/azure-service-operator/v2/internal/version"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/codegen/pipeline"
@@ -63,7 +62,7 @@ func NewTargetedCodeGeneratorFromConfig(
 ) (*CodeGenerator, error) {
 	result, err := NewCodeGeneratorFromConfig(configuration, idFactory, log)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating pipeline targeting %s", target)
+		return nil, eris.Wrapf(err, "creating pipeline targeting %s", target)
 	}
 
 	// Filter stages to use only those appropriate for our target
@@ -157,6 +156,8 @@ func createAllPipelineStages(
 		// ARM types for resources etc:
 		pipeline.ApplyExportFilters(configuration, log),
 
+		pipeline.PromoteRootOneOfProperties(),
+
 		pipeline.AddAPIVersionEnums(),
 		pipeline.RemoveTypeAliases(),
 
@@ -168,12 +169,15 @@ func createAllPipelineStages(
 		// but we include it to hedge against future changes
 		pipeline.RemoveEmptyObjects(log),
 
+		pipeline.MoveTypesForVersionMigration(configuration.ObjectModelConfiguration).UsedFor(pipeline.ARMTarget),
+
 		pipeline.VerifyNoErroredTypes(),
 
 		pipeline.StripUnreferencedTypeDefinitions(),
 
 		pipeline.ReplaceAnyTypeWithJSON(),
 		pipeline.ImprovePropertyDescriptions(),
+		pipeline.StripDocumentation(configuration, log),
 
 		pipeline.FixOptionalCollectionAliases(),
 
@@ -190,6 +194,7 @@ func createAllPipelineStages(
 		pipeline.PruneResourcesWithLifecycleOwnedByParent(configuration).UsedFor(pipeline.ARMTarget),
 		pipeline.MakeOneOfDiscriminantRequired().UsedFor(pipeline.ARMTarget),
 		pipeline.ApplyARMConversionInterface(idFactory, configuration.ObjectModelConfiguration).UsedFor(pipeline.ARMTarget),
+		pipeline.AddAzureNameFromConfig(configuration, idFactory).UsedFor(pipeline.ARMTarget),
 		pipeline.ApplyKubernetesResourceInterface(idFactory, log).UsedFor(pipeline.ARMTarget),
 
 		// Effects the "flatten" property of Properties:
@@ -199,6 +204,7 @@ func createAllPipelineStages(
 		pipeline.StripUnreferencedTypeDefinitions(),
 
 		pipeline.RenameProperties(configuration.ObjectModelConfiguration),
+		pipeline.OverrideDescriptions(configuration), // After flatten and rename to make easier to use
 		pipeline.AddStatusConditions(idFactory).UsedFor(pipeline.ARMTarget),
 
 		pipeline.AddOperatorSpec(configuration, idFactory).UsedFor(pipeline.ARMTarget),
@@ -218,13 +224,14 @@ func createAllPipelineStages(
 		// TODO: For now only used for ARM
 		pipeline.InjectOriginalVersionFunction(idFactory).UsedFor(pipeline.ARMTarget),
 		pipeline.CreateStorageTypes().UsedFor(pipeline.ARMTarget),
-		pipeline.CreateConversionGraph(configuration, astmodel.GeneratorVersion).UsedFor(pipeline.ARMTarget),
-		pipeline.RepairSkippingProperties().UsedFor(pipeline.ARMTarget),
+		pipeline.CreateConversionGraph(configuration).UsedFor(pipeline.ARMTarget),
+		pipeline.RepairSkippingProperties(configuration.ObjectModelConfiguration, log).UsedFor(pipeline.ARMTarget),
 
 		// Need to regenerate the conversion graph in case our repairs for Skipping properties changed things
-		pipeline.CreateConversionGraph(configuration, astmodel.GeneratorVersion).UsedFor(pipeline.ARMTarget),
+		pipeline.CreateConversionGraph(configuration).UsedFor(pipeline.ARMTarget),
 
 		pipeline.InjectOriginalVersionProperty().UsedFor(pipeline.ARMTarget),
+		pipeline.InjectAzureNameFromConfigMethod(idFactory).UsedFor(pipeline.ARMTarget),
 		pipeline.InjectPropertyAssignmentFunctions(configuration, idFactory, log).UsedFor(pipeline.ARMTarget),
 		pipeline.ImplementConvertibleSpecInterface(idFactory).UsedFor(pipeline.ARMTarget),
 		pipeline.ImplementConvertibleStatusInterface(idFactory).UsedFor(pipeline.ARMTarget),
@@ -239,7 +246,8 @@ func createAllPipelineStages(
 		pipeline.ImplementConvertibleInterface(idFactory).UsedFor(pipeline.ARMTarget),
 
 		// Inject test cases
-		pipeline.InjectJsonSerializationTests(idFactory).UsedFor(pipeline.ARMTarget),
+		pipeline.InjectJSONSerializationTests(idFactory).UsedFor(pipeline.ARMTarget),
+		pipeline.InjectRapidSerializationTests(idFactory).UsedFor(pipeline.ARMTarget),
 		pipeline.InjectPropertyAssignmentTests(idFactory).UsedFor(pipeline.ARMTarget),
 		pipeline.InjectResourceConversionTestCases(idFactory).UsedFor(pipeline.ARMTarget),
 
@@ -259,10 +267,11 @@ func createAllPipelineStages(
 
 		pipeline.ReportResourceVersions(configuration),
 		pipeline.ReportResourceStructure(configuration),
+		pipeline.ReportUpgradableResources(configuration),
 	}
 }
 
-// Generate produces the Go code corresponding to the configured JSON schema in the given output folder
+// Generate produces the Go code for the configured resources in the given output folder
 // ctx is used to cancel the generation process.
 // log is used to log progress.
 func (generator *CodeGenerator) Generate(
@@ -270,15 +279,15 @@ func (generator *CodeGenerator) Generate(
 	log logr.Logger,
 ) error {
 	log.V(1).Info(
-		"ASO Code Generator",
-		"version", version.BuildVersion)
+		"ASO Code Generator, running...",
+	)
 
 	if generator.debugSettings != nil {
 		// Generate a diagram containing our stages
 		diagram := pipeline.NewPipelineDiagram(generator.debugSettings)
 		err := diagram.WriteDiagram(generator.pipeline)
 		if err != nil {
-			return errors.Wrapf(err, "failed to generate diagram")
+			return eris.Wrapf(err, "failed to generate diagram")
 		}
 	}
 
@@ -291,7 +300,7 @@ func (generator *CodeGenerator) Generate(
 
 		newState, err := generator.executeStage(ctx, stageNumber, stage, state)
 		if err != nil {
-			return errors.Wrapf(err, "failed to execute stage %d: %s", stageNumber, stage.Description())
+			return eris.Wrapf(err, "failed to execute stage %d: %s", stageNumber, stage.Description())
 		}
 
 		generator.logStateChanges(start, newState, state, log, stageDescription)
@@ -317,15 +326,39 @@ func (generator *CodeGenerator) logStateChanges(
 ) {
 	duration := time.Since(start).Round(time.Millisecond)
 
-	defsAdded := newState.Definitions().Except(state.Definitions())
-	defsRemoved := state.Definitions().Except(newState.Definitions())
+	// Count added/removed definitions without allocating intermediate sets. Map identity
+	// short-circuit handles the very common case where the stage did not touch the
+	// definitions map at all.
+	added, removed := countDefinitionChanges(newState.Definitions(), state.Definitions())
 
 	log.Info(
 		stageDescription,
 		"elapsed", duration,
-		"added", len(defsAdded),
-		"removed", len(defsRemoved),
-		"totalDefs", len(newState.Definitions()))
+		"added", added,
+		"removed", removed,
+		"totalDefs", len(newState.Definitions()),
+	)
+}
+
+// countDefinitionChanges returns the number of definitions added and removed when going
+// from the "before" set to the "after" set, without allocating any intermediate sets.
+// If both sets share the same underlying map (the common no-change case), the work is O(1).
+func countDefinitionChanges(after, before astmodel.TypeDefinitionSet) (added, removed int) {
+	if reflect.ValueOf(after).Pointer() == reflect.ValueOf(before).Pointer() {
+		return 0, 0
+	}
+
+	for name := range after {
+		if _, ok := before[name]; !ok {
+			added++
+		}
+	}
+	for name := range before {
+		if _, ok := after[name]; !ok {
+			removed++
+		}
+	}
+	return added, removed
 }
 
 // executeStage runs the given stage against the given state, returning the new state.
@@ -343,9 +376,9 @@ func (generator *CodeGenerator) executeStage(
 	defer func() {
 		if r := recover(); r != nil {
 			if e, ok := r.(error); ok {
-				err = errors.Wrapf(e, "panic: %s", string(debug.Stack()))
+				err = eris.Wrapf(e, "panic: %s", string(debug.Stack()))
 			} else {
-				err = errors.Errorf("panic: %s\n%s", r, string(debug.Stack()))
+				err = eris.Errorf("panic: %s\n%s", r, string(debug.Stack()))
 			}
 		}
 	}()
@@ -359,30 +392,30 @@ func (generator *CodeGenerator) executeStage(
 
 	if ctx.Err() != nil {
 		// Cancelled - will be wrapped by our caller
-		return nil, errors.New("pipeline cancelled")
+		return nil, eris.New("pipeline cancelled")
 	}
 
 	// Fail fast if something goes awry
 	if len(newState.Definitions()) == 0 {
 		// Will be wrapped by our caller with details of the stage
-		return nil, errors.Errorf("all type definitions removed by stage")
+		return nil, eris.Errorf("all type definitions removed by stage")
 	}
 
 	if generator.debugReporter != nil {
 		err := generator.debugReporter.ReportStage(stageNumber, stage.Description(), newState)
 		if err != nil {
 			// Will be wrapped by our caller with details of the stage
-			return nil, errors.Wrapf(err, "failed to generate debug report for stage")
+			return nil, eris.Wrapf(err, "failed to generate debug report for stage")
 		}
 
 		err = stage.RunDiagnostic(generator.debugSettings, stageNumber, newState)
 		if err != nil {
 			// Will be wrapped by our caller with details of the stage
-			return nil, errors.Wrapf(err, "failed to generate diagnostic report for stage")
+			return nil, eris.Wrapf(err, "failed to generate diagnostic report for stage")
 		}
 	}
 
-	return
+	return newState, err
 }
 
 // RemoveStages will remove all stages from the pipeline with the given ids.
@@ -396,8 +429,8 @@ func (generator *CodeGenerator) RemoveStages(stageIds ...string) {
 
 	stages := make([]*pipeline.Stage, 0, len(generator.pipeline))
 	for _, stage := range generator.pipeline {
-		if _, ok := stagesToRemove[stage.Id()]; ok {
-			stagesToRemove[stage.Id()] = true
+		if _, ok := stagesToRemove[stage.ID()]; ok {
+			stagesToRemove[stage.ID()] = true
 			continue
 		}
 
@@ -418,7 +451,7 @@ func (generator *CodeGenerator) RemoveStages(stageIds ...string) {
 func (generator *CodeGenerator) ReplaceStage(existingStage string, stage *pipeline.Stage) {
 	replaced := false
 	for i, s := range generator.pipeline {
-		if s.HasId(existingStage) {
+		if s.HasID(existingStage) {
 			generator.pipeline[i] = stage
 			replaced = true
 		}
@@ -436,8 +469,8 @@ func (generator *CodeGenerator) InjectStageAfter(existingStage string, stage *pi
 	injected := false
 
 	for i, s := range generator.pipeline {
-		if s.HasId(existingStage) {
-			var p []*pipeline.Stage
+		if s.HasID(existingStage) {
+			p := make([]*pipeline.Stage, 0, len(generator.pipeline)+1)
 			p = append(p, generator.pipeline[:i+1]...)
 			p = append(p, stage)
 			p = append(p, generator.pipeline[i+1:]...)
@@ -448,7 +481,7 @@ func (generator *CodeGenerator) InjectStageAfter(existingStage string, stage *pi
 	}
 
 	if !injected {
-		panic(fmt.Sprintf("Expected to inject stage %s but %s wasn't found", stage.Id(), existingStage))
+		panic(fmt.Sprintf("Expected to inject stage %s but %s wasn't found", stage.ID(), existingStage))
 	}
 }
 
@@ -462,7 +495,7 @@ func (generator *CodeGenerator) HasStage(id string) bool {
 // Only available for test builds.
 func (generator *CodeGenerator) IndexOfStage(id string) int {
 	for i, s := range generator.pipeline {
-		if s.HasId(id) {
+		if s.HasID(id) {
 			return i
 		}
 	}

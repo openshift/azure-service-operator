@@ -6,10 +6,10 @@
 package recursivetypefixer
 
 import (
-	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
+	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
@@ -94,7 +94,7 @@ func (s *SimpleRecursiveTypeFixer) unrollObjectTypeProperty(
 
 	err := s.newDefinitions.AddAllowDuplicates(unrolledDef)
 	if err != nil {
-		return simpleRecursiveTypeFixerContext{}, errors.Wrapf(err, "error adding unrolled type %q", name)
+		return simpleRecursiveTypeFixerContext{}, eris.Wrapf(err, "error adding unrolled type %q", name)
 	}
 
 	return ctx.WithUnrolledName(unrolledName), nil
@@ -112,7 +112,8 @@ func (s *SimpleRecursiveTypeFixer) unrollRecursiveReference(
 	s.log.V(2).Info(
 		"unrolling recursive reference",
 		"from", ctx.name,
-		"to", ctx.unrolledName)
+		"to", ctx.unrolledName,
+	)
 
 	return astmodel.IdentityVisitOfTypeName(this, ctx.unrolledName, ctx)
 }

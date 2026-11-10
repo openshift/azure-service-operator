@@ -10,7 +10,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	sql "github.com/Azure/azure-service-operator/v2/api/sql/v1api20211101"
+	sql "github.com/Azure/azure-service-operator/v2/api/sql/v20211101"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	"github.com/Azure/azure-service-operator/v2/internal/util/to"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
@@ -23,7 +23,7 @@ func Test_SQL_Server_FailoverGroup_CRUD(t *testing.T) {
 
 	tc := globalTestContext.ForTest(t)
 	// Use a different region where we have quota
-	tc.AzureRegion = to.Ptr("eastus")
+	tc.AzureRegion = to.Ptr("westus2")
 
 	secondaryRegion := to.Ptr("eastus2")
 
@@ -61,7 +61,7 @@ func Test_SQL_Server_FailoverGroup_CRUD(t *testing.T) {
 	// Make a database to mirror
 	db := &sql.ServersDatabase{
 		ObjectMeta: tc.MakeObjectMeta("db"),
-		Spec: sql.Servers_Database_Spec{
+		Spec: sql.ServersDatabase_Spec{
 			Owner:     testcommon.AsOwner(serverPrimary),
 			Location:  tc.AzureRegion,
 			Collation: to.Ptr("SQL_Latin1_General_CP1_CI_AS"),
@@ -73,7 +73,7 @@ func Test_SQL_Server_FailoverGroup_CRUD(t *testing.T) {
 	automatic := sql.FailoverGroupReadWriteEndpoint_FailoverPolicy_Automatic
 	failoverGroup := &sql.ServersFailoverGroup{
 		ObjectMeta: tc.MakeObjectMeta("failovergroup"),
-		Spec: sql.Servers_FailoverGroup_Spec{
+		Spec: sql.ServersFailoverGroup_Spec{
 			Owner: testcommon.AsOwner(serverPrimary),
 			PartnerServers: []sql.PartnerInfo{
 				{
@@ -99,7 +99,8 @@ func Test_SQL_Server_FailoverGroup_CRUD(t *testing.T) {
 	exists, _, err := tc.AzureClient.CheckExistenceWithGetByID(
 		tc.Ctx,
 		armId,
-		string(sql.APIVersion_Value))
+		string(sql.APIVersion_Value),
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(exists).To(BeFalse())
 }

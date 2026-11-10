@@ -9,7 +9,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -29,7 +29,7 @@ func ApplyTypeRewrites(
 				// Apply type transformation, if any
 				newDef, err := transformDefinition(def, config, log)
 				if err != nil {
-					return nil, errors.Wrapf(err, "unable to transform type %q", name)
+					return nil, eris.Wrapf(err, "unable to transform type %q", name)
 				}
 
 				definitions.Add(newDef)
@@ -38,7 +38,8 @@ func ApplyTypeRewrites(
 				// When we remove type aliases later in the pipeline, these will result in any references being updated
 				if newDef.Name() != def.Name() {
 					alias := astmodel.MakeTypeDefinition(
-						def.Name(), newDef.Name())
+						def.Name(), newDef.Name(),
+					)
 					definitions.Add(alias)
 				}
 			}
@@ -49,7 +50,8 @@ func ApplyTypeRewrites(
 			}
 
 			return state.WithDefinitions(definitions), nil
-		})
+		},
+	)
 
 	stage.RequiresPrerequisiteStages("nameTypes", "allof-anyof-objects")
 
@@ -77,7 +79,8 @@ func transformDefinition(
 				"Transforming type",
 				"type", name,
 				"because", transformer.Because,
-				"transformation", result.Type())
+				"transformation", result.Type(),
+			)
 
 			def = result
 		}

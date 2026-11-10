@@ -12,16 +12,13 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/microsoft/go-mssqldb"
 	mssql "github.com/microsoft/go-mssqldb"
-	"github.com/pkg/errors"
+	"github.com/microsoft/go-mssqldb/msdsn"
+	"github.com/rotisserie/eris"
 )
 
 // ServerPort is the default server port for sql server
 const ServerPort = 1433
-
-// driverName is driver name for db connection
-const driverName = "sqlserver"
 
 func ConnectToDB(
 	ctx context.Context,
@@ -31,20 +28,12 @@ func ConnectToDB(
 	user string,
 	password string,
 ) (*sql.DB, error) {
-	// Make sure to set connection timeout: https://github.com/denisenkom/go-mssqldb/issues/609
-	connString := fmt.Sprintf(
-		"server=%s;database=%s;user id=%s;password=%s;port=%d;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30",
-		serverAddress,
-		database,
-		user,
-		password,
-		port)
-
-	db, err := sql.Open(driverName, connString)
+	config, err := newConfig(serverAddress, database, port, user, password)
 	if err != nil {
-		return db, err
+		return nil, err
 	}
 
+	db := sql.OpenDB(mssql.NewConnectorConfig(config))
 	db.SetConnMaxLifetime(1 * time.Minute)
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
@@ -55,6 +44,36 @@ func ConnectToDB(
 	}
 
 	return db, err
+}
+
+func newConfig(serverAddress string, database string, port int, user string, password string) (msdsn.Config, error) {
+	if port < 1 || port > 65535 {
+		return msdsn.Config{}, fmt.Errorf("invalid Azure SQL port %d", port)
+	}
+
+	// msdsn.Parse initializes the driver defaults and TLS configuration described by Config:
+	// https://pkg.go.dev/github.com/microsoft/go-mssqldb/msdsn#Config.
+	// Parse only this trusted baseline so untrusted connection values are never interpreted as DSN fields.
+	config, err := msdsn.Parse(
+		"server=localhost;port=1433;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30",
+	)
+	if err != nil {
+		return msdsn.Config{}, eris.Wrap(err, "creating Azure SQL connection configuration")
+	}
+
+	config.Host = serverAddress
+	config.Port = uint64(port)
+	config.Database = database
+	config.User = user
+	config.Password = password
+	config.Encryption = msdsn.EncryptionRequired
+	config.TrustServerCertificate = false
+	// Make sure to set connection timeout: https://github.com/denisenkom/go-mssqldb/issues/609
+	config.ConnTimeout = 30 * time.Second
+	config.TLSConfig.ServerName = serverAddress
+	config.TLSConfig.InsecureSkipVerify = false
+
+	return config, nil
 }
 
 // ConnectToDBUsingAAD connects to the Azure SQL database using the specified token provider.
@@ -71,7 +90,7 @@ func ConnectToDBUsingAAD(
 
 	connector, err := mssql.NewAccessTokenConnector(connString, tokenProvider)
 	if err != nil {
-		return nil, errors.Wrap(err, "NewAccessTokenConnector failed")
+		return nil, eris.Wrap(err, "NewAccessTokenConnector failed")
 	}
 
 	db := sql.OpenDB(connector)
@@ -82,7 +101,7 @@ func ConnectToDBUsingAAD(
 
 	err = db.PingContext(ctx)
 	if err != nil {
-		return db, errors.Wrap(err, "PingContext failed")
+		return db, eris.Wrap(err, "PingContext failed")
 	}
 
 	return db, err
@@ -91,23 +110,20 @@ func ConnectToDBUsingAAD(
 func CreateOrUpdateUser(ctx context.Context, db *sql.DB, username string, password string) error {
 	// make an effort to prevent sql injection
 	if err := findBadChars(username); err != nil {
-		return errors.Wrap(err, "problem found with username")
-	}
-	if err := findBadChars(password); err != nil {
-		return errors.Wrap(err, "problem found with password")
+		return eris.Wrap(err, "problem found with username")
 	}
 
-	tsql := `
-IF NOT EXISTS (SELECT name FROM sysusers WHERE name='%[1]s')
+	//nolint:gosec // SQL identifiers cannot be parameterized; values are escaped for their SQL contexts.
+	tsql := fmt.Sprintf(`
+IF NOT EXISTS (SELECT name FROM sysusers WHERE name=%[1]s)
 	BEGIN
-		CREATE USER "%[1]s" WITH PASSWORD='%[2]s';
+		CREATE USER %[2]s WITH PASSWORD=%[3]s;
 	END
 ELSE
 	BEGIN
-		ALTER USER "%[1]s" WITH PASSWORD='%[2]s';
+		ALTER USER %[2]s WITH PASSWORD=%[3]s;
 	END;
-`
-	tsql = fmt.Sprintf(tsql, username, password)
+`, escapeStringLiteral(username), escapeBracketIdentifier(username), escapeStringLiteral(password))
 	_, err := db.ExecContext(ctx, tsql)
 	if err != nil {
 		return err
@@ -129,18 +145,17 @@ func CreateOrUpdateAADUser(ctx context.Context, db *sql.DB, username string) err
 	//"CREATE USER [appName] FROM EXTERNAL PROVIDER;" -- TODO: This seems to work for UMI... how can I test logging in?
 
 	if err := findBadChars(username); err != nil {
-		return errors.Wrap(err, "problem found with managed identity username")
+		return eris.Wrap(err, "problem found with managed identity username")
 	}
 
 	// TODO: There doesn't seem to be a need to update (and the FROM EXTERNAL PROVIDER syntax isn't valid for ALTER anyway).
-	tsql := `
-IF NOT EXISTS (SELECT name FROM sysusers WHERE name='%[1]s')
+	//nolint:gosec // SQL identifiers cannot be parameterized; values are escaped for their SQL contexts.
+	tsql := fmt.Sprintf(`
+IF NOT EXISTS (SELECT name FROM sysusers WHERE name=%[1]s)
 	BEGIN
-		CREATE USER [%[1]s] FROM EXTERNAL PROVIDER;
+		CREATE USER %[2]s FROM EXTERNAL PROVIDER;
 	END
-`
-
-	tsql = fmt.Sprintf(tsql, username)
+`, escapeStringLiteral(username), escapeBracketIdentifier(username))
 	_, err := db.ExecContext(ctx, tsql)
 	if err != nil {
 		return err
@@ -166,11 +181,25 @@ func DoesUserExist(ctx context.Context, db *sql.DB, username string) (bool, erro
 // DropUser drops a user from db
 func DropUser(ctx context.Context, db *sql.DB, username string) error {
 	if err := findBadChars(username); err != nil {
-		return errors.Wrap(err, "Problem found with username")
+		return eris.Wrap(err, "Problem found with username")
 	}
-	tsql := fmt.Sprintf("DROP USER [%s]", username)
+	// SQL identifiers cannot be parameterized; the value is escaped via escapeBracketIdentifier
+	tsql := fmt.Sprintf("DROP USER %s", escapeBracketIdentifier(username))
 	_, err := db.ExecContext(ctx, tsql)
 	return err
+}
+
+// escapeStringLiteral escapes and wraps a value for use as a SQL string literal.
+func escapeStringLiteral(value string) string {
+	escaped := strings.ReplaceAll(value, "'", "''")
+	return "'" + escaped + "'"
+}
+
+// escapeBracketIdentifier escapes and wraps a value for use as a bracket-delimited T-SQL identifier.
+// This is the standard quoting style for Azure SQL identifiers like AAD usernames.
+func escapeBracketIdentifier(value string) string {
+	escaped := strings.ReplaceAll(value, "]", "]]")
+	return "[" + escaped + "]"
 }
 
 func findBadChars(str string) error {

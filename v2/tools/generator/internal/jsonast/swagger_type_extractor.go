@@ -15,8 +15,8 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-openapi/spec"
-	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
+	"github.com/rotisserie/eris"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -69,6 +69,7 @@ type ResourceDefinition struct {
 	ARMType             string // e.g. Microsoft.XYZ/resourceThings
 	ARMURI              string
 	SupportedOperations set.Set[astmodel.ResourceOperation]
+	Scope               astmodel.ResourceScope
 	// TODO: use ARMURI for generating Resource URIs (only used for documentation & ownership at the moment)
 }
 
@@ -86,19 +87,19 @@ func (extractor *SwaggerTypeExtractor) ExtractTypes(ctx context.Context) (Swagge
 
 	err := extractor.ExtractResourceTypes(ctx, scanner, result)
 	if err != nil {
-		return SwaggerTypes{}, errors.Wrap(err, "error extracting resource types")
+		return SwaggerTypes{}, eris.Wrap(err, "error extracting resource types")
 	}
 
 	err = extractor.ExtractOneOfTypes(ctx, scanner, result)
 	if err != nil {
-		return SwaggerTypes{}, errors.Wrap(err, "error extracting one-of option types")
+		return SwaggerTypes{}, eris.Wrap(err, "error extracting one-of option types")
 	}
 
 	for _, def := range scanner.Definitions() {
 		// Add additional type definitions required by the resources
 		if existingDef, ok := result.OtherDefinitions[def.Name()]; ok {
 			if !astmodel.TypeEquals(existingDef.Type(), def.Type()) {
-				return SwaggerTypes{}, errors.Errorf("type already defined differently: %s\nwas %s is %s\ndiff:\n%s",
+				return SwaggerTypes{}, eris.Errorf("type already defined differently: %s\nwas %s is %s\ndiff:\n%s",
 					def.Name(),
 					existingDef.Type(),
 					def.Type(),
@@ -164,7 +165,8 @@ func (extractor *SwaggerTypeExtractor) ExtractResourceTypes(ctx context.Context,
 				statusSchema,
 				nameParameterType,
 				operationPath,
-				getSupportedOperations(op))
+				getSupportedOperations(op),
+			)
 			if err != nil {
 				return err
 			}
@@ -198,7 +200,8 @@ func (extractor *SwaggerTypeExtractor) extractOneResourceType(
 		extractor.log.V(1).Info(
 			"Error extracting resource name",
 			"swaggerPath", dir,
-			"error", err)
+			"error", err,
+		)
 		return nil
 	}
 
@@ -207,7 +210,8 @@ func (extractor *SwaggerTypeExtractor) extractOneResourceType(
 		extractor.log.V(1).Info(
 			"Skipping resource",
 			"name", resourceName,
-			"because", because)
+			"because", because,
+		)
 		return nil
 	}
 
@@ -221,11 +225,11 @@ func (extractor *SwaggerTypeExtractor) extractOneResourceType(
 	} else {
 		resourceSpec, err = scanner.RunHandlerForSchema(ctx, *specSchema)
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
+			if eris.Is(err, context.Canceled) {
 				return err
 			}
 
-			return errors.Wrapf(err, "unable to produce spec type for resource %s", resourceName)
+			return eris.Wrapf(err, "unable to produce spec type for resource %s", resourceName)
 		}
 	}
 
@@ -250,23 +254,23 @@ func (extractor *SwaggerTypeExtractor) extractOneResourceType(
 	} else {
 		resourceStatus, err = scanner.RunHandlerForSchema(ctx, *statusSchema)
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
+			if eris.Is(err, context.Canceled) {
 				return err
 			}
 
-			return errors.Wrapf(err, "unable to produce status type for resource %s", resourceName)
+			return eris.Wrapf(err, "unable to produce status type for resource %s", resourceName)
 		}
 	}
 
 	if existingResource, ok := result.ResourceDefinitions[resourceName]; ok {
 		// TODO: check status types as well
 		if !astmodel.TypeEquals(existingResource.SpecType, resourceSpec) {
-			return errors.Errorf("resource already defined differently: %s\ndiff:\n%s",
+			return eris.Errorf("resource already defined differently: %s\ndiff:\n%s",
 				resourceName,
 				astmodel.DiffTypes(existingResource.SpecType, resourceSpec))
 		}
 	} else {
-		if resourceSpec != nil && resourceStatus == nil {
+		if resourceStatus == nil {
 			fmt.Printf("generated nil resourceStatus for %s\n", resourceName)
 			return nil
 		}
@@ -277,6 +281,7 @@ func (extractor *SwaggerTypeExtractor) extractOneResourceType(
 			ARMType:             armType,
 			ARMURI:              operationPath,
 			SupportedOperations: supportedOperations,
+			Scope:               categorizeResourceScope(operationPath),
 		}
 	}
 
@@ -308,12 +313,13 @@ func (extractor *SwaggerTypeExtractor) ExtractOneOfTypes(
 			extractor.outputPackage,
 			extractor.idFactory,
 			extractor.cache,
-			extractor.log)
+			extractor.log,
+		)
 
 		// Run a handler to generate our type
 		t, err := scanner.RunHandlerForSchema(ctx, schema)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "unable to produce type for definition %s", name))
+			errs = append(errs, eris.Wrapf(err, "unable to produce type for definition %s", name))
 			continue
 		}
 
@@ -332,7 +338,8 @@ func (extractor *SwaggerTypeExtractor) ExtractOneOfTypes(
 		result.OtherDefinitions[typeName] = astmodel.MakeTypeDefinition(typeName, t)
 	}
 
-	return nil
+	err := kerrors.NewAggregate(errs)
+	return err
 }
 
 // Look at the responses of the PUT to determine if this represents an ARM resource,
@@ -361,7 +368,7 @@ func (extractor *SwaggerTypeExtractor) findARMResourceSchema(op spec.PathItem, r
 		}
 	}
 
-	if isResource == false && op.Head != nil {
+	if !isResource && op.Head != nil {
 		// assume this is a resource. It's possible this is too permissive and classifies some things as resources
 		// when they really aren't, but that's OK because anyway we only generate the resources we name in the configuration
 		// and classifying something as a resource here just makes it a candidate for mention in the config.
@@ -379,7 +386,8 @@ func (extractor *SwaggerTypeExtractor) findARMResourceSchema(op spec.PathItem, r
 		extractor.log.V(1).Info(
 			"overriding parameters",
 			"operation", rawOperationPath,
-			"swagger", extractor.swaggerPath)
+			"swagger", extractor.swaggerPath,
+		)
 		params = op.Parameters
 	}
 
@@ -409,12 +417,14 @@ func (extractor *SwaggerTypeExtractor) findARMResourceSchema(op spec.PathItem, r
 		if noBody {
 			extractor.log.V(1).Info(
 				"no body parameter found for PUT operation",
-				"operation", rawOperationPath)
+				"operation", rawOperationPath,
+			)
 		} else {
 			extractor.log.V(1).Info(
 				"no schema found for PUT operation",
 				"operation", rawOperationPath,
-				"swagger", extractor.swaggerPath)
+				"swagger", extractor.swaggerPath,
+			)
 			return nil, nil, false
 		}
 	}
@@ -443,7 +453,7 @@ func (extractor *SwaggerTypeExtractor) schemaFromParameter(param spec.Parameter)
 	var result Schema
 	if param.Schema == nil {
 		// We're dealing with a simple schema here
-		if param.SimpleSchema.Type == "" {
+		if param.Type == "" {
 			return nil
 		}
 
@@ -454,7 +464,8 @@ func (extractor *SwaggerTypeExtractor) schemaFromParameter(param spec.Parameter)
 			extractor.outputPackage,
 			extractor.idFactory,
 			extractor.cache,
-			extractor.log)
+			extractor.log,
+		)
 	} else {
 		result = MakeOpenAPISchema(
 			nameFromRef(param.Schema.Ref),
@@ -463,7 +474,8 @@ func (extractor *SwaggerTypeExtractor) schemaFromParameter(param spec.Parameter)
 			extractor.outputPackage,
 			extractor.idFactory,
 			extractor.cache,
-			extractor.log)
+			extractor.log,
+		)
 	}
 
 	return &result
@@ -481,7 +493,8 @@ func (extractor *SwaggerTypeExtractor) doesResponseRepresentARMResource(response
 			extractor.outputPackage,
 			extractor.idFactory,
 			extractor.cache,
-			extractor.log)
+			extractor.log,
+		)
 
 		return &result, isMarkedAsARMResource(result)
 	}
@@ -502,7 +515,8 @@ func (extractor *SwaggerTypeExtractor) doesResponseRepresentARMResource(response
 			outputPackage,
 			extractor.idFactory,
 			extractor.cache,
-			extractor.log)
+			extractor.log,
+		)
 
 		return &schema, isMarkedAsARMResource(schema)
 	}
@@ -510,22 +524,20 @@ func (extractor *SwaggerTypeExtractor) doesResponseRepresentARMResource(response
 	extractor.log.V(1).Info(
 		"no schema found for response",
 		"operation", rawOperationPath,
-		"swagger", extractor.swaggerPath)
+		"swagger", extractor.swaggerPath,
+	)
 	return nil, false
 }
 
 // a Schema represents an ARM resource if it (or anything reachable via $ref or AllOf)
 // is marked with x-ms-azure-resource, or if it (or anything reachable via $ref or AllOf)
-// has each of the properties: id,name,type, and they are all readonly and required.
+// has each of the properties: id,name,type, and they are all strings.
 // see: https://github.com/Azure/autorest/issues/1936#issuecomment-286928591
 // and: https://github.com/Azure/autorest/issues/2127
 func isMarkedAsARMResource(schema Schema) bool {
 	hasID := false
-	idRequired := false
 	hasName := false
-	nameRequired := false
 	hasType := false
-	typeRequired := false
 
 	var recurse func(schema Schema) bool
 	recurse = func(schema Schema) bool {
@@ -536,38 +548,26 @@ func isMarkedAsARMResource(schema Schema) bool {
 		props := schema.properties()
 		if !hasID {
 			if idProp, ok := props["id"]; ok {
-				if idProp.hasType("string") && idProp.readOnly() {
+				if idProp.hasType("string") {
 					hasID = true
 				}
 			}
 		}
 
-		if !idRequired {
-			idRequired = slices.Contains(schema.requiredProperties(), "id")
-		}
-
 		if !hasName {
 			if nameProp, ok := props["name"]; ok {
-				if nameProp.hasType("string") && nameProp.readOnly() {
+				if nameProp.hasType("string") {
 					hasName = true
 				}
 			}
 		}
 
-		if !nameRequired {
-			nameRequired = slices.Contains(schema.requiredProperties(), "name")
-		}
-
 		if !hasType {
 			if typeProp, ok := props["type"]; ok {
-				if typeProp.hasType("string") && typeProp.readOnly() {
+				if typeProp.hasType("string") {
 					hasType = true
 				}
 			}
-		}
-
-		if !typeRequired {
-			typeRequired = slices.Contains(schema.requiredProperties(), "type")
 		}
 
 		if schema.isRef() {
@@ -660,7 +660,8 @@ func (extractor *SwaggerTypeExtractor) expandAndCanonicalizePath(
 		extractor.log.V(1).Info(
 			"expanding enums in path",
 			"swaggerPath", extractor.swaggerPath,
-			"error", err.Error())
+			"error", err.Error(),
+		)
 		return results
 	}
 
@@ -757,7 +758,7 @@ func (extractor *SwaggerTypeExtractor) expandAndCanonicalizePath(
 func (extractor *SwaggerTypeExtractor) resourceNameFromOperationPath(operationPath string) (string, astmodel.InternalTypeName, error) {
 	group, resource, name, err := extractor.inferNameFromURLPath(operationPath)
 	if err != nil {
-		return "", astmodel.InternalTypeName{}, errors.Wrapf(err, "unable to infer name from path %q", operationPath)
+		return "", astmodel.InternalTypeName{}, eris.Wrapf(err, "unable to infer name from path %q", operationPath)
 	}
 
 	return group + "/" + resource, astmodel.MakeInternalTypeName(extractor.outputPackage, name), nil
@@ -779,8 +780,16 @@ func (extractor *SwaggerTypeExtractor) extractResourceSubpath(operationPath stri
 		}
 	}
 
-	return "", "", errors.Errorf("no group name (‘Microsoft…’) found in %s", operationPath)
+	return "", "", eris.Errorf("no group name (‘Microsoft…’) found in %s", operationPath)
 }
+
+// Some services hardcode default into their URLs like : blobService/default/containers/{containerName}
+// and we don't want the "default" name to be part of the resource type name for those cases, so we detect these hard coded names.
+var hardCodedNames = set.Make(
+	"current",
+	"default",
+	"web",
+)
 
 // inferNameFromURLPath attempts to extract a name from a Swagger operation path
 // for example “…/Microsoft.GroupName/resourceType/{resourceId}” would result
@@ -801,36 +810,36 @@ func (extractor *SwaggerTypeExtractor) inferNameFromURLPath(operationPath string
 	}
 
 	urlParts := strings.Split(subpath, "/")
-	skippedLast := false
+	expectingKind := true
 	for _, urlPart := range urlParts {
 		if len(urlPart) == 0 {
 			// skip empty parts
 			continue
 		}
 
-		// If default was defined as an enum in the Swagger, this check is not needed as it wouldn't have been expanded by
-		// the expandEnumsInPath method, but some services hardcode default into their URLs like : blobService/default/containers/{containerName}
-		// and we don't want the "default" name to be part of the resource type name for those cases, so we ignore it here.
-		if strings.EqualFold(urlPart, "default") {
-			// skip; shouldn’t be part of name
-			// TODO: I haven’t yet found where this is done in autorest/autorest.armresource to document this
-		} else if urlPart[0] == '{' {
-			// this is a URL parameter
-			if skippedLast {
-				// this means two {parameters} in a row
-				return "", "", "", errors.Errorf("multiple parameters in path")
+		if expectingKind {
+			// Expecting a resource kind
+			if urlPart[0] == '{' {
+				// But we have a parameter, which means two parameters in a row
+				return "", "", "", eris.Errorf("multiple parameters in path")
 			}
 
-			skippedLast = true
-		} else {
-			// normal part of path, uppercase first character
+			// Add the resource kind to the name of this resource
 			nameParts = append(nameParts, urlPart)
-			skippedLast = false
+			expectingKind = false
+		} else {
+			// Expecting a parameter
+			if urlPart[0] != '{' && !hardCodedNames.Contains(strings.ToLower(urlPart)) {
+				// We didn't expect this name to be hard-coded
+				return "", "", "", eris.Errorf("unexpected hard coded name %q in path %s", urlPart, operationPath)
+			}
+
+			expectingKind = true
 		}
 	}
 
 	if len(nameParts) == 0 {
-		return "", "", "", errors.Errorf("couldn’t infer name")
+		return "", "", "", eris.Errorf("couldn’t infer name")
 	}
 
 	resource := strings.Join(nameParts, "/") // capture this before uppercasing/singularizing
@@ -927,7 +936,7 @@ type schemaAndValidations struct {
 }
 
 func makeSchemaFromSimpleSchemaParam(param schemaAndValidations) *spec.Schema {
-	if param.SimpleSchema.Type == "" {
+	if param.Type == "" {
 		panic("cannot make schema from simple schema for non-simple-schema param")
 	}
 	var itemsSchema *spec.Schema
@@ -938,16 +947,52 @@ func makeSchemaFromSimpleSchemaParam(param schemaAndValidations) *spec.Schema {
 
 	schema := &spec.Schema{
 		SchemaProps: spec.SchemaProps{
-			Type:    spec.StringOrArray{param.SimpleSchema.Type},
-			Default: param.SimpleSchema.Default,
-			Format:  param.SimpleSchema.Format,
+			Type:    spec.StringOrArray{param.Type},
+			Default: param.Default,
+			Format:  param.Format,
 			Items: &spec.SchemaOrArray{
 				Schema: itemsSchema,
 			},
-			Nullable: param.SimpleSchema.Nullable,
+			Nullable: param.Nullable,
 		},
 	}
 	schema = schema.WithValidations(param.Validations())
 
 	return schema
+}
+
+var (
+	resourceGroupScopeRegex = regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourcegroups/[^/]+/.*`)
+	locationScopeRegex      = regexp.MustCompile(`(?i)^/subscriptions/[^/]+/.*`)
+	extensionScopePrefixes  = []string{
+		"/{scope}/",
+		"/{resourceUri}/",
+	}
+)
+
+func categorizeResourceScope(armURI string) astmodel.ResourceScope {
+	// this is a bit of a hack, eventually we should have better scope support.
+	// at the moment we assume that a resource is an extension if it has a specific prefix
+	for _, prefix := range extensionScopePrefixes {
+		// Case-insensitive prefix check, as befits a heuristic
+		if strings.EqualFold(prefix, armURI[:len(prefix)]) {
+			return astmodel.ResourceScopeExtension
+		}
+	}
+
+	// Assume that a resource is an extension if armURI contains more than 1 provider:
+	if strings.Count(armURI, "providers") > 1 {
+		return astmodel.ResourceScopeExtension
+	}
+
+	if resourceGroupScopeRegex.MatchString(armURI) {
+		return astmodel.ResourceScopeResourceGroup
+	}
+
+	if locationScopeRegex.MatchString(armURI) {
+		return astmodel.ResourceScopeLocation
+	}
+
+	// TODO: Not currently possible to generate a resource with scope Location, we should fix that
+	return astmodel.ResourceScopeTenant
 }

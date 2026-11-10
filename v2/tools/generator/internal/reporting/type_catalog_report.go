@@ -10,17 +10,16 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 
-	"github.com/Azure/azure-service-operator/v2/internal/set"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/slices"
 
-	"github.com/pkg/errors"
-
+	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
 type TypeCatalogReport struct {
-	title                  string
 	defs                   astmodel.TypeDefinitionSet
 	inlinedTypes           astmodel.TypeNameSet // Set of types that we inline when generating the report
 	optionIncludeFunctions bool
@@ -133,7 +132,7 @@ func (tcr *TypeCatalogReport) WriteTo(writer io.Writer) error {
 
 		err := rpt.SaveTo(writer)
 		if err != nil {
-			return errors.Wrapf(err, "failed to create type catalog report for %s", pkg.PackagePath())
+			return eris.Wrapf(err, "failed to create type catalog report for %s", pkg.PackagePath())
 		}
 	}
 
@@ -210,6 +209,8 @@ func (tcr *TypeCatalogReport) writeType(
 		tcr.writeErroredType(rpt, t, currentPackage, parentTypes)
 	case *astmodel.ValidatedType:
 		tcr.writeValidatedType(rpt, t, currentPackage, parentTypes)
+	case *astmodel.FlaggedType:
+		tcr.writeFlaggedType(rpt, t, currentPackage, parentTypes)
 	case astmodel.MetaType:
 		tcr.writeType(rpt, t.Unwrap(), currentPackage, parentTypes)
 	default:
@@ -282,7 +283,8 @@ func (tcr *TypeCatalogReport) writeProperty(
 	sub := rpt.Addf(
 		"%s: %s",
 		prop.PropertyName(),
-		tcr.asShortNameForType(prop.PropertyType(), currentPackage, parentTypes))
+		tcr.asShortNameForType(prop.PropertyType(), currentPackage, parentTypes),
+	)
 
 	if def, ok := tcr.asDefinitionToInline(prop.PropertyType(), parentTypes); ok && tcr.inlinedTypes.Contains(def.Name()) {
 		pt := parentTypes.Copy()
@@ -352,12 +354,27 @@ func (tcr *TypeCatalogReport) writeErroredType(
 func (tcr *TypeCatalogReport) writeValidatedType(
 	rpt *StructureReport,
 	vt *astmodel.ValidatedType,
-	_ astmodel.InternalPackageReference,
-	_ astmodel.TypeNameSet,
+	currentPackage astmodel.InternalPackageReference,
+	types astmodel.TypeNameSet,
 ) {
 	for index, rule := range vt.Validations().ToKubeBuilderValidations() {
 		rpt.Addf("Rule %d: %s", index, rule)
 	}
+
+	tcr.writeType(rpt, vt.ElementType(), currentPackage, types)
+}
+
+func (tcr *TypeCatalogReport) writeFlaggedType(
+	rpt *StructureReport,
+	ft *astmodel.FlaggedType,
+	currentPackage astmodel.InternalPackageReference,
+	types astmodel.TypeNameSet,
+) {
+	for index, flag := range ft.Flags() {
+		rpt.Addf("Flag %d: %s", index, flag)
+	}
+
+	tcr.writeType(rpt, ft.Element(), currentPackage, types)
 }
 
 // asDefinitionToInline returns the definition to inline, if any.
@@ -417,40 +434,64 @@ func (tcr *TypeCatalogReport) asShortNameForType(
 	case *astmodel.OptionalType:
 		return fmt.Sprintf(
 			"*%s",
-			tcr.asShortNameForType(t.Element(), currentPackage, parentTypes))
+			tcr.asShortNameForType(t.Element(), currentPackage, parentTypes),
+		)
 	case *astmodel.ArrayType:
 		return fmt.Sprintf(
 			"%s[]",
-			tcr.asShortNameForType(t.Element(), currentPackage, parentTypes))
+			tcr.asShortNameForType(t.Element(), currentPackage, parentTypes),
+		)
 	case *astmodel.MapType:
 		return fmt.Sprintf(
 			"map[%s]%s",
 			tcr.asShortNameForType(t.KeyType(), currentPackage, parentTypes),
-			tcr.asShortNameForType(t.ValueType(), currentPackage, parentTypes))
+			tcr.asShortNameForType(t.ValueType(), currentPackage, parentTypes),
+		)
 	case *astmodel.ResourceType:
 		return "Resource"
 	case *astmodel.EnumType:
 		return fmt.Sprintf(
 			"Enum (%s)",
-			tcr.formatCount(len(t.Options()), "value", "values"))
+			tcr.formatCount(len(t.Options()), "value", "values"),
+		)
 	case *astmodel.ObjectType:
 		return fmt.Sprintf(
 			"Object (%s)",
-			tcr.formatCount(t.Properties().Len(), "property", "properties"))
+			tcr.formatCount(t.Properties().Len(), "property", "properties"),
+		)
 	case *astmodel.OneOfType:
 		return fmt.Sprintf(
 			"OneOf (%s, %s)",
 			tcr.formatCount(len(t.PropertyObjects()), "object", "objects"),
-			tcr.formatCount(t.Types().Len(), "option", "options"))
+			tcr.formatCount(t.Types().Len(), "option", "options"),
+		)
 	case *astmodel.AllOfType:
 		return fmt.Sprintf(
 			"AllOf (%s)",
-			tcr.formatCount(t.Types().Len(), "choice", "choices"))
+			tcr.formatCount(t.Types().Len(), "choice", "choices"),
+		)
 	case *astmodel.ValidatedType:
 		return fmt.Sprintf(
 			"Validated<%s> (%s)",
 			tcr.asShortNameForType(t.Unwrap(), currentPackage, parentTypes),
-			tcr.formatCount(len(t.Validations().ToKubeBuilderValidations()), "rule", "rules"))
+			tcr.formatCount(len(t.Validations().ToKubeBuilderValidations()), "rule", "rules"),
+		)
+	case *astmodel.FlaggedType:
+		var flags strings.Builder
+		for i, f := range t.Flags() {
+			if i > 0 {
+				flags.WriteString(" ")
+			}
+
+			flags.WriteString("#")
+			flags.WriteString(string(f))
+		}
+
+		return fmt.Sprintf(
+			"%s %s",
+			tcr.asShortNameForType(t.Element(), currentPackage, parentTypes),
+			flags.String(),
+		)
 	case astmodel.MetaType:
 		return tcr.asShortNameForType(t.Unwrap(), currentPackage, parentTypes)
 	default:
@@ -564,7 +605,8 @@ func (tcr *TypeCatalogReport) findPackages() []astmodel.InternalPackageReference
 		result,
 		func(left astmodel.InternalPackageReference, right astmodel.InternalPackageReference) int {
 			return astmodel.ComparePathAndVersion(left.ImportPath(), right.ImportPath())
-		})
+		},
+	)
 
 	return result
 }

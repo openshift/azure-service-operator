@@ -11,42 +11,38 @@ import (
 
 	"github.com/go-logr/logr"
 
-	api "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v1api20221201"
-	hub "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v1api20221201/storage"
-
+	api "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v20250801"
+	hub "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v20250801/storage"
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
 	"github.com/Azure/azure-service-operator/v2/internal/resolver"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/extensions"
 )
 
-var _ extensions.PreReconciliationChecker = &FlexibleServersDatabaseExtension{}
+var _ extensions.PreReconciliationOwnerChecker = &FlexibleServersDatabaseExtension{}
 
-func (extension *FlexibleServersDatabaseExtension) PreReconcileCheck(
-	_ context.Context,
-	_ genruntime.MetaObject,
+func (extension *FlexibleServersDatabaseExtension) PreReconcileOwnerCheck(
+	ctx context.Context,
 	owner genruntime.MetaObject,
-	_ *resolver.Resolver,
-	_ *genericarmclient.GenericClient,
-	_ logr.Logger,
-	_ extensions.PreReconcileCheckFunc,
+	resourceResolver *resolver.Resolver,
+	armClient *genericarmclient.GenericClient,
+	log logr.Logger,
+	next extensions.PreReconcileOwnerCheckFunc,
 ) (extensions.PreReconcileCheckResult, error) {
 	// Check to see if our owning server is ready for the database to be reconciled
-	if owner == nil {
-		// TODO: query from ARM instead?
-		return extensions.ProceedWithReconcile(), nil
-	}
 	if server, ok := owner.(*hub.FlexibleServer); ok {
 		serverState := server.Status.State
 		if serverState != nil && flexibleServerStateBlocksReconciliation(*serverState) {
 			return extensions.BlockReconcile(
 				fmt.Sprintf(
-					"Owning FlexibleServer is in provisioning state %q",
-					*serverState)), nil
+					"Owning FlexibleServer is in state %q",
+					*serverState,
+				),
+			), nil
 		}
 	}
 
-	return extensions.ProceedWithReconcile(), nil
+	return next(ctx, owner, resourceResolver, armClient, log)
 }
 
 var _ extensions.Importer = &FlexibleServersDatabaseExtension{}
@@ -58,6 +54,9 @@ func (extension *FlexibleServersDatabaseExtension) Import(
 	owner *genruntime.ResourceReference,
 	next extensions.ImporterFunc,
 ) (extensions.ImportResult, error) {
+	// If this cast doesn't compile, update the `api` import to reference the now latest
+	// stable version of the dbforpostgresql group (this will happen when we import a new
+	// API version in the generator.)
 	if server, ok := rsrc.(*api.FlexibleServersDatabase); ok {
 		if server.Spec.AzureName == "azure_maintenance" {
 			return extensions.ImportSkipped("azure_maintenance database is not accessible by users"), nil

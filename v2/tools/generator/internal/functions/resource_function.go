@@ -36,14 +36,16 @@ func NewResourceFunction(
 	resource *astmodel.ResourceType,
 	idFactory astmodel.IdentifierFactory,
 	asFunc ResourceFunctionHandler,
-	requiredPackages *astmodel.PackageReferenceSet,
+	requiredPackages ...astmodel.PackageReference,
 ) *ResourceFunction {
+	packages := astmodel.NewPackageReferenceSet(requiredPackages...)
+
 	return &ResourceFunction{
 		name:             name,
 		resource:         resource,
 		idFactory:        idFactory,
 		asFunc:           asFunc,
-		requiredPackages: requiredPackages,
+		requiredPackages: packages,
 	}
 }
 
@@ -53,7 +55,7 @@ func (fn *ResourceFunction) Name() string {
 	return fn.name
 }
 
-func (fn *ResourceFunction) IdFactory() astmodel.IdentifierFactory {
+func (fn *ResourceFunction) IDFactory() astmodel.IdentifierFactory {
 	return fn.idFactory
 }
 

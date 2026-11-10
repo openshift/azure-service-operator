@@ -5,26 +5,28 @@ package v1api20200930
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/compute/v1api20200930/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/compute/v1api20200930/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,compute}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /compute/resource-manager/Microsoft.Compute/DiskRP/stable/2020-09-30/disk.json
+// - Generated from: /compute/resource-manager/Microsoft.Compute/Compute/stable/2020-09-30/disk.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Compute/disks/{diskName}
 type Disk struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -49,56 +51,56 @@ var _ conversion.Convertible = &Disk{}
 
 // ConvertFrom populates our Disk from the provided hub Disk
 func (disk *Disk) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.Disk)
-	if !ok {
-		return fmt.Errorf("expected compute/v1api20200930/storage/Disk but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.Disk
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return disk.AssignProperties_From_Disk(source)
+	err = disk.AssignProperties_From_Disk(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to disk")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub Disk from our Disk
 func (disk *Disk) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.Disk)
-	if !ok {
-		return fmt.Errorf("expected compute/v1api20200930/storage/Disk but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.Disk
+	err := disk.AssignProperties_To_Disk(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from disk")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return disk.AssignProperties_To_Disk(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-compute-azure-com-v1api20200930-disk,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=disks,verbs=create;update,versions=v1api20200930,name=default.v1api20200930.disks.compute.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &Disk{}
 
-var _ admission.Defaulter = &Disk{}
-
-// Default applies defaults to the Disk resource
-func (disk *Disk) Default() {
-	disk.defaultImpl()
-	var temp any = disk
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (disk *Disk) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if disk.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return disk.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (disk *Disk) defaultAzureName() {
-	if disk.Spec.AzureName == "" {
-		disk.Spec.AzureName = disk.Name
+var _ secrets.Exporter = &Disk{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (disk *Disk) SecretDestinationExpressions() []*core.DestinationExpression {
+	if disk.Spec.OperatorSpec == nil {
+		return nil
 	}
-}
-
-// defaultImpl applies the code generated defaults to the Disk resource
-func (disk *Disk) defaultImpl() { disk.defaultAzureName() }
-
-var _ genruntime.ImportableResource = &Disk{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (disk *Disk) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*Disk_STATUS); ok {
-		return disk.Spec.Initialize_From_Disk_STATUS(s)
-	}
-
-	return fmt.Errorf("expected Status of type Disk_STATUS but received %T instead", status)
+	return disk.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &Disk{}
@@ -110,7 +112,7 @@ func (disk *Disk) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2020-09-30"
 func (disk Disk) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2020-09-30"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -149,6 +151,10 @@ func (disk *Disk) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (disk *Disk) Owner() *genruntime.ResourceReference {
+	if disk.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(disk.Spec)
 	return disk.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -165,92 +171,11 @@ func (disk *Disk) SetStatus(status genruntime.ConvertibleStatus) error {
 	var st Disk_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	disk.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-compute-azure-com-v1api20200930-disk,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=disks,verbs=create;update,versions=v1api20200930,name=validate.v1api20200930.disks.compute.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &Disk{}
-
-// ValidateCreate validates the creation of the resource
-func (disk *Disk) ValidateCreate() (admission.Warnings, error) {
-	validations := disk.createValidations()
-	var temp any = disk
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (disk *Disk) ValidateDelete() (admission.Warnings, error) {
-	validations := disk.deleteValidations()
-	var temp any = disk
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (disk *Disk) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := disk.updateValidations()
-	var temp any = disk
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (disk *Disk) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){disk.validateResourceReferences, disk.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (disk *Disk) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (disk *Disk) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return disk.validateResourceReferences()
-		},
-		disk.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return disk.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (disk *Disk) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(disk)
-}
-
-// validateResourceReferences validates all resource references
-func (disk *Disk) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&disk.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (disk *Disk) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*Disk)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, disk)
 }
 
 // AssignProperties_From_Disk populates our Disk from the provided source Disk
@@ -263,7 +188,7 @@ func (disk *Disk) AssignProperties_From_Disk(source *storage.Disk) error {
 	var spec Disk_Spec
 	err := spec.AssignProperties_From_Disk_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Disk_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_Disk_Spec() to populate field Spec")
 	}
 	disk.Spec = spec
 
@@ -271,7 +196,7 @@ func (disk *Disk) AssignProperties_From_Disk(source *storage.Disk) error {
 	var status Disk_STATUS
 	err = status.AssignProperties_From_Disk_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Disk_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_Disk_STATUS() to populate field Status")
 	}
 	disk.Status = status
 
@@ -289,7 +214,7 @@ func (disk *Disk) AssignProperties_To_Disk(destination *storage.Disk) error {
 	var spec storage.Disk_Spec
 	err := disk.Spec.AssignProperties_To_Disk_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Disk_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_Disk_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
@@ -297,7 +222,7 @@ func (disk *Disk) AssignProperties_To_Disk(destination *storage.Disk) error {
 	var status storage.Disk_STATUS
 	err = disk.Status.AssignProperties_To_Disk_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Disk_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_Disk_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +241,7 @@ func (disk *Disk) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /compute/resource-manager/Microsoft.Compute/DiskRP/stable/2020-09-30/disk.json
+// - Generated from: /compute/resource-manager/Microsoft.Compute/Compute/stable/2020-09-30/disk.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Compute/disks/{diskName}
 type DiskList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -390,6 +315,10 @@ type Disk_Spec struct {
 	// NetworkAccessPolicy: Policy for accessing the disk via network.
 	NetworkAccessPolicy *NetworkAccessPolicy `json:"networkAccessPolicy,omitempty"`
 
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *DiskOperatorSpec `json:"operatorSpec,omitempty"`
+
 	// OsType: The Operating System type.
 	OsType *DiskProperties_OsType `json:"osType,omitempty"`
 
@@ -424,15 +353,15 @@ func (disk *Disk_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDeta
 	if disk == nil {
 		return nil, nil
 	}
-	result := &Disk_Spec_ARM{}
+	result := &arm.Disk_Spec{}
 
 	// Set property "ExtendedLocation":
 	if disk.ExtendedLocation != nil {
-		extendedLocation_ARM, err := (*disk.ExtendedLocation).ConvertToARM(resolved)
+		extendedLocation_ARM, err := disk.ExtendedLocation.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		extendedLocation := *extendedLocation_ARM.(*ExtendedLocation_ARM)
+		extendedLocation := *extendedLocation_ARM.(*arm.ExtendedLocation)
 		result.ExtendedLocation = &extendedLocation
 	}
 
@@ -462,18 +391,18 @@ func (disk *Disk_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDeta
 		disk.OsType != nil ||
 		disk.PurchasePlan != nil ||
 		disk.Tier != nil {
-		result.Properties = &DiskProperties_ARM{}
+		result.Properties = &arm.DiskProperties{}
 	}
 	if disk.BurstingEnabled != nil {
 		burstingEnabled := *disk.BurstingEnabled
 		result.Properties.BurstingEnabled = &burstingEnabled
 	}
 	if disk.CreationData != nil {
-		creationData_ARM, err := (*disk.CreationData).ConvertToARM(resolved)
+		creationData_ARM, err := disk.CreationData.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		creationData := *creationData_ARM.(*CreationData_ARM)
+		creationData := *creationData_ARM.(*arm.CreationData)
 		result.Properties.CreationData = &creationData
 	}
 	if disk.DiskAccessReference != nil {
@@ -505,23 +434,25 @@ func (disk *Disk_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDeta
 		result.Properties.DiskSizeGB = &diskSizeGB
 	}
 	if disk.Encryption != nil {
-		encryption_ARM, err := (*disk.Encryption).ConvertToARM(resolved)
+		encryption_ARM, err := disk.Encryption.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		encryption := *encryption_ARM.(*Encryption_ARM)
+		encryption := *encryption_ARM.(*arm.Encryption)
 		result.Properties.Encryption = &encryption
 	}
 	if disk.EncryptionSettingsCollection != nil {
-		encryptionSettingsCollection_ARM, err := (*disk.EncryptionSettingsCollection).ConvertToARM(resolved)
+		encryptionSettingsCollection_ARM, err := disk.EncryptionSettingsCollection.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		encryptionSettingsCollection := *encryptionSettingsCollection_ARM.(*EncryptionSettingsCollection_ARM)
+		encryptionSettingsCollection := *encryptionSettingsCollection_ARM.(*arm.EncryptionSettingsCollection)
 		result.Properties.EncryptionSettingsCollection = &encryptionSettingsCollection
 	}
 	if disk.HyperVGeneration != nil {
-		hyperVGeneration := *disk.HyperVGeneration
+		var temp string
+		temp = string(*disk.HyperVGeneration)
+		hyperVGeneration := arm.DiskProperties_HyperVGeneration(temp)
 		result.Properties.HyperVGeneration = &hyperVGeneration
 	}
 	if disk.MaxShares != nil {
@@ -529,19 +460,23 @@ func (disk *Disk_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDeta
 		result.Properties.MaxShares = &maxShares
 	}
 	if disk.NetworkAccessPolicy != nil {
-		networkAccessPolicy := *disk.NetworkAccessPolicy
+		var temp string
+		temp = string(*disk.NetworkAccessPolicy)
+		networkAccessPolicy := arm.NetworkAccessPolicy(temp)
 		result.Properties.NetworkAccessPolicy = &networkAccessPolicy
 	}
 	if disk.OsType != nil {
-		osType := *disk.OsType
+		var temp string
+		temp = string(*disk.OsType)
+		osType := arm.DiskProperties_OsType(temp)
 		result.Properties.OsType = &osType
 	}
 	if disk.PurchasePlan != nil {
-		purchasePlan_ARM, err := (*disk.PurchasePlan).ConvertToARM(resolved)
+		purchasePlan_ARM, err := disk.PurchasePlan.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		purchasePlan := *purchasePlan_ARM.(*PurchasePlan_ARM)
+		purchasePlan := *purchasePlan_ARM.(*arm.PurchasePlan)
 		result.Properties.PurchasePlan = &purchasePlan
 	}
 	if disk.Tier != nil {
@@ -551,11 +486,11 @@ func (disk *Disk_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDeta
 
 	// Set property "Sku":
 	if disk.Sku != nil {
-		sku_ARM, err := (*disk.Sku).ConvertToARM(resolved)
+		sku_ARM, err := disk.Sku.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		sku := *sku_ARM.(*DiskSku_ARM)
+		sku := *sku_ARM.(*arm.DiskSku)
 		result.Sku = &sku
 	}
 
@@ -576,14 +511,14 @@ func (disk *Disk_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDeta
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (disk *Disk_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Disk_Spec_ARM{}
+	return &arm.Disk_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (disk *Disk_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Disk_Spec_ARM)
+	typedInput, ok := armInput.(arm.Disk_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Disk_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Disk_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
@@ -702,7 +637,9 @@ func (disk *Disk_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference,
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.HyperVGeneration != nil {
-			hyperVGeneration := *typedInput.Properties.HyperVGeneration
+			var temp string
+			temp = string(*typedInput.Properties.HyperVGeneration)
+			hyperVGeneration := DiskProperties_HyperVGeneration(temp)
 			disk.HyperVGeneration = &hyperVGeneration
 		}
 	}
@@ -726,16 +663,22 @@ func (disk *Disk_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference,
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.NetworkAccessPolicy != nil {
-			networkAccessPolicy := *typedInput.Properties.NetworkAccessPolicy
+			var temp string
+			temp = string(*typedInput.Properties.NetworkAccessPolicy)
+			networkAccessPolicy := NetworkAccessPolicy(temp)
 			disk.NetworkAccessPolicy = &networkAccessPolicy
 		}
 	}
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "OsType":
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.OsType != nil {
-			osType := *typedInput.Properties.OsType
+			var temp string
+			temp = string(*typedInput.Properties.OsType)
+			osType := DiskProperties_OsType(temp)
 			disk.OsType = &osType
 		}
 	}
@@ -811,13 +754,13 @@ func (disk *Disk_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error 
 	src = &storage.Disk_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
 	err = disk.AssignProperties_From_Disk_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
@@ -835,13 +778,13 @@ func (disk *Disk_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) err
 	dst = &storage.Disk_Spec{}
 	err := disk.AssignProperties_To_Disk_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
@@ -866,7 +809,7 @@ func (disk *Disk_Spec) AssignProperties_From_Disk_Spec(source *storage.Disk_Spec
 		var creationDatum CreationData
 		err := creationDatum.AssignProperties_From_CreationData(source.CreationData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CreationData() to populate field CreationData")
+			return eris.Wrap(err, "calling AssignProperties_From_CreationData() to populate field CreationData")
 		}
 		disk.CreationData = &creationDatum
 	} else {
@@ -901,7 +844,7 @@ func (disk *Disk_Spec) AssignProperties_From_Disk_Spec(source *storage.Disk_Spec
 		var encryption Encryption
 		err := encryption.AssignProperties_From_Encryption(source.Encryption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Encryption() to populate field Encryption")
+			return eris.Wrap(err, "calling AssignProperties_From_Encryption() to populate field Encryption")
 		}
 		disk.Encryption = &encryption
 	} else {
@@ -913,7 +856,7 @@ func (disk *Disk_Spec) AssignProperties_From_Disk_Spec(source *storage.Disk_Spec
 		var encryptionSettingsCollection EncryptionSettingsCollection
 		err := encryptionSettingsCollection.AssignProperties_From_EncryptionSettingsCollection(source.EncryptionSettingsCollection)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_EncryptionSettingsCollection() to populate field EncryptionSettingsCollection")
+			return eris.Wrap(err, "calling AssignProperties_From_EncryptionSettingsCollection() to populate field EncryptionSettingsCollection")
 		}
 		disk.EncryptionSettingsCollection = &encryptionSettingsCollection
 	} else {
@@ -925,7 +868,7 @@ func (disk *Disk_Spec) AssignProperties_From_Disk_Spec(source *storage.Disk_Spec
 		var extendedLocation ExtendedLocation
 		err := extendedLocation.AssignProperties_From_ExtendedLocation(source.ExtendedLocation)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ExtendedLocation() to populate field ExtendedLocation")
+			return eris.Wrap(err, "calling AssignProperties_From_ExtendedLocation() to populate field ExtendedLocation")
 		}
 		disk.ExtendedLocation = &extendedLocation
 	} else {
@@ -956,6 +899,18 @@ func (disk *Disk_Spec) AssignProperties_From_Disk_Spec(source *storage.Disk_Spec
 		disk.NetworkAccessPolicy = nil
 	}
 
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec DiskOperatorSpec
+		err := operatorSpec.AssignProperties_From_DiskOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_DiskOperatorSpec() to populate field OperatorSpec")
+		}
+		disk.OperatorSpec = &operatorSpec
+	} else {
+		disk.OperatorSpec = nil
+	}
+
 	// OsType
 	if source.OsType != nil {
 		osType := *source.OsType
@@ -978,7 +933,7 @@ func (disk *Disk_Spec) AssignProperties_From_Disk_Spec(source *storage.Disk_Spec
 		var purchasePlan PurchasePlan
 		err := purchasePlan.AssignProperties_From_PurchasePlan(source.PurchasePlan)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_PurchasePlan() to populate field PurchasePlan")
+			return eris.Wrap(err, "calling AssignProperties_From_PurchasePlan() to populate field PurchasePlan")
 		}
 		disk.PurchasePlan = &purchasePlan
 	} else {
@@ -990,7 +945,7 @@ func (disk *Disk_Spec) AssignProperties_From_Disk_Spec(source *storage.Disk_Spec
 		var sku DiskSku
 		err := sku.AssignProperties_From_DiskSku(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DiskSku() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_DiskSku() to populate field Sku")
 		}
 		disk.Sku = &sku
 	} else {
@@ -1031,7 +986,7 @@ func (disk *Disk_Spec) AssignProperties_To_Disk_Spec(destination *storage.Disk_S
 		var creationDatum storage.CreationData
 		err := disk.CreationData.AssignProperties_To_CreationData(&creationDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CreationData() to populate field CreationData")
+			return eris.Wrap(err, "calling AssignProperties_To_CreationData() to populate field CreationData")
 		}
 		destination.CreationData = &creationDatum
 	} else {
@@ -1066,7 +1021,7 @@ func (disk *Disk_Spec) AssignProperties_To_Disk_Spec(destination *storage.Disk_S
 		var encryption storage.Encryption
 		err := disk.Encryption.AssignProperties_To_Encryption(&encryption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Encryption() to populate field Encryption")
+			return eris.Wrap(err, "calling AssignProperties_To_Encryption() to populate field Encryption")
 		}
 		destination.Encryption = &encryption
 	} else {
@@ -1078,7 +1033,7 @@ func (disk *Disk_Spec) AssignProperties_To_Disk_Spec(destination *storage.Disk_S
 		var encryptionSettingsCollection storage.EncryptionSettingsCollection
 		err := disk.EncryptionSettingsCollection.AssignProperties_To_EncryptionSettingsCollection(&encryptionSettingsCollection)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_EncryptionSettingsCollection() to populate field EncryptionSettingsCollection")
+			return eris.Wrap(err, "calling AssignProperties_To_EncryptionSettingsCollection() to populate field EncryptionSettingsCollection")
 		}
 		destination.EncryptionSettingsCollection = &encryptionSettingsCollection
 	} else {
@@ -1090,7 +1045,7 @@ func (disk *Disk_Spec) AssignProperties_To_Disk_Spec(destination *storage.Disk_S
 		var extendedLocation storage.ExtendedLocation
 		err := disk.ExtendedLocation.AssignProperties_To_ExtendedLocation(&extendedLocation)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ExtendedLocation() to populate field ExtendedLocation")
+			return eris.Wrap(err, "calling AssignProperties_To_ExtendedLocation() to populate field ExtendedLocation")
 		}
 		destination.ExtendedLocation = &extendedLocation
 	} else {
@@ -1119,6 +1074,18 @@ func (disk *Disk_Spec) AssignProperties_To_Disk_Spec(destination *storage.Disk_S
 		destination.NetworkAccessPolicy = nil
 	}
 
+	// OperatorSpec
+	if disk.OperatorSpec != nil {
+		var operatorSpec storage.DiskOperatorSpec
+		err := disk.OperatorSpec.AssignProperties_To_DiskOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_DiskOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
 	// OriginalVersion
 	destination.OriginalVersion = disk.OriginalVersion()
 
@@ -1143,7 +1110,7 @@ func (disk *Disk_Spec) AssignProperties_To_Disk_Spec(destination *storage.Disk_S
 		var purchasePlan storage.PurchasePlan
 		err := disk.PurchasePlan.AssignProperties_To_PurchasePlan(&purchasePlan)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_PurchasePlan() to populate field PurchasePlan")
+			return eris.Wrap(err, "calling AssignProperties_To_PurchasePlan() to populate field PurchasePlan")
 		}
 		destination.PurchasePlan = &purchasePlan
 	} else {
@@ -1155,7 +1122,7 @@ func (disk *Disk_Spec) AssignProperties_To_Disk_Spec(destination *storage.Disk_S
 		var sku storage.DiskSku
 		err := disk.Sku.AssignProperties_To_DiskSku(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DiskSku() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_DiskSku() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -1177,155 +1144,6 @@ func (disk *Disk_Spec) AssignProperties_To_Disk_Spec(destination *storage.Disk_S
 	} else {
 		destination.PropertyBag = nil
 	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_Disk_STATUS populates our Disk_Spec from the provided source Disk_STATUS
-func (disk *Disk_Spec) Initialize_From_Disk_STATUS(source *Disk_STATUS) error {
-
-	// BurstingEnabled
-	if source.BurstingEnabled != nil {
-		burstingEnabled := *source.BurstingEnabled
-		disk.BurstingEnabled = &burstingEnabled
-	} else {
-		disk.BurstingEnabled = nil
-	}
-
-	// CreationData
-	if source.CreationData != nil {
-		var creationDatum CreationData
-		err := creationDatum.Initialize_From_CreationData_STATUS(source.CreationData)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_CreationData_STATUS() to populate field CreationData")
-		}
-		disk.CreationData = &creationDatum
-	} else {
-		disk.CreationData = nil
-	}
-
-	// DiskAccessReference
-	if source.DiskAccessId != nil {
-		diskAccessReference := genruntime.CreateResourceReferenceFromARMID(*source.DiskAccessId)
-		disk.DiskAccessReference = &diskAccessReference
-	} else {
-		disk.DiskAccessReference = nil
-	}
-
-	// DiskIOPSReadOnly
-	disk.DiskIOPSReadOnly = genruntime.ClonePointerToInt(source.DiskIOPSReadOnly)
-
-	// DiskIOPSReadWrite
-	disk.DiskIOPSReadWrite = genruntime.ClonePointerToInt(source.DiskIOPSReadWrite)
-
-	// DiskMBpsReadOnly
-	disk.DiskMBpsReadOnly = genruntime.ClonePointerToInt(source.DiskMBpsReadOnly)
-
-	// DiskMBpsReadWrite
-	disk.DiskMBpsReadWrite = genruntime.ClonePointerToInt(source.DiskMBpsReadWrite)
-
-	// DiskSizeGB
-	disk.DiskSizeGB = genruntime.ClonePointerToInt(source.DiskSizeGB)
-
-	// Encryption
-	if source.Encryption != nil {
-		var encryption Encryption
-		err := encryption.Initialize_From_Encryption_STATUS(source.Encryption)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_Encryption_STATUS() to populate field Encryption")
-		}
-		disk.Encryption = &encryption
-	} else {
-		disk.Encryption = nil
-	}
-
-	// EncryptionSettingsCollection
-	if source.EncryptionSettingsCollection != nil {
-		var encryptionSettingsCollection EncryptionSettingsCollection
-		err := encryptionSettingsCollection.Initialize_From_EncryptionSettingsCollection_STATUS(source.EncryptionSettingsCollection)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_EncryptionSettingsCollection_STATUS() to populate field EncryptionSettingsCollection")
-		}
-		disk.EncryptionSettingsCollection = &encryptionSettingsCollection
-	} else {
-		disk.EncryptionSettingsCollection = nil
-	}
-
-	// ExtendedLocation
-	if source.ExtendedLocation != nil {
-		var extendedLocation ExtendedLocation
-		err := extendedLocation.Initialize_From_ExtendedLocation_STATUS(source.ExtendedLocation)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ExtendedLocation_STATUS() to populate field ExtendedLocation")
-		}
-		disk.ExtendedLocation = &extendedLocation
-	} else {
-		disk.ExtendedLocation = nil
-	}
-
-	// HyperVGeneration
-	if source.HyperVGeneration != nil {
-		hyperVGeneration := genruntime.ToEnum(string(*source.HyperVGeneration), diskProperties_HyperVGeneration_Values)
-		disk.HyperVGeneration = &hyperVGeneration
-	} else {
-		disk.HyperVGeneration = nil
-	}
-
-	// Location
-	disk.Location = genruntime.ClonePointerToString(source.Location)
-
-	// MaxShares
-	disk.MaxShares = genruntime.ClonePointerToInt(source.MaxShares)
-
-	// NetworkAccessPolicy
-	if source.NetworkAccessPolicy != nil {
-		networkAccessPolicy := genruntime.ToEnum(string(*source.NetworkAccessPolicy), networkAccessPolicy_Values)
-		disk.NetworkAccessPolicy = &networkAccessPolicy
-	} else {
-		disk.NetworkAccessPolicy = nil
-	}
-
-	// OsType
-	if source.OsType != nil {
-		osType := genruntime.ToEnum(string(*source.OsType), diskProperties_OsType_Values)
-		disk.OsType = &osType
-	} else {
-		disk.OsType = nil
-	}
-
-	// PurchasePlan
-	if source.PurchasePlan != nil {
-		var purchasePlan PurchasePlan
-		err := purchasePlan.Initialize_From_PurchasePlan_STATUS(source.PurchasePlan)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_PurchasePlan_STATUS() to populate field PurchasePlan")
-		}
-		disk.PurchasePlan = &purchasePlan
-	} else {
-		disk.PurchasePlan = nil
-	}
-
-	// Sku
-	if source.Sku != nil {
-		var sku DiskSku
-		err := sku.Initialize_From_DiskSku_STATUS(source.Sku)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_DiskSku_STATUS() to populate field Sku")
-		}
-		disk.Sku = &sku
-	} else {
-		disk.Sku = nil
-	}
-
-	// Tags
-	disk.Tags = genruntime.CloneMapOfStringToString(source.Tags)
-
-	// Tier
-	disk.Tier = genruntime.ClonePointerToString(source.Tier)
-
-	// Zones
-	disk.Zones = genruntime.CloneSliceOfString(source.Zones)
 
 	// No error
 	return nil
@@ -1468,13 +1286,13 @@ func (disk *Disk_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) 
 	src = &storage.Disk_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
 	err = disk.AssignProperties_From_Disk_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
@@ -1492,13 +1310,13 @@ func (disk *Disk_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatu
 	dst = &storage.Disk_STATUS{}
 	err := disk.AssignProperties_To_Disk_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
@@ -1508,14 +1326,14 @@ var _ genruntime.FromARMConverter = &Disk_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (disk *Disk_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Disk_STATUS_ARM{}
+	return &arm.Disk_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (disk *Disk_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Disk_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Disk_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Disk_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Disk_STATUS, got %T", armInput)
 	}
 
 	// Set property "BurstingEnabled":
@@ -1610,7 +1428,9 @@ func (disk *Disk_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReferenc
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.DiskState != nil {
-			diskState := *typedInput.Properties.DiskState
+			var temp string
+			temp = string(*typedInput.Properties.DiskState)
+			diskState := DiskState_STATUS(temp)
 			disk.DiskState = &diskState
 		}
 	}
@@ -1658,7 +1478,9 @@ func (disk *Disk_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReferenc
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.HyperVGeneration != nil {
-			hyperVGeneration := *typedInput.Properties.HyperVGeneration
+			var temp string
+			temp = string(*typedInput.Properties.HyperVGeneration)
+			hyperVGeneration := DiskProperties_HyperVGeneration_STATUS(temp)
 			disk.HyperVGeneration = &hyperVGeneration
 		}
 	}
@@ -1705,7 +1527,9 @@ func (disk *Disk_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReferenc
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.NetworkAccessPolicy != nil {
-			networkAccessPolicy := *typedInput.Properties.NetworkAccessPolicy
+			var temp string
+			temp = string(*typedInput.Properties.NetworkAccessPolicy)
+			networkAccessPolicy := NetworkAccessPolicy_STATUS(temp)
 			disk.NetworkAccessPolicy = &networkAccessPolicy
 		}
 	}
@@ -1714,7 +1538,9 @@ func (disk *Disk_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReferenc
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.OsType != nil {
-			osType := *typedInput.Properties.OsType
+			var temp string
+			temp = string(*typedInput.Properties.OsType)
+			osType := DiskProperties_OsType_STATUS(temp)
 			disk.OsType = &osType
 		}
 	}
@@ -1835,7 +1661,7 @@ func (disk *Disk_STATUS) AssignProperties_From_Disk_STATUS(source *storage.Disk_
 		var creationDatum CreationData_STATUS
 		err := creationDatum.AssignProperties_From_CreationData_STATUS(source.CreationData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CreationData_STATUS() to populate field CreationData")
+			return eris.Wrap(err, "calling AssignProperties_From_CreationData_STATUS() to populate field CreationData")
 		}
 		disk.CreationData = &creationDatum
 	} else {
@@ -1877,7 +1703,7 @@ func (disk *Disk_STATUS) AssignProperties_From_Disk_STATUS(source *storage.Disk_
 		var encryption Encryption_STATUS
 		err := encryption.AssignProperties_From_Encryption_STATUS(source.Encryption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Encryption_STATUS() to populate field Encryption")
+			return eris.Wrap(err, "calling AssignProperties_From_Encryption_STATUS() to populate field Encryption")
 		}
 		disk.Encryption = &encryption
 	} else {
@@ -1889,7 +1715,7 @@ func (disk *Disk_STATUS) AssignProperties_From_Disk_STATUS(source *storage.Disk_
 		var encryptionSettingsCollection EncryptionSettingsCollection_STATUS
 		err := encryptionSettingsCollection.AssignProperties_From_EncryptionSettingsCollection_STATUS(source.EncryptionSettingsCollection)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_EncryptionSettingsCollection_STATUS() to populate field EncryptionSettingsCollection")
+			return eris.Wrap(err, "calling AssignProperties_From_EncryptionSettingsCollection_STATUS() to populate field EncryptionSettingsCollection")
 		}
 		disk.EncryptionSettingsCollection = &encryptionSettingsCollection
 	} else {
@@ -1901,7 +1727,7 @@ func (disk *Disk_STATUS) AssignProperties_From_Disk_STATUS(source *storage.Disk_
 		var extendedLocation ExtendedLocation_STATUS
 		err := extendedLocation.AssignProperties_From_ExtendedLocation_STATUS(source.ExtendedLocation)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ExtendedLocation_STATUS() to populate field ExtendedLocation")
+			return eris.Wrap(err, "calling AssignProperties_From_ExtendedLocation_STATUS() to populate field ExtendedLocation")
 		}
 		disk.ExtendedLocation = &extendedLocation
 	} else {
@@ -1961,7 +1787,7 @@ func (disk *Disk_STATUS) AssignProperties_From_Disk_STATUS(source *storage.Disk_
 		var purchasePlan PurchasePlan_STATUS
 		err := purchasePlan.AssignProperties_From_PurchasePlan_STATUS(source.PurchasePlan)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_PurchasePlan_STATUS() to populate field PurchasePlan")
+			return eris.Wrap(err, "calling AssignProperties_From_PurchasePlan_STATUS() to populate field PurchasePlan")
 		}
 		disk.PurchasePlan = &purchasePlan
 	} else {
@@ -1972,12 +1798,10 @@ func (disk *Disk_STATUS) AssignProperties_From_Disk_STATUS(source *storage.Disk_
 	if source.ShareInfo != nil {
 		shareInfoList := make([]ShareInfoElement_STATUS, len(source.ShareInfo))
 		for shareInfoIndex, shareInfoItem := range source.ShareInfo {
-			// Shadow the loop variable to avoid aliasing
-			shareInfoItem := shareInfoItem
 			var shareInfo ShareInfoElement_STATUS
 			err := shareInfo.AssignProperties_From_ShareInfoElement_STATUS(&shareInfoItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_ShareInfoElement_STATUS() to populate field ShareInfo")
+				return eris.Wrap(err, "calling AssignProperties_From_ShareInfoElement_STATUS() to populate field ShareInfo")
 			}
 			shareInfoList[shareInfoIndex] = shareInfo
 		}
@@ -1991,7 +1815,7 @@ func (disk *Disk_STATUS) AssignProperties_From_Disk_STATUS(source *storage.Disk_
 		var sku DiskSku_STATUS
 		err := sku.AssignProperties_From_DiskSku_STATUS(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DiskSku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_DiskSku_STATUS() to populate field Sku")
 		}
 		disk.Sku = &sku
 	} else {
@@ -2041,7 +1865,7 @@ func (disk *Disk_STATUS) AssignProperties_To_Disk_STATUS(destination *storage.Di
 		var creationDatum storage.CreationData_STATUS
 		err := disk.CreationData.AssignProperties_To_CreationData_STATUS(&creationDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CreationData_STATUS() to populate field CreationData")
+			return eris.Wrap(err, "calling AssignProperties_To_CreationData_STATUS() to populate field CreationData")
 		}
 		destination.CreationData = &creationDatum
 	} else {
@@ -2082,7 +1906,7 @@ func (disk *Disk_STATUS) AssignProperties_To_Disk_STATUS(destination *storage.Di
 		var encryption storage.Encryption_STATUS
 		err := disk.Encryption.AssignProperties_To_Encryption_STATUS(&encryption)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Encryption_STATUS() to populate field Encryption")
+			return eris.Wrap(err, "calling AssignProperties_To_Encryption_STATUS() to populate field Encryption")
 		}
 		destination.Encryption = &encryption
 	} else {
@@ -2094,7 +1918,7 @@ func (disk *Disk_STATUS) AssignProperties_To_Disk_STATUS(destination *storage.Di
 		var encryptionSettingsCollection storage.EncryptionSettingsCollection_STATUS
 		err := disk.EncryptionSettingsCollection.AssignProperties_To_EncryptionSettingsCollection_STATUS(&encryptionSettingsCollection)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_EncryptionSettingsCollection_STATUS() to populate field EncryptionSettingsCollection")
+			return eris.Wrap(err, "calling AssignProperties_To_EncryptionSettingsCollection_STATUS() to populate field EncryptionSettingsCollection")
 		}
 		destination.EncryptionSettingsCollection = &encryptionSettingsCollection
 	} else {
@@ -2106,7 +1930,7 @@ func (disk *Disk_STATUS) AssignProperties_To_Disk_STATUS(destination *storage.Di
 		var extendedLocation storage.ExtendedLocation_STATUS
 		err := disk.ExtendedLocation.AssignProperties_To_ExtendedLocation_STATUS(&extendedLocation)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ExtendedLocation_STATUS() to populate field ExtendedLocation")
+			return eris.Wrap(err, "calling AssignProperties_To_ExtendedLocation_STATUS() to populate field ExtendedLocation")
 		}
 		destination.ExtendedLocation = &extendedLocation
 	} else {
@@ -2163,7 +1987,7 @@ func (disk *Disk_STATUS) AssignProperties_To_Disk_STATUS(destination *storage.Di
 		var purchasePlan storage.PurchasePlan_STATUS
 		err := disk.PurchasePlan.AssignProperties_To_PurchasePlan_STATUS(&purchasePlan)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_PurchasePlan_STATUS() to populate field PurchasePlan")
+			return eris.Wrap(err, "calling AssignProperties_To_PurchasePlan_STATUS() to populate field PurchasePlan")
 		}
 		destination.PurchasePlan = &purchasePlan
 	} else {
@@ -2174,12 +1998,10 @@ func (disk *Disk_STATUS) AssignProperties_To_Disk_STATUS(destination *storage.Di
 	if disk.ShareInfo != nil {
 		shareInfoList := make([]storage.ShareInfoElement_STATUS, len(disk.ShareInfo))
 		for shareInfoIndex, shareInfoItem := range disk.ShareInfo {
-			// Shadow the loop variable to avoid aliasing
-			shareInfoItem := shareInfoItem
 			var shareInfo storage.ShareInfoElement_STATUS
 			err := shareInfoItem.AssignProperties_To_ShareInfoElement_STATUS(&shareInfo)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_ShareInfoElement_STATUS() to populate field ShareInfo")
+				return eris.Wrap(err, "calling AssignProperties_To_ShareInfoElement_STATUS() to populate field ShareInfo")
 			}
 			shareInfoList[shareInfoIndex] = shareInfo
 		}
@@ -2193,7 +2015,7 @@ func (disk *Disk_STATUS) AssignProperties_To_Disk_STATUS(destination *storage.Di
 		var sku storage.DiskSku_STATUS
 		err := disk.Sku.AssignProperties_To_DiskSku_STATUS(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DiskSku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_DiskSku_STATUS() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -2268,31 +2090,33 @@ func (data *CreationData) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 	if data == nil {
 		return nil, nil
 	}
-	result := &CreationData_ARM{}
+	result := &arm.CreationData{}
 
 	// Set property "CreateOption":
 	if data.CreateOption != nil {
-		createOption := *data.CreateOption
+		var temp string
+		temp = string(*data.CreateOption)
+		createOption := arm.CreationData_CreateOption(temp)
 		result.CreateOption = &createOption
 	}
 
 	// Set property "GalleryImageReference":
 	if data.GalleryImageReference != nil {
-		galleryImageReference_ARM, err := (*data.GalleryImageReference).ConvertToARM(resolved)
+		galleryImageReference_ARM, err := data.GalleryImageReference.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		galleryImageReference := *galleryImageReference_ARM.(*ImageDiskReference_ARM)
+		galleryImageReference := *galleryImageReference_ARM.(*arm.ImageDiskReference)
 		result.GalleryImageReference = &galleryImageReference
 	}
 
 	// Set property "ImageReference":
 	if data.ImageReference != nil {
-		imageReference_ARM, err := (*data.ImageReference).ConvertToARM(resolved)
+		imageReference_ARM, err := data.ImageReference.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		imageReference := *imageReference_ARM.(*ImageDiskReference_ARM)
+		imageReference := *imageReference_ARM.(*arm.ImageDiskReference)
 		result.ImageReference = &imageReference
 	}
 
@@ -2334,19 +2158,21 @@ func (data *CreationData) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (data *CreationData) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &CreationData_ARM{}
+	return &arm.CreationData{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (data *CreationData) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(CreationData_ARM)
+	typedInput, ok := armInput.(arm.CreationData)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected CreationData_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.CreationData, got %T", armInput)
 	}
 
 	// Set property "CreateOption":
 	if typedInput.CreateOption != nil {
-		createOption := *typedInput.CreateOption
+		var temp string
+		temp = string(*typedInput.CreateOption)
+		createOption := CreationData_CreateOption(temp)
 		data.CreateOption = &createOption
 	}
 
@@ -2419,7 +2245,7 @@ func (data *CreationData) AssignProperties_From_CreationData(source *storage.Cre
 		var galleryImageReference ImageDiskReference
 		err := galleryImageReference.AssignProperties_From_ImageDiskReference(source.GalleryImageReference)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ImageDiskReference() to populate field GalleryImageReference")
+			return eris.Wrap(err, "calling AssignProperties_From_ImageDiskReference() to populate field GalleryImageReference")
 		}
 		data.GalleryImageReference = &galleryImageReference
 	} else {
@@ -2431,7 +2257,7 @@ func (data *CreationData) AssignProperties_From_CreationData(source *storage.Cre
 		var imageReference ImageDiskReference
 		err := imageReference.AssignProperties_From_ImageDiskReference(source.ImageReference)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ImageDiskReference() to populate field ImageReference")
+			return eris.Wrap(err, "calling AssignProperties_From_ImageDiskReference() to populate field ImageReference")
 		}
 		data.ImageReference = &imageReference
 	} else {
@@ -2480,7 +2306,7 @@ func (data *CreationData) AssignProperties_To_CreationData(destination *storage.
 		var galleryImageReference storage.ImageDiskReference
 		err := data.GalleryImageReference.AssignProperties_To_ImageDiskReference(&galleryImageReference)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ImageDiskReference() to populate field GalleryImageReference")
+			return eris.Wrap(err, "calling AssignProperties_To_ImageDiskReference() to populate field GalleryImageReference")
 		}
 		destination.GalleryImageReference = &galleryImageReference
 	} else {
@@ -2492,7 +2318,7 @@ func (data *CreationData) AssignProperties_To_CreationData(destination *storage.
 		var imageReference storage.ImageDiskReference
 		err := data.ImageReference.AssignProperties_To_ImageDiskReference(&imageReference)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ImageDiskReference() to populate field ImageReference")
+			return eris.Wrap(err, "calling AssignProperties_To_ImageDiskReference() to populate field ImageReference")
 		}
 		destination.ImageReference = &imageReference
 	} else {
@@ -2525,65 +2351,6 @@ func (data *CreationData) AssignProperties_To_CreationData(destination *storage.
 	} else {
 		destination.PropertyBag = nil
 	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_CreationData_STATUS populates our CreationData from the provided source CreationData_STATUS
-func (data *CreationData) Initialize_From_CreationData_STATUS(source *CreationData_STATUS) error {
-
-	// CreateOption
-	if source.CreateOption != nil {
-		createOption := genruntime.ToEnum(string(*source.CreateOption), creationData_CreateOption_Values)
-		data.CreateOption = &createOption
-	} else {
-		data.CreateOption = nil
-	}
-
-	// GalleryImageReference
-	if source.GalleryImageReference != nil {
-		var galleryImageReference ImageDiskReference
-		err := galleryImageReference.Initialize_From_ImageDiskReference_STATUS(source.GalleryImageReference)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ImageDiskReference_STATUS() to populate field GalleryImageReference")
-		}
-		data.GalleryImageReference = &galleryImageReference
-	} else {
-		data.GalleryImageReference = nil
-	}
-
-	// ImageReference
-	if source.ImageReference != nil {
-		var imageReference ImageDiskReference
-		err := imageReference.Initialize_From_ImageDiskReference_STATUS(source.ImageReference)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ImageDiskReference_STATUS() to populate field ImageReference")
-		}
-		data.ImageReference = &imageReference
-	} else {
-		data.ImageReference = nil
-	}
-
-	// LogicalSectorSize
-	data.LogicalSectorSize = genruntime.ClonePointerToInt(source.LogicalSectorSize)
-
-	// SourceResourceReference
-	if source.SourceResourceId != nil {
-		sourceResourceReference := genruntime.CreateResourceReferenceFromARMID(*source.SourceResourceId)
-		data.SourceResourceReference = &sourceResourceReference
-	} else {
-		data.SourceResourceReference = nil
-	}
-
-	// SourceUri
-	data.SourceUri = genruntime.ClonePointerToString(source.SourceUri)
-
-	// StorageAccountId
-	data.StorageAccountId = genruntime.ClonePointerToString(source.StorageAccountId)
-
-	// UploadSizeBytes
-	data.UploadSizeBytes = genruntime.ClonePointerToInt(source.UploadSizeBytes)
 
 	// No error
 	return nil
@@ -2627,19 +2394,21 @@ var _ genruntime.FromARMConverter = &CreationData_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (data *CreationData_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &CreationData_STATUS_ARM{}
+	return &arm.CreationData_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (data *CreationData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(CreationData_STATUS_ARM)
+	typedInput, ok := armInput.(arm.CreationData_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected CreationData_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.CreationData_STATUS, got %T", armInput)
 	}
 
 	// Set property "CreateOption":
 	if typedInput.CreateOption != nil {
-		createOption := *typedInput.CreateOption
+		var temp string
+		temp = string(*typedInput.CreateOption)
+		createOption := CreationData_CreateOption_STATUS(temp)
 		data.CreateOption = &createOption
 	}
 
@@ -2722,7 +2491,7 @@ func (data *CreationData_STATUS) AssignProperties_From_CreationData_STATUS(sourc
 		var galleryImageReference ImageDiskReference_STATUS
 		err := galleryImageReference.AssignProperties_From_ImageDiskReference_STATUS(source.GalleryImageReference)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ImageDiskReference_STATUS() to populate field GalleryImageReference")
+			return eris.Wrap(err, "calling AssignProperties_From_ImageDiskReference_STATUS() to populate field GalleryImageReference")
 		}
 		data.GalleryImageReference = &galleryImageReference
 	} else {
@@ -2734,7 +2503,7 @@ func (data *CreationData_STATUS) AssignProperties_From_CreationData_STATUS(sourc
 		var imageReference ImageDiskReference_STATUS
 		err := imageReference.AssignProperties_From_ImageDiskReference_STATUS(source.ImageReference)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ImageDiskReference_STATUS() to populate field ImageReference")
+			return eris.Wrap(err, "calling AssignProperties_From_ImageDiskReference_STATUS() to populate field ImageReference")
 		}
 		data.ImageReference = &imageReference
 	} else {
@@ -2781,7 +2550,7 @@ func (data *CreationData_STATUS) AssignProperties_To_CreationData_STATUS(destina
 		var galleryImageReference storage.ImageDiskReference_STATUS
 		err := data.GalleryImageReference.AssignProperties_To_ImageDiskReference_STATUS(&galleryImageReference)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ImageDiskReference_STATUS() to populate field GalleryImageReference")
+			return eris.Wrap(err, "calling AssignProperties_To_ImageDiskReference_STATUS() to populate field GalleryImageReference")
 		}
 		destination.GalleryImageReference = &galleryImageReference
 	} else {
@@ -2793,7 +2562,7 @@ func (data *CreationData_STATUS) AssignProperties_To_CreationData_STATUS(destina
 		var imageReference storage.ImageDiskReference_STATUS
 		err := data.ImageReference.AssignProperties_To_ImageDiskReference_STATUS(&imageReference)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ImageDiskReference_STATUS() to populate field ImageReference")
+			return eris.Wrap(err, "calling AssignProperties_To_ImageDiskReference_STATUS() to populate field ImageReference")
 		}
 		destination.ImageReference = &imageReference
 	} else {
@@ -2817,6 +2586,102 @@ func (data *CreationData_STATUS) AssignProperties_To_CreationData_STATUS(destina
 
 	// UploadSizeBytes
 	destination.UploadSizeBytes = genruntime.ClonePointerToInt(data.UploadSizeBytes)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type DiskOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_DiskOperatorSpec populates our DiskOperatorSpec from the provided source DiskOperatorSpec
+func (operator *DiskOperatorSpec) AssignProperties_From_DiskOperatorSpec(source *storage.DiskOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_DiskOperatorSpec populates the provided destination DiskOperatorSpec from our DiskOperatorSpec
+func (operator *DiskOperatorSpec) AssignProperties_To_DiskOperatorSpec(destination *storage.DiskOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
@@ -2896,11 +2761,13 @@ func (diskSku *DiskSku) ConvertToARM(resolved genruntime.ConvertToARMResolvedDet
 	if diskSku == nil {
 		return nil, nil
 	}
-	result := &DiskSku_ARM{}
+	result := &arm.DiskSku{}
 
 	// Set property "Name":
 	if diskSku.Name != nil {
-		name := *diskSku.Name
+		var temp string
+		temp = string(*diskSku.Name)
+		name := arm.DiskSku_Name(temp)
 		result.Name = &name
 	}
 	return result, nil
@@ -2908,19 +2775,21 @@ func (diskSku *DiskSku) ConvertToARM(resolved genruntime.ConvertToARMResolvedDet
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (diskSku *DiskSku) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &DiskSku_ARM{}
+	return &arm.DiskSku{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (diskSku *DiskSku) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(DiskSku_ARM)
+	typedInput, ok := armInput.(arm.DiskSku)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected DiskSku_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.DiskSku, got %T", armInput)
 	}
 
 	// Set property "Name":
 	if typedInput.Name != nil {
-		name := *typedInput.Name
+		var temp string
+		temp = string(*typedInput.Name)
+		name := DiskSku_Name(temp)
 		diskSku.Name = &name
 	}
 
@@ -2968,21 +2837,6 @@ func (diskSku *DiskSku) AssignProperties_To_DiskSku(destination *storage.DiskSku
 	return nil
 }
 
-// Initialize_From_DiskSku_STATUS populates our DiskSku from the provided source DiskSku_STATUS
-func (diskSku *DiskSku) Initialize_From_DiskSku_STATUS(source *DiskSku_STATUS) error {
-
-	// Name
-	if source.Name != nil {
-		name := genruntime.ToEnum(string(*source.Name), diskSku_Name_Values)
-		diskSku.Name = &name
-	} else {
-		diskSku.Name = nil
-	}
-
-	// No error
-	return nil
-}
-
 // The disks sku name. Can be Standard_LRS, Premium_LRS, StandardSSD_LRS, or UltraSSD_LRS.
 type DiskSku_STATUS struct {
 	// Name: The sku name.
@@ -2996,19 +2850,21 @@ var _ genruntime.FromARMConverter = &DiskSku_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (diskSku *DiskSku_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &DiskSku_STATUS_ARM{}
+	return &arm.DiskSku_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (diskSku *DiskSku_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(DiskSku_STATUS_ARM)
+	typedInput, ok := armInput.(arm.DiskSku_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected DiskSku_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.DiskSku_STATUS, got %T", armInput)
 	}
 
 	// Set property "Name":
 	if typedInput.Name != nil {
-		name := *typedInput.Name
+		var temp string
+		temp = string(*typedInput.Name)
+		name := DiskSku_Name_STATUS(temp)
 		diskSku.Name = &name
 	}
 
@@ -3106,7 +2962,7 @@ func (encryption *Encryption) ConvertToARM(resolved genruntime.ConvertToARMResol
 	if encryption == nil {
 		return nil, nil
 	}
-	result := &Encryption_ARM{}
+	result := &arm.Encryption{}
 
 	// Set property "DiskEncryptionSetId":
 	if encryption.DiskEncryptionSetReference != nil {
@@ -3120,7 +2976,9 @@ func (encryption *Encryption) ConvertToARM(resolved genruntime.ConvertToARMResol
 
 	// Set property "Type":
 	if encryption.Type != nil {
-		typeVar := *encryption.Type
+		var temp string
+		temp = string(*encryption.Type)
+		typeVar := arm.EncryptionType(temp)
 		result.Type = &typeVar
 	}
 	return result, nil
@@ -3128,21 +2986,23 @@ func (encryption *Encryption) ConvertToARM(resolved genruntime.ConvertToARMResol
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (encryption *Encryption) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Encryption_ARM{}
+	return &arm.Encryption{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (encryption *Encryption) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Encryption_ARM)
+	typedInput, ok := armInput.(arm.Encryption)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Encryption_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Encryption, got %T", armInput)
 	}
 
 	// no assignment for property "DiskEncryptionSetReference"
 
 	// Set property "Type":
 	if typedInput.Type != nil {
-		typeVar := *typedInput.Type
+		var temp string
+		temp = string(*typedInput.Type)
+		typeVar := EncryptionType(temp)
 		encryption.Type = &typeVar
 	}
 
@@ -3206,29 +3066,6 @@ func (encryption *Encryption) AssignProperties_To_Encryption(destination *storag
 	return nil
 }
 
-// Initialize_From_Encryption_STATUS populates our Encryption from the provided source Encryption_STATUS
-func (encryption *Encryption) Initialize_From_Encryption_STATUS(source *Encryption_STATUS) error {
-
-	// DiskEncryptionSetReference
-	if source.DiskEncryptionSetId != nil {
-		diskEncryptionSetReference := genruntime.CreateResourceReferenceFromARMID(*source.DiskEncryptionSetId)
-		encryption.DiskEncryptionSetReference = &diskEncryptionSetReference
-	} else {
-		encryption.DiskEncryptionSetReference = nil
-	}
-
-	// Type
-	if source.Type != nil {
-		typeVar := genruntime.ToEnum(string(*source.Type), encryptionType_Values)
-		encryption.Type = &typeVar
-	} else {
-		encryption.Type = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Encryption at rest settings for disk or snapshot
 type Encryption_STATUS struct {
 	// DiskEncryptionSetId: ResourceId of the disk encryption set to use for enabling encryption at rest.
@@ -3242,14 +3079,14 @@ var _ genruntime.FromARMConverter = &Encryption_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (encryption *Encryption_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Encryption_STATUS_ARM{}
+	return &arm.Encryption_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (encryption *Encryption_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Encryption_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Encryption_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Encryption_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Encryption_STATUS, got %T", armInput)
 	}
 
 	// Set property "DiskEncryptionSetId":
@@ -3260,7 +3097,9 @@ func (encryption *Encryption_STATUS) PopulateFromARM(owner genruntime.ArbitraryO
 
 	// Set property "Type":
 	if typedInput.Type != nil {
-		typeVar := *typedInput.Type
+		var temp string
+		temp = string(*typedInput.Type)
+		typeVar := EncryptionType_STATUS(temp)
 		encryption.Type = &typeVar
 	}
 
@@ -3337,7 +3176,7 @@ func (collection *EncryptionSettingsCollection) ConvertToARM(resolved genruntime
 	if collection == nil {
 		return nil, nil
 	}
-	result := &EncryptionSettingsCollection_ARM{}
+	result := &arm.EncryptionSettingsCollection{}
 
 	// Set property "Enabled":
 	if collection.Enabled != nil {
@@ -3351,7 +3190,7 @@ func (collection *EncryptionSettingsCollection) ConvertToARM(resolved genruntime
 		if err != nil {
 			return nil, err
 		}
-		result.EncryptionSettings = append(result.EncryptionSettings, *item_ARM.(*EncryptionSettingsElement_ARM))
+		result.EncryptionSettings = append(result.EncryptionSettings, *item_ARM.(*arm.EncryptionSettingsElement))
 	}
 
 	// Set property "EncryptionSettingsVersion":
@@ -3364,14 +3203,14 @@ func (collection *EncryptionSettingsCollection) ConvertToARM(resolved genruntime
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (collection *EncryptionSettingsCollection) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &EncryptionSettingsCollection_ARM{}
+	return &arm.EncryptionSettingsCollection{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (collection *EncryptionSettingsCollection) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(EncryptionSettingsCollection_ARM)
+	typedInput, ok := armInput.(arm.EncryptionSettingsCollection)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected EncryptionSettingsCollection_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.EncryptionSettingsCollection, got %T", armInput)
 	}
 
 	// Set property "Enabled":
@@ -3415,12 +3254,10 @@ func (collection *EncryptionSettingsCollection) AssignProperties_From_Encryption
 	if source.EncryptionSettings != nil {
 		encryptionSettingList := make([]EncryptionSettingsElement, len(source.EncryptionSettings))
 		for encryptionSettingIndex, encryptionSettingItem := range source.EncryptionSettings {
-			// Shadow the loop variable to avoid aliasing
-			encryptionSettingItem := encryptionSettingItem
 			var encryptionSetting EncryptionSettingsElement
 			err := encryptionSetting.AssignProperties_From_EncryptionSettingsElement(&encryptionSettingItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_EncryptionSettingsElement() to populate field EncryptionSettings")
+				return eris.Wrap(err, "calling AssignProperties_From_EncryptionSettingsElement() to populate field EncryptionSettings")
 			}
 			encryptionSettingList[encryptionSettingIndex] = encryptionSetting
 		}
@@ -3453,12 +3290,10 @@ func (collection *EncryptionSettingsCollection) AssignProperties_To_EncryptionSe
 	if collection.EncryptionSettings != nil {
 		encryptionSettingList := make([]storage.EncryptionSettingsElement, len(collection.EncryptionSettings))
 		for encryptionSettingIndex, encryptionSettingItem := range collection.EncryptionSettings {
-			// Shadow the loop variable to avoid aliasing
-			encryptionSettingItem := encryptionSettingItem
 			var encryptionSetting storage.EncryptionSettingsElement
 			err := encryptionSettingItem.AssignProperties_To_EncryptionSettingsElement(&encryptionSetting)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_EncryptionSettingsElement() to populate field EncryptionSettings")
+				return eris.Wrap(err, "calling AssignProperties_To_EncryptionSettingsElement() to populate field EncryptionSettings")
 			}
 			encryptionSettingList[encryptionSettingIndex] = encryptionSetting
 		}
@@ -3476,42 +3311,6 @@ func (collection *EncryptionSettingsCollection) AssignProperties_To_EncryptionSe
 	} else {
 		destination.PropertyBag = nil
 	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_EncryptionSettingsCollection_STATUS populates our EncryptionSettingsCollection from the provided source EncryptionSettingsCollection_STATUS
-func (collection *EncryptionSettingsCollection) Initialize_From_EncryptionSettingsCollection_STATUS(source *EncryptionSettingsCollection_STATUS) error {
-
-	// Enabled
-	if source.Enabled != nil {
-		enabled := *source.Enabled
-		collection.Enabled = &enabled
-	} else {
-		collection.Enabled = nil
-	}
-
-	// EncryptionSettings
-	if source.EncryptionSettings != nil {
-		encryptionSettingList := make([]EncryptionSettingsElement, len(source.EncryptionSettings))
-		for encryptionSettingIndex, encryptionSettingItem := range source.EncryptionSettings {
-			// Shadow the loop variable to avoid aliasing
-			encryptionSettingItem := encryptionSettingItem
-			var encryptionSetting EncryptionSettingsElement
-			err := encryptionSetting.Initialize_From_EncryptionSettingsElement_STATUS(&encryptionSettingItem)
-			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_EncryptionSettingsElement_STATUS() to populate field EncryptionSettings")
-			}
-			encryptionSettingList[encryptionSettingIndex] = encryptionSetting
-		}
-		collection.EncryptionSettings = encryptionSettingList
-	} else {
-		collection.EncryptionSettings = nil
-	}
-
-	// EncryptionSettingsVersion
-	collection.EncryptionSettingsVersion = genruntime.ClonePointerToString(source.EncryptionSettingsVersion)
 
 	// No error
 	return nil
@@ -3536,14 +3335,14 @@ var _ genruntime.FromARMConverter = &EncryptionSettingsCollection_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (collection *EncryptionSettingsCollection_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &EncryptionSettingsCollection_STATUS_ARM{}
+	return &arm.EncryptionSettingsCollection_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (collection *EncryptionSettingsCollection_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(EncryptionSettingsCollection_STATUS_ARM)
+	typedInput, ok := armInput.(arm.EncryptionSettingsCollection_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected EncryptionSettingsCollection_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.EncryptionSettingsCollection_STATUS, got %T", armInput)
 	}
 
 	// Set property "Enabled":
@@ -3587,12 +3386,10 @@ func (collection *EncryptionSettingsCollection_STATUS) AssignProperties_From_Enc
 	if source.EncryptionSettings != nil {
 		encryptionSettingList := make([]EncryptionSettingsElement_STATUS, len(source.EncryptionSettings))
 		for encryptionSettingIndex, encryptionSettingItem := range source.EncryptionSettings {
-			// Shadow the loop variable to avoid aliasing
-			encryptionSettingItem := encryptionSettingItem
 			var encryptionSetting EncryptionSettingsElement_STATUS
 			err := encryptionSetting.AssignProperties_From_EncryptionSettingsElement_STATUS(&encryptionSettingItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_EncryptionSettingsElement_STATUS() to populate field EncryptionSettings")
+				return eris.Wrap(err, "calling AssignProperties_From_EncryptionSettingsElement_STATUS() to populate field EncryptionSettings")
 			}
 			encryptionSettingList[encryptionSettingIndex] = encryptionSetting
 		}
@@ -3625,12 +3422,10 @@ func (collection *EncryptionSettingsCollection_STATUS) AssignProperties_To_Encry
 	if collection.EncryptionSettings != nil {
 		encryptionSettingList := make([]storage.EncryptionSettingsElement_STATUS, len(collection.EncryptionSettings))
 		for encryptionSettingIndex, encryptionSettingItem := range collection.EncryptionSettings {
-			// Shadow the loop variable to avoid aliasing
-			encryptionSettingItem := encryptionSettingItem
 			var encryptionSetting storage.EncryptionSettingsElement_STATUS
 			err := encryptionSettingItem.AssignProperties_To_EncryptionSettingsElement_STATUS(&encryptionSetting)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_EncryptionSettingsElement_STATUS() to populate field EncryptionSettings")
+				return eris.Wrap(err, "calling AssignProperties_To_EncryptionSettingsElement_STATUS() to populate field EncryptionSettings")
 			}
 			encryptionSettingList[encryptionSettingIndex] = encryptionSetting
 		}
@@ -3669,7 +3464,7 @@ func (location *ExtendedLocation) ConvertToARM(resolved genruntime.ConvertToARMR
 	if location == nil {
 		return nil, nil
 	}
-	result := &ExtendedLocation_ARM{}
+	result := &arm.ExtendedLocation{}
 
 	// Set property "Name":
 	if location.Name != nil {
@@ -3679,7 +3474,9 @@ func (location *ExtendedLocation) ConvertToARM(resolved genruntime.ConvertToARMR
 
 	// Set property "Type":
 	if location.Type != nil {
-		typeVar := *location.Type
+		var temp string
+		temp = string(*location.Type)
+		typeVar := arm.ExtendedLocationType(temp)
 		result.Type = &typeVar
 	}
 	return result, nil
@@ -3687,14 +3484,14 @@ func (location *ExtendedLocation) ConvertToARM(resolved genruntime.ConvertToARMR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (location *ExtendedLocation) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ExtendedLocation_ARM{}
+	return &arm.ExtendedLocation{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (location *ExtendedLocation) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ExtendedLocation_ARM)
+	typedInput, ok := armInput.(arm.ExtendedLocation)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ExtendedLocation_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ExtendedLocation, got %T", armInput)
 	}
 
 	// Set property "Name":
@@ -3705,7 +3502,9 @@ func (location *ExtendedLocation) PopulateFromARM(owner genruntime.ArbitraryOwne
 
 	// Set property "Type":
 	if typedInput.Type != nil {
-		typeVar := *typedInput.Type
+		var temp string
+		temp = string(*typedInput.Type)
+		typeVar := ExtendedLocationType(temp)
 		location.Type = &typeVar
 	}
 
@@ -3759,24 +3558,6 @@ func (location *ExtendedLocation) AssignProperties_To_ExtendedLocation(destinati
 	return nil
 }
 
-// Initialize_From_ExtendedLocation_STATUS populates our ExtendedLocation from the provided source ExtendedLocation_STATUS
-func (location *ExtendedLocation) Initialize_From_ExtendedLocation_STATUS(source *ExtendedLocation_STATUS) error {
-
-	// Name
-	location.Name = genruntime.ClonePointerToString(source.Name)
-
-	// Type
-	if source.Type != nil {
-		typeVar := genruntime.ToEnum(string(*source.Type), extendedLocationType_Values)
-		location.Type = &typeVar
-	} else {
-		location.Type = nil
-	}
-
-	// No error
-	return nil
-}
-
 // The complex type of the extended location.
 type ExtendedLocation_STATUS struct {
 	// Name: The name of the extended location.
@@ -3790,14 +3571,14 @@ var _ genruntime.FromARMConverter = &ExtendedLocation_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (location *ExtendedLocation_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ExtendedLocation_STATUS_ARM{}
+	return &arm.ExtendedLocation_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (location *ExtendedLocation_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ExtendedLocation_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ExtendedLocation_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ExtendedLocation_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ExtendedLocation_STATUS, got %T", armInput)
 	}
 
 	// Set property "Name":
@@ -3808,7 +3589,9 @@ func (location *ExtendedLocation_STATUS) PopulateFromARM(owner genruntime.Arbitr
 
 	// Set property "Type":
 	if typedInput.Type != nil {
-		typeVar := *typedInput.Type
+		var temp string
+		temp = string(*typedInput.Type)
+		typeVar := ExtendedLocationType_STATUS(temp)
 		location.Type = &typeVar
 	}
 
@@ -3921,7 +3704,7 @@ func (plan *PurchasePlan) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 	if plan == nil {
 		return nil, nil
 	}
-	result := &PurchasePlan_ARM{}
+	result := &arm.PurchasePlan{}
 
 	// Set property "Name":
 	if plan.Name != nil {
@@ -3951,14 +3734,14 @@ func (plan *PurchasePlan) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (plan *PurchasePlan) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PurchasePlan_ARM{}
+	return &arm.PurchasePlan{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (plan *PurchasePlan) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PurchasePlan_ARM)
+	typedInput, ok := armInput.(arm.PurchasePlan)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PurchasePlan_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PurchasePlan, got %T", armInput)
 	}
 
 	// Set property "Name":
@@ -4036,25 +3819,6 @@ func (plan *PurchasePlan) AssignProperties_To_PurchasePlan(destination *storage.
 	return nil
 }
 
-// Initialize_From_PurchasePlan_STATUS populates our PurchasePlan from the provided source PurchasePlan_STATUS
-func (plan *PurchasePlan) Initialize_From_PurchasePlan_STATUS(source *PurchasePlan_STATUS) error {
-
-	// Name
-	plan.Name = genruntime.ClonePointerToString(source.Name)
-
-	// Product
-	plan.Product = genruntime.ClonePointerToString(source.Product)
-
-	// PromotionCode
-	plan.PromotionCode = genruntime.ClonePointerToString(source.PromotionCode)
-
-	// Publisher
-	plan.Publisher = genruntime.ClonePointerToString(source.Publisher)
-
-	// No error
-	return nil
-}
-
 // Used for establishing the purchase context of any 3rd Party artifact through MarketPlace.
 type PurchasePlan_STATUS struct {
 	// Name: The plan ID.
@@ -4075,14 +3839,14 @@ var _ genruntime.FromARMConverter = &PurchasePlan_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (plan *PurchasePlan_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &PurchasePlan_STATUS_ARM{}
+	return &arm.PurchasePlan_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (plan *PurchasePlan_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(PurchasePlan_STATUS_ARM)
+	typedInput, ok := armInput.(arm.PurchasePlan_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected PurchasePlan_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PurchasePlan_STATUS, got %T", armInput)
 	}
 
 	// Set property "Name":
@@ -4169,14 +3933,14 @@ var _ genruntime.FromARMConverter = &ShareInfoElement_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (element *ShareInfoElement_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ShareInfoElement_STATUS_ARM{}
+	return &arm.ShareInfoElement_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (element *ShareInfoElement_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ShareInfoElement_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ShareInfoElement_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ShareInfoElement_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ShareInfoElement_STATUS, got %T", armInput)
 	}
 
 	// Set property "VmUri":
@@ -4265,6 +4029,41 @@ var creationData_CreateOption_STATUS_Values = map[string]CreationData_CreateOpti
 	"upload":    CreationData_CreateOption_STATUS_Upload,
 }
 
+// +kubebuilder:validation:Enum={"Premium_LRS","StandardSSD_LRS","Standard_LRS","UltraSSD_LRS"}
+type DiskSku_Name string
+
+const (
+	DiskSku_Name_Premium_LRS     = DiskSku_Name("Premium_LRS")
+	DiskSku_Name_StandardSSD_LRS = DiskSku_Name("StandardSSD_LRS")
+	DiskSku_Name_Standard_LRS    = DiskSku_Name("Standard_LRS")
+	DiskSku_Name_UltraSSD_LRS    = DiskSku_Name("UltraSSD_LRS")
+)
+
+// Mapping from string to DiskSku_Name
+var diskSku_Name_Values = map[string]DiskSku_Name{
+	"premium_lrs":     DiskSku_Name_Premium_LRS,
+	"standardssd_lrs": DiskSku_Name_StandardSSD_LRS,
+	"standard_lrs":    DiskSku_Name_Standard_LRS,
+	"ultrassd_lrs":    DiskSku_Name_UltraSSD_LRS,
+}
+
+type DiskSku_Name_STATUS string
+
+const (
+	DiskSku_Name_STATUS_Premium_LRS     = DiskSku_Name_STATUS("Premium_LRS")
+	DiskSku_Name_STATUS_StandardSSD_LRS = DiskSku_Name_STATUS("StandardSSD_LRS")
+	DiskSku_Name_STATUS_Standard_LRS    = DiskSku_Name_STATUS("Standard_LRS")
+	DiskSku_Name_STATUS_UltraSSD_LRS    = DiskSku_Name_STATUS("UltraSSD_LRS")
+)
+
+// Mapping from string to DiskSku_Name_STATUS
+var diskSku_Name_STATUS_Values = map[string]DiskSku_Name_STATUS{
+	"premium_lrs":     DiskSku_Name_STATUS_Premium_LRS,
+	"standardssd_lrs": DiskSku_Name_STATUS_StandardSSD_LRS,
+	"standard_lrs":    DiskSku_Name_STATUS_Standard_LRS,
+	"ultrassd_lrs":    DiskSku_Name_STATUS_UltraSSD_LRS,
+}
+
 // Encryption settings for one disk volume.
 type EncryptionSettingsElement struct {
 	// DiskEncryptionKey: Key Vault Secret Url and vault id of the disk encryption key
@@ -4282,25 +4081,25 @@ func (element *EncryptionSettingsElement) ConvertToARM(resolved genruntime.Conve
 	if element == nil {
 		return nil, nil
 	}
-	result := &EncryptionSettingsElement_ARM{}
+	result := &arm.EncryptionSettingsElement{}
 
 	// Set property "DiskEncryptionKey":
 	if element.DiskEncryptionKey != nil {
-		diskEncryptionKey_ARM, err := (*element.DiskEncryptionKey).ConvertToARM(resolved)
+		diskEncryptionKey_ARM, err := element.DiskEncryptionKey.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		diskEncryptionKey := *diskEncryptionKey_ARM.(*KeyVaultAndSecretReference_ARM)
+		diskEncryptionKey := *diskEncryptionKey_ARM.(*arm.KeyVaultAndSecretReference)
 		result.DiskEncryptionKey = &diskEncryptionKey
 	}
 
 	// Set property "KeyEncryptionKey":
 	if element.KeyEncryptionKey != nil {
-		keyEncryptionKey_ARM, err := (*element.KeyEncryptionKey).ConvertToARM(resolved)
+		keyEncryptionKey_ARM, err := element.KeyEncryptionKey.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		keyEncryptionKey := *keyEncryptionKey_ARM.(*KeyVaultAndKeyReference_ARM)
+		keyEncryptionKey := *keyEncryptionKey_ARM.(*arm.KeyVaultAndKeyReference)
 		result.KeyEncryptionKey = &keyEncryptionKey
 	}
 	return result, nil
@@ -4308,14 +4107,14 @@ func (element *EncryptionSettingsElement) ConvertToARM(resolved genruntime.Conve
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (element *EncryptionSettingsElement) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &EncryptionSettingsElement_ARM{}
+	return &arm.EncryptionSettingsElement{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (element *EncryptionSettingsElement) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(EncryptionSettingsElement_ARM)
+	typedInput, ok := armInput.(arm.EncryptionSettingsElement)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected EncryptionSettingsElement_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.EncryptionSettingsElement, got %T", armInput)
 	}
 
 	// Set property "DiskEncryptionKey":
@@ -4352,7 +4151,7 @@ func (element *EncryptionSettingsElement) AssignProperties_From_EncryptionSettin
 		var diskEncryptionKey KeyVaultAndSecretReference
 		err := diskEncryptionKey.AssignProperties_From_KeyVaultAndSecretReference(source.DiskEncryptionKey)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_KeyVaultAndSecretReference() to populate field DiskEncryptionKey")
+			return eris.Wrap(err, "calling AssignProperties_From_KeyVaultAndSecretReference() to populate field DiskEncryptionKey")
 		}
 		element.DiskEncryptionKey = &diskEncryptionKey
 	} else {
@@ -4364,7 +4163,7 @@ func (element *EncryptionSettingsElement) AssignProperties_From_EncryptionSettin
 		var keyEncryptionKey KeyVaultAndKeyReference
 		err := keyEncryptionKey.AssignProperties_From_KeyVaultAndKeyReference(source.KeyEncryptionKey)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_KeyVaultAndKeyReference() to populate field KeyEncryptionKey")
+			return eris.Wrap(err, "calling AssignProperties_From_KeyVaultAndKeyReference() to populate field KeyEncryptionKey")
 		}
 		element.KeyEncryptionKey = &keyEncryptionKey
 	} else {
@@ -4385,7 +4184,7 @@ func (element *EncryptionSettingsElement) AssignProperties_To_EncryptionSettings
 		var diskEncryptionKey storage.KeyVaultAndSecretReference
 		err := element.DiskEncryptionKey.AssignProperties_To_KeyVaultAndSecretReference(&diskEncryptionKey)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_KeyVaultAndSecretReference() to populate field DiskEncryptionKey")
+			return eris.Wrap(err, "calling AssignProperties_To_KeyVaultAndSecretReference() to populate field DiskEncryptionKey")
 		}
 		destination.DiskEncryptionKey = &diskEncryptionKey
 	} else {
@@ -4397,7 +4196,7 @@ func (element *EncryptionSettingsElement) AssignProperties_To_EncryptionSettings
 		var keyEncryptionKey storage.KeyVaultAndKeyReference
 		err := element.KeyEncryptionKey.AssignProperties_To_KeyVaultAndKeyReference(&keyEncryptionKey)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_KeyVaultAndKeyReference() to populate field KeyEncryptionKey")
+			return eris.Wrap(err, "calling AssignProperties_To_KeyVaultAndKeyReference() to populate field KeyEncryptionKey")
 		}
 		destination.KeyEncryptionKey = &keyEncryptionKey
 	} else {
@@ -4409,37 +4208,6 @@ func (element *EncryptionSettingsElement) AssignProperties_To_EncryptionSettings
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_EncryptionSettingsElement_STATUS populates our EncryptionSettingsElement from the provided source EncryptionSettingsElement_STATUS
-func (element *EncryptionSettingsElement) Initialize_From_EncryptionSettingsElement_STATUS(source *EncryptionSettingsElement_STATUS) error {
-
-	// DiskEncryptionKey
-	if source.DiskEncryptionKey != nil {
-		var diskEncryptionKey KeyVaultAndSecretReference
-		err := diskEncryptionKey.Initialize_From_KeyVaultAndSecretReference_STATUS(source.DiskEncryptionKey)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_KeyVaultAndSecretReference_STATUS() to populate field DiskEncryptionKey")
-		}
-		element.DiskEncryptionKey = &diskEncryptionKey
-	} else {
-		element.DiskEncryptionKey = nil
-	}
-
-	// KeyEncryptionKey
-	if source.KeyEncryptionKey != nil {
-		var keyEncryptionKey KeyVaultAndKeyReference
-		err := keyEncryptionKey.Initialize_From_KeyVaultAndKeyReference_STATUS(source.KeyEncryptionKey)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_KeyVaultAndKeyReference_STATUS() to populate field KeyEncryptionKey")
-		}
-		element.KeyEncryptionKey = &keyEncryptionKey
-	} else {
-		element.KeyEncryptionKey = nil
 	}
 
 	// No error
@@ -4460,14 +4228,14 @@ var _ genruntime.FromARMConverter = &EncryptionSettingsElement_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (element *EncryptionSettingsElement_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &EncryptionSettingsElement_STATUS_ARM{}
+	return &arm.EncryptionSettingsElement_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (element *EncryptionSettingsElement_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(EncryptionSettingsElement_STATUS_ARM)
+	typedInput, ok := armInput.(arm.EncryptionSettingsElement_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected EncryptionSettingsElement_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.EncryptionSettingsElement_STATUS, got %T", armInput)
 	}
 
 	// Set property "DiskEncryptionKey":
@@ -4504,7 +4272,7 @@ func (element *EncryptionSettingsElement_STATUS) AssignProperties_From_Encryptio
 		var diskEncryptionKey KeyVaultAndSecretReference_STATUS
 		err := diskEncryptionKey.AssignProperties_From_KeyVaultAndSecretReference_STATUS(source.DiskEncryptionKey)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_KeyVaultAndSecretReference_STATUS() to populate field DiskEncryptionKey")
+			return eris.Wrap(err, "calling AssignProperties_From_KeyVaultAndSecretReference_STATUS() to populate field DiskEncryptionKey")
 		}
 		element.DiskEncryptionKey = &diskEncryptionKey
 	} else {
@@ -4516,7 +4284,7 @@ func (element *EncryptionSettingsElement_STATUS) AssignProperties_From_Encryptio
 		var keyEncryptionKey KeyVaultAndKeyReference_STATUS
 		err := keyEncryptionKey.AssignProperties_From_KeyVaultAndKeyReference_STATUS(source.KeyEncryptionKey)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_KeyVaultAndKeyReference_STATUS() to populate field KeyEncryptionKey")
+			return eris.Wrap(err, "calling AssignProperties_From_KeyVaultAndKeyReference_STATUS() to populate field KeyEncryptionKey")
 		}
 		element.KeyEncryptionKey = &keyEncryptionKey
 	} else {
@@ -4537,7 +4305,7 @@ func (element *EncryptionSettingsElement_STATUS) AssignProperties_To_EncryptionS
 		var diskEncryptionKey storage.KeyVaultAndSecretReference_STATUS
 		err := element.DiskEncryptionKey.AssignProperties_To_KeyVaultAndSecretReference_STATUS(&diskEncryptionKey)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_KeyVaultAndSecretReference_STATUS() to populate field DiskEncryptionKey")
+			return eris.Wrap(err, "calling AssignProperties_To_KeyVaultAndSecretReference_STATUS() to populate field DiskEncryptionKey")
 		}
 		destination.DiskEncryptionKey = &diskEncryptionKey
 	} else {
@@ -4549,7 +4317,7 @@ func (element *EncryptionSettingsElement_STATUS) AssignProperties_To_EncryptionS
 		var keyEncryptionKey storage.KeyVaultAndKeyReference_STATUS
 		err := element.KeyEncryptionKey.AssignProperties_To_KeyVaultAndKeyReference_STATUS(&keyEncryptionKey)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_KeyVaultAndKeyReference_STATUS() to populate field KeyEncryptionKey")
+			return eris.Wrap(err, "calling AssignProperties_To_KeyVaultAndKeyReference_STATUS() to populate field KeyEncryptionKey")
 		}
 		destination.KeyEncryptionKey = &keyEncryptionKey
 	} else {
@@ -4600,6 +4368,27 @@ var encryptionType_STATUS_Values = map[string]EncryptionType_STATUS{
 	"encryptionatrestwithplatformkey":             EncryptionType_STATUS_EncryptionAtRestWithPlatformKey,
 }
 
+// The type of extendedLocation.
+// +kubebuilder:validation:Enum={"EdgeZone"}
+type ExtendedLocationType string
+
+const ExtendedLocationType_EdgeZone = ExtendedLocationType("EdgeZone")
+
+// Mapping from string to ExtendedLocationType
+var extendedLocationType_Values = map[string]ExtendedLocationType{
+	"edgezone": ExtendedLocationType_EdgeZone,
+}
+
+// The type of extendedLocation.
+type ExtendedLocationType_STATUS string
+
+const ExtendedLocationType_STATUS_EdgeZone = ExtendedLocationType_STATUS("EdgeZone")
+
+// Mapping from string to ExtendedLocationType_STATUS
+var extendedLocationType_STATUS_Values = map[string]ExtendedLocationType_STATUS{
+	"edgezone": ExtendedLocationType_STATUS_EdgeZone,
+}
+
 // The source image used for creating the disk.
 type ImageDiskReference struct {
 	// Lun: If the disk is created from an image's data disk, this is an index that indicates which of the data disks in the
@@ -4618,7 +4407,7 @@ func (reference *ImageDiskReference) ConvertToARM(resolved genruntime.ConvertToA
 	if reference == nil {
 		return nil, nil
 	}
-	result := &ImageDiskReference_ARM{}
+	result := &arm.ImageDiskReference{}
 
 	// Set property "Id":
 	if reference.Reference != nil {
@@ -4640,14 +4429,14 @@ func (reference *ImageDiskReference) ConvertToARM(resolved genruntime.ConvertToA
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (reference *ImageDiskReference) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ImageDiskReference_ARM{}
+	return &arm.ImageDiskReference{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (reference *ImageDiskReference) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ImageDiskReference_ARM)
+	typedInput, ok := armInput.(arm.ImageDiskReference)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ImageDiskReference_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ImageDiskReference, got %T", armInput)
 	}
 
 	// Set property "Lun":
@@ -4707,24 +4496,6 @@ func (reference *ImageDiskReference) AssignProperties_To_ImageDiskReference(dest
 	return nil
 }
 
-// Initialize_From_ImageDiskReference_STATUS populates our ImageDiskReference from the provided source ImageDiskReference_STATUS
-func (reference *ImageDiskReference) Initialize_From_ImageDiskReference_STATUS(source *ImageDiskReference_STATUS) error {
-
-	// Lun
-	reference.Lun = genruntime.ClonePointerToInt(source.Lun)
-
-	// Reference
-	if source.Id != nil {
-		referenceTemp := genruntime.CreateResourceReferenceFromARMID(*source.Id)
-		reference.Reference = &referenceTemp
-	} else {
-		reference.Reference = nil
-	}
-
-	// No error
-	return nil
-}
-
 // The source image used for creating the disk.
 type ImageDiskReference_STATUS struct {
 	// Id: A relative uri containing either a Platform Image Repository or user image reference.
@@ -4739,14 +4510,14 @@ var _ genruntime.FromARMConverter = &ImageDiskReference_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (reference *ImageDiskReference_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ImageDiskReference_STATUS_ARM{}
+	return &arm.ImageDiskReference_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (reference *ImageDiskReference_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ImageDiskReference_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ImageDiskReference_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ImageDiskReference_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ImageDiskReference_STATUS, got %T", armInput)
 	}
 
 	// Set property "Id":
@@ -4818,7 +4589,7 @@ func (reference *KeyVaultAndKeyReference) ConvertToARM(resolved genruntime.Conve
 	if reference == nil {
 		return nil, nil
 	}
-	result := &KeyVaultAndKeyReference_ARM{}
+	result := &arm.KeyVaultAndKeyReference{}
 
 	// Set property "KeyUrl":
 	if reference.KeyUrl != nil {
@@ -4828,11 +4599,11 @@ func (reference *KeyVaultAndKeyReference) ConvertToARM(resolved genruntime.Conve
 
 	// Set property "SourceVault":
 	if reference.SourceVault != nil {
-		sourceVault_ARM, err := (*reference.SourceVault).ConvertToARM(resolved)
+		sourceVault_ARM, err := reference.SourceVault.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		sourceVault := *sourceVault_ARM.(*SourceVault_ARM)
+		sourceVault := *sourceVault_ARM.(*arm.SourceVault)
 		result.SourceVault = &sourceVault
 	}
 	return result, nil
@@ -4840,14 +4611,14 @@ func (reference *KeyVaultAndKeyReference) ConvertToARM(resolved genruntime.Conve
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (reference *KeyVaultAndKeyReference) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &KeyVaultAndKeyReference_ARM{}
+	return &arm.KeyVaultAndKeyReference{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (reference *KeyVaultAndKeyReference) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(KeyVaultAndKeyReference_ARM)
+	typedInput, ok := armInput.(arm.KeyVaultAndKeyReference)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected KeyVaultAndKeyReference_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.KeyVaultAndKeyReference, got %T", armInput)
 	}
 
 	// Set property "KeyUrl":
@@ -4882,7 +4653,7 @@ func (reference *KeyVaultAndKeyReference) AssignProperties_From_KeyVaultAndKeyRe
 		var sourceVault SourceVault
 		err := sourceVault.AssignProperties_From_SourceVault(source.SourceVault)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SourceVault() to populate field SourceVault")
+			return eris.Wrap(err, "calling AssignProperties_From_SourceVault() to populate field SourceVault")
 		}
 		reference.SourceVault = &sourceVault
 	} else {
@@ -4906,7 +4677,7 @@ func (reference *KeyVaultAndKeyReference) AssignProperties_To_KeyVaultAndKeyRefe
 		var sourceVault storage.SourceVault
 		err := reference.SourceVault.AssignProperties_To_SourceVault(&sourceVault)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SourceVault() to populate field SourceVault")
+			return eris.Wrap(err, "calling AssignProperties_To_SourceVault() to populate field SourceVault")
 		}
 		destination.SourceVault = &sourceVault
 	} else {
@@ -4918,28 +4689,6 @@ func (reference *KeyVaultAndKeyReference) AssignProperties_To_KeyVaultAndKeyRefe
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_KeyVaultAndKeyReference_STATUS populates our KeyVaultAndKeyReference from the provided source KeyVaultAndKeyReference_STATUS
-func (reference *KeyVaultAndKeyReference) Initialize_From_KeyVaultAndKeyReference_STATUS(source *KeyVaultAndKeyReference_STATUS) error {
-
-	// KeyUrl
-	reference.KeyUrl = genruntime.ClonePointerToString(source.KeyUrl)
-
-	// SourceVault
-	if source.SourceVault != nil {
-		var sourceVault SourceVault
-		err := sourceVault.Initialize_From_SourceVault_STATUS(source.SourceVault)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_SourceVault_STATUS() to populate field SourceVault")
-		}
-		reference.SourceVault = &sourceVault
-	} else {
-		reference.SourceVault = nil
 	}
 
 	// No error
@@ -4959,14 +4708,14 @@ var _ genruntime.FromARMConverter = &KeyVaultAndKeyReference_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (reference *KeyVaultAndKeyReference_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &KeyVaultAndKeyReference_STATUS_ARM{}
+	return &arm.KeyVaultAndKeyReference_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (reference *KeyVaultAndKeyReference_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(KeyVaultAndKeyReference_STATUS_ARM)
+	typedInput, ok := armInput.(arm.KeyVaultAndKeyReference_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected KeyVaultAndKeyReference_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.KeyVaultAndKeyReference_STATUS, got %T", armInput)
 	}
 
 	// Set property "KeyUrl":
@@ -5001,7 +4750,7 @@ func (reference *KeyVaultAndKeyReference_STATUS) AssignProperties_From_KeyVaultA
 		var sourceVault SourceVault_STATUS
 		err := sourceVault.AssignProperties_From_SourceVault_STATUS(source.SourceVault)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SourceVault_STATUS() to populate field SourceVault")
+			return eris.Wrap(err, "calling AssignProperties_From_SourceVault_STATUS() to populate field SourceVault")
 		}
 		reference.SourceVault = &sourceVault
 	} else {
@@ -5025,7 +4774,7 @@ func (reference *KeyVaultAndKeyReference_STATUS) AssignProperties_To_KeyVaultAnd
 		var sourceVault storage.SourceVault_STATUS
 		err := reference.SourceVault.AssignProperties_To_SourceVault_STATUS(&sourceVault)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SourceVault_STATUS() to populate field SourceVault")
+			return eris.Wrap(err, "calling AssignProperties_To_SourceVault_STATUS() to populate field SourceVault")
 		}
 		destination.SourceVault = &sourceVault
 	} else {
@@ -5061,7 +4810,7 @@ func (reference *KeyVaultAndSecretReference) ConvertToARM(resolved genruntime.Co
 	if reference == nil {
 		return nil, nil
 	}
-	result := &KeyVaultAndSecretReference_ARM{}
+	result := &arm.KeyVaultAndSecretReference{}
 
 	// Set property "SecretUrl":
 	if reference.SecretUrl != nil {
@@ -5071,11 +4820,11 @@ func (reference *KeyVaultAndSecretReference) ConvertToARM(resolved genruntime.Co
 
 	// Set property "SourceVault":
 	if reference.SourceVault != nil {
-		sourceVault_ARM, err := (*reference.SourceVault).ConvertToARM(resolved)
+		sourceVault_ARM, err := reference.SourceVault.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		sourceVault := *sourceVault_ARM.(*SourceVault_ARM)
+		sourceVault := *sourceVault_ARM.(*arm.SourceVault)
 		result.SourceVault = &sourceVault
 	}
 	return result, nil
@@ -5083,14 +4832,14 @@ func (reference *KeyVaultAndSecretReference) ConvertToARM(resolved genruntime.Co
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (reference *KeyVaultAndSecretReference) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &KeyVaultAndSecretReference_ARM{}
+	return &arm.KeyVaultAndSecretReference{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (reference *KeyVaultAndSecretReference) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(KeyVaultAndSecretReference_ARM)
+	typedInput, ok := armInput.(arm.KeyVaultAndSecretReference)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected KeyVaultAndSecretReference_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.KeyVaultAndSecretReference, got %T", armInput)
 	}
 
 	// Set property "SecretUrl":
@@ -5125,7 +4874,7 @@ func (reference *KeyVaultAndSecretReference) AssignProperties_From_KeyVaultAndSe
 		var sourceVault SourceVault
 		err := sourceVault.AssignProperties_From_SourceVault(source.SourceVault)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SourceVault() to populate field SourceVault")
+			return eris.Wrap(err, "calling AssignProperties_From_SourceVault() to populate field SourceVault")
 		}
 		reference.SourceVault = &sourceVault
 	} else {
@@ -5149,7 +4898,7 @@ func (reference *KeyVaultAndSecretReference) AssignProperties_To_KeyVaultAndSecr
 		var sourceVault storage.SourceVault
 		err := reference.SourceVault.AssignProperties_To_SourceVault(&sourceVault)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SourceVault() to populate field SourceVault")
+			return eris.Wrap(err, "calling AssignProperties_To_SourceVault() to populate field SourceVault")
 		}
 		destination.SourceVault = &sourceVault
 	} else {
@@ -5161,28 +4910,6 @@ func (reference *KeyVaultAndSecretReference) AssignProperties_To_KeyVaultAndSecr
 		destination.PropertyBag = propertyBag
 	} else {
 		destination.PropertyBag = nil
-	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_KeyVaultAndSecretReference_STATUS populates our KeyVaultAndSecretReference from the provided source KeyVaultAndSecretReference_STATUS
-func (reference *KeyVaultAndSecretReference) Initialize_From_KeyVaultAndSecretReference_STATUS(source *KeyVaultAndSecretReference_STATUS) error {
-
-	// SecretUrl
-	reference.SecretUrl = genruntime.ClonePointerToString(source.SecretUrl)
-
-	// SourceVault
-	if source.SourceVault != nil {
-		var sourceVault SourceVault
-		err := sourceVault.Initialize_From_SourceVault_STATUS(source.SourceVault)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_SourceVault_STATUS() to populate field SourceVault")
-		}
-		reference.SourceVault = &sourceVault
-	} else {
-		reference.SourceVault = nil
 	}
 
 	// No error
@@ -5202,14 +4929,14 @@ var _ genruntime.FromARMConverter = &KeyVaultAndSecretReference_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (reference *KeyVaultAndSecretReference_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &KeyVaultAndSecretReference_STATUS_ARM{}
+	return &arm.KeyVaultAndSecretReference_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (reference *KeyVaultAndSecretReference_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(KeyVaultAndSecretReference_STATUS_ARM)
+	typedInput, ok := armInput.(arm.KeyVaultAndSecretReference_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected KeyVaultAndSecretReference_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.KeyVaultAndSecretReference_STATUS, got %T", armInput)
 	}
 
 	// Set property "SecretUrl":
@@ -5244,7 +4971,7 @@ func (reference *KeyVaultAndSecretReference_STATUS) AssignProperties_From_KeyVau
 		var sourceVault SourceVault_STATUS
 		err := sourceVault.AssignProperties_From_SourceVault_STATUS(source.SourceVault)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SourceVault_STATUS() to populate field SourceVault")
+			return eris.Wrap(err, "calling AssignProperties_From_SourceVault_STATUS() to populate field SourceVault")
 		}
 		reference.SourceVault = &sourceVault
 	} else {
@@ -5268,7 +4995,7 @@ func (reference *KeyVaultAndSecretReference_STATUS) AssignProperties_To_KeyVault
 		var sourceVault storage.SourceVault_STATUS
 		err := reference.SourceVault.AssignProperties_To_SourceVault_STATUS(&sourceVault)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SourceVault_STATUS() to populate field SourceVault")
+			return eris.Wrap(err, "calling AssignProperties_To_SourceVault_STATUS() to populate field SourceVault")
 		}
 		destination.SourceVault = &sourceVault
 	} else {
@@ -5300,7 +5027,7 @@ func (vault *SourceVault) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 	if vault == nil {
 		return nil, nil
 	}
-	result := &SourceVault_ARM{}
+	result := &arm.SourceVault{}
 
 	// Set property "Id":
 	if vault.Reference != nil {
@@ -5316,14 +5043,14 @@ func (vault *SourceVault) ConvertToARM(resolved genruntime.ConvertToARMResolvedD
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (vault *SourceVault) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SourceVault_ARM{}
+	return &arm.SourceVault{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (vault *SourceVault) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	_, ok := armInput.(SourceVault_ARM)
+	_, ok := armInput.(arm.SourceVault)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SourceVault_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SourceVault, got %T", armInput)
 	}
 
 	// no assignment for property "Reference"
@@ -5371,21 +5098,6 @@ func (vault *SourceVault) AssignProperties_To_SourceVault(destination *storage.S
 	return nil
 }
 
-// Initialize_From_SourceVault_STATUS populates our SourceVault from the provided source SourceVault_STATUS
-func (vault *SourceVault) Initialize_From_SourceVault_STATUS(source *SourceVault_STATUS) error {
-
-	// Reference
-	if source.Id != nil {
-		reference := genruntime.CreateResourceReferenceFromARMID(*source.Id)
-		vault.Reference = &reference
-	} else {
-		vault.Reference = nil
-	}
-
-	// No error
-	return nil
-}
-
 // The vault id is an Azure Resource Manager Resource id in the form
 // /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.KeyVault/vaults/{vaultName}
 type SourceVault_STATUS struct {
@@ -5397,14 +5109,14 @@ var _ genruntime.FromARMConverter = &SourceVault_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (vault *SourceVault_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SourceVault_STATUS_ARM{}
+	return &arm.SourceVault_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (vault *SourceVault_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SourceVault_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SourceVault_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SourceVault_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SourceVault_STATUS, got %T", armInput)
 	}
 
 	// Set property "Id":

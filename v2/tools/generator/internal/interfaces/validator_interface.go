@@ -6,31 +6,30 @@
 package interfaces
 
 import (
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/functions"
 )
 
 func AddValidatorInterface(
-	resourceDef astmodel.TypeDefinition,
+	resourceName astmodel.InternalTypeName,
+	webhookDef astmodel.TypeDefinition,
 	idFactory astmodel.IdentifierFactory,
-	definitions astmodel.TypeDefinitionSet,
-	validations map[functions.ValidationKind][]*functions.ResourceFunction,
+	validations map[functions.ValidationKind][]*functions.ValidateFunction,
 ) (astmodel.TypeDefinition, error) {
-	resolved, err := definitions.ResolveResourceSpecAndStatus(resourceDef)
-	if err != nil {
-		return astmodel.TypeDefinition{}, errors.Wrapf(err, "unable to resolve resource %s", resourceDef.Name())
+	webhhookObject, ok := webhookDef.Type().(*astmodel.ObjectType)
+	if !ok {
+		return astmodel.TypeDefinition{}, eris.Errorf("cannot add validator interface to non-object type: %s %T", webhookDef.Name(), webhookDef.Type())
 	}
 
-	validatorBuilder := functions.NewValidatorBuilder(resourceDef.Name(), resolved.ResourceType, idFactory)
+	validatorBuilder := functions.NewValidatorBuilder(resourceName, idFactory)
 	for validationKind, vs := range validations {
 		for _, validation := range vs {
 			validatorBuilder.AddValidation(validationKind, validation)
 		}
 	}
 
-	resourceType := resolved.ResourceType.WithInterface(validatorBuilder.ToInterfaceImplementation())
-
-	return resourceDef.WithType(resourceType), nil
+	webhhookObject = webhhookObject.WithInterface(validatorBuilder.ToInterfaceImplementation())
+	return webhookDef.WithType(webhhookObject), nil
 }

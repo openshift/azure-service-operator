@@ -8,8 +8,9 @@ package testcommon
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
+
+	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -27,103 +28,165 @@ type sampleResource struct {
 
 var _ genruntime.ARMMetaObject = &sampleResource{}
 
-func Test_SamplesTester_UpdatesSubscriptionReferences(t *testing.T) {
+func Test_IsSampleFileExcluded_SQLAADOnly(t *testing.T) {
 	t.Parallel()
 
-	g := NewGomegaWithT(t)
-
-	tester := &SamplesTester{
-		azureSubscription: uuid.New().String(),
-	}
-
-	sample := &sampleResource{
-		Reference: genruntime.CreateResourceReferenceFromARMID("subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"),
-	}
-
-	err := tester.updateFieldsForTest(sample)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Expect(sample.Reference.ARMID).To(ContainSubstring(tester.azureSubscription))
-}
-
-func Test_SamplesTester_UpdatesSubscriptionOnlyReference(t *testing.T) {
-	t.Parallel()
-
-	g := NewGomegaWithT(t)
-
-	tester := &SamplesTester{
-		azureSubscription: uuid.New().String(),
-	}
-
-	sample := &sampleResource{
-		Reference: genruntime.CreateResourceReferenceFromARMID("subscriptions/00000000-0000-0000-0000-000000000000"),
-	}
-
-	err := tester.updateFieldsForTest(sample)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Expect(sample.Reference.ARMID).To(ContainSubstring(tester.azureSubscription))
-}
-
-func Test_SamplesTester_UpdatesSubscriptionID(t *testing.T) {
-	t.Parallel()
-
-	g := NewGomegaWithT(t)
-
-	tester := &SamplesTester{
-		azureSubscription: uuid.New().String(),
-	}
-
-	sample := &sampleResource{
-		SubscriptionID: emptyGuid,
-	}
-
-	err := tester.updateFieldsForTest(sample)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Expect(sample.SubscriptionID).To(Equal(tester.azureSubscription))
-}
-
-func Test_SamplesTester_UpdatesTenantID(t *testing.T) {
-	t.Parallel()
-
-	g := NewGomegaWithT(t)
-
-	tester := &SamplesTester{
-		azureTenant: uuid.New().String(),
-	}
-
-	sample := &sampleResource{
-		TenantID: emptyGuid,
-	}
-
-	err := tester.updateFieldsForTest(sample)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Expect(sample.TenantID).To(Equal(tester.azureTenant))
-}
-
-func Test_SamplesTester_UpdatesResourceGroupName(t *testing.T) {
-	t.Parallel()
-
-	g := NewGomegaWithT(t)
-
-	tester := &SamplesTester{
-		rgName: "somerandomrg",
-	}
-
-	sample := &sampleResource{
-		Reference: genruntime.ResourceReference{
-			Group: "resources.azure.com",
-			Kind:  "ResourceGroup",
-			Name:  "aso-sample-rg",
+	cases := map[string]struct {
+		path     string
+		excluded bool
+	}{
+		"sql-v1api20211101": {
+			path:     "../../samples/sql/v1api20211101/v1api20211101_serversadministrator.yaml",
+			excluded: true,
+		},
+		"sql-v20211101": {
+			path:     "../../samples/sql/v20211101/v20211101_serversadministrator.yaml",
+			excluded: true,
+		},
+		"sql-v20250101": {
+			path:     "../../samples/sql/v20250101/v20250101_serversadministrator.yaml",
+			excluded: true,
+		},
+		"sql-aadonly-v1api20211101": {
+			path:     "../../samples/sql/aadonly_v1api20211101/v1api20211101_serversazureadonlyauthentication.yaml",
+			excluded: false,
+		},
+		"sql-aadonly-v20211101": {
+			path:     "../../samples/sql/aadonly_v20211101/v20211101_serversazureadonlyauthentication.yaml",
+			excluded: false,
+		},
+		"sql-aadonly-v20250101": {
+			path:     "../../samples/sql/aadonly_v20250101/v20250101_serversazureadonlyauthentication.yaml",
+			excluded: false,
 		},
 	}
 
-	err := tester.updateFieldsForTest(sample)
-	g.Expect(err).ToNot(HaveOccurred())
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g := NewGomegaWithT(t)
+			g.Expect(IsSampleFileExcluded(c.path)).To(Equal(c.excluded))
+		})
+	}
+}
 
-	g.Expect(sample.Reference.Name).To(Equal(tester.rgName))
+func Test_SamplesTester_UpdatesFieldsForTest(t *testing.T) {
+	t.Parallel()
+
+	subscription := uuid.New().String()
+	tenant := uuid.New().String()
+	rgName := "somerandomrg"
+
+	cases := []struct {
+		name          string
+		useRandomName bool
+		rgName        string
+		subscription  string
+		tenant        string
+		nameRenames   map[referenceKey]string
+		sample        *sampleResource
+		check         func(g Gomega, sample *sampleResource)
+	}{
+		{
+			name:         "updates ARMID reference with subscription",
+			subscription: subscription,
+			sample: &sampleResource{
+				Reference: genruntime.CreateResourceReferenceFromARMID("subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"),
+			},
+			check: func(g Gomega, sample *sampleResource) {
+				g.Expect(sample.Reference.ARMID).To(ContainSubstring(subscription))
+			},
+		},
+		{
+			name:         "updates subscription-only ARMID reference",
+			subscription: subscription,
+			sample: &sampleResource{
+				Reference: genruntime.CreateResourceReferenceFromARMID("subscriptions/00000000-0000-0000-0000-000000000000"),
+			},
+			check: func(g Gomega, sample *sampleResource) {
+				g.Expect(sample.Reference.ARMID).To(ContainSubstring(subscription))
+			},
+		},
+		{
+			name:         "updates SubscriptionID field",
+			subscription: subscription,
+			sample: &sampleResource{
+				SubscriptionID: emptyGUID,
+			},
+			check: func(g Gomega, sample *sampleResource) {
+				g.Expect(sample.SubscriptionID).To(Equal(subscription))
+			},
+		},
+		{
+			name:   "updates TenantID field",
+			tenant: tenant,
+			sample: &sampleResource{
+				TenantID: emptyGUID,
+			},
+			check: func(g Gomega, sample *sampleResource) {
+				g.Expect(sample.TenantID).To(Equal(tenant))
+			},
+		},
+		{
+			name:   "updates ResourceGroup reference name",
+			rgName: rgName,
+			sample: &sampleResource{
+				Reference: genruntime.ResourceReference{
+					Group: "resources.azure.com",
+					Kind:  "ResourceGroup",
+					Name:  "aso-sample-rg",
+				},
+			},
+			check: func(g Gomega, sample *sampleResource) {
+				g.Expect(sample.Reference.Name).To(Equal(rgName))
+			},
+		},
+		{
+			name:          "updates reference name when useRandomNames is true",
+			useRandomName: true,
+			nameRenames: map[referenceKey]string{
+				{Kind: "VirtualNetwork", Name: "my-virtual-network"}: "randomname123",
+			},
+			sample: &sampleResource{
+				Reference: genruntime.ResourceReference{
+					Group: "network.azure.com",
+					Kind:  "VirtualNetwork",
+					Name:  "my-virtual-network",
+				},
+			},
+			check: func(g Gomega, sample *sampleResource) {
+				g.Expect(sample.Reference.Name).To(Equal("randomname123"))
+			},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewGomegaWithT(t)
+
+			tester := NewSamplesTester(
+				ResourceNamer{},
+				nil,
+				"",
+				"",
+				c.useRandomName,
+				c.rgName,
+				c.subscription,
+				c.tenant,
+			)
+
+			for k, v := range c.nameRenames {
+				tester.nameRenames[k] = v
+			}
+
+			err := tester.updateFieldsForTest(c.sample)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			c.check(g, c.sample)
+		})
+	}
 }
 
 func (s *sampleResource) GetSupportedOperations() []genruntime.ResourceOperation {

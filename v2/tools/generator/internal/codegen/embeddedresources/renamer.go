@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
@@ -43,7 +43,8 @@ func (r renamer) simplifyEmbeddedNameToOriginalName(
 	log.V(2).Info(
 		"Type not used, renaming for simplicity",
 		"originalName", associatedNames.Single(),
-		"newName", original)
+		"newName", original,
+	)
 
 	return renames, nil
 }
@@ -62,7 +63,7 @@ func (r renamer) simplifyEmbeddedNameRemoveContextAndCount(
 	associated := associatedNames.Single()
 	embeddedName, ok := originalNames[associated]
 	if !ok {
-		return nil, errors.Errorf("could not find original name for %q", associated)
+		return nil, eris.Errorf("could not find original name for %q", associated)
 	}
 
 	embeddedName.context = ""
@@ -72,7 +73,8 @@ func (r renamer) simplifyEmbeddedNameRemoveContextAndCount(
 	log.V(2).Info(
 		"Type used in single context, renaming for simplicity",
 		"originalName", associated,
-		"newName", renames[associated])
+		"newName", renames[associated],
+	)
 
 	return renames, nil
 }
@@ -88,7 +90,7 @@ func (r renamer) simplifyEmbeddedNameRemoveContext(
 	for associated := range associatedNames {
 		embeddedName, ok := originalNames[associated]
 		if !ok {
-			return nil, errors.Errorf("could not find original name for %q", associated)
+			return nil, eris.Errorf("could not find original name for %q", associated)
 		}
 		associatedCountPerContext[embeddedName.context] = associatedCountPerContext[embeddedName.context] + 1
 	}
@@ -102,7 +104,7 @@ func (r renamer) simplifyEmbeddedNameRemoveContext(
 	for associated := range associatedNames {
 		embeddedName, ok := originalNames[associated]
 		if !ok {
-			return nil, errors.Errorf("could not find original name for %q", associated)
+			return nil, eris.Errorf("could not find original name for %q", associated)
 		}
 		embeddedName.context = ""
 		renames[associated] = embeddedName.ToSimplifiedTypeName()
@@ -110,7 +112,8 @@ func (r renamer) simplifyEmbeddedNameRemoveContext(
 		log.V(2).Info(
 			"Type used in single context, removing context from name",
 			"originalName", associated,
-			"newName", renames[associated])
+			"newName", renames[associated],
+		)
 	}
 
 	return renames, nil
@@ -128,7 +131,7 @@ func (r renamer) simplifyEmbeddedName(
 	for associated := range associatedNames {
 		embeddedName, ok := originalNames[associated]
 		if !ok {
-			return nil, errors.Errorf("could not find original name for %q", associated)
+			return nil, eris.Errorf("could not find original name for %q", associated)
 		}
 
 		possibleRename := embeddedName.ToSimplifiedTypeName()
@@ -186,7 +189,7 @@ func simplifyTypeNames(
 		if flag.IsOn(def.Type()) {
 			en, ok := originalNames[def.Name()]
 			if !ok {
-				return nil, errors.Errorf("failed to find original name for renamed type %s", def.Name())
+				return nil, eris.Errorf("failed to find original name for renamed type %s", def.Name())
 			}
 
 			if updatedNames[en.original] == nil {

@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Azure/azure-service-operator/v2/internal/set"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
+	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
@@ -43,10 +43,11 @@ func checkForAnyType(description string, packages []string) *Stage {
 		expectedPackages.Add(p)
 	}
 
-	return NewLegacyStage(
+	return NewStage(
 		CheckForAnyTypeStageID,
 		description,
-		func(ctx context.Context, defs astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			defs := state.Definitions()
 			var badNames []astmodel.InternalTypeName
 			output := make(astmodel.TypeDefinitionSet)
 			for name, def := range defs {
@@ -66,15 +67,16 @@ func checkForAnyType(description string, packages []string) *Stage {
 
 			badPackages, err := collectBadPackages(badNames, expectedPackages)
 			if err != nil {
-				return nil, errors.Wrap(err, "summarising bad types")
+				return nil, eris.Wrap(err, "summarising bad types")
 			}
 
 			if len(badPackages) > 0 {
-				return nil, errors.Errorf("AnyTypes found - add exclusions for: %s", strings.Join(badPackages, ", "))
+				return nil, eris.Errorf("AnyTypes found - add exclusions for: %s", strings.Join(badPackages, ", "))
 			}
 
-			return output, nil
-		})
+			return state.WithDefinitions(output), nil
+		},
+	)
 }
 
 func containsAnyType(theType astmodel.Type) bool {
@@ -105,7 +107,7 @@ func collectBadPackages(
 		grouped[packagePath] = append(grouped[packagePath], name.Name())
 	}
 
-	var groupNames []string //nolint:prealloc // unlikely case
+	var groupNames []string
 	for groupName := range grouped {
 		// Only complain about this package if it's one we don't know about.
 		if expectedPackages.Contains(groupName) {
@@ -120,13 +122,15 @@ func collectBadPackages(
 	// Complain if there were some packages where we expected problems
 	// but didn't see any.
 	if len(expectedPackages) > 0 {
-		var leftovers []string
+		leftovers := make([]string, 0, len(expectedPackages))
 		for value := range expectedPackages {
 			leftovers = append(leftovers, value)
 		}
 		sort.Strings(leftovers)
-		return nil, errors.Errorf(
-			"no AnyTypes found in: %s", strings.Join(leftovers, ", "))
+		return nil, eris.Errorf(
+			"no AnyTypes found in: %s", strings.Join(leftovers, ", "),
+		)
+
 	}
 
 	return groupNames, nil

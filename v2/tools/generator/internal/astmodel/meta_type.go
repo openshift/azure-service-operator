@@ -98,6 +98,19 @@ func AsEnumType(aType Type) (*EnumType, bool) {
 	return nil, false
 }
 
+// AsFlaggedType unwraps any wrappers around the provided type and returns either the underlying FlaggedType and true, or nil and false.
+func AsFlaggedType(aType Type) (*FlaggedType, bool) {
+	if flagged, ok := aType.(*FlaggedType); ok {
+		return flagged, true
+	}
+
+	if wrapper, ok := aType.(MetaType); ok {
+		return AsFlaggedType(wrapper.Unwrap())
+	}
+
+	return nil, false
+}
+
 // AsTypeName unwraps any wrappers around the provided type and returns either the underlying TypeName and true, or a
 // blank and false.
 func AsTypeName(aType Type) (TypeName, bool) {
@@ -154,6 +167,20 @@ func AsResourceType(aType Type) (*ResourceType, bool) {
 	return nil, false
 }
 
+// AsValidatedType unwraps any wrappers around the provided type and returns either the underlying ValidatedType and true,
+// or a nil and false.
+func AsValidatedType(aType Type) (*ValidatedType, bool) {
+	if validated, ok := aType.(*ValidatedType); ok {
+		return validated, true
+	}
+
+	if wrapper, ok := aType.(MetaType); ok {
+		return AsValidatedType(wrapper.Unwrap())
+	}
+
+	return nil, false
+}
+
 func MustBeResourceType(aType Type) *ResourceType {
 	result, ok := AsResourceType(aType)
 	if !ok {
@@ -170,6 +197,27 @@ func Unwrap(aType Type) Type {
 	}
 
 	return aType
+}
+
+// UnwrapAndResolve fully unwraps a type by removing both MetaType wrappers and resolving type name
+// indirections via the provided definitions set, returning the underlying concrete type.
+func UnwrapAndResolve(definitions TypeDefinitionSet, aType Type) (Type, error) {
+	aType = Unwrap(aType)
+
+	// If not a type name, nothing more to resolve
+	if _, ok := aType.(InternalTypeName); !ok {
+		return aType, nil
+	}
+
+	// Chase type name indirections using FullyResolve (which handles cycles)
+	resolved, err := definitions.FullyResolve(aType)
+	if err != nil {
+		return nil, err
+	}
+
+	// The resolved type may itself have MetaType wrappers containing further type names,
+	// so recurse to fully unwrap
+	return UnwrapAndResolve(definitions, resolved)
 }
 
 // ExtractTypeName extracts a TypeName from the specified type if possible. This includes unwrapping

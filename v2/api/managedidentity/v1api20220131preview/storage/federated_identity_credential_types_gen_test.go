@@ -10,124 +10,110 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
 	"github.com/kylelemons/godebug/diff"
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/gen"
-	"github.com/leanovate/gopter/prop"
-	"os"
-	"reflect"
+	"pgregory.net/rapid"
 	"testing"
 )
 
+// Test_FederatedIdentityCredential_WhenConvertedToHub_RoundTripsWithoutLoss tests if a specific instance of FederatedIdentityCredential round trips to the hub storage version and back losslessly
 func Test_FederatedIdentityCredential_WhenConvertedToHub_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MaxSize = 10
-	parameters.MinSuccessfulTests = 10
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip from FederatedIdentityCredential to hub returns original",
-		prop.ForAll(RunResourceConversionTestForFederatedIdentityCredential, FederatedIdentityCredentialGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+
+	if testing.Short() {
+		return
+	}
+
+	rapid.Check(t, func(t *rapid.T) {
+		subject := FederatedIdentityCredentialGenerator().Draw(t, "subject")
+		// Copy subject to make sure conversion doesn't modify it
+		copied := subject.DeepCopy()
+
+		// Convert to our hub version
+		var hub storage.FederatedIdentityCredential
+		err := copied.ConvertTo(&hub)
+		if err != nil {
+			t.Fatal("ConvertTo: " + err.Error())
+		}
+
+		// Convert from our hub version
+		var actual FederatedIdentityCredential
+		err = actual.ConvertFrom(&hub)
+		if err != nil {
+			t.Fatal("ConvertFrom: " + err.Error())
+		}
+
+		// Compare actual with what we started with
+		match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+		if !match {
+			actualFmt := pretty.Sprint(actual)
+			subjectFmt := pretty.Sprint(subject)
+			result := diff.Diff(subjectFmt, actualFmt)
+			t.Error(result)
+		}
+	})
 }
 
-// RunResourceConversionTestForFederatedIdentityCredential tests if a specific instance of FederatedIdentityCredential round trips to the hub storage version and back losslessly
-func RunResourceConversionTestForFederatedIdentityCredential(subject FederatedIdentityCredential) string {
-	// Copy subject to make sure conversion doesn't modify it
-	copied := subject.DeepCopy()
-
-	// Convert to our hub version
-	var hub storage.FederatedIdentityCredential
-	err := copied.ConvertTo(&hub)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Convert from our hub version
-	var actual FederatedIdentityCredential
-	err = actual.ConvertFrom(&hub)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Compare actual with what we started with
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
-
-	return ""
-}
-
+// Test_FederatedIdentityCredential_WhenPropertiesConverted_RoundTripsWithoutLoss tests if a specific instance of FederatedIdentityCredential can be assigned to storage and back losslessly
 func Test_FederatedIdentityCredential_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MaxSize = 10
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip from FederatedIdentityCredential to FederatedIdentityCredential via AssignProperties_To_FederatedIdentityCredential & AssignProperties_From_FederatedIdentityCredential returns original",
-		prop.ForAll(RunPropertyAssignmentTestForFederatedIdentityCredential, FederatedIdentityCredentialGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
-}
 
-// RunPropertyAssignmentTestForFederatedIdentityCredential tests if a specific instance of FederatedIdentityCredential can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForFederatedIdentityCredential(subject FederatedIdentityCredential) string {
-	// Copy subject to make sure assignment doesn't modify it
-	copied := subject.DeepCopy()
-
-	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.FederatedIdentityCredential
-	err := copied.AssignProperties_To_FederatedIdentityCredential(&other)
-	if err != nil {
-		return err.Error()
+	if testing.Short() {
+		return
 	}
 
-	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual FederatedIdentityCredential
-	err = actual.AssignProperties_From_FederatedIdentityCredential(&other)
-	if err != nil {
-		return err.Error()
-	}
+	rapid.Check(t, func(t *rapid.T) {
+		subject := FederatedIdentityCredentialGenerator().Draw(t, "subject")
+		// Copy subject to make sure assignment doesn't modify it
+		copied := subject.DeepCopy()
 
-	// Check for a match
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
+		// Use AssignPropertiesTo() for the first stage of conversion
+		var other storage.FederatedIdentityCredential
+		err := copied.AssignProperties_To_FederatedIdentityCredential(&other)
+		if err != nil {
+			t.Fatal("AssignPropertiesTo: " + err.Error())
+		}
 
-	return ""
+		// Use AssignPropertiesFrom() to convert back to our original type
+		var actual FederatedIdentityCredential
+		err = actual.AssignProperties_From_FederatedIdentityCredential(&other)
+		if err != nil {
+			t.Fatal("AssignPropertiesFrom: " + err.Error())
+		}
+
+		// Check for a match
+		match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+		if !match {
+			actualFmt := pretty.Sprint(actual)
+			subjectFmt := pretty.Sprint(subject)
+			result := diff.Diff(subjectFmt, actualFmt)
+			t.Error(result)
+		}
+	})
 }
 
 func Test_FederatedIdentityCredential_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 20
-	parameters.MaxSize = 3
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip of FederatedIdentityCredential via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForFederatedIdentityCredential, FederatedIdentityCredentialGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+
+	if testing.Short() {
+		return
+	}
+
+	rapid.Check(t, RunJSONSerializationTestForFederatedIdentityCredential)
 }
 
 // RunJSONSerializationTestForFederatedIdentityCredential runs a test to see if a specific instance of FederatedIdentityCredential round trips to JSON and back losslessly
-func RunJSONSerializationTestForFederatedIdentityCredential(subject FederatedIdentityCredential) string {
+func RunJSONSerializationTestForFederatedIdentityCredential(t *rapid.T) {
+	subject := FederatedIdentityCredentialGenerator().Draw(t, "subject")
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
-		return err.Error()
+		t.Fatal(err)
 	}
 
 	// Deserialize back into memory
 	var actual FederatedIdentityCredential
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
-		return err.Error()
+		t.Fatal(err)
 	}
 
 	// Check for outcome
@@ -136,102 +122,95 @@ func RunJSONSerializationTestForFederatedIdentityCredential(subject FederatedIde
 		actualFmt := pretty.Sprint(actual)
 		subjectFmt := pretty.Sprint(subject)
 		result := diff.Diff(subjectFmt, actualFmt)
-		return result
+		t.Error(result)
 	}
-
-	return ""
 }
 
 // Generator of FederatedIdentityCredential instances for property testing - lazily instantiated by
 // FederatedIdentityCredentialGenerator()
-var federatedIdentityCredentialGenerator gopter.Gen
+var federatedIdentityCredentialGenerator *rapid.Generator[FederatedIdentityCredential]
 
 // FederatedIdentityCredentialGenerator returns a generator of FederatedIdentityCredential instances for property testing.
-func FederatedIdentityCredentialGenerator() gopter.Gen {
+func FederatedIdentityCredentialGenerator() *rapid.Generator[FederatedIdentityCredential] {
 	if federatedIdentityCredentialGenerator != nil {
 		return federatedIdentityCredentialGenerator
 	}
 
-	generators := make(map[string]gopter.Gen)
-	AddRelatedPropertyGeneratorsForFederatedIdentityCredential(generators)
-	federatedIdentityCredentialGenerator = gen.Struct(reflect.TypeOf(FederatedIdentityCredential{}), generators)
+	spec := FederatedIdentityCredential_SpecGenerator()
+	status := FederatedIdentityCredential_STATUSGenerator()
+
+	federatedIdentityCredentialGenerator = rapid.Custom(func(t *rapid.T) FederatedIdentityCredential {
+		var result FederatedIdentityCredential
+		result.Spec = spec.Draw(t, "Spec")
+		result.Status = status.Draw(t, "Status")
+		return result
+	})
 
 	return federatedIdentityCredentialGenerator
 }
 
-// AddRelatedPropertyGeneratorsForFederatedIdentityCredential is a factory method for creating gopter generators
-func AddRelatedPropertyGeneratorsForFederatedIdentityCredential(gens map[string]gopter.Gen) {
-	gens["Spec"] = UserAssignedIdentities_FederatedIdentityCredential_SpecGenerator()
-	gens["Status"] = UserAssignedIdentities_FederatedIdentityCredential_STATUSGenerator()
-}
-
-func Test_UserAssignedIdentities_FederatedIdentityCredential_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+// Test_FederatedIdentityCredentialOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss tests if a specific instance of FederatedIdentityCredentialOperatorSpec can be assigned to storage and back losslessly
+func Test_FederatedIdentityCredentialOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MaxSize = 10
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip from UserAssignedIdentities_FederatedIdentityCredential_STATUS to UserAssignedIdentities_FederatedIdentityCredential_STATUS via AssignProperties_To_UserAssignedIdentities_FederatedIdentityCredential_STATUS & AssignProperties_From_UserAssignedIdentities_FederatedIdentityCredential_STATUS returns original",
-		prop.ForAll(RunPropertyAssignmentTestForUserAssignedIdentities_FederatedIdentityCredential_STATUS, UserAssignedIdentities_FederatedIdentityCredential_STATUSGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+
+	if testing.Short() {
+		return
+	}
+
+	rapid.Check(t, func(t *rapid.T) {
+		subject := FederatedIdentityCredentialOperatorSpecGenerator().Draw(t, "subject")
+		// Copy subject to make sure assignment doesn't modify it
+		copied := subject.DeepCopy()
+
+		// Use AssignPropertiesTo() for the first stage of conversion
+		var other storage.FederatedIdentityCredentialOperatorSpec
+		err := copied.AssignProperties_To_FederatedIdentityCredentialOperatorSpec(&other)
+		if err != nil {
+			t.Fatal("AssignPropertiesTo: " + err.Error())
+		}
+
+		// Use AssignPropertiesFrom() to convert back to our original type
+		var actual FederatedIdentityCredentialOperatorSpec
+		err = actual.AssignProperties_From_FederatedIdentityCredentialOperatorSpec(&other)
+		if err != nil {
+			t.Fatal("AssignPropertiesFrom: " + err.Error())
+		}
+
+		// Check for a match
+		match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+		if !match {
+			actualFmt := pretty.Sprint(actual)
+			subjectFmt := pretty.Sprint(subject)
+			result := diff.Diff(subjectFmt, actualFmt)
+			t.Error(result)
+		}
+	})
 }
 
-// RunPropertyAssignmentTestForUserAssignedIdentities_FederatedIdentityCredential_STATUS tests if a specific instance of UserAssignedIdentities_FederatedIdentityCredential_STATUS can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForUserAssignedIdentities_FederatedIdentityCredential_STATUS(subject UserAssignedIdentities_FederatedIdentityCredential_STATUS) string {
-	// Copy subject to make sure assignment doesn't modify it
-	copied := subject.DeepCopy()
-
-	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.UserAssignedIdentities_FederatedIdentityCredential_STATUS
-	err := copied.AssignProperties_To_UserAssignedIdentities_FederatedIdentityCredential_STATUS(&other)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual UserAssignedIdentities_FederatedIdentityCredential_STATUS
-	err = actual.AssignProperties_From_UserAssignedIdentities_FederatedIdentityCredential_STATUS(&other)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Check for a match
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
-
-	return ""
-}
-
-func Test_UserAssignedIdentities_FederatedIdentityCredential_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_FederatedIdentityCredentialOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 80
-	parameters.MaxSize = 3
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip of UserAssignedIdentities_FederatedIdentityCredential_STATUS via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForUserAssignedIdentities_FederatedIdentityCredential_STATUS, UserAssignedIdentities_FederatedIdentityCredential_STATUSGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+
+	if testing.Short() {
+		return
+	}
+
+	rapid.Check(t, RunJSONSerializationTestForFederatedIdentityCredentialOperatorSpec)
 }
 
-// RunJSONSerializationTestForUserAssignedIdentities_FederatedIdentityCredential_STATUS runs a test to see if a specific instance of UserAssignedIdentities_FederatedIdentityCredential_STATUS round trips to JSON and back losslessly
-func RunJSONSerializationTestForUserAssignedIdentities_FederatedIdentityCredential_STATUS(subject UserAssignedIdentities_FederatedIdentityCredential_STATUS) string {
+// RunJSONSerializationTestForFederatedIdentityCredentialOperatorSpec runs a test to see if a specific instance of FederatedIdentityCredentialOperatorSpec round trips to JSON and back losslessly
+func RunJSONSerializationTestForFederatedIdentityCredentialOperatorSpec(t *rapid.T) {
+	subject := FederatedIdentityCredentialOperatorSpecGenerator().Draw(t, "subject")
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
-		return err.Error()
+		t.Fatal(err)
 	}
 
 	// Deserialize back into memory
-	var actual UserAssignedIdentities_FederatedIdentityCredential_STATUS
+	var actual FederatedIdentityCredentialOperatorSpec
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
-		return err.Error()
+		t.Fatal(err)
 	}
 
 	// Check for outcome
@@ -240,106 +219,87 @@ func RunJSONSerializationTestForUserAssignedIdentities_FederatedIdentityCredenti
 		actualFmt := pretty.Sprint(actual)
 		subjectFmt := pretty.Sprint(subject)
 		result := diff.Diff(subjectFmt, actualFmt)
-		return result
+		t.Error(result)
+	}
+}
+
+// Generator of FederatedIdentityCredentialOperatorSpec instances for property testing - lazily instantiated by
+// FederatedIdentityCredentialOperatorSpecGenerator()
+var federatedIdentityCredentialOperatorSpecGenerator *rapid.Generator[FederatedIdentityCredentialOperatorSpec]
+
+// FederatedIdentityCredentialOperatorSpecGenerator returns a generator of FederatedIdentityCredentialOperatorSpec instances for property testing.
+func FederatedIdentityCredentialOperatorSpecGenerator() *rapid.Generator[FederatedIdentityCredentialOperatorSpec] {
+	if federatedIdentityCredentialOperatorSpecGenerator != nil {
+		return federatedIdentityCredentialOperatorSpecGenerator
 	}
 
-	return ""
+	federatedIdentityCredentialOperatorSpecGenerator = rapid.Just(FederatedIdentityCredentialOperatorSpec{})
+
+	return federatedIdentityCredentialOperatorSpecGenerator
 }
 
-// Generator of UserAssignedIdentities_FederatedIdentityCredential_STATUS instances for property testing - lazily
-// instantiated by UserAssignedIdentities_FederatedIdentityCredential_STATUSGenerator()
-var userAssignedIdentities_FederatedIdentityCredential_STATUSGenerator gopter.Gen
-
-// UserAssignedIdentities_FederatedIdentityCredential_STATUSGenerator returns a generator of UserAssignedIdentities_FederatedIdentityCredential_STATUS instances for property testing.
-func UserAssignedIdentities_FederatedIdentityCredential_STATUSGenerator() gopter.Gen {
-	if userAssignedIdentities_FederatedIdentityCredential_STATUSGenerator != nil {
-		return userAssignedIdentities_FederatedIdentityCredential_STATUSGenerator
-	}
-
-	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForUserAssignedIdentities_FederatedIdentityCredential_STATUS(generators)
-	userAssignedIdentities_FederatedIdentityCredential_STATUSGenerator = gen.Struct(reflect.TypeOf(UserAssignedIdentities_FederatedIdentityCredential_STATUS{}), generators)
-
-	return userAssignedIdentities_FederatedIdentityCredential_STATUSGenerator
-}
-
-// AddIndependentPropertyGeneratorsForUserAssignedIdentities_FederatedIdentityCredential_STATUS is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForUserAssignedIdentities_FederatedIdentityCredential_STATUS(gens map[string]gopter.Gen) {
-	gens["Audiences"] = gen.SliceOf(gen.AlphaString())
-	gens["Id"] = gen.PtrOf(gen.AlphaString())
-	gens["Issuer"] = gen.PtrOf(gen.AlphaString())
-	gens["Name"] = gen.PtrOf(gen.AlphaString())
-	gens["Subject"] = gen.PtrOf(gen.AlphaString())
-	gens["Type"] = gen.PtrOf(gen.AlphaString())
-}
-
-func Test_UserAssignedIdentities_FederatedIdentityCredential_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+// Test_FederatedIdentityCredential_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss tests if a specific instance of FederatedIdentityCredential_STATUS can be assigned to storage and back losslessly
+func Test_FederatedIdentityCredential_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MaxSize = 10
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip from UserAssignedIdentities_FederatedIdentityCredential_Spec to UserAssignedIdentities_FederatedIdentityCredential_Spec via AssignProperties_To_UserAssignedIdentities_FederatedIdentityCredential_Spec & AssignProperties_From_UserAssignedIdentities_FederatedIdentityCredential_Spec returns original",
-		prop.ForAll(RunPropertyAssignmentTestForUserAssignedIdentities_FederatedIdentityCredential_Spec, UserAssignedIdentities_FederatedIdentityCredential_SpecGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+
+	if testing.Short() {
+		return
+	}
+
+	rapid.Check(t, func(t *rapid.T) {
+		subject := FederatedIdentityCredential_STATUSGenerator().Draw(t, "subject")
+		// Copy subject to make sure assignment doesn't modify it
+		copied := subject.DeepCopy()
+
+		// Use AssignPropertiesTo() for the first stage of conversion
+		var other storage.FederatedIdentityCredential_STATUS
+		err := copied.AssignProperties_To_FederatedIdentityCredential_STATUS(&other)
+		if err != nil {
+			t.Fatal("AssignPropertiesTo: " + err.Error())
+		}
+
+		// Use AssignPropertiesFrom() to convert back to our original type
+		var actual FederatedIdentityCredential_STATUS
+		err = actual.AssignProperties_From_FederatedIdentityCredential_STATUS(&other)
+		if err != nil {
+			t.Fatal("AssignPropertiesFrom: " + err.Error())
+		}
+
+		// Check for a match
+		match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+		if !match {
+			actualFmt := pretty.Sprint(actual)
+			subjectFmt := pretty.Sprint(subject)
+			result := diff.Diff(subjectFmt, actualFmt)
+			t.Error(result)
+		}
+	})
 }
 
-// RunPropertyAssignmentTestForUserAssignedIdentities_FederatedIdentityCredential_Spec tests if a specific instance of UserAssignedIdentities_FederatedIdentityCredential_Spec can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForUserAssignedIdentities_FederatedIdentityCredential_Spec(subject UserAssignedIdentities_FederatedIdentityCredential_Spec) string {
-	// Copy subject to make sure assignment doesn't modify it
-	copied := subject.DeepCopy()
-
-	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.UserAssignedIdentities_FederatedIdentityCredential_Spec
-	err := copied.AssignProperties_To_UserAssignedIdentities_FederatedIdentityCredential_Spec(&other)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual UserAssignedIdentities_FederatedIdentityCredential_Spec
-	err = actual.AssignProperties_From_UserAssignedIdentities_FederatedIdentityCredential_Spec(&other)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Check for a match
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
-
-	return ""
-}
-
-func Test_UserAssignedIdentities_FederatedIdentityCredential_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_FederatedIdentityCredential_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 80
-	parameters.MaxSize = 3
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip of UserAssignedIdentities_FederatedIdentityCredential_Spec via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForUserAssignedIdentities_FederatedIdentityCredential_Spec, UserAssignedIdentities_FederatedIdentityCredential_SpecGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+
+	if testing.Short() {
+		return
+	}
+
+	rapid.Check(t, RunJSONSerializationTestForFederatedIdentityCredential_STATUS)
 }
 
-// RunJSONSerializationTestForUserAssignedIdentities_FederatedIdentityCredential_Spec runs a test to see if a specific instance of UserAssignedIdentities_FederatedIdentityCredential_Spec round trips to JSON and back losslessly
-func RunJSONSerializationTestForUserAssignedIdentities_FederatedIdentityCredential_Spec(subject UserAssignedIdentities_FederatedIdentityCredential_Spec) string {
+// RunJSONSerializationTestForFederatedIdentityCredential_STATUS runs a test to see if a specific instance of FederatedIdentityCredential_STATUS round trips to JSON and back losslessly
+func RunJSONSerializationTestForFederatedIdentityCredential_STATUS(t *rapid.T) {
+	subject := FederatedIdentityCredential_STATUSGenerator().Draw(t, "subject")
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
-		return err.Error()
+		t.Fatal(err)
 	}
 
 	// Deserialize back into memory
-	var actual UserAssignedIdentities_FederatedIdentityCredential_Spec
+	var actual FederatedIdentityCredential_STATUS
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
-		return err.Error()
+		t.Fatal(err)
 	}
 
 	// Check for outcome
@@ -348,34 +308,136 @@ func RunJSONSerializationTestForUserAssignedIdentities_FederatedIdentityCredenti
 		actualFmt := pretty.Sprint(actual)
 		subjectFmt := pretty.Sprint(subject)
 		result := diff.Diff(subjectFmt, actualFmt)
+		t.Error(result)
+	}
+}
+
+// Generator of FederatedIdentityCredential_STATUS instances for property testing - lazily instantiated by
+// FederatedIdentityCredential_STATUSGenerator()
+var federatedIdentityCredential_STATUSGenerator *rapid.Generator[FederatedIdentityCredential_STATUS]
+
+// FederatedIdentityCredential_STATUSGenerator returns a generator of FederatedIdentityCredential_STATUS instances for property testing.
+func FederatedIdentityCredential_STATUSGenerator() *rapid.Generator[FederatedIdentityCredential_STATUS] {
+	if federatedIdentityCredential_STATUSGenerator != nil {
+		return federatedIdentityCredential_STATUSGenerator
+	}
+
+	ptrString := rapid.Ptr(rapid.String(), true)
+	audiences := rapid.SliceOf(rapid.String())
+
+	federatedIdentityCredential_STATUSGenerator = rapid.Custom(func(t *rapid.T) FederatedIdentityCredential_STATUS {
+		var result FederatedIdentityCredential_STATUS
+		result.Audiences = audiences.Draw(t, "Audiences")
+		result.Id = ptrString.Draw(t, "Id")
+		result.Issuer = ptrString.Draw(t, "Issuer")
+		result.Name = ptrString.Draw(t, "Name")
+		result.Subject = ptrString.Draw(t, "Subject")
+		result.Type = ptrString.Draw(t, "Type")
 		return result
-	}
+	})
 
-	return ""
+	return federatedIdentityCredential_STATUSGenerator
 }
 
-// Generator of UserAssignedIdentities_FederatedIdentityCredential_Spec instances for property testing - lazily
-// instantiated by UserAssignedIdentities_FederatedIdentityCredential_SpecGenerator()
-var userAssignedIdentities_FederatedIdentityCredential_SpecGenerator gopter.Gen
+// Test_FederatedIdentityCredential_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss tests if a specific instance of FederatedIdentityCredential_Spec can be assigned to storage and back losslessly
+func Test_FederatedIdentityCredential_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
 
-// UserAssignedIdentities_FederatedIdentityCredential_SpecGenerator returns a generator of UserAssignedIdentities_FederatedIdentityCredential_Spec instances for property testing.
-func UserAssignedIdentities_FederatedIdentityCredential_SpecGenerator() gopter.Gen {
-	if userAssignedIdentities_FederatedIdentityCredential_SpecGenerator != nil {
-		return userAssignedIdentities_FederatedIdentityCredential_SpecGenerator
+	if testing.Short() {
+		return
 	}
 
-	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForUserAssignedIdentities_FederatedIdentityCredential_Spec(generators)
-	userAssignedIdentities_FederatedIdentityCredential_SpecGenerator = gen.Struct(reflect.TypeOf(UserAssignedIdentities_FederatedIdentityCredential_Spec{}), generators)
+	rapid.Check(t, func(t *rapid.T) {
+		subject := FederatedIdentityCredential_SpecGenerator().Draw(t, "subject")
+		// Copy subject to make sure assignment doesn't modify it
+		copied := subject.DeepCopy()
 
-	return userAssignedIdentities_FederatedIdentityCredential_SpecGenerator
+		// Use AssignPropertiesTo() for the first stage of conversion
+		var other storage.FederatedIdentityCredential_Spec
+		err := copied.AssignProperties_To_FederatedIdentityCredential_Spec(&other)
+		if err != nil {
+			t.Fatal("AssignPropertiesTo: " + err.Error())
+		}
+
+		// Use AssignPropertiesFrom() to convert back to our original type
+		var actual FederatedIdentityCredential_Spec
+		err = actual.AssignProperties_From_FederatedIdentityCredential_Spec(&other)
+		if err != nil {
+			t.Fatal("AssignPropertiesFrom: " + err.Error())
+		}
+
+		// Check for a match
+		match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+		if !match {
+			actualFmt := pretty.Sprint(actual)
+			subjectFmt := pretty.Sprint(subject)
+			result := diff.Diff(subjectFmt, actualFmt)
+			t.Error(result)
+		}
+	})
 }
 
-// AddIndependentPropertyGeneratorsForUserAssignedIdentities_FederatedIdentityCredential_Spec is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForUserAssignedIdentities_FederatedIdentityCredential_Spec(gens map[string]gopter.Gen) {
-	gens["Audiences"] = gen.SliceOf(gen.AlphaString())
-	gens["AzureName"] = gen.AlphaString()
-	gens["Issuer"] = gen.PtrOf(gen.AlphaString())
-	gens["OriginalVersion"] = gen.AlphaString()
-	gens["Subject"] = gen.PtrOf(gen.AlphaString())
+func Test_FederatedIdentityCredential_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	rapid.Check(t, RunJSONSerializationTestForFederatedIdentityCredential_Spec)
+}
+
+// RunJSONSerializationTestForFederatedIdentityCredential_Spec runs a test to see if a specific instance of FederatedIdentityCredential_Spec round trips to JSON and back losslessly
+func RunJSONSerializationTestForFederatedIdentityCredential_Spec(t *rapid.T) {
+	subject := FederatedIdentityCredential_SpecGenerator().Draw(t, "subject")
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Deserialize back into memory
+	var actual FederatedIdentityCredential_Spec
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		t.Error(result)
+	}
+}
+
+// Generator of FederatedIdentityCredential_Spec instances for property testing - lazily instantiated by
+// FederatedIdentityCredential_SpecGenerator()
+var federatedIdentityCredential_SpecGenerator *rapid.Generator[FederatedIdentityCredential_Spec]
+
+// FederatedIdentityCredential_SpecGenerator returns a generator of FederatedIdentityCredential_Spec instances for property testing.
+func FederatedIdentityCredential_SpecGenerator() *rapid.Generator[FederatedIdentityCredential_Spec] {
+	if federatedIdentityCredential_SpecGenerator != nil {
+		return federatedIdentityCredential_SpecGenerator
+	}
+
+	genString := rapid.String()
+	ptrString := rapid.Ptr(rapid.String(), true)
+	audiences := rapid.SliceOf(rapid.String())
+	operatorSpec := rapid.Ptr(FederatedIdentityCredentialOperatorSpecGenerator(), true)
+
+	federatedIdentityCredential_SpecGenerator = rapid.Custom(func(t *rapid.T) FederatedIdentityCredential_Spec {
+		var result FederatedIdentityCredential_Spec
+		result.Audiences = audiences.Draw(t, "Audiences")
+		result.AzureName = genString.Draw(t, "AzureName")
+		result.Issuer = ptrString.Draw(t, "Issuer")
+		result.OperatorSpec = operatorSpec.Draw(t, "OperatorSpec")
+		result.OriginalVersion = genString.Draw(t, "OriginalVersion")
+		result.Subject = ptrString.Draw(t, "Subject")
+		return result
+	})
+
+	return federatedIdentityCredential_SpecGenerator
 }

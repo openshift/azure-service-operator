@@ -5,19 +5,21 @@ package v1api20230101
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,storage}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
@@ -29,8 +31,8 @@ import (
 type StorageAccountsFileService struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              StorageAccounts_FileService_Spec   `json:"spec,omitempty"`
-	Status            StorageAccounts_FileService_STATUS `json:"status,omitempty"`
+	Spec              StorageAccountsFileService_Spec   `json:"spec,omitempty"`
+	Status            StorageAccountsFileService_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &StorageAccountsFileService{}
@@ -49,49 +51,56 @@ var _ conversion.Convertible = &StorageAccountsFileService{}
 
 // ConvertFrom populates our StorageAccountsFileService from the provided hub StorageAccountsFileService
 func (service *StorageAccountsFileService) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.StorageAccountsFileService)
-	if !ok {
-		return fmt.Errorf("expected storage/v1api20230101/storage/StorageAccountsFileService but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.StorageAccountsFileService
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return service.AssignProperties_From_StorageAccountsFileService(source)
+	err = service.AssignProperties_From_StorageAccountsFileService(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to service")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub StorageAccountsFileService from our StorageAccountsFileService
 func (service *StorageAccountsFileService) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.StorageAccountsFileService)
-	if !ok {
-		return fmt.Errorf("expected storage/v1api20230101/storage/StorageAccountsFileService but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.StorageAccountsFileService
+	err := service.AssignProperties_To_StorageAccountsFileService(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from service")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return service.AssignProperties_To_StorageAccountsFileService(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-storage-azure-com-v1api20230101-storageaccountsfileservice,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsfileservices,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.storageaccountsfileservices.storage.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &StorageAccountsFileService{}
 
-var _ admission.Defaulter = &StorageAccountsFileService{}
-
-// Default applies defaults to the StorageAccountsFileService resource
-func (service *StorageAccountsFileService) Default() {
-	service.defaultImpl()
-	var temp any = service
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (service *StorageAccountsFileService) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if service.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return service.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultImpl applies the code generated defaults to the StorageAccountsFileService resource
-func (service *StorageAccountsFileService) defaultImpl() {}
+var _ secrets.Exporter = &StorageAccountsFileService{}
 
-var _ genruntime.ImportableResource = &StorageAccountsFileService{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (service *StorageAccountsFileService) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*StorageAccounts_FileService_STATUS); ok {
-		return service.Spec.Initialize_From_StorageAccounts_FileService_STATUS(s)
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (service *StorageAccountsFileService) SecretDestinationExpressions() []*core.DestinationExpression {
+	if service.Spec.OperatorSpec == nil {
+		return nil
 	}
-
-	return fmt.Errorf("expected Status of type StorageAccounts_FileService_STATUS but received %T instead", status)
+	return service.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &StorageAccountsFileService{}
@@ -103,7 +112,7 @@ func (service *StorageAccountsFileService) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-01-01"
 func (service StorageAccountsFileService) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-01-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -136,11 +145,15 @@ func (service *StorageAccountsFileService) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (service *StorageAccountsFileService) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &StorageAccounts_FileService_STATUS{}
+	return &StorageAccountsFileService_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (service *StorageAccountsFileService) Owner() *genruntime.ResourceReference {
+	if service.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(service.Spec)
 	return service.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -148,101 +161,20 @@ func (service *StorageAccountsFileService) Owner() *genruntime.ResourceReference
 // SetStatus sets the status of this resource
 func (service *StorageAccountsFileService) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*StorageAccounts_FileService_STATUS); ok {
+	if st, ok := status.(*StorageAccountsFileService_STATUS); ok {
 		service.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st StorageAccounts_FileService_STATUS
+	var st StorageAccountsFileService_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	service.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-storage-azure-com-v1api20230101-storageaccountsfileservice,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsfileservices,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.storageaccountsfileservices.storage.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &StorageAccountsFileService{}
-
-// ValidateCreate validates the creation of the resource
-func (service *StorageAccountsFileService) ValidateCreate() (admission.Warnings, error) {
-	validations := service.createValidations()
-	var temp any = service
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (service *StorageAccountsFileService) ValidateDelete() (admission.Warnings, error) {
-	validations := service.deleteValidations()
-	var temp any = service
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (service *StorageAccountsFileService) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := service.updateValidations()
-	var temp any = service
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (service *StorageAccountsFileService) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){service.validateResourceReferences, service.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (service *StorageAccountsFileService) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (service *StorageAccountsFileService) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return service.validateResourceReferences()
-		},
-		service.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return service.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (service *StorageAccountsFileService) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(service)
-}
-
-// validateResourceReferences validates all resource references
-func (service *StorageAccountsFileService) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&service.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (service *StorageAccountsFileService) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*StorageAccountsFileService)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, service)
 }
 
 // AssignProperties_From_StorageAccountsFileService populates our StorageAccountsFileService from the provided source StorageAccountsFileService
@@ -252,18 +184,18 @@ func (service *StorageAccountsFileService) AssignProperties_From_StorageAccounts
 	service.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec StorageAccounts_FileService_Spec
-	err := spec.AssignProperties_From_StorageAccounts_FileService_Spec(&source.Spec)
+	var spec StorageAccountsFileService_Spec
+	err := spec.AssignProperties_From_StorageAccountsFileService_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_StorageAccounts_FileService_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_StorageAccountsFileService_Spec() to populate field Spec")
 	}
 	service.Spec = spec
 
 	// Status
-	var status StorageAccounts_FileService_STATUS
-	err = status.AssignProperties_From_StorageAccounts_FileService_STATUS(&source.Status)
+	var status StorageAccountsFileService_STATUS
+	err = status.AssignProperties_From_StorageAccountsFileService_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_StorageAccounts_FileService_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_StorageAccountsFileService_STATUS() to populate field Status")
 	}
 	service.Status = status
 
@@ -278,18 +210,18 @@ func (service *StorageAccountsFileService) AssignProperties_To_StorageAccountsFi
 	destination.ObjectMeta = *service.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.StorageAccounts_FileService_Spec
-	err := service.Spec.AssignProperties_To_StorageAccounts_FileService_Spec(&spec)
+	var spec storage.StorageAccountsFileService_Spec
+	err := service.Spec.AssignProperties_To_StorageAccountsFileService_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_StorageAccounts_FileService_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_StorageAccountsFileService_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.StorageAccounts_FileService_STATUS
-	err = service.Status.AssignProperties_To_StorageAccounts_FileService_STATUS(&status)
+	var status storage.StorageAccountsFileService_STATUS
+	err = service.Status.AssignProperties_To_StorageAccountsFileService_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_StorageAccounts_FileService_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_StorageAccountsFileService_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,11 +248,15 @@ type StorageAccountsFileServiceList struct {
 	Items           []StorageAccountsFileService `json:"items"`
 }
 
-type StorageAccounts_FileService_Spec struct {
+type StorageAccountsFileService_Spec struct {
 	// Cors: Specifies CORS rules for the File service. You can include up to five CorsRule elements in the request. If no
 	// CorsRule elements are included in the request body, all CORS rules will be deleted, and CORS will be disabled for the
 	// File service.
 	Cors *CorsRules `json:"cors,omitempty"`
+
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *StorageAccountsFileServiceOperatorSpec `json:"operatorSpec,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -335,14 +271,14 @@ type StorageAccounts_FileService_Spec struct {
 	ShareDeleteRetentionPolicy *DeleteRetentionPolicy `json:"shareDeleteRetentionPolicy,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &StorageAccounts_FileService_Spec{}
+var _ genruntime.ARMTransformer = &StorageAccountsFileService_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (service *StorageAccounts_FileService_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (service *StorageAccountsFileService_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if service == nil {
 		return nil, nil
 	}
-	result := &StorageAccounts_FileService_Spec_ARM{}
+	result := &arm.StorageAccountsFileService_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
@@ -351,45 +287,45 @@ func (service *StorageAccounts_FileService_Spec) ConvertToARM(resolved genruntim
 	if service.Cors != nil ||
 		service.ProtocolSettings != nil ||
 		service.ShareDeleteRetentionPolicy != nil {
-		result.Properties = &StorageAccounts_FileService_Properties_Spec_ARM{}
+		result.Properties = &arm.StorageAccounts_FileService_Properties_Spec{}
 	}
 	if service.Cors != nil {
-		cors_ARM, err := (*service.Cors).ConvertToARM(resolved)
+		cors_ARM, err := service.Cors.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		cors := *cors_ARM.(*CorsRules_ARM)
+		cors := *cors_ARM.(*arm.CorsRules)
 		result.Properties.Cors = &cors
 	}
 	if service.ProtocolSettings != nil {
-		protocolSettings_ARM, err := (*service.ProtocolSettings).ConvertToARM(resolved)
+		protocolSettings_ARM, err := service.ProtocolSettings.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		protocolSettings := *protocolSettings_ARM.(*ProtocolSettings_ARM)
+		protocolSettings := *protocolSettings_ARM.(*arm.ProtocolSettings)
 		result.Properties.ProtocolSettings = &protocolSettings
 	}
 	if service.ShareDeleteRetentionPolicy != nil {
-		shareDeleteRetentionPolicy_ARM, err := (*service.ShareDeleteRetentionPolicy).ConvertToARM(resolved)
+		shareDeleteRetentionPolicy_ARM, err := service.ShareDeleteRetentionPolicy.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		shareDeleteRetentionPolicy := *shareDeleteRetentionPolicy_ARM.(*DeleteRetentionPolicy_ARM)
+		shareDeleteRetentionPolicy := *shareDeleteRetentionPolicy_ARM.(*arm.DeleteRetentionPolicy)
 		result.Properties.ShareDeleteRetentionPolicy = &shareDeleteRetentionPolicy
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (service *StorageAccounts_FileService_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &StorageAccounts_FileService_Spec_ARM{}
+func (service *StorageAccountsFileService_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.StorageAccountsFileService_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (service *StorageAccounts_FileService_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(StorageAccounts_FileService_Spec_ARM)
+func (service *StorageAccountsFileService_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.StorageAccountsFileService_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected StorageAccounts_FileService_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.StorageAccountsFileService_Spec, got %T", armInput)
 	}
 
 	// Set property "Cors":
@@ -405,6 +341,8 @@ func (service *StorageAccounts_FileService_Spec) PopulateFromARM(owner genruntim
 			service.Cors = &cors
 		}
 	}
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "Owner":
 	service.Owner = &genruntime.KnownResourceReference{
@@ -444,69 +382,81 @@ func (service *StorageAccounts_FileService_Spec) PopulateFromARM(owner genruntim
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &StorageAccounts_FileService_Spec{}
+var _ genruntime.ConvertibleSpec = &StorageAccountsFileService_Spec{}
 
-// ConvertSpecFrom populates our StorageAccounts_FileService_Spec from the provided source
-func (service *StorageAccounts_FileService_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.StorageAccounts_FileService_Spec)
+// ConvertSpecFrom populates our StorageAccountsFileService_Spec from the provided source
+func (service *StorageAccountsFileService_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.StorageAccountsFileService_Spec)
 	if ok {
 		// Populate our instance from source
-		return service.AssignProperties_From_StorageAccounts_FileService_Spec(src)
+		return service.AssignProperties_From_StorageAccountsFileService_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.StorageAccounts_FileService_Spec{}
+	src = &storage.StorageAccountsFileService_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = service.AssignProperties_From_StorageAccounts_FileService_Spec(src)
+	err = service.AssignProperties_From_StorageAccountsFileService_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our StorageAccounts_FileService_Spec
-func (service *StorageAccounts_FileService_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.StorageAccounts_FileService_Spec)
+// ConvertSpecTo populates the provided destination from our StorageAccountsFileService_Spec
+func (service *StorageAccountsFileService_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.StorageAccountsFileService_Spec)
 	if ok {
 		// Populate destination from our instance
-		return service.AssignProperties_To_StorageAccounts_FileService_Spec(dst)
+		return service.AssignProperties_To_StorageAccountsFileService_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.StorageAccounts_FileService_Spec{}
-	err := service.AssignProperties_To_StorageAccounts_FileService_Spec(dst)
+	dst = &storage.StorageAccountsFileService_Spec{}
+	err := service.AssignProperties_To_StorageAccountsFileService_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_StorageAccounts_FileService_Spec populates our StorageAccounts_FileService_Spec from the provided source StorageAccounts_FileService_Spec
-func (service *StorageAccounts_FileService_Spec) AssignProperties_From_StorageAccounts_FileService_Spec(source *storage.StorageAccounts_FileService_Spec) error {
+// AssignProperties_From_StorageAccountsFileService_Spec populates our StorageAccountsFileService_Spec from the provided source StorageAccountsFileService_Spec
+func (service *StorageAccountsFileService_Spec) AssignProperties_From_StorageAccountsFileService_Spec(source *storage.StorageAccountsFileService_Spec) error {
 
 	// Cors
 	if source.Cors != nil {
 		var cor CorsRules
 		err := cor.AssignProperties_From_CorsRules(source.Cors)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CorsRules() to populate field Cors")
+			return eris.Wrap(err, "calling AssignProperties_From_CorsRules() to populate field Cors")
 		}
 		service.Cors = &cor
 	} else {
 		service.Cors = nil
+	}
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec StorageAccountsFileServiceOperatorSpec
+		err := operatorSpec.AssignProperties_From_StorageAccountsFileServiceOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_StorageAccountsFileServiceOperatorSpec() to populate field OperatorSpec")
+		}
+		service.OperatorSpec = &operatorSpec
+	} else {
+		service.OperatorSpec = nil
 	}
 
 	// Owner
@@ -522,7 +472,7 @@ func (service *StorageAccounts_FileService_Spec) AssignProperties_From_StorageAc
 		var protocolSetting ProtocolSettings
 		err := protocolSetting.AssignProperties_From_ProtocolSettings(source.ProtocolSettings)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ProtocolSettings() to populate field ProtocolSettings")
+			return eris.Wrap(err, "calling AssignProperties_From_ProtocolSettings() to populate field ProtocolSettings")
 		}
 		service.ProtocolSettings = &protocolSetting
 	} else {
@@ -534,7 +484,7 @@ func (service *StorageAccounts_FileService_Spec) AssignProperties_From_StorageAc
 		var shareDeleteRetentionPolicy DeleteRetentionPolicy
 		err := shareDeleteRetentionPolicy.AssignProperties_From_DeleteRetentionPolicy(source.ShareDeleteRetentionPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeleteRetentionPolicy() to populate field ShareDeleteRetentionPolicy")
+			return eris.Wrap(err, "calling AssignProperties_From_DeleteRetentionPolicy() to populate field ShareDeleteRetentionPolicy")
 		}
 		service.ShareDeleteRetentionPolicy = &shareDeleteRetentionPolicy
 	} else {
@@ -545,8 +495,8 @@ func (service *StorageAccounts_FileService_Spec) AssignProperties_From_StorageAc
 	return nil
 }
 
-// AssignProperties_To_StorageAccounts_FileService_Spec populates the provided destination StorageAccounts_FileService_Spec from our StorageAccounts_FileService_Spec
-func (service *StorageAccounts_FileService_Spec) AssignProperties_To_StorageAccounts_FileService_Spec(destination *storage.StorageAccounts_FileService_Spec) error {
+// AssignProperties_To_StorageAccountsFileService_Spec populates the provided destination StorageAccountsFileService_Spec from our StorageAccountsFileService_Spec
+func (service *StorageAccountsFileService_Spec) AssignProperties_To_StorageAccountsFileService_Spec(destination *storage.StorageAccountsFileService_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -555,11 +505,23 @@ func (service *StorageAccounts_FileService_Spec) AssignProperties_To_StorageAcco
 		var cor storage.CorsRules
 		err := service.Cors.AssignProperties_To_CorsRules(&cor)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CorsRules() to populate field Cors")
+			return eris.Wrap(err, "calling AssignProperties_To_CorsRules() to populate field Cors")
 		}
 		destination.Cors = &cor
 	} else {
 		destination.Cors = nil
+	}
+
+	// OperatorSpec
+	if service.OperatorSpec != nil {
+		var operatorSpec storage.StorageAccountsFileServiceOperatorSpec
+		err := service.OperatorSpec.AssignProperties_To_StorageAccountsFileServiceOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_StorageAccountsFileServiceOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
 	}
 
 	// OriginalVersion
@@ -578,7 +540,7 @@ func (service *StorageAccounts_FileService_Spec) AssignProperties_To_StorageAcco
 		var protocolSetting storage.ProtocolSettings
 		err := service.ProtocolSettings.AssignProperties_To_ProtocolSettings(&protocolSetting)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ProtocolSettings() to populate field ProtocolSettings")
+			return eris.Wrap(err, "calling AssignProperties_To_ProtocolSettings() to populate field ProtocolSettings")
 		}
 		destination.ProtocolSettings = &protocolSetting
 	} else {
@@ -590,7 +552,7 @@ func (service *StorageAccounts_FileService_Spec) AssignProperties_To_StorageAcco
 		var shareDeleteRetentionPolicy storage.DeleteRetentionPolicy
 		err := service.ShareDeleteRetentionPolicy.AssignProperties_To_DeleteRetentionPolicy(&shareDeleteRetentionPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeleteRetentionPolicy() to populate field ShareDeleteRetentionPolicy")
+			return eris.Wrap(err, "calling AssignProperties_To_DeleteRetentionPolicy() to populate field ShareDeleteRetentionPolicy")
 		}
 		destination.ShareDeleteRetentionPolicy = &shareDeleteRetentionPolicy
 	} else {
@@ -608,55 +570,12 @@ func (service *StorageAccounts_FileService_Spec) AssignProperties_To_StorageAcco
 	return nil
 }
 
-// Initialize_From_StorageAccounts_FileService_STATUS populates our StorageAccounts_FileService_Spec from the provided source StorageAccounts_FileService_STATUS
-func (service *StorageAccounts_FileService_Spec) Initialize_From_StorageAccounts_FileService_STATUS(source *StorageAccounts_FileService_STATUS) error {
-
-	// Cors
-	if source.Cors != nil {
-		var cor CorsRules
-		err := cor.Initialize_From_CorsRules_STATUS(source.Cors)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_CorsRules_STATUS() to populate field Cors")
-		}
-		service.Cors = &cor
-	} else {
-		service.Cors = nil
-	}
-
-	// ProtocolSettings
-	if source.ProtocolSettings != nil {
-		var protocolSetting ProtocolSettings
-		err := protocolSetting.Initialize_From_ProtocolSettings_STATUS(source.ProtocolSettings)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_ProtocolSettings_STATUS() to populate field ProtocolSettings")
-		}
-		service.ProtocolSettings = &protocolSetting
-	} else {
-		service.ProtocolSettings = nil
-	}
-
-	// ShareDeleteRetentionPolicy
-	if source.ShareDeleteRetentionPolicy != nil {
-		var shareDeleteRetentionPolicy DeleteRetentionPolicy
-		err := shareDeleteRetentionPolicy.Initialize_From_DeleteRetentionPolicy_STATUS(source.ShareDeleteRetentionPolicy)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_DeleteRetentionPolicy_STATUS() to populate field ShareDeleteRetentionPolicy")
-		}
-		service.ShareDeleteRetentionPolicy = &shareDeleteRetentionPolicy
-	} else {
-		service.ShareDeleteRetentionPolicy = nil
-	}
-
-	// No error
-	return nil
-}
-
 // OriginalVersion returns the original API version used to create the resource.
-func (service *StorageAccounts_FileService_Spec) OriginalVersion() string {
+func (service *StorageAccountsFileService_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
-type StorageAccounts_FileService_STATUS struct {
+type StorageAccountsFileService_STATUS struct {
 	// Conditions: The observed state of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty"`
 
@@ -685,68 +604,68 @@ type StorageAccounts_FileService_STATUS struct {
 	Type *string `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &StorageAccounts_FileService_STATUS{}
+var _ genruntime.ConvertibleStatus = &StorageAccountsFileService_STATUS{}
 
-// ConvertStatusFrom populates our StorageAccounts_FileService_STATUS from the provided source
-func (service *StorageAccounts_FileService_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.StorageAccounts_FileService_STATUS)
+// ConvertStatusFrom populates our StorageAccountsFileService_STATUS from the provided source
+func (service *StorageAccountsFileService_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.StorageAccountsFileService_STATUS)
 	if ok {
 		// Populate our instance from source
-		return service.AssignProperties_From_StorageAccounts_FileService_STATUS(src)
+		return service.AssignProperties_From_StorageAccountsFileService_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.StorageAccounts_FileService_STATUS{}
+	src = &storage.StorageAccountsFileService_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = service.AssignProperties_From_StorageAccounts_FileService_STATUS(src)
+	err = service.AssignProperties_From_StorageAccountsFileService_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our StorageAccounts_FileService_STATUS
-func (service *StorageAccounts_FileService_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.StorageAccounts_FileService_STATUS)
+// ConvertStatusTo populates the provided destination from our StorageAccountsFileService_STATUS
+func (service *StorageAccountsFileService_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.StorageAccountsFileService_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return service.AssignProperties_To_StorageAccounts_FileService_STATUS(dst)
+		return service.AssignProperties_To_StorageAccountsFileService_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.StorageAccounts_FileService_STATUS{}
-	err := service.AssignProperties_To_StorageAccounts_FileService_STATUS(dst)
+	dst = &storage.StorageAccountsFileService_STATUS{}
+	err := service.AssignProperties_To_StorageAccountsFileService_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &StorageAccounts_FileService_STATUS{}
+var _ genruntime.FromARMConverter = &StorageAccountsFileService_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (service *StorageAccounts_FileService_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &StorageAccounts_FileService_STATUS_ARM{}
+func (service *StorageAccountsFileService_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.StorageAccountsFileService_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (service *StorageAccounts_FileService_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(StorageAccounts_FileService_STATUS_ARM)
+func (service *StorageAccountsFileService_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.StorageAccountsFileService_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected StorageAccounts_FileService_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.StorageAccountsFileService_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -826,8 +745,8 @@ func (service *StorageAccounts_FileService_STATUS) PopulateFromARM(owner genrunt
 	return nil
 }
 
-// AssignProperties_From_StorageAccounts_FileService_STATUS populates our StorageAccounts_FileService_STATUS from the provided source StorageAccounts_FileService_STATUS
-func (service *StorageAccounts_FileService_STATUS) AssignProperties_From_StorageAccounts_FileService_STATUS(source *storage.StorageAccounts_FileService_STATUS) error {
+// AssignProperties_From_StorageAccountsFileService_STATUS populates our StorageAccountsFileService_STATUS from the provided source StorageAccountsFileService_STATUS
+func (service *StorageAccountsFileService_STATUS) AssignProperties_From_StorageAccountsFileService_STATUS(source *storage.StorageAccountsFileService_STATUS) error {
 
 	// Conditions
 	service.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
@@ -837,7 +756,7 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_From_Storage
 		var cor CorsRules_STATUS
 		err := cor.AssignProperties_From_CorsRules_STATUS(source.Cors)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_CorsRules_STATUS() to populate field Cors")
+			return eris.Wrap(err, "calling AssignProperties_From_CorsRules_STATUS() to populate field Cors")
 		}
 		service.Cors = &cor
 	} else {
@@ -855,7 +774,7 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_From_Storage
 		var protocolSetting ProtocolSettings_STATUS
 		err := protocolSetting.AssignProperties_From_ProtocolSettings_STATUS(source.ProtocolSettings)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_ProtocolSettings_STATUS() to populate field ProtocolSettings")
+			return eris.Wrap(err, "calling AssignProperties_From_ProtocolSettings_STATUS() to populate field ProtocolSettings")
 		}
 		service.ProtocolSettings = &protocolSetting
 	} else {
@@ -867,7 +786,7 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_From_Storage
 		var shareDeleteRetentionPolicy DeleteRetentionPolicy_STATUS
 		err := shareDeleteRetentionPolicy.AssignProperties_From_DeleteRetentionPolicy_STATUS(source.ShareDeleteRetentionPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_DeleteRetentionPolicy_STATUS() to populate field ShareDeleteRetentionPolicy")
+			return eris.Wrap(err, "calling AssignProperties_From_DeleteRetentionPolicy_STATUS() to populate field ShareDeleteRetentionPolicy")
 		}
 		service.ShareDeleteRetentionPolicy = &shareDeleteRetentionPolicy
 	} else {
@@ -879,7 +798,7 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_From_Storage
 		var sku Sku_STATUS
 		err := sku.AssignProperties_From_Sku_STATUS(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Sku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_Sku_STATUS() to populate field Sku")
 		}
 		service.Sku = &sku
 	} else {
@@ -893,8 +812,8 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_From_Storage
 	return nil
 }
 
-// AssignProperties_To_StorageAccounts_FileService_STATUS populates the provided destination StorageAccounts_FileService_STATUS from our StorageAccounts_FileService_STATUS
-func (service *StorageAccounts_FileService_STATUS) AssignProperties_To_StorageAccounts_FileService_STATUS(destination *storage.StorageAccounts_FileService_STATUS) error {
+// AssignProperties_To_StorageAccountsFileService_STATUS populates the provided destination StorageAccountsFileService_STATUS from our StorageAccountsFileService_STATUS
+func (service *StorageAccountsFileService_STATUS) AssignProperties_To_StorageAccountsFileService_STATUS(destination *storage.StorageAccountsFileService_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -906,7 +825,7 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_To_StorageAc
 		var cor storage.CorsRules_STATUS
 		err := service.Cors.AssignProperties_To_CorsRules_STATUS(&cor)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_CorsRules_STATUS() to populate field Cors")
+			return eris.Wrap(err, "calling AssignProperties_To_CorsRules_STATUS() to populate field Cors")
 		}
 		destination.Cors = &cor
 	} else {
@@ -924,7 +843,7 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_To_StorageAc
 		var protocolSetting storage.ProtocolSettings_STATUS
 		err := service.ProtocolSettings.AssignProperties_To_ProtocolSettings_STATUS(&protocolSetting)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_ProtocolSettings_STATUS() to populate field ProtocolSettings")
+			return eris.Wrap(err, "calling AssignProperties_To_ProtocolSettings_STATUS() to populate field ProtocolSettings")
 		}
 		destination.ProtocolSettings = &protocolSetting
 	} else {
@@ -936,7 +855,7 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_To_StorageAc
 		var shareDeleteRetentionPolicy storage.DeleteRetentionPolicy_STATUS
 		err := service.ShareDeleteRetentionPolicy.AssignProperties_To_DeleteRetentionPolicy_STATUS(&shareDeleteRetentionPolicy)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_DeleteRetentionPolicy_STATUS() to populate field ShareDeleteRetentionPolicy")
+			return eris.Wrap(err, "calling AssignProperties_To_DeleteRetentionPolicy_STATUS() to populate field ShareDeleteRetentionPolicy")
 		}
 		destination.ShareDeleteRetentionPolicy = &shareDeleteRetentionPolicy
 	} else {
@@ -948,7 +867,7 @@ func (service *StorageAccounts_FileService_STATUS) AssignProperties_To_StorageAc
 		var sku storage.Sku_STATUS
 		err := service.Sku.AssignProperties_To_Sku_STATUS(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Sku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_Sku_STATUS() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -982,15 +901,15 @@ func (settings *ProtocolSettings) ConvertToARM(resolved genruntime.ConvertToARMR
 	if settings == nil {
 		return nil, nil
 	}
-	result := &ProtocolSettings_ARM{}
+	result := &arm.ProtocolSettings{}
 
 	// Set property "Smb":
 	if settings.Smb != nil {
-		smb_ARM, err := (*settings.Smb).ConvertToARM(resolved)
+		smb_ARM, err := settings.Smb.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		smb := *smb_ARM.(*SmbSetting_ARM)
+		smb := *smb_ARM.(*arm.SmbSetting)
 		result.Smb = &smb
 	}
 	return result, nil
@@ -998,14 +917,14 @@ func (settings *ProtocolSettings) ConvertToARM(resolved genruntime.ConvertToARMR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *ProtocolSettings) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ProtocolSettings_ARM{}
+	return &arm.ProtocolSettings{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *ProtocolSettings) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ProtocolSettings_ARM)
+	typedInput, ok := armInput.(arm.ProtocolSettings)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ProtocolSettings_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ProtocolSettings, got %T", armInput)
 	}
 
 	// Set property "Smb":
@@ -1031,7 +950,7 @@ func (settings *ProtocolSettings) AssignProperties_From_ProtocolSettings(source 
 		var smb SmbSetting
 		err := smb.AssignProperties_From_SmbSetting(source.Smb)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SmbSetting() to populate field Smb")
+			return eris.Wrap(err, "calling AssignProperties_From_SmbSetting() to populate field Smb")
 		}
 		settings.Smb = &smb
 	} else {
@@ -1052,7 +971,7 @@ func (settings *ProtocolSettings) AssignProperties_To_ProtocolSettings(destinati
 		var smb storage.SmbSetting
 		err := settings.Smb.AssignProperties_To_SmbSetting(&smb)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SmbSetting() to populate field Smb")
+			return eris.Wrap(err, "calling AssignProperties_To_SmbSetting() to populate field Smb")
 		}
 		destination.Smb = &smb
 	} else {
@@ -1070,25 +989,6 @@ func (settings *ProtocolSettings) AssignProperties_To_ProtocolSettings(destinati
 	return nil
 }
 
-// Initialize_From_ProtocolSettings_STATUS populates our ProtocolSettings from the provided source ProtocolSettings_STATUS
-func (settings *ProtocolSettings) Initialize_From_ProtocolSettings_STATUS(source *ProtocolSettings_STATUS) error {
-
-	// Smb
-	if source.Smb != nil {
-		var smb SmbSetting
-		err := smb.Initialize_From_SmbSetting_STATUS(source.Smb)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_SmbSetting_STATUS() to populate field Smb")
-		}
-		settings.Smb = &smb
-	} else {
-		settings.Smb = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Protocol settings for file service
 type ProtocolSettings_STATUS struct {
 	// Smb: Setting for SMB protocol
@@ -1099,14 +999,14 @@ var _ genruntime.FromARMConverter = &ProtocolSettings_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (settings *ProtocolSettings_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &ProtocolSettings_STATUS_ARM{}
+	return &arm.ProtocolSettings_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (settings *ProtocolSettings_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(ProtocolSettings_STATUS_ARM)
+	typedInput, ok := armInput.(arm.ProtocolSettings_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected ProtocolSettings_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ProtocolSettings_STATUS, got %T", armInput)
 	}
 
 	// Set property "Smb":
@@ -1132,7 +1032,7 @@ func (settings *ProtocolSettings_STATUS) AssignProperties_From_ProtocolSettings_
 		var smb SmbSetting_STATUS
 		err := smb.AssignProperties_From_SmbSetting_STATUS(source.Smb)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SmbSetting_STATUS() to populate field Smb")
+			return eris.Wrap(err, "calling AssignProperties_From_SmbSetting_STATUS() to populate field Smb")
 		}
 		settings.Smb = &smb
 	} else {
@@ -1153,11 +1053,107 @@ func (settings *ProtocolSettings_STATUS) AssignProperties_To_ProtocolSettings_ST
 		var smb storage.SmbSetting_STATUS
 		err := settings.Smb.AssignProperties_To_SmbSetting_STATUS(&smb)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SmbSetting_STATUS() to populate field Smb")
+			return eris.Wrap(err, "calling AssignProperties_To_SmbSetting_STATUS() to populate field Smb")
 		}
 		destination.Smb = &smb
 	} else {
 		destination.Smb = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type StorageAccountsFileServiceOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_StorageAccountsFileServiceOperatorSpec populates our StorageAccountsFileServiceOperatorSpec from the provided source StorageAccountsFileServiceOperatorSpec
+func (operator *StorageAccountsFileServiceOperatorSpec) AssignProperties_From_StorageAccountsFileServiceOperatorSpec(source *storage.StorageAccountsFileServiceOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_StorageAccountsFileServiceOperatorSpec populates the provided destination StorageAccountsFileServiceOperatorSpec from our StorageAccountsFileServiceOperatorSpec
+func (operator *StorageAccountsFileServiceOperatorSpec) AssignProperties_To_StorageAccountsFileServiceOperatorSpec(destination *storage.StorageAccountsFileServiceOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
 	}
 
 	// Update the property bag
@@ -1200,7 +1196,7 @@ func (setting *SmbSetting) ConvertToARM(resolved genruntime.ConvertToARMResolved
 	if setting == nil {
 		return nil, nil
 	}
-	result := &SmbSetting_ARM{}
+	result := &arm.SmbSetting{}
 
 	// Set property "AuthenticationMethods":
 	if setting.AuthenticationMethods != nil {
@@ -1222,11 +1218,11 @@ func (setting *SmbSetting) ConvertToARM(resolved genruntime.ConvertToARMResolved
 
 	// Set property "Multichannel":
 	if setting.Multichannel != nil {
-		multichannel_ARM, err := (*setting.Multichannel).ConvertToARM(resolved)
+		multichannel_ARM, err := setting.Multichannel.ConvertToARM(resolved)
 		if err != nil {
 			return nil, err
 		}
-		multichannel := *multichannel_ARM.(*Multichannel_ARM)
+		multichannel := *multichannel_ARM.(*arm.Multichannel)
 		result.Multichannel = &multichannel
 	}
 
@@ -1240,14 +1236,14 @@ func (setting *SmbSetting) ConvertToARM(resolved genruntime.ConvertToARMResolved
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (setting *SmbSetting) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SmbSetting_ARM{}
+	return &arm.SmbSetting{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (setting *SmbSetting) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SmbSetting_ARM)
+	typedInput, ok := armInput.(arm.SmbSetting)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SmbSetting_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SmbSetting, got %T", armInput)
 	}
 
 	// Set property "AuthenticationMethods":
@@ -1306,7 +1302,7 @@ func (setting *SmbSetting) AssignProperties_From_SmbSetting(source *storage.SmbS
 		var multichannel Multichannel
 		err := multichannel.AssignProperties_From_Multichannel(source.Multichannel)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Multichannel() to populate field Multichannel")
+			return eris.Wrap(err, "calling AssignProperties_From_Multichannel() to populate field Multichannel")
 		}
 		setting.Multichannel = &multichannel
 	} else {
@@ -1339,7 +1335,7 @@ func (setting *SmbSetting) AssignProperties_To_SmbSetting(destination *storage.S
 		var multichannel storage.Multichannel
 		err := setting.Multichannel.AssignProperties_To_Multichannel(&multichannel)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Multichannel() to populate field Multichannel")
+			return eris.Wrap(err, "calling AssignProperties_To_Multichannel() to populate field Multichannel")
 		}
 		destination.Multichannel = &multichannel
 	} else {
@@ -1355,37 +1351,6 @@ func (setting *SmbSetting) AssignProperties_To_SmbSetting(destination *storage.S
 	} else {
 		destination.PropertyBag = nil
 	}
-
-	// No error
-	return nil
-}
-
-// Initialize_From_SmbSetting_STATUS populates our SmbSetting from the provided source SmbSetting_STATUS
-func (setting *SmbSetting) Initialize_From_SmbSetting_STATUS(source *SmbSetting_STATUS) error {
-
-	// AuthenticationMethods
-	setting.AuthenticationMethods = genruntime.ClonePointerToString(source.AuthenticationMethods)
-
-	// ChannelEncryption
-	setting.ChannelEncryption = genruntime.ClonePointerToString(source.ChannelEncryption)
-
-	// KerberosTicketEncryption
-	setting.KerberosTicketEncryption = genruntime.ClonePointerToString(source.KerberosTicketEncryption)
-
-	// Multichannel
-	if source.Multichannel != nil {
-		var multichannel Multichannel
-		err := multichannel.Initialize_From_Multichannel_STATUS(source.Multichannel)
-		if err != nil {
-			return errors.Wrap(err, "calling Initialize_From_Multichannel_STATUS() to populate field Multichannel")
-		}
-		setting.Multichannel = &multichannel
-	} else {
-		setting.Multichannel = nil
-	}
-
-	// Versions
-	setting.Versions = genruntime.ClonePointerToString(source.Versions)
 
 	// No error
 	return nil
@@ -1417,14 +1382,14 @@ var _ genruntime.FromARMConverter = &SmbSetting_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (setting *SmbSetting_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SmbSetting_STATUS_ARM{}
+	return &arm.SmbSetting_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (setting *SmbSetting_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SmbSetting_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SmbSetting_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SmbSetting_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SmbSetting_STATUS, got %T", armInput)
 	}
 
 	// Set property "AuthenticationMethods":
@@ -1483,7 +1448,7 @@ func (setting *SmbSetting_STATUS) AssignProperties_From_SmbSetting_STATUS(source
 		var multichannel Multichannel_STATUS
 		err := multichannel.AssignProperties_From_Multichannel_STATUS(source.Multichannel)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Multichannel_STATUS() to populate field Multichannel")
+			return eris.Wrap(err, "calling AssignProperties_From_Multichannel_STATUS() to populate field Multichannel")
 		}
 		setting.Multichannel = &multichannel
 	} else {
@@ -1516,7 +1481,7 @@ func (setting *SmbSetting_STATUS) AssignProperties_To_SmbSetting_STATUS(destinat
 		var multichannel storage.Multichannel_STATUS
 		err := setting.Multichannel.AssignProperties_To_Multichannel_STATUS(&multichannel)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Multichannel_STATUS() to populate field Multichannel")
+			return eris.Wrap(err, "calling AssignProperties_To_Multichannel_STATUS() to populate field Multichannel")
 		}
 		destination.Multichannel = &multichannel
 	} else {
@@ -1550,7 +1515,7 @@ func (multichannel *Multichannel) ConvertToARM(resolved genruntime.ConvertToARMR
 	if multichannel == nil {
 		return nil, nil
 	}
-	result := &Multichannel_ARM{}
+	result := &arm.Multichannel{}
 
 	// Set property "Enabled":
 	if multichannel.Enabled != nil {
@@ -1562,14 +1527,14 @@ func (multichannel *Multichannel) ConvertToARM(resolved genruntime.ConvertToARMR
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (multichannel *Multichannel) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Multichannel_ARM{}
+	return &arm.Multichannel{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (multichannel *Multichannel) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Multichannel_ARM)
+	typedInput, ok := armInput.(arm.Multichannel)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Multichannel_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Multichannel, got %T", armInput)
 	}
 
 	// Set property "Enabled":
@@ -1621,21 +1586,6 @@ func (multichannel *Multichannel) AssignProperties_To_Multichannel(destination *
 	return nil
 }
 
-// Initialize_From_Multichannel_STATUS populates our Multichannel from the provided source Multichannel_STATUS
-func (multichannel *Multichannel) Initialize_From_Multichannel_STATUS(source *Multichannel_STATUS) error {
-
-	// Enabled
-	if source.Enabled != nil {
-		enabled := *source.Enabled
-		multichannel.Enabled = &enabled
-	} else {
-		multichannel.Enabled = nil
-	}
-
-	// No error
-	return nil
-}
-
 // Multichannel setting. Applies to Premium FileStorage only.
 type Multichannel_STATUS struct {
 	// Enabled: Indicates whether multichannel is enabled
@@ -1646,14 +1596,14 @@ var _ genruntime.FromARMConverter = &Multichannel_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (multichannel *Multichannel_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Multichannel_STATUS_ARM{}
+	return &arm.Multichannel_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (multichannel *Multichannel_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Multichannel_STATUS_ARM)
+	typedInput, ok := armInput.(arm.Multichannel_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Multichannel_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.Multichannel_STATUS, got %T", armInput)
 	}
 
 	// Set property "Enabled":

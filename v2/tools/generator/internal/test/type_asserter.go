@@ -11,17 +11,18 @@ import (
 	"testing"
 
 	"github.com/kylelemons/godebug/diff"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"github.com/sebdah/goldie/v2"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
 type typeAsserter struct {
-	t          *testing.T
-	writeCode  bool
-	writeTests bool
-	reference  astmodel.TypeDefinitionSet
+	t            *testing.T                 // t is the test we're running
+	writeCode    bool                       // writeCode controls whether we write the generated code to a golden file
+	writeTests   bool                       // writeTests controls whether we write the generated tests to a golden file
+	createFolder bool                       // Should a separate folder be created for the test?
+	reference    astmodel.TypeDefinitionSet // reference is a set of definitions to compare against
 }
 
 func newTypeAsserter(t *testing.T) *typeAsserter {
@@ -39,28 +40,51 @@ func (a *typeAsserter) configure(options []AssertionOption) {
 	}
 }
 
-func (a *typeAsserter) assert(name string, defs ...astmodel.TypeDefinition) {
+func (a *typeAsserter) assert(
+	namePrefix string,
+	defs []astmodel.TypeDefinition,
+	packages map[astmodel.InternalPackageReference]*astmodel.PackageDefinition,
+) {
 	g := goldie.New(a.t)
 	err := g.WithTestNameForDir(true)
 	if err != nil {
 		a.t.Fatalf("Unable to configure goldie output folder %s", err)
 	}
 
-	refs := a.findReferenceTypes(defs)
-
-	if a.writeCode {
-		a.assertFile(g, name, defs, refs, a.renderDefsAsCode)
+	if a.createFolder {
+		err = g.WithSubTestNameForDir(true)
+		if err != nil {
+			a.t.Fatalf("Unable to configure goldie output folder %s", err)
+		}
 	}
 
-	if a.writeTests {
-		a.assertFile(g, name+"_test", defs, refs, a.renderDefsAsTests)
+	for ref, pkg := range packages {
+		referenceTypes := a.findReferenceTypes(pkg.Definitions())
+
+		// Use namePrefix as the filename if it's set, and if we're only generating for one package
+		// otherwise include the folder path to disambiguate
+		fileName := namePrefix
+		if fileName == "" || len(packages) > 1 {
+			fileName += strings.ReplaceAll(ref.FolderPath(), "/", "-")
+		}
+
+		if a.writeCode {
+			a.assertFile(g, fileName, ref, defs, referenceTypes, packages, createFileDefinition)
+		}
+
+		if a.writeTests {
+			a.assertFile(g, fileName+"_test", ref, defs, referenceTypes, packages, createTestFileDefinition)
+		}
 	}
 }
 
-func (a *typeAsserter) findReferenceTypes(defs []astmodel.TypeDefinition) []astmodel.TypeDefinition {
-	var result []astmodel.TypeDefinition
-	for _, def := range defs {
-		if r, ok := a.reference[def.Name()]; ok {
+// findReferenceTypes finds the reference versions of each of the definitions passed in.
+func (a *typeAsserter) findReferenceTypes(
+	defs astmodel.TypeDefinitionSet,
+) []astmodel.TypeDefinition {
+	result := make([]astmodel.TypeDefinition, 0, len(defs))
+	for name := range defs {
+		if r, ok := a.reference[name]; ok {
 			result = append(result, r)
 		}
 	}
@@ -71,18 +95,22 @@ func (a *typeAsserter) findReferenceTypes(defs []astmodel.TypeDefinition) []astm
 func (a *typeAsserter) assertFile(
 	g *goldie.Goldie,
 	name string,
+	pkg astmodel.InternalPackageReference,
 	defs []astmodel.TypeDefinition,
 	refs []astmodel.TypeDefinition,
-	renderer func(defs []astmodel.TypeDefinition) (string, error),
+	packages map[astmodel.InternalPackageReference]*astmodel.PackageDefinition,
+	renderer goSourceFileFactory,
 ) {
-	content, err := renderer(defs)
+	a.t.Helper()
+
+	content, err := a.renderDefs(pkg, defs, packages, renderer)
 	if err != nil {
 		a.t.Fatalf("rendering content: %s", err)
 		return
 	}
 
 	if len(refs) > 0 {
-		base, err := renderer(refs)
+		base, err := a.renderDefs(pkg, refs, packages, renderer)
 		if err != nil {
 			a.t.Fatalf("rendering content: %s", err)
 			return
@@ -106,25 +134,24 @@ func (a *typeAsserter) addReferences(defs ...astmodel.TypeDefinition) {
 	a.reference.AddAll(defs...)
 }
 
-func (a *typeAsserter) renderDefsAsCode(defs []astmodel.TypeDefinition) (string, error) {
+// renderDefs renders the passed definitions as Go code.
+// It returns the generated code as a string.
+// pkg is the package we're generating.
+// defs is the set of type definitions to render.
+// packages is a map of all other packages being generated (to allow for cross-package references).
+// renderer is the function to use to create the file definition.
+func (a *typeAsserter) renderDefs(
+	pkg astmodel.InternalPackageReference,
+	defs []astmodel.TypeDefinition,
+	packages map[astmodel.InternalPackageReference]*astmodel.PackageDefinition,
+	renderer goSourceFileFactory,
+) (string, error) {
 	buf := &bytes.Buffer{}
-	file := CreateFileDefinition(defs...)
+	file := renderer(pkg, defs, packages)
 	fileWriter := astmodel.NewGoSourceFileWriter(file)
 	err := fileWriter.SaveToWriter(buf)
 	if err != nil {
-		return "", errors.Wrap(err, "could not generate code file")
-	}
-
-	return buf.String(), nil
-}
-
-func (a *typeAsserter) renderDefsAsTests(defs []astmodel.TypeDefinition) (string, error) {
-	buf := &bytes.Buffer{}
-	file := CreateTestFileDefinition(defs...)
-	fileWriter := astmodel.NewGoSourceFileWriter(file)
-	err := fileWriter.SaveToWriter(buf)
-	if err != nil {
-		return "", errors.Wrap(err, "could not generate test file")
+		return "", eris.Wrap(err, "could not generate code file")
 	}
 
 	return buf.String(), nil

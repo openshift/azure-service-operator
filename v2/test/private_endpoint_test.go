@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	networkvnet "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
 	network "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701"
-	storage "github.com/Azure/azure-service-operator/v2/api/storage/v1api20210401"
+	storage "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	"github.com/Azure/azure-service-operator/v2/internal/util/to"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
@@ -43,9 +44,11 @@ func Test_Networking_PrivateEndpoint_WithoutAutoApproval_CRUD(t *testing.T) {
 			Owner:    testcommon.AsOwner(rg),
 			ManualPrivateLinkServiceConnections: []network.PrivateLinkServiceConnection{
 				{
-					Name:                        to.Ptr("testEndpoint"),
-					PrivateLinkServiceReference: tc.MakeReferenceFromResource(sa),
-					GroupIds:                    []string{"blob"},
+					Name: to.Ptr("testEndpoint"),
+					PrivateLinkServiceReference: &genruntime.WellKnownResourceReference{
+						ResourceReference: *tc.MakeReferenceFromResource(sa),
+					},
+					GroupIds: []string{"blob"},
 				},
 			},
 			Subnet: &network.Subnet_PrivateEndpoint_SubResourceEmbedded{
@@ -86,7 +89,7 @@ func newVMVirtualNetwork(tc *testcommon.KubePerTestContext, owner *genruntime.Kn
 func newVMSubnet(tc *testcommon.KubePerTestContext, owner *genruntime.KnownResourceReference) *networkvnet.VirtualNetworksSubnet {
 	return &networkvnet.VirtualNetworksSubnet{
 		ObjectMeta: tc.MakeObjectMeta("subnet"),
-		Spec: networkvnet.VirtualNetworks_Subnet_Spec{
+		Spec: networkvnet.VirtualNetworksSubnet_Spec{
 			Owner:         owner,
 			AddressPrefix: to.Ptr("10.0.0.0/24"),
 		},

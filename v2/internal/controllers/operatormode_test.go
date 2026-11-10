@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
@@ -35,7 +36,7 @@ func TestOperatorMode_Webhooks(t *testing.T) {
 	tc.CreateResource(&rg)
 	// AzureName should have been defaulted on the group on the
 	// way in (it doesn't require waiting for a reconcile).
-	tc.Expect(rg.Spec.AzureName).To(Equal(rg.ObjectMeta.Name))
+	tc.Expect(rg.Spec.AzureName).To(Equal(rg.Name))
 
 	checkNeverGetsFinalizer(tc, &rg,
 		"instance got a finalizer when operator mode is webhooks")
@@ -92,6 +93,6 @@ func TestOperatorMode_Both(t *testing.T) {
 
 	// AzureName should have been defaulted on the group on the
 	// way in (it doesn't require waiting for a reconcile).
-	tc.Expect(rg.Spec.AzureName).To(Equal(rg.ObjectMeta.Name))
+	tc.Expect(rg.Spec.AzureName).To(Equal(rg.Name))
 	tc.Eventually(&rg).Should(tc.Match.BeProvisioned(0))
 }

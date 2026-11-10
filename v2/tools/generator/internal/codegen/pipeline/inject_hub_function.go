@@ -8,7 +8,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/functions"
@@ -20,33 +20,34 @@ const InjectHubFunctionStageID = "injectHubFunction"
 // InjectHubFunction modifies the nominates storage version (aka hub version) of each resource by injecting a Hub()
 // function so that it satisfies the required interface.
 func InjectHubFunction(idFactory astmodel.IdentifierFactory) *Stage {
-	stage := NewLegacyStage(
+	stage := NewStage(
 		InjectHubFunctionStageID,
 		"Inject the function Hub() into each hub resource",
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			definitions := state.Definitions()
 			injector := astmodel.NewFunctionInjector()
 			result := definitions.Copy()
 
-			resources := astmodel.FindResourceDefinitions(definitions)
-			for name, def := range resources {
+			for name, def := range definitions.AllResources() {
 				rt, ok := astmodel.AsResourceType(def.Type())
 				if !ok {
-					return nil, errors.Errorf("expected %s to be a resource type (should never happen)", name)
+					return nil, eris.Errorf("expected %s to be a resource type (should never happen)", name)
 				}
 
 				if rt.IsStorageVersion() {
 					fn := functions.NewHubFunction(idFactory)
 					defWithFn, err := injector.Inject(def, fn)
 					if err != nil {
-						return nil, errors.Wrapf(err, "injecting Hub() into %s", name)
+						return nil, eris.Wrapf(err, "injecting Hub() into %s", name)
 					}
 
 					result[name] = defWithFn
 				}
 			}
 
-			return result, nil
-		})
+			return state.WithDefinitions(result), nil
+		},
+	)
 
 	stage.RequiresPrerequisiteStages(MarkLatestStorageVariantAsHubVersionID)
 	return stage

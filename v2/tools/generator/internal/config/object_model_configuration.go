@@ -8,8 +8,9 @@ package config
 import (
 	"regexp"
 	"strings"
+	"sync"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"gopkg.in/yaml.v3"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -29,13 +30,20 @@ type ObjectModelConfiguration struct {
 	groups      map[string]*GroupConfiguration // nested configuration for individual groups
 	typoAdvisor *typo.Advisor
 
+	// groupCache memoises findGroup results so that repeated lookups against the same group
+	// name (which is the norm during code generation) skip the small amount of work involved.
+	// The key is the raw name from ref.Group(); a nil value means "known absent". Cache
+	// entries are cleared by addGroup so that late additions from tests remain observable.
+	groupCacheLock sync.RWMutex
+	groupCache     map[string]*GroupConfiguration
+
 	// Group access fields here (alphabetical, please)
 	PayloadType propertyAccess[PayloadType]
 
 	// Type access fields here (alphabetical, please)
 	AzureGeneratedSecrets    typeAccess[[]string]
+	AzureNameFromConfig      typeAccess[bool]
 	DefaultAzureName         typeAccess[bool]
-	Export                   typeAccess[bool]
 	ExportAs                 typeAccess[string]
 	GeneratedConfigs         typeAccess[map[string]string]
 	Importable               typeAccess[bool]
@@ -43,14 +51,18 @@ type ObjectModelConfiguration struct {
 	ManualConfigs            typeAccess[[]string]
 	RenameTo                 typeAccess[string]
 	ResourceEmbeddedInParent typeAccess[string]
+	OperatorSpecProperties   typeAccess[[]OperatorSpecPropertyConfiguration]
+	StripDocumentation       typeAccess[bool]
 	SupportedFrom            typeAccess[string]
 	TypeNameInNextVersion    typeAccess[string]
 
 	// Property access fields here (alphabetical, please)
-	ARMReference                   propertyAccess[bool]
+	ConversionStrategy             propertyAccess[ConversionStrategy]
+	Description                    propertyAccess[string]
 	ImportConfigMapMode            propertyAccess[ImportConfigMapMode]
-	IsSecret                       propertyAccess[bool]
+	Secrecy                        propertyAccess[astmodel.ImportSecretMode]
 	PropertyNameInNextVersion      propertyAccess[string]
+	ReferenceType                  propertyAccess[ReferenceType]
 	RenamePropertyTo               propertyAccess[string]
 	ResourceLifecycleOwnedByParent propertyAccess[string]
 }
@@ -75,43 +87,75 @@ func NewObjectModelConfiguration() *ObjectModelConfiguration {
 
 	// Initialize type access fields here (alphabetical, please)
 	result.AzureGeneratedSecrets = makeTypeAccess[[]string](
-		result, func(c *TypeConfiguration) *configurable[[]string] { return &c.AzureGeneratedSecrets })
+		result, func(c *TypeConfiguration) *configurable[[]string] { return &c.AzureGeneratedSecrets },
+	)
+	result.AzureNameFromConfig = makeTypeAccess[bool](
+		result, func(c *TypeConfiguration) *configurable[bool] { return &c.AzureNameFromConfig },
+	)
 	result.DefaultAzureName = makeTypeAccess[bool](
-		result, func(c *TypeConfiguration) *configurable[bool] { return &c.DefaultAzureName })
-	result.Export = makeTypeAccess[bool](
-		result, func(c *TypeConfiguration) *configurable[bool] { return &c.Export })
+		result, func(c *TypeConfiguration) *configurable[bool] { return &c.DefaultAzureName },
+	)
 	result.ExportAs = makeTypeAccess[string](
-		result, func(c *TypeConfiguration) *configurable[string] { return &c.ExportAs })
+		result, func(c *TypeConfiguration) *configurable[string] { return &c.ExportAs },
+	)
 	result.GeneratedConfigs = makeTypeAccess[map[string]string](
-		result, func(c *TypeConfiguration) *configurable[map[string]string] { return &c.GeneratedConfigs })
+		result, func(c *TypeConfiguration) *configurable[map[string]string] { return &c.GeneratedConfigs },
+	)
 	result.Importable = makeTypeAccess[bool](
-		result, func(c *TypeConfiguration) *configurable[bool] { return &c.Importable })
+		result, func(c *TypeConfiguration) *configurable[bool] { return &c.Importable },
+	)
 	result.IsResource = makeTypeAccess[bool](
-		result, func(c *TypeConfiguration) *configurable[bool] { return &c.IsResource })
+		result, func(c *TypeConfiguration) *configurable[bool] { return &c.IsResource },
+	)
 	result.ManualConfigs = makeTypeAccess[[]string](
-		result, func(c *TypeConfiguration) *configurable[[]string] { return &c.ManualConfigs })
+		result, func(c *TypeConfiguration) *configurable[[]string] { return &c.ManualConfigs },
+	)
+	result.OperatorSpecProperties = makeTypeAccess[[]OperatorSpecPropertyConfiguration](
+		result, func(c *TypeConfiguration) *configurable[[]OperatorSpecPropertyConfiguration] {
+			return &c.OperatorSpecProperties
+		},
+	)
 	result.RenameTo = makeTypeAccess[string](
-		result, func(c *TypeConfiguration) *configurable[string] { return &c.RenameTo })
+		result, func(c *TypeConfiguration) *configurable[string] { return &c.RenameTo },
+	)
 	result.ResourceEmbeddedInParent = makeTypeAccess[string](
-		result, func(c *TypeConfiguration) *configurable[string] { return &c.ResourceEmbeddedInParent })
+		result, func(c *TypeConfiguration) *configurable[string] { return &c.ResourceEmbeddedInParent },
+	)
+	result.StripDocumentation = makeTypeAccess[bool](
+		result, func(c *TypeConfiguration) *configurable[bool] { return &c.StripDocumentation },
+	)
 	result.SupportedFrom = makeTypeAccess[string](
-		result, func(c *TypeConfiguration) *configurable[string] { return &c.SupportedFrom })
+		result, func(c *TypeConfiguration) *configurable[string] { return &c.SupportedFrom },
+	)
 	result.TypeNameInNextVersion = makeTypeAccess[string](
-		result, func(c *TypeConfiguration) *configurable[string] { return &c.NameInNextVersion })
+		result, func(c *TypeConfiguration) *configurable[string] { return &c.NameInNextVersion },
+	)
 
 	// Initialize property access fields here (alphabetical, please)
-	result.ARMReference = makePropertyAccess[bool](
-		result, func(c *PropertyConfiguration) *configurable[bool] { return &c.ARMReference })
+	result.ConversionStrategy = makePropertyAccess[ConversionStrategy](
+		result, func(c *PropertyConfiguration) *configurable[ConversionStrategy] { return &c.ConversionStrategy },
+	)
+	result.Description = makePropertyAccess[string](
+		result, func(c *PropertyConfiguration) *configurable[string] { return &c.Description },
+	)
 	result.ImportConfigMapMode = makePropertyAccess[ImportConfigMapMode](
-		result, func(c *PropertyConfiguration) *configurable[ImportConfigMapMode] { return &c.ImportConfigMapMode })
-	result.IsSecret = makePropertyAccess[bool](
-		result, func(c *PropertyConfiguration) *configurable[bool] { return &c.IsSecret })
+		result, func(c *PropertyConfiguration) *configurable[ImportConfigMapMode] { return &c.ImportConfigMapMode },
+	)
+	result.Secrecy = makePropertyAccess[astmodel.ImportSecretMode](
+		result, func(c *PropertyConfiguration) *configurable[astmodel.ImportSecretMode] { return &c.Secrecy },
+	)
 	result.PropertyNameInNextVersion = makePropertyAccess[string](
-		result, func(c *PropertyConfiguration) *configurable[string] { return &c.NameInNextVersion })
+		result, func(c *PropertyConfiguration) *configurable[string] { return &c.NameInNextVersion },
+	)
+	result.ReferenceType = makePropertyAccess[ReferenceType](
+		result, func(c *PropertyConfiguration) *configurable[ReferenceType] { return &c.ReferenceType },
+	)
 	result.RenamePropertyTo = makePropertyAccess[string](
-		result, func(c *PropertyConfiguration) *configurable[string] { return &c.RenameTo })
+		result, func(c *PropertyConfiguration) *configurable[string] { return &c.RenameTo },
+	)
 	result.ResourceLifecycleOwnedByParent = makePropertyAccess[string](
-		result, func(c *PropertyConfiguration) *configurable[string] { return &c.ResourceLifecycleOwnedByParent })
+		result, func(c *PropertyConfiguration) *configurable[string] { return &c.ResourceLifecycleOwnedByParent },
+	)
 
 	return result
 }
@@ -162,7 +206,8 @@ func (omc *ObjectModelConfiguration) AddTypeAlias(name astmodel.InternalTypeName
 		name.InternalPackageReference(),
 		func(configuration *VersionConfiguration) error {
 			return configuration.addTypeAlias(name.Name(), alias)
-		})
+		},
+	)
 
 	err := versionVisitor.visit(omc)
 	if err != nil {
@@ -186,41 +231,44 @@ func (omc *ObjectModelConfiguration) FindHandCraftedTypeNames(localPath string) 
 			name := astmodel.MakeInternalTypeName(currentPackage, typeConfig.name)
 			result.Add(name)
 			return nil
-		})
+		},
+	)
 
 	// Collect hand-crafted versions as we see them.
 	// They look like v<n> where n is a small number.
 	versionVisitor := newEveryVersionConfigurationVisitor(
 		func(verConfig *VersionConfiguration) error {
 			if VersionRegex.MatchString(verConfig.name) {
-				currentPackage = astmodel.MakeLocalPackageReference(
+				currentPackage = astmodel.MakeNamedLocalPackageReference(
 					localPath,
 					currentGroup,
-					"", // no prefix needed (or wanted!) for v1
-					verConfig.name)
+					verConfig.name,
+				)
 				return verConfig.visitTypes(typeVisitor)
 			}
 
 			return nil
-		})
+		},
+	)
 
 	// Look inside each group for hand-crafted versions
 	groupVisitor := newEveryGroupConfigurationVisitor(
 		func(groupConfig *GroupConfiguration) error {
 			currentGroup = groupConfig.name
 			return groupConfig.visitVersions(versionVisitor)
-		})
+		},
+	)
 
 	err := groupVisitor.visit(omc)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to find hand-crafted packages")
+		return nil, eris.Wrapf(err, "failed to find hand-crafted packages")
 	}
 
 	return result, nil
 }
 
 // addGroup includes the provided GroupConfiguration in this model configuration
-func (omc *ObjectModelConfiguration) addGroup(name string, group *GroupConfiguration) {
+func (omc *ObjectModelConfiguration) addGroup(name string, group *GroupConfiguration) error {
 	if omc.groups == nil {
 		// Initialize the map just-in-time
 		omc.groups = make(map[string]*GroupConfiguration)
@@ -228,7 +276,26 @@ func (omc *ObjectModelConfiguration) addGroup(name string, group *GroupConfigura
 
 	// store the group name using lowercase,
 	// so we can do case-insensitive lookups later
-	omc.groups[strings.ToLower(name)] = group
+	key := strings.ToLower(name)
+	if _, exists := omc.groups[key]; exists {
+		return eris.Errorf("duplicate group configuration: %q already exists", name)
+	}
+
+	omc.groups[key] = group
+
+	// Any previously cached "known absent" answer for this key must be discarded so that
+	// subsequent lookups see the newly added group.
+	omc.invalidateGroupCache()
+
+	return nil
+}
+
+// invalidateGroupCache clears the group-resolution cache. Called whenever the set of configured
+// groups changes.
+func (omc *ObjectModelConfiguration) invalidateGroupCache() {
+	omc.groupCacheLock.Lock()
+	omc.groupCache = nil
+	omc.groupCacheLock.Unlock()
 }
 
 // visitGroup invokes the provided visitor on the specified group if present.
@@ -259,65 +326,87 @@ func (omc *ObjectModelConfiguration) visitGroups(visitor *configurationVisitor) 
 }
 
 // findGroup uses the provided TypeName to work out which nested GroupConfiguration should be used
-func (omc *ObjectModelConfiguration) findGroup(ref astmodel.InternalPackageReference) *GroupConfiguration {
-	group := ref.Group()
-
+func (omc *ObjectModelConfiguration) findGroup(
+	ref astmodel.InternalPackageReference,
+) *GroupConfiguration {
 	if omc == nil || omc.groups == nil {
 		return nil
 	}
 
-	omc.typoAdvisor.AddTerm(group)
-	if g, ok := omc.groups[group]; ok {
-		return g
+	// Fast path: consult the resolution cache under a read lock. Cached entries may be nil to
+	// record a known-absent group so that repeated defensive lookups do not re-do the work.
+	if cached, ok := omc.findGroupFromCache(ref); ok {
+		return cached
 	}
 
-	return nil
+	group := ref.Group()
+	omc.typoAdvisor.AddTerm(group)
+	g := omc.groups[group]
+
+	omc.groupCacheLock.Lock()
+	defer omc.groupCacheLock.Unlock()
+
+	if omc.groupCache == nil {
+		omc.groupCache = make(map[string]*GroupConfiguration)
+	}
+
+	omc.groupCache[group] = g
+
+	return g
+}
+
+// findGroupFromCache uses the provided TypeName to look up a cached GroupConfiguration, if present.
+func (omc *ObjectModelConfiguration) findGroupFromCache(
+	ref astmodel.InternalPackageReference,
+) (*GroupConfiguration, bool) {
+	group := ref.Group()
+
+	omc.groupCacheLock.RLock()
+	defer omc.groupCacheLock.RUnlock()
+
+	gc, ok := omc.groupCache[group]
+	return gc, ok
 }
 
 // UnmarshalYAML populates our instance from the YAML.
 // The slice node.Content contains pairs of nodes, first one for an ID, then one for the value.
 func (omc *ObjectModelConfiguration) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind != yaml.MappingNode {
-		return errors.New("expected mapping")
+		return eris.New("expected mapping")
 	}
 
-	var lastId string
+	var lastID string
 	for i, c := range value.Content {
 		// Grab identifiers and loop to handle the associated value
 		if i%2 == 0 {
-			lastId = c.Value
+			lastID = c.Value
 			continue
 		}
 
 		// Handle nested name metadata
-		if c.Kind == yaml.MappingNode && lastId != "" {
-			g := NewGroupConfiguration(lastId)
+		if c.Kind == yaml.MappingNode && lastID != "" {
+			g := NewGroupConfiguration(lastID)
 			err := c.Decode(&g)
 			if err != nil {
-				return errors.Wrapf(err, "decoding yaml for %q", lastId)
+				return eris.Wrapf(err, "decoding yaml for %q", lastID)
 			}
 
-			omc.addGroup(lastId, g)
+			err = omc.addGroup(lastID, g)
+			if err != nil {
+				return eris.Wrapf(err, "adding group %q", lastID)
+			}
+
 			continue
 		}
 
 		// No handler for this value, return an error
-		return errors.Errorf(
-			"object model configuration, unexpected yaml value %s: %s (line %d col %d)", lastId, c.Value, c.Line, c.Column)
+		return eris.Errorf(
+			"object model configuration, unexpected yaml value %s: %s (line %d col %d)", lastID, c.Value, c.Line, c.Column,
+		)
+
 	}
 
 	return nil
-}
-
-// configuredGroups returns a sorted slice containing all the groups configured in this group
-func (omc *ObjectModelConfiguration) configuredGroups() []string {
-	result := make([]string, 0, len(omc.groups))
-	for _, g := range omc.groups {
-		// Use the actual names of the groups, not the lower-cased keys of the map
-		result = append(result, g.name)
-	}
-
-	return result
 }
 
 // ModifyGroup allows the configuration of a specific group to be modified.
@@ -331,7 +420,10 @@ func (omc *ObjectModelConfiguration) ModifyGroup(
 	grp := omc.findGroup(ref)
 	if grp == nil {
 		grp = NewGroupConfiguration(groupName)
-		omc.addGroup(groupName, grp)
+		err := omc.addGroup(groupName, grp)
+		if err != nil {
+			return eris.Wrapf(err, "adding group %q", groupName)
+		}
 	}
 
 	return action(grp)
@@ -351,11 +443,15 @@ func (omc *ObjectModelConfiguration) ModifyVersion(
 			ver := configuration.findVersion(ref)
 			if ver == nil {
 				ver = NewVersionConfiguration(version)
-				configuration.addVersion(version, ver)
+				err := configuration.addVersion(version, ver)
+				if err != nil {
+					return eris.Wrapf(err, "adding version %q", version)
+				}
 			}
 
 			return action(ver)
-		})
+		},
+	)
 }
 
 // ModifyType allows the configuration of a specific type to be modified.
@@ -372,11 +468,15 @@ func (omc *ObjectModelConfiguration) ModifyType(
 			typ := versionConfiguration.findType(typeName)
 			if typ == nil {
 				typ = NewTypeConfiguration(typeName)
-				versionConfiguration.addType(typeName, typ)
+				err := versionConfiguration.addType(typeName, typ)
+				if err != nil {
+					return eris.Wrapf(err, "adding type %q", typeName)
+				}
 			}
 
 			return action(typ)
-		})
+		},
+	)
 }
 
 // ModifyProperty allows the configuration of a specific property to be modified.
@@ -394,9 +494,13 @@ func (omc *ObjectModelConfiguration) ModifyProperty(
 			if prop == nil {
 				name := property.String()
 				prop = NewPropertyConfiguration(name)
-				typeConfiguration.addProperty(name, prop)
+				err := typeConfiguration.addProperty(name, prop)
+				if err != nil {
+					return eris.Wrapf(err, "adding property %q", name)
+				}
 			}
 
 			return action(prop)
-		})
+		},
+	)
 }

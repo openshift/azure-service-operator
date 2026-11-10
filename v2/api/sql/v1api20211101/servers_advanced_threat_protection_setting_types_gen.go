@@ -5,32 +5,34 @@ package v1api20211101
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/sql/v1api20211101/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/sql/v1api20211101/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,sql}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /sql/resource-manager/Microsoft.Sql/stable/2021-11-01/ServerAdvancedThreatProtectionSettings.json
+// - Generated from: /sql/resource-manager/Microsoft.Sql/SQL/stable/2021-11-01/ServerAdvancedThreatProtectionSettings.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/advancedThreatProtectionSettings/Default
 type ServersAdvancedThreatProtectionSetting struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Servers_AdvancedThreatProtectionSetting_Spec   `json:"spec,omitempty"`
-	Status            Servers_AdvancedThreatProtectionSetting_STATUS `json:"status,omitempty"`
+	Spec              ServersAdvancedThreatProtectionSetting_Spec   `json:"spec,omitempty"`
+	Status            ServersAdvancedThreatProtectionSetting_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &ServersAdvancedThreatProtectionSetting{}
@@ -49,49 +51,56 @@ var _ conversion.Convertible = &ServersAdvancedThreatProtectionSetting{}
 
 // ConvertFrom populates our ServersAdvancedThreatProtectionSetting from the provided hub ServersAdvancedThreatProtectionSetting
 func (setting *ServersAdvancedThreatProtectionSetting) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.ServersAdvancedThreatProtectionSetting)
-	if !ok {
-		return fmt.Errorf("expected sql/v1api20211101/storage/ServersAdvancedThreatProtectionSetting but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.ServersAdvancedThreatProtectionSetting
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return setting.AssignProperties_From_ServersAdvancedThreatProtectionSetting(source)
+	err = setting.AssignProperties_From_ServersAdvancedThreatProtectionSetting(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to setting")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub ServersAdvancedThreatProtectionSetting from our ServersAdvancedThreatProtectionSetting
 func (setting *ServersAdvancedThreatProtectionSetting) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.ServersAdvancedThreatProtectionSetting)
-	if !ok {
-		return fmt.Errorf("expected sql/v1api20211101/storage/ServersAdvancedThreatProtectionSetting but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.ServersAdvancedThreatProtectionSetting
+	err := setting.AssignProperties_To_ServersAdvancedThreatProtectionSetting(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from setting")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return setting.AssignProperties_To_ServersAdvancedThreatProtectionSetting(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversadvancedthreatprotectionsetting,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversadvancedthreatprotectionsettings,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversadvancedthreatprotectionsettings.sql.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &ServersAdvancedThreatProtectionSetting{}
 
-var _ admission.Defaulter = &ServersAdvancedThreatProtectionSetting{}
-
-// Default applies defaults to the ServersAdvancedThreatProtectionSetting resource
-func (setting *ServersAdvancedThreatProtectionSetting) Default() {
-	setting.defaultImpl()
-	var temp any = setting
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (setting *ServersAdvancedThreatProtectionSetting) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if setting.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return setting.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultImpl applies the code generated defaults to the ServersAdvancedThreatProtectionSetting resource
-func (setting *ServersAdvancedThreatProtectionSetting) defaultImpl() {}
+var _ secrets.Exporter = &ServersAdvancedThreatProtectionSetting{}
 
-var _ genruntime.ImportableResource = &ServersAdvancedThreatProtectionSetting{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (setting *ServersAdvancedThreatProtectionSetting) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*Servers_AdvancedThreatProtectionSetting_STATUS); ok {
-		return setting.Spec.Initialize_From_Servers_AdvancedThreatProtectionSetting_STATUS(s)
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (setting *ServersAdvancedThreatProtectionSetting) SecretDestinationExpressions() []*core.DestinationExpression {
+	if setting.Spec.OperatorSpec == nil {
+		return nil
 	}
-
-	return fmt.Errorf("expected Status of type Servers_AdvancedThreatProtectionSetting_STATUS but received %T instead", status)
+	return setting.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &ServersAdvancedThreatProtectionSetting{}
@@ -103,7 +112,7 @@ func (setting *ServersAdvancedThreatProtectionSetting) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2021-11-01"
 func (setting ServersAdvancedThreatProtectionSetting) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2021-11-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -136,11 +145,15 @@ func (setting *ServersAdvancedThreatProtectionSetting) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (setting *ServersAdvancedThreatProtectionSetting) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Servers_AdvancedThreatProtectionSetting_STATUS{}
+	return &ServersAdvancedThreatProtectionSetting_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (setting *ServersAdvancedThreatProtectionSetting) Owner() *genruntime.ResourceReference {
+	if setting.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(setting.Spec)
 	return setting.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -148,101 +161,20 @@ func (setting *ServersAdvancedThreatProtectionSetting) Owner() *genruntime.Resou
 // SetStatus sets the status of this resource
 func (setting *ServersAdvancedThreatProtectionSetting) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Servers_AdvancedThreatProtectionSetting_STATUS); ok {
+	if st, ok := status.(*ServersAdvancedThreatProtectionSetting_STATUS); ok {
 		setting.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Servers_AdvancedThreatProtectionSetting_STATUS
+	var st ServersAdvancedThreatProtectionSetting_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	setting.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversadvancedthreatprotectionsetting,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversadvancedthreatprotectionsettings,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversadvancedthreatprotectionsettings.sql.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &ServersAdvancedThreatProtectionSetting{}
-
-// ValidateCreate validates the creation of the resource
-func (setting *ServersAdvancedThreatProtectionSetting) ValidateCreate() (admission.Warnings, error) {
-	validations := setting.createValidations()
-	var temp any = setting
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (setting *ServersAdvancedThreatProtectionSetting) ValidateDelete() (admission.Warnings, error) {
-	validations := setting.deleteValidations()
-	var temp any = setting
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (setting *ServersAdvancedThreatProtectionSetting) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := setting.updateValidations()
-	var temp any = setting
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (setting *ServersAdvancedThreatProtectionSetting) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){setting.validateResourceReferences, setting.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (setting *ServersAdvancedThreatProtectionSetting) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (setting *ServersAdvancedThreatProtectionSetting) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return setting.validateResourceReferences()
-		},
-		setting.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return setting.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (setting *ServersAdvancedThreatProtectionSetting) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(setting)
-}
-
-// validateResourceReferences validates all resource references
-func (setting *ServersAdvancedThreatProtectionSetting) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&setting.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (setting *ServersAdvancedThreatProtectionSetting) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*ServersAdvancedThreatProtectionSetting)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, setting)
 }
 
 // AssignProperties_From_ServersAdvancedThreatProtectionSetting populates our ServersAdvancedThreatProtectionSetting from the provided source ServersAdvancedThreatProtectionSetting
@@ -252,18 +184,18 @@ func (setting *ServersAdvancedThreatProtectionSetting) AssignProperties_From_Ser
 	setting.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec Servers_AdvancedThreatProtectionSetting_Spec
-	err := spec.AssignProperties_From_Servers_AdvancedThreatProtectionSetting_Spec(&source.Spec)
+	var spec ServersAdvancedThreatProtectionSetting_Spec
+	err := spec.AssignProperties_From_ServersAdvancedThreatProtectionSetting_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Servers_AdvancedThreatProtectionSetting_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_ServersAdvancedThreatProtectionSetting_Spec() to populate field Spec")
 	}
 	setting.Spec = spec
 
 	// Status
-	var status Servers_AdvancedThreatProtectionSetting_STATUS
-	err = status.AssignProperties_From_Servers_AdvancedThreatProtectionSetting_STATUS(&source.Status)
+	var status ServersAdvancedThreatProtectionSetting_STATUS
+	err = status.AssignProperties_From_ServersAdvancedThreatProtectionSetting_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Servers_AdvancedThreatProtectionSetting_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_ServersAdvancedThreatProtectionSetting_STATUS() to populate field Status")
 	}
 	setting.Status = status
 
@@ -278,18 +210,18 @@ func (setting *ServersAdvancedThreatProtectionSetting) AssignProperties_To_Serve
 	destination.ObjectMeta = *setting.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.Servers_AdvancedThreatProtectionSetting_Spec
-	err := setting.Spec.AssignProperties_To_Servers_AdvancedThreatProtectionSetting_Spec(&spec)
+	var spec storage.ServersAdvancedThreatProtectionSetting_Spec
+	err := setting.Spec.AssignProperties_To_ServersAdvancedThreatProtectionSetting_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Servers_AdvancedThreatProtectionSetting_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_ServersAdvancedThreatProtectionSetting_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.Servers_AdvancedThreatProtectionSetting_STATUS
-	err = setting.Status.AssignProperties_To_Servers_AdvancedThreatProtectionSetting_STATUS(&status)
+	var status storage.ServersAdvancedThreatProtectionSetting_STATUS
+	err = setting.Status.AssignProperties_To_ServersAdvancedThreatProtectionSetting_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Servers_AdvancedThreatProtectionSetting_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_ServersAdvancedThreatProtectionSetting_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -308,7 +240,7 @@ func (setting *ServersAdvancedThreatProtectionSetting) OriginalGVK() *schema.Gro
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /sql/resource-manager/Microsoft.Sql/stable/2021-11-01/ServerAdvancedThreatProtectionSettings.json
+// - Generated from: /sql/resource-manager/Microsoft.Sql/SQL/stable/2021-11-01/ServerAdvancedThreatProtectionSettings.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/advancedThreatProtectionSettings/Default
 type ServersAdvancedThreatProtectionSettingList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -316,7 +248,11 @@ type ServersAdvancedThreatProtectionSettingList struct {
 	Items           []ServersAdvancedThreatProtectionSetting `json:"items"`
 }
 
-type Servers_AdvancedThreatProtectionSetting_Spec struct {
+type ServersAdvancedThreatProtectionSetting_Spec struct {
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *ServersAdvancedThreatProtectionSettingOperatorSpec `json:"operatorSpec,omitempty"`
+
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
 	// controls the resources lifecycle. When the owner is deleted the resource will also be deleted. Owner is expected to be a
@@ -329,40 +265,44 @@ type Servers_AdvancedThreatProtectionSetting_Spec struct {
 	State *AdvancedThreatProtectionProperties_State `json:"state,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &Servers_AdvancedThreatProtectionSetting_Spec{}
+var _ genruntime.ARMTransformer = &ServersAdvancedThreatProtectionSetting_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (setting *ServersAdvancedThreatProtectionSetting_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if setting == nil {
 		return nil, nil
 	}
-	result := &Servers_AdvancedThreatProtectionSetting_Spec_ARM{}
+	result := &arm.ServersAdvancedThreatProtectionSetting_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
 
 	// Set property "Properties":
 	if setting.State != nil {
-		result.Properties = &AdvancedThreatProtectionProperties_ARM{}
+		result.Properties = &arm.AdvancedThreatProtectionProperties{}
 	}
 	if setting.State != nil {
-		state := *setting.State
+		var temp string
+		temp = string(*setting.State)
+		state := arm.AdvancedThreatProtectionProperties_State(temp)
 		result.Properties.State = &state
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Servers_AdvancedThreatProtectionSetting_Spec_ARM{}
+func (setting *ServersAdvancedThreatProtectionSetting_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.ServersAdvancedThreatProtectionSetting_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Servers_AdvancedThreatProtectionSetting_Spec_ARM)
+func (setting *ServersAdvancedThreatProtectionSetting_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.ServersAdvancedThreatProtectionSetting_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Servers_AdvancedThreatProtectionSetting_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ServersAdvancedThreatProtectionSetting_Spec, got %T", armInput)
 	}
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "Owner":
 	setting.Owner = &genruntime.KnownResourceReference{
@@ -374,7 +314,9 @@ func (setting *Servers_AdvancedThreatProtectionSetting_Spec) PopulateFromARM(own
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.State != nil {
-			state := *typedInput.Properties.State
+			var temp string
+			temp = string(*typedInput.Properties.State)
+			state := AdvancedThreatProtectionProperties_State(temp)
 			setting.State = &state
 		}
 	}
@@ -383,58 +325,70 @@ func (setting *Servers_AdvancedThreatProtectionSetting_Spec) PopulateFromARM(own
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &Servers_AdvancedThreatProtectionSetting_Spec{}
+var _ genruntime.ConvertibleSpec = &ServersAdvancedThreatProtectionSetting_Spec{}
 
-// ConvertSpecFrom populates our Servers_AdvancedThreatProtectionSetting_Spec from the provided source
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.Servers_AdvancedThreatProtectionSetting_Spec)
+// ConvertSpecFrom populates our ServersAdvancedThreatProtectionSetting_Spec from the provided source
+func (setting *ServersAdvancedThreatProtectionSetting_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.ServersAdvancedThreatProtectionSetting_Spec)
 	if ok {
 		// Populate our instance from source
-		return setting.AssignProperties_From_Servers_AdvancedThreatProtectionSetting_Spec(src)
+		return setting.AssignProperties_From_ServersAdvancedThreatProtectionSetting_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Servers_AdvancedThreatProtectionSetting_Spec{}
+	src = &storage.ServersAdvancedThreatProtectionSetting_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = setting.AssignProperties_From_Servers_AdvancedThreatProtectionSetting_Spec(src)
+	err = setting.AssignProperties_From_ServersAdvancedThreatProtectionSetting_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our Servers_AdvancedThreatProtectionSetting_Spec
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.Servers_AdvancedThreatProtectionSetting_Spec)
+// ConvertSpecTo populates the provided destination from our ServersAdvancedThreatProtectionSetting_Spec
+func (setting *ServersAdvancedThreatProtectionSetting_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.ServersAdvancedThreatProtectionSetting_Spec)
 	if ok {
 		// Populate destination from our instance
-		return setting.AssignProperties_To_Servers_AdvancedThreatProtectionSetting_Spec(dst)
+		return setting.AssignProperties_To_ServersAdvancedThreatProtectionSetting_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Servers_AdvancedThreatProtectionSetting_Spec{}
-	err := setting.AssignProperties_To_Servers_AdvancedThreatProtectionSetting_Spec(dst)
+	dst = &storage.ServersAdvancedThreatProtectionSetting_Spec{}
+	err := setting.AssignProperties_To_ServersAdvancedThreatProtectionSetting_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_Servers_AdvancedThreatProtectionSetting_Spec populates our Servers_AdvancedThreatProtectionSetting_Spec from the provided source Servers_AdvancedThreatProtectionSetting_Spec
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) AssignProperties_From_Servers_AdvancedThreatProtectionSetting_Spec(source *storage.Servers_AdvancedThreatProtectionSetting_Spec) error {
+// AssignProperties_From_ServersAdvancedThreatProtectionSetting_Spec populates our ServersAdvancedThreatProtectionSetting_Spec from the provided source ServersAdvancedThreatProtectionSetting_Spec
+func (setting *ServersAdvancedThreatProtectionSetting_Spec) AssignProperties_From_ServersAdvancedThreatProtectionSetting_Spec(source *storage.ServersAdvancedThreatProtectionSetting_Spec) error {
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec ServersAdvancedThreatProtectionSettingOperatorSpec
+		err := operatorSpec.AssignProperties_From_ServersAdvancedThreatProtectionSettingOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ServersAdvancedThreatProtectionSettingOperatorSpec() to populate field OperatorSpec")
+		}
+		setting.OperatorSpec = &operatorSpec
+	} else {
+		setting.OperatorSpec = nil
+	}
 
 	// Owner
 	if source.Owner != nil {
@@ -457,10 +411,22 @@ func (setting *Servers_AdvancedThreatProtectionSetting_Spec) AssignProperties_Fr
 	return nil
 }
 
-// AssignProperties_To_Servers_AdvancedThreatProtectionSetting_Spec populates the provided destination Servers_AdvancedThreatProtectionSetting_Spec from our Servers_AdvancedThreatProtectionSetting_Spec
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) AssignProperties_To_Servers_AdvancedThreatProtectionSetting_Spec(destination *storage.Servers_AdvancedThreatProtectionSetting_Spec) error {
+// AssignProperties_To_ServersAdvancedThreatProtectionSetting_Spec populates the provided destination ServersAdvancedThreatProtectionSetting_Spec from our ServersAdvancedThreatProtectionSetting_Spec
+func (setting *ServersAdvancedThreatProtectionSetting_Spec) AssignProperties_To_ServersAdvancedThreatProtectionSetting_Spec(destination *storage.ServersAdvancedThreatProtectionSetting_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
+
+	// OperatorSpec
+	if setting.OperatorSpec != nil {
+		var operatorSpec storage.ServersAdvancedThreatProtectionSettingOperatorSpec
+		err := setting.OperatorSpec.AssignProperties_To_ServersAdvancedThreatProtectionSettingOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ServersAdvancedThreatProtectionSettingOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
 
 	// OriginalVersion
 	destination.OriginalVersion = setting.OriginalVersion()
@@ -492,27 +458,12 @@ func (setting *Servers_AdvancedThreatProtectionSetting_Spec) AssignProperties_To
 	return nil
 }
 
-// Initialize_From_Servers_AdvancedThreatProtectionSetting_STATUS populates our Servers_AdvancedThreatProtectionSetting_Spec from the provided source Servers_AdvancedThreatProtectionSetting_STATUS
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) Initialize_From_Servers_AdvancedThreatProtectionSetting_STATUS(source *Servers_AdvancedThreatProtectionSetting_STATUS) error {
-
-	// State
-	if source.State != nil {
-		state := genruntime.ToEnum(string(*source.State), advancedThreatProtectionProperties_State_Values)
-		setting.State = &state
-	} else {
-		setting.State = nil
-	}
-
-	// No error
-	return nil
-}
-
 // OriginalVersion returns the original API version used to create the resource.
-func (setting *Servers_AdvancedThreatProtectionSetting_Spec) OriginalVersion() string {
+func (setting *ServersAdvancedThreatProtectionSetting_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
-type Servers_AdvancedThreatProtectionSetting_STATUS struct {
+type ServersAdvancedThreatProtectionSetting_STATUS struct {
 	// Conditions: The observed state of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty"`
 
@@ -536,68 +487,68 @@ type Servers_AdvancedThreatProtectionSetting_STATUS struct {
 	Type *string `json:"type,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Servers_AdvancedThreatProtectionSetting_STATUS{}
+var _ genruntime.ConvertibleStatus = &ServersAdvancedThreatProtectionSetting_STATUS{}
 
-// ConvertStatusFrom populates our Servers_AdvancedThreatProtectionSetting_STATUS from the provided source
-func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.Servers_AdvancedThreatProtectionSetting_STATUS)
+// ConvertStatusFrom populates our ServersAdvancedThreatProtectionSetting_STATUS from the provided source
+func (setting *ServersAdvancedThreatProtectionSetting_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.ServersAdvancedThreatProtectionSetting_STATUS)
 	if ok {
 		// Populate our instance from source
-		return setting.AssignProperties_From_Servers_AdvancedThreatProtectionSetting_STATUS(src)
+		return setting.AssignProperties_From_ServersAdvancedThreatProtectionSetting_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Servers_AdvancedThreatProtectionSetting_STATUS{}
+	src = &storage.ServersAdvancedThreatProtectionSetting_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = setting.AssignProperties_From_Servers_AdvancedThreatProtectionSetting_STATUS(src)
+	err = setting.AssignProperties_From_ServersAdvancedThreatProtectionSetting_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Servers_AdvancedThreatProtectionSetting_STATUS
-func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.Servers_AdvancedThreatProtectionSetting_STATUS)
+// ConvertStatusTo populates the provided destination from our ServersAdvancedThreatProtectionSetting_STATUS
+func (setting *ServersAdvancedThreatProtectionSetting_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.ServersAdvancedThreatProtectionSetting_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return setting.AssignProperties_To_Servers_AdvancedThreatProtectionSetting_STATUS(dst)
+		return setting.AssignProperties_To_ServersAdvancedThreatProtectionSetting_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Servers_AdvancedThreatProtectionSetting_STATUS{}
-	err := setting.AssignProperties_To_Servers_AdvancedThreatProtectionSetting_STATUS(dst)
+	dst = &storage.ServersAdvancedThreatProtectionSetting_STATUS{}
+	err := setting.AssignProperties_To_ServersAdvancedThreatProtectionSetting_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &Servers_AdvancedThreatProtectionSetting_STATUS{}
+var _ genruntime.FromARMConverter = &ServersAdvancedThreatProtectionSetting_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Servers_AdvancedThreatProtectionSetting_STATUS_ARM{}
+func (setting *ServersAdvancedThreatProtectionSetting_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.ServersAdvancedThreatProtectionSetting_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Servers_AdvancedThreatProtectionSetting_STATUS_ARM)
+func (setting *ServersAdvancedThreatProtectionSetting_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.ServersAdvancedThreatProtectionSetting_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Servers_AdvancedThreatProtectionSetting_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.ServersAdvancedThreatProtectionSetting_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -627,7 +578,9 @@ func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) PopulateFromARM(o
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.State != nil {
-			state := *typedInput.Properties.State
+			var temp string
+			temp = string(*typedInput.Properties.State)
+			state := AdvancedThreatProtectionProperties_State_STATUS(temp)
 			setting.State = &state
 		}
 	}
@@ -653,8 +606,8 @@ func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) PopulateFromARM(o
 	return nil
 }
 
-// AssignProperties_From_Servers_AdvancedThreatProtectionSetting_STATUS populates our Servers_AdvancedThreatProtectionSetting_STATUS from the provided source Servers_AdvancedThreatProtectionSetting_STATUS
-func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) AssignProperties_From_Servers_AdvancedThreatProtectionSetting_STATUS(source *storage.Servers_AdvancedThreatProtectionSetting_STATUS) error {
+// AssignProperties_From_ServersAdvancedThreatProtectionSetting_STATUS populates our ServersAdvancedThreatProtectionSetting_STATUS from the provided source ServersAdvancedThreatProtectionSetting_STATUS
+func (setting *ServersAdvancedThreatProtectionSetting_STATUS) AssignProperties_From_ServersAdvancedThreatProtectionSetting_STATUS(source *storage.ServersAdvancedThreatProtectionSetting_STATUS) error {
 
 	// Conditions
 	setting.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
@@ -682,7 +635,7 @@ func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) AssignProperties_
 		var systemDatum SystemData_STATUS
 		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
 		}
 		setting.SystemData = &systemDatum
 	} else {
@@ -696,8 +649,8 @@ func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) AssignProperties_
 	return nil
 }
 
-// AssignProperties_To_Servers_AdvancedThreatProtectionSetting_STATUS populates the provided destination Servers_AdvancedThreatProtectionSetting_STATUS from our Servers_AdvancedThreatProtectionSetting_STATUS
-func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) AssignProperties_To_Servers_AdvancedThreatProtectionSetting_STATUS(destination *storage.Servers_AdvancedThreatProtectionSetting_STATUS) error {
+// AssignProperties_To_ServersAdvancedThreatProtectionSetting_STATUS populates the provided destination ServersAdvancedThreatProtectionSetting_STATUS from our ServersAdvancedThreatProtectionSetting_STATUS
+func (setting *ServersAdvancedThreatProtectionSetting_STATUS) AssignProperties_To_ServersAdvancedThreatProtectionSetting_STATUS(destination *storage.ServersAdvancedThreatProtectionSetting_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -726,7 +679,7 @@ func (setting *Servers_AdvancedThreatProtectionSetting_STATUS) AssignProperties_
 		var systemDatum storage.SystemData_STATUS
 		err := setting.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
 		}
 		destination.SystemData = &systemDatum
 	} else {
@@ -778,6 +731,102 @@ var advancedThreatProtectionProperties_State_STATUS_Values = map[string]Advanced
 	"new":      AdvancedThreatProtectionProperties_State_STATUS_New,
 }
 
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type ServersAdvancedThreatProtectionSettingOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_ServersAdvancedThreatProtectionSettingOperatorSpec populates our ServersAdvancedThreatProtectionSettingOperatorSpec from the provided source ServersAdvancedThreatProtectionSettingOperatorSpec
+func (operator *ServersAdvancedThreatProtectionSettingOperatorSpec) AssignProperties_From_ServersAdvancedThreatProtectionSettingOperatorSpec(source *storage.ServersAdvancedThreatProtectionSettingOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_ServersAdvancedThreatProtectionSettingOperatorSpec populates the provided destination ServersAdvancedThreatProtectionSettingOperatorSpec from our ServersAdvancedThreatProtectionSettingOperatorSpec
+func (operator *ServersAdvancedThreatProtectionSettingOperatorSpec) AssignProperties_To_ServersAdvancedThreatProtectionSettingOperatorSpec(destination *storage.ServersAdvancedThreatProtectionSettingOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
 // Metadata pertaining to creation and last modification of the resource.
 type SystemData_STATUS struct {
 	// CreatedAt: The timestamp of resource creation (UTC).
@@ -803,14 +852,14 @@ var _ genruntime.FromARMConverter = &SystemData_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
 func (data *SystemData_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &SystemData_STATUS_ARM{}
+	return &arm.SystemData_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
 func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(SystemData_STATUS_ARM)
+	typedInput, ok := armInput.(arm.SystemData_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected SystemData_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.SystemData_STATUS, got %T", armInput)
 	}
 
 	// Set property "CreatedAt":
@@ -827,7 +876,9 @@ func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "CreatedByType":
 	if typedInput.CreatedByType != nil {
-		createdByType := *typedInput.CreatedByType
+		var temp string
+		temp = string(*typedInput.CreatedByType)
+		createdByType := SystemData_CreatedByType_STATUS(temp)
 		data.CreatedByType = &createdByType
 	}
 
@@ -845,7 +896,9 @@ func (data *SystemData_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerRe
 
 	// Set property "LastModifiedByType":
 	if typedInput.LastModifiedByType != nil {
-		lastModifiedByType := *typedInput.LastModifiedByType
+		var temp string
+		temp = string(*typedInput.LastModifiedByType)
+		lastModifiedByType := SystemData_LastModifiedByType_STATUS(temp)
 		data.LastModifiedByType = &lastModifiedByType
 	}
 
@@ -932,6 +985,40 @@ func (data *SystemData_STATUS) AssignProperties_To_SystemData_STATUS(destination
 
 	// No error
 	return nil
+}
+
+type SystemData_CreatedByType_STATUS string
+
+const (
+	SystemData_CreatedByType_STATUS_Application     = SystemData_CreatedByType_STATUS("Application")
+	SystemData_CreatedByType_STATUS_Key             = SystemData_CreatedByType_STATUS("Key")
+	SystemData_CreatedByType_STATUS_ManagedIdentity = SystemData_CreatedByType_STATUS("ManagedIdentity")
+	SystemData_CreatedByType_STATUS_User            = SystemData_CreatedByType_STATUS("User")
+)
+
+// Mapping from string to SystemData_CreatedByType_STATUS
+var systemData_CreatedByType_STATUS_Values = map[string]SystemData_CreatedByType_STATUS{
+	"application":     SystemData_CreatedByType_STATUS_Application,
+	"key":             SystemData_CreatedByType_STATUS_Key,
+	"managedidentity": SystemData_CreatedByType_STATUS_ManagedIdentity,
+	"user":            SystemData_CreatedByType_STATUS_User,
+}
+
+type SystemData_LastModifiedByType_STATUS string
+
+const (
+	SystemData_LastModifiedByType_STATUS_Application     = SystemData_LastModifiedByType_STATUS("Application")
+	SystemData_LastModifiedByType_STATUS_Key             = SystemData_LastModifiedByType_STATUS("Key")
+	SystemData_LastModifiedByType_STATUS_ManagedIdentity = SystemData_LastModifiedByType_STATUS("ManagedIdentity")
+	SystemData_LastModifiedByType_STATUS_User            = SystemData_LastModifiedByType_STATUS("User")
+)
+
+// Mapping from string to SystemData_LastModifiedByType_STATUS
+var systemData_LastModifiedByType_STATUS_Values = map[string]SystemData_LastModifiedByType_STATUS{
+	"application":     SystemData_LastModifiedByType_STATUS_Application,
+	"key":             SystemData_LastModifiedByType_STATUS_Key,
+	"managedidentity": SystemData_LastModifiedByType_STATUS_ManagedIdentity,
+	"user":            SystemData_LastModifiedByType_STATUS_User,
 }
 
 func init() {

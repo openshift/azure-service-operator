@@ -9,11 +9,10 @@ import (
 	"go/token"
 	"sort"
 
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/maps"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 )
@@ -76,6 +75,11 @@ func (i InterfaceImplementer) AsDeclarations(
 	}
 
 	sort.Slice(interfaces, func(i int, j int) bool {
+		// If the names are the same, differentiate based on pkgname
+		if interfaces[i].Name().Name() == interfaces[j].Name().Name() {
+			return interfaces[i].Name().PackageReference().PackageName() < interfaces[j].Name().PackageReference().PackageName()
+		}
+
 		return interfaces[i].Name().Name() < interfaces[j].Name().Name()
 	})
 
@@ -100,7 +104,7 @@ func (i InterfaceImplementer) AsDeclarations(
 		}
 
 		if len(errs) > 0 {
-			return nil, errors.Wrapf(
+			return nil, eris.Wrapf(
 				kerrors.NewAggregate(errs),
 				"generating declarations for interface %s",
 				iface.name.Name(),
@@ -167,7 +171,8 @@ func (i InterfaceImplementer) generateInterfaceImplAssertion(
 			&dst.ValueSpec{
 				Type: astbuilder.Selector(
 					dst.NewIdent(ifacePackageName),
-					iface.name.Name()),
+					iface.name.Name(),
+				),
 				Names: []*dst.Ident{
 					dst.NewIdent("_"),
 				},
@@ -175,7 +180,9 @@ func (i InterfaceImplementer) generateInterfaceImplAssertion(
 					astbuilder.AddrOf(
 						&dst.CompositeLit{
 							Type: dst.NewIdent(typeName.Name()),
-						})),
+						},
+					),
+				),
 			},
 		},
 	}

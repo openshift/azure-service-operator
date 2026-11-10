@@ -9,17 +9,23 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/pkg/errors"
+	"github.com/Azure/msi-dataplane/pkg/dataplane"
+	"github.com/rotisserie/eris"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/validation"
 
+	internalconfig "github.com/Azure/azure-service-operator/v2/internal/config"
 	"github.com/Azure/azure-service-operator/v2/internal/util/kubeclient"
 	"github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
+	asocloud "github.com/Azure/azure-service-operator/v2/pkg/common/cloud"
 	"github.com/Azure/azure-service-operator/v2/pkg/common/config"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
@@ -31,14 +37,33 @@ const (
 	// #nosec
 	NamespacedSecretName = "aso-credential"
 	// #nosec
-	FederatedTokenFilePath = "/var/run/secrets/tokens/azure-identity"
+	FederatedTokenFilePath                = "/var/run/secrets/tokens/azure-identity"
+	DefaultWorkloadIdentityServiceAccount = "aso-workload"
+	workloadIdentityAudience              = "api://AzureADTokenExchange"
+	workloadIdentityTokenLifetime         = time.Hour
 )
+
+// ResolveFederatedTokenFilePath returns the path to the projected federated token file used
+// for Workload Identity authentication. It honours override when non-empty (whitespace-trimmed),
+// falling back to the default FederatedTokenFilePath otherwise. override is expected to come from
+// config.Values.FederatedTokenFilePath (read once, from AZURE_FEDERATED_TOKEN_FILE, alongside the
+// rest of the operator's configuration).
+func ResolveFederatedTokenFilePath(override string) string {
+	if path := strings.TrimSpace(override); path != "" {
+		return path
+	}
+	return FederatedTokenFilePath
+}
 
 // Credential describes a credential used to connect to Azure
 type Credential struct {
-	tokenCredential azcore.TokenCredential
-	credentialFrom  types.NamespacedName
-	subscriptionID  string
+	tokenCredential   azcore.TokenCredential
+	credentialFrom    types.NamespacedName
+	subscriptionID    string
+	additionalTenants []string
+	// cloudConfig contains the cloud configuration for this credential.
+	// If nil, the global cloud configuration should be used.
+	cloudConfig *cloud.Configuration
 
 	// secretData contains the secret
 	secretData map[string][]byte
@@ -60,11 +85,27 @@ func (c *Credential) TokenCredential() azcore.TokenCredential {
 	return c.tokenCredential
 }
 
-func NewDefaultCredential(tokenCred azcore.TokenCredential, namespace string, subscriptionID string) *Credential {
+func (c *Credential) AdditionalTenants() []string {
+	return c.additionalTenants
+}
+
+func (c *Credential) CloudConfig() *cloud.Configuration {
+	return c.cloudConfig
+}
+
+// NewDefaultCredential creates a Credential representing the default/global credential
+// from aso-controller-settings.
+func NewDefaultCredential(
+	tokenCred azcore.TokenCredential,
+	namespace string,
+	subscriptionID string,
+	additionalTenants []string,
+) *Credential {
 	return &Credential{
-		tokenCredential: tokenCred,
-		subscriptionID:  subscriptionID,
-		credentialFrom:  types.NamespacedName{Namespace: namespace, Name: globalCredentialSecretName},
+		tokenCredential:   tokenCred,
+		subscriptionID:    subscriptionID,
+		credentialFrom:    types.NamespacedName{Namespace: namespace, Name: globalCredentialSecretName},
+		additionalTenants: additionalTenants,
 	}
 }
 
@@ -73,13 +114,26 @@ type CredentialProvider interface {
 }
 
 type CredentialProviderOptions struct {
-	TokenProvider TokenCredentialProvider
+	TokenProvider               TokenCredentialProvider
+	ServiceAccountTokenProvider ServiceAccountTokenProvider
+	WorkloadIdentityAuthMode    internalconfig.WorkloadIdentityAuthMode
+	Cloud                       *cloud.Configuration
+	AllowMultiEnvManagement     bool
+	// FederatedTokenFilePath overrides the default projected token file path used for per-credential
+	// Workload Identity authentication (see ResolveFederatedTokenFilePath). Typically sourced from
+	// config.Values.FederatedTokenFilePath.
+	FederatedTokenFilePath string
 }
 
 type credentialProvider struct {
-	globalCredential        *Credential
-	kubeClient              kubeclient.Client
-	tokenCredentialProvider TokenCredentialProvider
+	globalCredential            *Credential
+	kubeClient                  kubeclient.Client
+	tokenCredentialProvider     TokenCredentialProvider
+	serviceAccountTokenProvider ServiceAccountTokenProvider
+	workloadIdentityAuthMode    internalconfig.WorkloadIdentityAuthMode
+	cloud                       cloud.Configuration
+	allowMultiEnvManagement     bool
+	federatedTokenFilePath      string
 }
 
 func NewCredentialProvider(
@@ -95,10 +149,22 @@ func NewCredentialProvider(
 		opts.TokenProvider = DefaultTokenCredentialProvider()
 	}
 
+	var cloud cloud.Configuration
+	if opts.Cloud == nil {
+		cloud = asocloud.Configuration{}.Cloud()
+	} else {
+		cloud = *opts.Cloud
+	}
+
 	return &credentialProvider{
-		kubeClient:              kubeClient,
-		globalCredential:        globalCredential,
-		tokenCredentialProvider: opts.TokenProvider,
+		kubeClient:                  kubeClient,
+		globalCredential:            globalCredential,
+		tokenCredentialProvider:     opts.TokenProvider,
+		serviceAccountTokenProvider: opts.ServiceAccountTokenProvider,
+		workloadIdentityAuthMode:    opts.WorkloadIdentityAuthMode,
+		cloud:                       cloud,
+		allowMultiEnvManagement:     opts.AllowMultiEnvManagement,
+		federatedTokenFilePath:      ResolveFederatedTokenFilePath(opts.FederatedTokenFilePath),
 	}
 }
 
@@ -132,7 +198,7 @@ func (c *credentialProvider) GetCredential(ctx context.Context, obj genruntime.M
 
 	// Global credential
 	if c.globalCredential == nil {
-		return nil, errors.New("global credential not configured, you must use either namespaced or per-resource credentials")
+		return nil, eris.New("global credential not configured, you must use either namespaced or per-resource credentials")
 	}
 
 	// If not found, default is the global credential
@@ -147,7 +213,7 @@ func (c *credentialProvider) getCredentialFromNamespaceSecret(ctx context.Contex
 	cred, err := c.getCredentialFromSecret(ctx, secretNamespacedName)
 	if err != nil {
 		var secretNotFound *core.SecretNotFound
-		if errors.As(err, &secretNotFound) {
+		if eris.As(err, &secretNotFound) {
 			return nil, nil // Not finding this secret is allowed, allow caller to proceed to higher scope secret
 		}
 		return nil, err
@@ -168,7 +234,7 @@ func (c *credentialProvider) getCredentialFromAnnotation(ctx context.Context, ob
 
 	// Disallow credentials with `/` in their credentialFrom
 	if strings.Contains(credentialFrom, "/") {
-		err := errors.Errorf("%s cannot contain '/'. Secret must be in same namespace as resource.", annotation)
+		err := eris.Errorf("%s cannot contain '/'. Secret must be in same namespace as resource.", annotation)
 		namespacedName := types.NamespacedName{
 			Namespace: obj.GetNamespace(),
 			Name:      credentialFrom,
@@ -185,14 +251,15 @@ func (c *credentialProvider) getCredentialFromSecret(ctx context.Context, secret
 	secret, err := c.getSecret(ctx, secretNamespacedName.Namespace, secretNamespacedName.Name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, core.NewSecretNotFoundError(secretNamespacedName, errors.Wrapf(err, "credential secret not found"))
+			return nil, core.NewSecretNotFoundError(secretNamespacedName, eris.Wrapf(err, "credential secret not found"))
 		}
 		return nil, err
 	}
 
+	//nolint:contextcheck
 	cred, err := c.newCredentialFromSecret(secret)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get credential %q", secretNamespacedName)
+		return nil, eris.Wrapf(err, "failed to get credential %q", secretNamespacedName)
 	}
 	return cred, nil
 }
@@ -202,36 +269,59 @@ func (c *credentialProvider) newCredentialFromSecret(secret *v1.Secret) (*Creden
 
 	nsName := types.NamespacedName{Namespace: secret.GetNamespace(), Name: secret.GetName()}
 
-	subscriptionID, ok := secret.Data[config.AzureSubscriptionID]
+	subscriptionIDBytes, ok := secret.Data[config.AzureSubscriptionID]
 	if !ok {
 		err := core.NewSecretNotFoundError(
 			nsName,
-			errors.Errorf(
+			eris.Errorf(
 				"credential Secret %q does not contain key %q",
 				nsName,
-				config.AzureSubscriptionID))
+				config.AzureSubscriptionID,
+			),
+		)
 		errs = append(errs, err)
 	}
 
-	tenantID, ok := secret.Data[config.AzureTenantID]
+	tenantIDBytes, ok := secret.Data[config.AzureTenantID]
 	if !ok {
 		err := core.NewSecretNotFoundError(
 			nsName,
-			errors.Errorf(
+			eris.Errorf(
 				"credential Secret %q does not contain key %q",
 				nsName,
-				config.AzureTenantID))
+				config.AzureTenantID,
+			),
+		)
 		errs = append(errs, err)
 	}
 
-	clientID, ok := secret.Data[config.AzureClientID]
+	clientIDBytes, ok := secret.Data[config.AzureClientID]
 	if !ok {
 		err := core.NewSecretNotFoundError(
 			nsName,
-			errors.Errorf(
+			eris.Errorf(
 				"credential Secret %q does not contain key %q",
 				nsName,
-				config.AzureClientID))
+				config.AzureClientID,
+			),
+		)
+		errs = append(errs, err)
+	}
+
+	subscriptionID := string(subscriptionIDBytes)
+	tenantID := string(tenantIDBytes)
+	clientID := string(clientIDBytes)
+
+	// Read optional fields
+	var additionalTenants []string
+	additionalTenantsBytes, ok := secret.Data[config.AzureAdditionalTenants]
+	if ok {
+		additionalTenants = config.ParseCommaCollection(string(additionalTenantsBytes))
+	}
+
+	// Read cloud configuration fields if present
+	cloudConfigFromSecret, err := c.extractCloudConfig(secret)
+	if err != nil {
 		errs = append(errs, err)
 	}
 
@@ -240,17 +330,34 @@ func (c *credentialProvider) newCredentialFromSecret(secret *v1.Secret) (*Creden
 		return nil, kerrors.NewAggregate(errs)
 	}
 
+	cloudConfig := c.cloud
+	if cloudConfigFromSecret != nil {
+		cloudConfig = *cloudConfigFromSecret
+	}
+
 	if clientSecret, hasClientSecret := secret.Data[config.AzureClientSecret]; hasClientSecret {
-		tokenCredential, err := c.tokenCredentialProvider.NewClientSecretCredential(string(tenantID), string(clientID), string(clientSecret), nil)
+		tokenCredential, err := c.tokenCredentialProvider.NewClientSecretCredential(
+			tenantID,
+			clientID,
+			string(clientSecret),
+			&azidentity.ClientSecretCredentialOptions{
+				ClientOptions: azcore.ClientOptions{
+					Cloud: cloudConfig,
+				},
+				AdditionallyAllowedTenants: additionalTenants,
+			},
+		)
 		if err != nil {
-			return nil, errors.Wrap(err, errors.Errorf("invalid Client Secret Credential for %q encountered", nsName).Error())
+			return nil, eris.Wrap(err, eris.Errorf("invalid Client Secret Credential for %q encountered", nsName).Error())
 		}
 
 		return &Credential{
-			tokenCredential: tokenCredential,
-			subscriptionID:  string(subscriptionID),
-			credentialFrom:  nsName,
-			secretData:      secret.Data,
+			tokenCredential:   tokenCredential,
+			subscriptionID:    subscriptionID,
+			credentialFrom:    nsName,
+			additionalTenants: additionalTenants,
+			cloudConfig:       &cloudConfig,
+			secretData:        secret.Data,
 		}, nil
 	}
 
@@ -260,15 +367,50 @@ func (c *credentialProvider) newCredentialFromSecret(secret *v1.Secret) (*Creden
 			clientCertPassword = p
 		}
 
-		tokenCredential, err := c.tokenCredentialProvider.NewClientCertificateCredential(string(tenantID), string(clientID), clientCert, clientCertPassword)
+		tokenCredential, err := c.tokenCredentialProvider.NewClientCertificateCredential(
+			tenantID,
+			clientID,
+			clientCert,
+			clientCertPassword,
+			&azidentity.ClientCertificateCredentialOptions{
+				ClientOptions: azcore.ClientOptions{
+					Cloud: cloudConfig,
+				},
+				AdditionallyAllowedTenants: additionalTenants,
+			},
+		)
 		if err != nil {
-			return nil, errors.Wrap(err, errors.Errorf("invalid Client Certificate Credential for %q encountered", nsName).Error())
+			return nil, eris.Wrap(err, eris.Errorf("invalid Client Certificate Credential for %q encountered", nsName).Error())
+		}
+
+		return &Credential{
+			tokenCredential:   tokenCredential,
+			subscriptionID:    subscriptionID,
+			credentialFrom:    nsName,
+			additionalTenants: additionalTenants,
+			cloudConfig:       &cloudConfig,
+			secretData:        secret.Data,
+		}, nil
+	}
+
+	// This authentication type is similar to user assigned managed identity authentication combined with client certificate
+	// authentication. As a 1st party Microsoft application, one has access to pull a user assigned managed identity's backing
+	// certificate information from the MSI data plane. Using this data, a user can authenticate to Azure Cloud.
+	if userAssignedCredentialsPath, hasUserAssignedCredentials := secret.Data[config.AzureUserAssignedIdentityCredentials]; hasUserAssignedCredentials {
+		options := azcore.ClientOptions{
+			Cloud: cloudConfig,
+		}
+
+		tokenCredential, err := c.tokenCredentialProvider.NewUserAssignedIdentityCredentials(context.Background(), string(userAssignedCredentialsPath), dataplane.WithClientOpts(options))
+		if err != nil {
+			return nil, eris.Wrap(err, eris.Errorf("invalid User Assigned Identity Credential for %q encountered", nsName).Error())
 		}
 
 		return &Credential{
 			tokenCredential: tokenCredential,
 			subscriptionID:  string(subscriptionID),
 			credentialFrom:  nsName,
+			cloudConfig:     &cloudConfig,
 			secretData:      secret.Data,
 		}, nil
 	}
@@ -276,49 +418,119 @@ func (c *credentialProvider) newCredentialFromSecret(secret *v1.Secret) (*Creden
 	if value, hasAuthMode := secret.Data[config.AuthMode]; hasAuthMode {
 		authMode, err := authModeOrDefault(string(value))
 		if err != nil {
-			return nil, errors.Wrap(err, errors.Errorf("invalid identity auth mode for %q encountered", nsName).Error())
+			return nil, eris.Wrap(err, eris.Errorf("invalid identity auth mode for %q encountered", nsName).Error())
 		}
 
 		if authMode == config.PodIdentityAuthMode {
+			// Note: ManagedIdentityCredentials don't support additionalTenants because Managed Identities
+			// are inherently single-tenant, so we don't pass
 			tokenCredential, err := c.tokenCredentialProvider.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
-				ClientOptions: azcore.ClientOptions{},
-				ID:            azidentity.ClientID(clientID),
+				ClientOptions: azcore.ClientOptions{
+					Cloud: cloudConfig,
+				},
+				ID: azidentity.ClientID(clientID),
 			})
 			if err != nil {
-				return nil, errors.Wrap(err, errors.Errorf("invalid Managed Identity for %q encountered", nsName).Error())
+				return nil, eris.Wrap(err, eris.Errorf("invalid Managed Identity for %q encountered", nsName).Error())
 			}
 
 			return &Credential{
 				tokenCredential: tokenCredential,
-				subscriptionID:  string(subscriptionID),
+				subscriptionID:  subscriptionID,
 				credentialFrom:  nsName,
+				cloudConfig:     &cloudConfig,
 				secretData:      secret.Data,
 			}, nil
 		}
 	}
 
+	// If we're in strict workload identity authentication mode, create a client assertion via the linked service account
+	if c.workloadIdentityAuthMode == internalconfig.WorkloadIdentityAuthModeStrict {
+		if c.serviceAccountTokenProvider == nil {
+			return nil, eris.New("strict workload identity authentication requires a ServiceAccount token provider")
+		}
+
+		serviceAccountName := DefaultWorkloadIdentityServiceAccount
+		if value, ok := secret.Data[config.WorkloadIdentityServiceAccount]; ok {
+			serviceAccountName = string(value)
+			if validationErrors := validation.IsDNS1123Subdomain(serviceAccountName); len(validationErrors) > 0 {
+				return nil, eris.Errorf(
+					"credential secret %q contains invalid %s %q: %s",
+					nsName,
+					config.WorkloadIdentityServiceAccount,
+					serviceAccountName,
+					strings.Join(validationErrors, "; "),
+				)
+			}
+		}
+
+		getAssertion := func(ctx context.Context) (string, error) {
+			return c.serviceAccountTokenProvider.GetAssertion(
+				ctx,
+				nsName.Namespace,
+				serviceAccountName,
+				workloadIdentityAudience,
+				workloadIdentityTokenLifetime,
+			)
+		}
+		tokenCredential, err := c.tokenCredentialProvider.NewClientAssertionCredential(
+			tenantID,
+			clientID,
+			getAssertion,
+			&azidentity.ClientAssertionCredentialOptions{
+				ClientOptions: azcore.ClientOptions{
+					Cloud: cloudConfig,
+				},
+				AdditionallyAllowedTenants: additionalTenants,
+			},
+		)
+		if err != nil {
+			return nil, eris.Wrapf(err, "creating client assertion credential from secret %q", nsName)
+		}
+
+		return &Credential{
+			tokenCredential:   tokenCredential,
+			subscriptionID:    subscriptionID,
+			credentialFrom:    nsName,
+			additionalTenants: additionalTenants,
+			cloudConfig:       &cloudConfig,
+			secretData:        secret.Data,
+		}, nil
+	}
+
 	// Default to Workload Identity
-	tokenCredential, err := c.tokenCredentialProvider.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
-		ClientID:      string(clientID),
-		TenantID:      string(tenantID),
-		TokenFilePath: FederatedTokenFilePath,
-	})
+	tokenFilePath := c.federatedTokenFilePath
+	tokenCredential, err := c.tokenCredentialProvider.NewWorkloadIdentityCredential(
+		&azidentity.WorkloadIdentityCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+			ClientID:                   clientID,
+			TenantID:                   tenantID,
+			TokenFilePath:              tokenFilePath,
+			AdditionallyAllowedTenants: additionalTenants,
+		},
+	)
 	if err != nil {
-		err = errors.Wrapf(
+		err = eris.Wrapf(
 			err,
 			"credential secret %q does not contain key %q and failed to get workload identity credential for clientID %q from %q ",
 			nsName,
 			config.AzureClientSecret,
-			string(clientID),
-			FederatedTokenFilePath)
+			clientID,
+			tokenFilePath,
+		)
+
 		return nil, err
 	}
 
 	return &Credential{
-		tokenCredential: tokenCredential,
-		subscriptionID:  string(subscriptionID),
-		credentialFrom:  nsName,
-		secretData:      secret.Data,
+		tokenCredential:   tokenCredential,
+		subscriptionID:    subscriptionID,
+		credentialFrom:    nsName,
+		additionalTenants: additionalTenants,
+		cloudConfig:       &cloudConfig,
+		secretData:        secret.Data,
 	}, nil
 }
 
@@ -328,7 +540,8 @@ func (c *credentialProvider) getSecret(ctx context.Context, namespace string, se
 	err := c.kubeClient.Get(
 		ctx,
 		types.NamespacedName{Namespace: namespace, Name: secretName},
-		secret)
+		secret,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -349,5 +562,74 @@ func authModeOrDefault(mode string) (config.AuthModeOption, error) {
 		return config.PodIdentityAuthMode, nil
 	}
 
-	return "", errors.Errorf("authorization mode %q not valid", mode)
+	return "", eris.Errorf("authorization mode %q not valid", mode)
+}
+
+// extractCloudConfig reads cloud configuration from the secret if present.
+// It enforces the all-or-nothing rule: either all three cloud fields must be present, or none.
+// It also enforces that cloud configuration is only allowed if AllowMultiEnvManagement is enabled.
+func (c *credentialProvider) extractCloudConfig(secret *v1.Secret) (*cloud.Configuration, error) {
+	nsName := types.NamespacedName{Namespace: secret.GetNamespace(), Name: secret.GetName()}
+
+	// Check if any cloud configuration fields are present
+	endpoint, hasEndpoint := secret.Data[config.ResourceManagerEndpoint]
+	audience, hasAudience := secret.Data[config.ResourceManagerAudience]
+	authorityHost, hasAuthorityHost := secret.Data[config.AzureAuthorityHost]
+
+	// Count how many fields are present
+	fieldsPresent := 0
+	if hasEndpoint {
+		fieldsPresent++
+	}
+	if hasAudience {
+		fieldsPresent++
+	}
+	if hasAuthorityHost {
+		fieldsPresent++
+	}
+
+	// If no cloud fields are present, return nil (use global cloud config)
+	if fieldsPresent == 0 {
+		return nil, nil
+	}
+
+	// If some but not all fields are present, return an error
+	if fieldsPresent != 3 {
+		return nil, core.NewSecretNotFoundError(
+			nsName,
+			eris.Errorf(
+				"credential Secret %q must specify ALL or NONE of %q, %q, and %q (found %d of 3)",
+				nsName,
+				config.ResourceManagerEndpoint,
+				config.ResourceManagerAudience,
+				config.AzureAuthorityHost,
+				fieldsPresent,
+			),
+		)
+	}
+
+	// All three fields are present, check if multi-env management is allowed
+	if !c.allowMultiEnvManagement {
+		return nil, core.NewSecretNotFoundError(
+			nsName,
+			eris.Errorf(
+				"credential Secret %q specifies cloud configuration (%q, %q, %q) but %q is not enabled",
+				nsName,
+				config.ResourceManagerEndpoint,
+				config.ResourceManagerAudience,
+				config.AzureAuthorityHost,
+				config.AllowMultiEnvManagement,
+			),
+		)
+	}
+
+	// Create cloud configuration
+	cfg := asocloud.Configuration{
+		ResourceManagerEndpoint: string(endpoint),
+		ResourceManagerAudience: string(audience),
+		AzureAuthorityHost:      string(authorityHost),
+	}
+
+	cloudCfg := cfg.Cloud()
+	return &cloudCfg, nil
 }

@@ -5,14 +5,15 @@ package storage
 
 import (
 	"context"
-	v20210601s "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v1api20210601/storage"
-	v20221201s "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v1api20221201/storage"
+	storage "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v20220120preview/storage"
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,6 +21,7 @@ import (
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,dbforpostgresql}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
@@ -53,16 +55,16 @@ var _ conversion.Convertible = &FlexibleServer{}
 // ConvertFrom populates our FlexibleServer from the provided hub FlexibleServer
 func (server *FlexibleServer) ConvertFrom(hub conversion.Hub) error {
 	// intermediate variable for conversion
-	var source v20210601s.FlexibleServer
+	var source storage.FlexibleServer
 
 	err := source.ConvertFrom(hub)
 	if err != nil {
-		return errors.Wrap(err, "converting from hub to source")
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
 	err = server.AssignProperties_From_FlexibleServer(&source)
 	if err != nil {
-		return errors.Wrap(err, "converting from source to server")
+		return eris.Wrap(err, "converting from source to server")
 	}
 
 	return nil
@@ -71,23 +73,43 @@ func (server *FlexibleServer) ConvertFrom(hub conversion.Hub) error {
 // ConvertTo populates the provided hub FlexibleServer from our FlexibleServer
 func (server *FlexibleServer) ConvertTo(hub conversion.Hub) error {
 	// intermediate variable for conversion
-	var destination v20210601s.FlexibleServer
+	var destination storage.FlexibleServer
 	err := server.AssignProperties_To_FlexibleServer(&destination)
 	if err != nil {
-		return errors.Wrap(err, "converting to destination from server")
+		return eris.Wrap(err, "converting to destination from server")
 	}
 	err = destination.ConvertTo(hub)
 	if err != nil {
-		return errors.Wrap(err, "converting from destination to hub")
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
 	return nil
 }
 
-var _ genruntime.KubernetesExporter = &FlexibleServer{}
+var _ configmaps.Exporter = &FlexibleServer{}
 
-// ExportKubernetesResources defines a resource which can create other resources in Kubernetes.
-func (server *FlexibleServer) ExportKubernetesResources(_ context.Context, _ genruntime.MetaObject, _ *genericarmclient.GenericClient, _ logr.Logger) ([]client.Object, error) {
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (server *FlexibleServer) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if server.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return server.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &FlexibleServer{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (server *FlexibleServer) SecretDestinationExpressions() []*core.DestinationExpression {
+	if server.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return server.Spec.OperatorSpec.SecretExpressions
+}
+
+var _ genruntime.KubernetesConfigExporter = &FlexibleServer{}
+
+// ExportKubernetesConfigMaps defines a resource which can create ConfigMaps in Kubernetes.
+func (server *FlexibleServer) ExportKubernetesConfigMaps(_ context.Context, _ genruntime.MetaObject, _ *genericarmclient.GenericClient, _ logr.Logger) ([]client.Object, error) {
 	collector := configmaps.NewCollector(server.Namespace)
 	if server.Spec.OperatorSpec != nil && server.Spec.OperatorSpec.ConfigMaps != nil {
 		if server.Status.FullyQualifiedDomainName != nil {
@@ -110,7 +132,7 @@ func (server *FlexibleServer) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-01-20-preview"
 func (server FlexibleServer) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-01-20-preview"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -149,6 +171,10 @@ func (server *FlexibleServer) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (server *FlexibleServer) Owner() *genruntime.ResourceReference {
+	if server.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(server.Spec)
 	return server.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -165,7 +191,7 @@ func (server *FlexibleServer) SetStatus(status genruntime.ConvertibleStatus) err
 	var st FlexibleServer_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	server.Status = st
@@ -173,7 +199,7 @@ func (server *FlexibleServer) SetStatus(status genruntime.ConvertibleStatus) err
 }
 
 // AssignProperties_From_FlexibleServer populates our FlexibleServer from the provided source FlexibleServer
-func (server *FlexibleServer) AssignProperties_From_FlexibleServer(source *v20210601s.FlexibleServer) error {
+func (server *FlexibleServer) AssignProperties_From_FlexibleServer(source *storage.FlexibleServer) error {
 
 	// ObjectMeta
 	server.ObjectMeta = *source.ObjectMeta.DeepCopy()
@@ -182,7 +208,7 @@ func (server *FlexibleServer) AssignProperties_From_FlexibleServer(source *v2021
 	var spec FlexibleServer_Spec
 	err := spec.AssignProperties_From_FlexibleServer_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_FlexibleServer_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_FlexibleServer_Spec() to populate field Spec")
 	}
 	server.Spec = spec
 
@@ -190,7 +216,7 @@ func (server *FlexibleServer) AssignProperties_From_FlexibleServer(source *v2021
 	var status FlexibleServer_STATUS
 	err = status.AssignProperties_From_FlexibleServer_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_FlexibleServer_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_FlexibleServer_STATUS() to populate field Status")
 	}
 	server.Status = status
 
@@ -199,7 +225,7 @@ func (server *FlexibleServer) AssignProperties_From_FlexibleServer(source *v2021
 	if augmentedServer, ok := serverAsAny.(augmentConversionForFlexibleServer); ok {
 		err := augmentedServer.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -208,24 +234,24 @@ func (server *FlexibleServer) AssignProperties_From_FlexibleServer(source *v2021
 }
 
 // AssignProperties_To_FlexibleServer populates the provided destination FlexibleServer from our FlexibleServer
-func (server *FlexibleServer) AssignProperties_To_FlexibleServer(destination *v20210601s.FlexibleServer) error {
+func (server *FlexibleServer) AssignProperties_To_FlexibleServer(destination *storage.FlexibleServer) error {
 
 	// ObjectMeta
 	destination.ObjectMeta = *server.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec v20210601s.FlexibleServer_Spec
+	var spec storage.FlexibleServer_Spec
 	err := server.Spec.AssignProperties_To_FlexibleServer_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_FlexibleServer_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_FlexibleServer_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status v20210601s.FlexibleServer_STATUS
+	var status storage.FlexibleServer_STATUS
 	err = server.Status.AssignProperties_To_FlexibleServer_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_FlexibleServer_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_FlexibleServer_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -234,7 +260,7 @@ func (server *FlexibleServer) AssignProperties_To_FlexibleServer(destination *v2
 	if augmentedServer, ok := serverAsAny.(augmentConversionForFlexibleServer); ok {
 		err := augmentedServer.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -269,8 +295,8 @@ type APIVersion string
 const APIVersion_Value = APIVersion("2022-01-20-preview")
 
 type augmentConversionForFlexibleServer interface {
-	AssignPropertiesFrom(src *v20210601s.FlexibleServer) error
-	AssignPropertiesTo(dst *v20210601s.FlexibleServer) error
+	AssignPropertiesFrom(src *storage.FlexibleServer) error
+	AssignPropertiesTo(dst *storage.FlexibleServer) error
 }
 
 // Storage version of v1api20220120preview.FlexibleServer_Spec
@@ -312,23 +338,23 @@ var _ genruntime.ConvertibleSpec = &FlexibleServer_Spec{}
 
 // ConvertSpecFrom populates our FlexibleServer_Spec from the provided source
 func (server *FlexibleServer_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*v20210601s.FlexibleServer_Spec)
+	src, ok := source.(*storage.FlexibleServer_Spec)
 	if ok {
 		// Populate our instance from source
 		return server.AssignProperties_From_FlexibleServer_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &v20210601s.FlexibleServer_Spec{}
+	src = &storage.FlexibleServer_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
 	err = server.AssignProperties_From_FlexibleServer_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
@@ -336,30 +362,30 @@ func (server *FlexibleServer_Spec) ConvertSpecFrom(source genruntime.Convertible
 
 // ConvertSpecTo populates the provided destination from our FlexibleServer_Spec
 func (server *FlexibleServer_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*v20210601s.FlexibleServer_Spec)
+	dst, ok := destination.(*storage.FlexibleServer_Spec)
 	if ok {
 		// Populate destination from our instance
 		return server.AssignProperties_To_FlexibleServer_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &v20210601s.FlexibleServer_Spec{}
+	dst = &storage.FlexibleServer_Spec{}
 	err := server.AssignProperties_To_FlexibleServer_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
 // AssignProperties_From_FlexibleServer_Spec populates our FlexibleServer_Spec from the provided source FlexibleServer_Spec
-func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(source *v20210601s.FlexibleServer_Spec) error {
+func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(source *storage.FlexibleServer_Spec) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -385,7 +411,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 		var backup Backup
 		err := backup.AssignProperties_From_Backup(source.Backup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Backup() to populate field Backup")
+			return eris.Wrap(err, "calling AssignProperties_From_Backup() to populate field Backup")
 		}
 		server.Backup = &backup
 	} else {
@@ -400,7 +426,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 		var highAvailability HighAvailability
 		err := highAvailability.AssignProperties_From_HighAvailability(source.HighAvailability)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HighAvailability() to populate field HighAvailability")
+			return eris.Wrap(err, "calling AssignProperties_From_HighAvailability() to populate field HighAvailability")
 		}
 		server.HighAvailability = &highAvailability
 	} else {
@@ -415,7 +441,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 		var maintenanceWindow MaintenanceWindow
 		err := maintenanceWindow.AssignProperties_From_MaintenanceWindow(source.MaintenanceWindow)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_MaintenanceWindow() to populate field MaintenanceWindow")
+			return eris.Wrap(err, "calling AssignProperties_From_MaintenanceWindow() to populate field MaintenanceWindow")
 		}
 		server.MaintenanceWindow = &maintenanceWindow
 	} else {
@@ -427,7 +453,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 		var network Network
 		err := network.AssignProperties_From_Network(source.Network)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Network() to populate field Network")
+			return eris.Wrap(err, "calling AssignProperties_From_Network() to populate field Network")
 		}
 		server.Network = &network
 	} else {
@@ -439,7 +465,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 		var operatorSpec FlexibleServerOperatorSpec
 		err := operatorSpec.AssignProperties_From_FlexibleServerOperatorSpec(source.OperatorSpec)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_FlexibleServerOperatorSpec() to populate field OperatorSpec")
+			return eris.Wrap(err, "calling AssignProperties_From_FlexibleServerOperatorSpec() to populate field OperatorSpec")
 		}
 		server.OperatorSpec = &operatorSpec
 	} else {
@@ -465,7 +491,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 		var sku Sku
 		err := sku.AssignProperties_From_Sku(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Sku() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_Sku() to populate field Sku")
 		}
 		server.Sku = &sku
 	} else {
@@ -485,7 +511,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 		var storage Storage
 		err := storage.AssignProperties_From_Storage(source.Storage)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Storage() to populate field Storage")
+			return eris.Wrap(err, "calling AssignProperties_From_Storage() to populate field Storage")
 		}
 		server.Storage = &storage
 	} else {
@@ -510,7 +536,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 	if augmentedServer, ok := serverAsAny.(augmentConversionForFlexibleServer_Spec); ok {
 		err := augmentedServer.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -519,7 +545,7 @@ func (server *FlexibleServer_Spec) AssignProperties_From_FlexibleServer_Spec(sou
 }
 
 // AssignProperties_To_FlexibleServer_Spec populates the provided destination FlexibleServer_Spec from our FlexibleServer_Spec
-func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(destination *v20210601s.FlexibleServer_Spec) error {
+func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(destination *storage.FlexibleServer_Spec) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(server.PropertyBag)
 
@@ -542,10 +568,10 @@ func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(desti
 
 	// Backup
 	if server.Backup != nil {
-		var backup v20210601s.Backup
+		var backup storage.Backup
 		err := server.Backup.AssignProperties_To_Backup(&backup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Backup() to populate field Backup")
+			return eris.Wrap(err, "calling AssignProperties_To_Backup() to populate field Backup")
 		}
 		destination.Backup = &backup
 	} else {
@@ -557,10 +583,10 @@ func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(desti
 
 	// HighAvailability
 	if server.HighAvailability != nil {
-		var highAvailability v20210601s.HighAvailability
+		var highAvailability storage.HighAvailability
 		err := server.HighAvailability.AssignProperties_To_HighAvailability(&highAvailability)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HighAvailability() to populate field HighAvailability")
+			return eris.Wrap(err, "calling AssignProperties_To_HighAvailability() to populate field HighAvailability")
 		}
 		destination.HighAvailability = &highAvailability
 	} else {
@@ -572,10 +598,10 @@ func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(desti
 
 	// MaintenanceWindow
 	if server.MaintenanceWindow != nil {
-		var maintenanceWindow v20210601s.MaintenanceWindow
+		var maintenanceWindow storage.MaintenanceWindow
 		err := server.MaintenanceWindow.AssignProperties_To_MaintenanceWindow(&maintenanceWindow)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_MaintenanceWindow() to populate field MaintenanceWindow")
+			return eris.Wrap(err, "calling AssignProperties_To_MaintenanceWindow() to populate field MaintenanceWindow")
 		}
 		destination.MaintenanceWindow = &maintenanceWindow
 	} else {
@@ -584,10 +610,10 @@ func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(desti
 
 	// Network
 	if server.Network != nil {
-		var network v20210601s.Network
+		var network storage.Network
 		err := server.Network.AssignProperties_To_Network(&network)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Network() to populate field Network")
+			return eris.Wrap(err, "calling AssignProperties_To_Network() to populate field Network")
 		}
 		destination.Network = &network
 	} else {
@@ -596,10 +622,10 @@ func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(desti
 
 	// OperatorSpec
 	if server.OperatorSpec != nil {
-		var operatorSpec v20210601s.FlexibleServerOperatorSpec
+		var operatorSpec storage.FlexibleServerOperatorSpec
 		err := server.OperatorSpec.AssignProperties_To_FlexibleServerOperatorSpec(&operatorSpec)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_FlexibleServerOperatorSpec() to populate field OperatorSpec")
+			return eris.Wrap(err, "calling AssignProperties_To_FlexibleServerOperatorSpec() to populate field OperatorSpec")
 		}
 		destination.OperatorSpec = &operatorSpec
 	} else {
@@ -622,10 +648,10 @@ func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(desti
 
 	// Sku
 	if server.Sku != nil {
-		var sku v20210601s.Sku
+		var sku storage.Sku
 		err := server.Sku.AssignProperties_To_Sku(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Sku() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_Sku() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -642,10 +668,10 @@ func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(desti
 
 	// Storage
 	if server.Storage != nil {
-		var storage v20210601s.Storage
+		var storage storage.Storage
 		err := server.Storage.AssignProperties_To_Storage(&storage)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Storage() to populate field Storage")
+			return eris.Wrap(err, "calling AssignProperties_To_Storage() to populate field Storage")
 		}
 		destination.Storage = &storage
 	} else {
@@ -670,7 +696,7 @@ func (server *FlexibleServer_Spec) AssignProperties_To_FlexibleServer_Spec(desti
 	if augmentedServer, ok := serverAsAny.(augmentConversionForFlexibleServer_Spec); ok {
 		err := augmentedServer.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -709,23 +735,23 @@ var _ genruntime.ConvertibleStatus = &FlexibleServer_STATUS{}
 
 // ConvertStatusFrom populates our FlexibleServer_STATUS from the provided source
 func (server *FlexibleServer_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*v20210601s.FlexibleServer_STATUS)
+	src, ok := source.(*storage.FlexibleServer_STATUS)
 	if ok {
 		// Populate our instance from source
 		return server.AssignProperties_From_FlexibleServer_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &v20210601s.FlexibleServer_STATUS{}
+	src = &storage.FlexibleServer_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
 	err = server.AssignProperties_From_FlexibleServer_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
@@ -733,30 +759,30 @@ func (server *FlexibleServer_STATUS) ConvertStatusFrom(source genruntime.Convert
 
 // ConvertStatusTo populates the provided destination from our FlexibleServer_STATUS
 func (server *FlexibleServer_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*v20210601s.FlexibleServer_STATUS)
+	dst, ok := destination.(*storage.FlexibleServer_STATUS)
 	if ok {
 		// Populate destination from our instance
 		return server.AssignProperties_To_FlexibleServer_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &v20210601s.FlexibleServer_STATUS{}
+	dst = &storage.FlexibleServer_STATUS{}
 	err := server.AssignProperties_To_FlexibleServer_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
 // AssignProperties_From_FlexibleServer_STATUS populates our FlexibleServer_STATUS from the provided source FlexibleServer_STATUS
-func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS(source *v20210601s.FlexibleServer_STATUS) error {
+func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS(source *storage.FlexibleServer_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -771,7 +797,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 		var backup Backup_STATUS
 		err := backup.AssignProperties_From_Backup_STATUS(source.Backup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Backup_STATUS() to populate field Backup")
+			return eris.Wrap(err, "calling AssignProperties_From_Backup_STATUS() to populate field Backup")
 		}
 		server.Backup = &backup
 	} else {
@@ -792,7 +818,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 		var highAvailability HighAvailability_STATUS
 		err := highAvailability.AssignProperties_From_HighAvailability_STATUS(source.HighAvailability)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_HighAvailability_STATUS() to populate field HighAvailability")
+			return eris.Wrap(err, "calling AssignProperties_From_HighAvailability_STATUS() to populate field HighAvailability")
 		}
 		server.HighAvailability = &highAvailability
 	} else {
@@ -810,7 +836,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 		var maintenanceWindow MaintenanceWindow_STATUS
 		err := maintenanceWindow.AssignProperties_From_MaintenanceWindow_STATUS(source.MaintenanceWindow)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_MaintenanceWindow_STATUS() to populate field MaintenanceWindow")
+			return eris.Wrap(err, "calling AssignProperties_From_MaintenanceWindow_STATUS() to populate field MaintenanceWindow")
 		}
 		server.MaintenanceWindow = &maintenanceWindow
 	} else {
@@ -828,7 +854,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 		var network Network_STATUS
 		err := network.AssignProperties_From_Network_STATUS(source.Network)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Network_STATUS() to populate field Network")
+			return eris.Wrap(err, "calling AssignProperties_From_Network_STATUS() to populate field Network")
 		}
 		server.Network = &network
 	} else {
@@ -843,7 +869,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 		var sku Sku_STATUS
 		err := sku.AssignProperties_From_Sku_STATUS(source.Sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Sku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_From_Sku_STATUS() to populate field Sku")
 		}
 		server.Sku = &sku
 	} else {
@@ -861,7 +887,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 		var storage Storage_STATUS
 		err := storage.AssignProperties_From_Storage_STATUS(source.Storage)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_Storage_STATUS() to populate field Storage")
+			return eris.Wrap(err, "calling AssignProperties_From_Storage_STATUS() to populate field Storage")
 		}
 		server.Storage = &storage
 	} else {
@@ -873,7 +899,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 		var systemDatum SystemData_STATUS
 		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
 		}
 		server.SystemData = &systemDatum
 	} else {
@@ -901,7 +927,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 	if augmentedServer, ok := serverAsAny.(augmentConversionForFlexibleServer_STATUS); ok {
 		err := augmentedServer.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -910,7 +936,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_From_FlexibleServer_STATUS
 }
 
 // AssignProperties_To_FlexibleServer_STATUS populates the provided destination FlexibleServer_STATUS from our FlexibleServer_STATUS
-func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(destination *v20210601s.FlexibleServer_STATUS) error {
+func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(destination *storage.FlexibleServer_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(server.PropertyBag)
 
@@ -922,10 +948,10 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 
 	// Backup
 	if server.Backup != nil {
-		var backup v20210601s.Backup_STATUS
+		var backup storage.Backup_STATUS
 		err := server.Backup.AssignProperties_To_Backup_STATUS(&backup)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Backup_STATUS() to populate field Backup")
+			return eris.Wrap(err, "calling AssignProperties_To_Backup_STATUS() to populate field Backup")
 		}
 		destination.Backup = &backup
 	} else {
@@ -943,10 +969,10 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 
 	// HighAvailability
 	if server.HighAvailability != nil {
-		var highAvailability v20210601s.HighAvailability_STATUS
+		var highAvailability storage.HighAvailability_STATUS
 		err := server.HighAvailability.AssignProperties_To_HighAvailability_STATUS(&highAvailability)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_HighAvailability_STATUS() to populate field HighAvailability")
+			return eris.Wrap(err, "calling AssignProperties_To_HighAvailability_STATUS() to populate field HighAvailability")
 		}
 		destination.HighAvailability = &highAvailability
 	} else {
@@ -961,10 +987,10 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 
 	// MaintenanceWindow
 	if server.MaintenanceWindow != nil {
-		var maintenanceWindow v20210601s.MaintenanceWindow_STATUS
+		var maintenanceWindow storage.MaintenanceWindow_STATUS
 		err := server.MaintenanceWindow.AssignProperties_To_MaintenanceWindow_STATUS(&maintenanceWindow)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_MaintenanceWindow_STATUS() to populate field MaintenanceWindow")
+			return eris.Wrap(err, "calling AssignProperties_To_MaintenanceWindow_STATUS() to populate field MaintenanceWindow")
 		}
 		destination.MaintenanceWindow = &maintenanceWindow
 	} else {
@@ -979,10 +1005,10 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 
 	// Network
 	if server.Network != nil {
-		var network v20210601s.Network_STATUS
+		var network storage.Network_STATUS
 		err := server.Network.AssignProperties_To_Network_STATUS(&network)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Network_STATUS() to populate field Network")
+			return eris.Wrap(err, "calling AssignProperties_To_Network_STATUS() to populate field Network")
 		}
 		destination.Network = &network
 	} else {
@@ -994,10 +1020,10 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 
 	// Sku
 	if server.Sku != nil {
-		var sku v20210601s.Sku_STATUS
+		var sku storage.Sku_STATUS
 		err := server.Sku.AssignProperties_To_Sku_STATUS(&sku)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Sku_STATUS() to populate field Sku")
+			return eris.Wrap(err, "calling AssignProperties_To_Sku_STATUS() to populate field Sku")
 		}
 		destination.Sku = &sku
 	} else {
@@ -1012,10 +1038,10 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 
 	// Storage
 	if server.Storage != nil {
-		var storage v20210601s.Storage_STATUS
+		var storage storage.Storage_STATUS
 		err := server.Storage.AssignProperties_To_Storage_STATUS(&storage)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_Storage_STATUS() to populate field Storage")
+			return eris.Wrap(err, "calling AssignProperties_To_Storage_STATUS() to populate field Storage")
 		}
 		destination.Storage = &storage
 	} else {
@@ -1024,10 +1050,10 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 
 	// SystemData
 	if server.SystemData != nil {
-		var systemDatum v20210601s.SystemData_STATUS
+		var systemDatum storage.SystemData_STATUS
 		err := server.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
 		}
 		destination.SystemData = &systemDatum
 	} else {
@@ -1055,7 +1081,7 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 	if augmentedServer, ok := serverAsAny.(augmentConversionForFlexibleServer_STATUS); ok {
 		err := augmentedServer.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1064,13 +1090,13 @@ func (server *FlexibleServer_STATUS) AssignProperties_To_FlexibleServer_STATUS(d
 }
 
 type augmentConversionForFlexibleServer_Spec interface {
-	AssignPropertiesFrom(src *v20210601s.FlexibleServer_Spec) error
-	AssignPropertiesTo(dst *v20210601s.FlexibleServer_Spec) error
+	AssignPropertiesFrom(src *storage.FlexibleServer_Spec) error
+	AssignPropertiesTo(dst *storage.FlexibleServer_Spec) error
 }
 
 type augmentConversionForFlexibleServer_STATUS interface {
-	AssignPropertiesFrom(src *v20210601s.FlexibleServer_STATUS) error
-	AssignPropertiesTo(dst *v20210601s.FlexibleServer_STATUS) error
+	AssignPropertiesFrom(src *storage.FlexibleServer_STATUS) error
+	AssignPropertiesTo(dst *storage.FlexibleServer_STATUS) error
 }
 
 // Storage version of v1api20220120preview.Backup
@@ -1082,7 +1108,7 @@ type Backup struct {
 }
 
 // AssignProperties_From_Backup populates our Backup from the provided source Backup
-func (backup *Backup) AssignProperties_From_Backup(source *v20210601s.Backup) error {
+func (backup *Backup) AssignProperties_From_Backup(source *storage.Backup) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1104,7 +1130,7 @@ func (backup *Backup) AssignProperties_From_Backup(source *v20210601s.Backup) er
 	if augmentedBackup, ok := backupAsAny.(augmentConversionForBackup); ok {
 		err := augmentedBackup.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1113,7 +1139,7 @@ func (backup *Backup) AssignProperties_From_Backup(source *v20210601s.Backup) er
 }
 
 // AssignProperties_To_Backup populates the provided destination Backup from our Backup
-func (backup *Backup) AssignProperties_To_Backup(destination *v20210601s.Backup) error {
+func (backup *Backup) AssignProperties_To_Backup(destination *storage.Backup) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(backup.PropertyBag)
 
@@ -1135,7 +1161,7 @@ func (backup *Backup) AssignProperties_To_Backup(destination *v20210601s.Backup)
 	if augmentedBackup, ok := backupAsAny.(augmentConversionForBackup); ok {
 		err := augmentedBackup.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1153,7 +1179,7 @@ type Backup_STATUS struct {
 }
 
 // AssignProperties_From_Backup_STATUS populates our Backup_STATUS from the provided source Backup_STATUS
-func (backup *Backup_STATUS) AssignProperties_From_Backup_STATUS(source *v20210601s.Backup_STATUS) error {
+func (backup *Backup_STATUS) AssignProperties_From_Backup_STATUS(source *storage.Backup_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1178,7 +1204,7 @@ func (backup *Backup_STATUS) AssignProperties_From_Backup_STATUS(source *v202106
 	if augmentedBackup, ok := backupAsAny.(augmentConversionForBackup_STATUS); ok {
 		err := augmentedBackup.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1187,7 +1213,7 @@ func (backup *Backup_STATUS) AssignProperties_From_Backup_STATUS(source *v202106
 }
 
 // AssignProperties_To_Backup_STATUS populates the provided destination Backup_STATUS from our Backup_STATUS
-func (backup *Backup_STATUS) AssignProperties_To_Backup_STATUS(destination *v20210601s.Backup_STATUS) error {
+func (backup *Backup_STATUS) AssignProperties_To_Backup_STATUS(destination *storage.Backup_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(backup.PropertyBag)
 
@@ -1212,7 +1238,7 @@ func (backup *Backup_STATUS) AssignProperties_To_Backup_STATUS(destination *v202
 	if augmentedBackup, ok := backupAsAny.(augmentConversionForBackup_STATUS); ok {
 		err := augmentedBackup.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1223,27 +1249,60 @@ func (backup *Backup_STATUS) AssignProperties_To_Backup_STATUS(destination *v202
 // Storage version of v1api20220120preview.FlexibleServerOperatorSpec
 // Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
 type FlexibleServerOperatorSpec struct {
-	ConfigMaps  *FlexibleServerOperatorConfigMaps `json:"configMaps,omitempty"`
-	PropertyBag genruntime.PropertyBag            `json:"$propertyBag,omitempty"`
-	Secrets     *FlexibleServerOperatorSecrets    `json:"secrets,omitempty"`
+	ConfigMapExpressions []*core.DestinationExpression     `json:"configMapExpressions,omitempty"`
+	ConfigMaps           *FlexibleServerOperatorConfigMaps `json:"configMaps,omitempty"`
+	PropertyBag          genruntime.PropertyBag            `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression     `json:"secretExpressions,omitempty"`
+	Secrets              *FlexibleServerOperatorSecrets    `json:"secrets,omitempty"`
 }
 
 // AssignProperties_From_FlexibleServerOperatorSpec populates our FlexibleServerOperatorSpec from the provided source FlexibleServerOperatorSpec
-func (operator *FlexibleServerOperatorSpec) AssignProperties_From_FlexibleServerOperatorSpec(source *v20210601s.FlexibleServerOperatorSpec) error {
+func (operator *FlexibleServerOperatorSpec) AssignProperties_From_FlexibleServerOperatorSpec(source *storage.FlexibleServerOperatorSpec) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
-	// ConfigMaps
-	if propertyBag.Contains("ConfigMaps") {
-		var configMap FlexibleServerOperatorConfigMaps
-		err := propertyBag.Pull("ConfigMaps", &configMap)
-		if err != nil {
-			return errors.Wrap(err, "pulling 'ConfigMaps' from propertyBag")
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
 		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
 
+	// ConfigMaps
+	if source.ConfigMaps != nil {
+		var configMap FlexibleServerOperatorConfigMaps
+		err := configMap.AssignProperties_From_FlexibleServerOperatorConfigMaps(source.ConfigMaps)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_FlexibleServerOperatorConfigMaps() to populate field ConfigMaps")
+		}
 		operator.ConfigMaps = &configMap
 	} else {
 		operator.ConfigMaps = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
 	}
 
 	// Secrets
@@ -1251,7 +1310,7 @@ func (operator *FlexibleServerOperatorSpec) AssignProperties_From_FlexibleServer
 		var secret FlexibleServerOperatorSecrets
 		err := secret.AssignProperties_From_FlexibleServerOperatorSecrets(source.Secrets)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_From_FlexibleServerOperatorSecrets() to populate field Secrets")
+			return eris.Wrap(err, "calling AssignProperties_From_FlexibleServerOperatorSecrets() to populate field Secrets")
 		}
 		operator.Secrets = &secret
 	} else {
@@ -1270,7 +1329,7 @@ func (operator *FlexibleServerOperatorSpec) AssignProperties_From_FlexibleServer
 	if augmentedOperator, ok := operatorAsAny.(augmentConversionForFlexibleServerOperatorSpec); ok {
 		err := augmentedOperator.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1279,23 +1338,60 @@ func (operator *FlexibleServerOperatorSpec) AssignProperties_From_FlexibleServer
 }
 
 // AssignProperties_To_FlexibleServerOperatorSpec populates the provided destination FlexibleServerOperatorSpec from our FlexibleServerOperatorSpec
-func (operator *FlexibleServerOperatorSpec) AssignProperties_To_FlexibleServerOperatorSpec(destination *v20210601s.FlexibleServerOperatorSpec) error {
+func (operator *FlexibleServerOperatorSpec) AssignProperties_To_FlexibleServerOperatorSpec(destination *storage.FlexibleServerOperatorSpec) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
 
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
 	// ConfigMaps
 	if operator.ConfigMaps != nil {
-		propertyBag.Add("ConfigMaps", *operator.ConfigMaps)
+		var configMap storage.FlexibleServerOperatorConfigMaps
+		err := operator.ConfigMaps.AssignProperties_To_FlexibleServerOperatorConfigMaps(&configMap)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_FlexibleServerOperatorConfigMaps() to populate field ConfigMaps")
+		}
+		destination.ConfigMaps = &configMap
 	} else {
-		propertyBag.Remove("ConfigMaps")
+		destination.ConfigMaps = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
 	}
 
 	// Secrets
 	if operator.Secrets != nil {
-		var secret v20210601s.FlexibleServerOperatorSecrets
+		var secret storage.FlexibleServerOperatorSecrets
 		err := operator.Secrets.AssignProperties_To_FlexibleServerOperatorSecrets(&secret)
 		if err != nil {
-			return errors.Wrap(err, "calling AssignProperties_To_FlexibleServerOperatorSecrets() to populate field Secrets")
+			return eris.Wrap(err, "calling AssignProperties_To_FlexibleServerOperatorSecrets() to populate field Secrets")
 		}
 		destination.Secrets = &secret
 	} else {
@@ -1314,7 +1410,7 @@ func (operator *FlexibleServerOperatorSpec) AssignProperties_To_FlexibleServerOp
 	if augmentedOperator, ok := operatorAsAny.(augmentConversionForFlexibleServerOperatorSpec); ok {
 		err := augmentedOperator.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1331,7 +1427,7 @@ type HighAvailability struct {
 }
 
 // AssignProperties_From_HighAvailability populates our HighAvailability from the provided source HighAvailability
-func (availability *HighAvailability) AssignProperties_From_HighAvailability(source *v20210601s.HighAvailability) error {
+func (availability *HighAvailability) AssignProperties_From_HighAvailability(source *storage.HighAvailability) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1353,7 +1449,7 @@ func (availability *HighAvailability) AssignProperties_From_HighAvailability(sou
 	if augmentedAvailability, ok := availabilityAsAny.(augmentConversionForHighAvailability); ok {
 		err := augmentedAvailability.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1362,7 +1458,7 @@ func (availability *HighAvailability) AssignProperties_From_HighAvailability(sou
 }
 
 // AssignProperties_To_HighAvailability populates the provided destination HighAvailability from our HighAvailability
-func (availability *HighAvailability) AssignProperties_To_HighAvailability(destination *v20210601s.HighAvailability) error {
+func (availability *HighAvailability) AssignProperties_To_HighAvailability(destination *storage.HighAvailability) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(availability.PropertyBag)
 
@@ -1384,7 +1480,7 @@ func (availability *HighAvailability) AssignProperties_To_HighAvailability(desti
 	if augmentedAvailability, ok := availabilityAsAny.(augmentConversionForHighAvailability); ok {
 		err := augmentedAvailability.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1402,7 +1498,7 @@ type HighAvailability_STATUS struct {
 }
 
 // AssignProperties_From_HighAvailability_STATUS populates our HighAvailability_STATUS from the provided source HighAvailability_STATUS
-func (availability *HighAvailability_STATUS) AssignProperties_From_HighAvailability_STATUS(source *v20210601s.HighAvailability_STATUS) error {
+func (availability *HighAvailability_STATUS) AssignProperties_From_HighAvailability_STATUS(source *storage.HighAvailability_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1427,7 +1523,7 @@ func (availability *HighAvailability_STATUS) AssignProperties_From_HighAvailabil
 	if augmentedAvailability, ok := availabilityAsAny.(augmentConversionForHighAvailability_STATUS); ok {
 		err := augmentedAvailability.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1436,7 +1532,7 @@ func (availability *HighAvailability_STATUS) AssignProperties_From_HighAvailabil
 }
 
 // AssignProperties_To_HighAvailability_STATUS populates the provided destination HighAvailability_STATUS from our HighAvailability_STATUS
-func (availability *HighAvailability_STATUS) AssignProperties_To_HighAvailability_STATUS(destination *v20210601s.HighAvailability_STATUS) error {
+func (availability *HighAvailability_STATUS) AssignProperties_To_HighAvailability_STATUS(destination *storage.HighAvailability_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(availability.PropertyBag)
 
@@ -1461,7 +1557,7 @@ func (availability *HighAvailability_STATUS) AssignProperties_To_HighAvailabilit
 	if augmentedAvailability, ok := availabilityAsAny.(augmentConversionForHighAvailability_STATUS); ok {
 		err := augmentedAvailability.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1480,7 +1576,7 @@ type MaintenanceWindow struct {
 }
 
 // AssignProperties_From_MaintenanceWindow populates our MaintenanceWindow from the provided source MaintenanceWindow
-func (window *MaintenanceWindow) AssignProperties_From_MaintenanceWindow(source *v20210601s.MaintenanceWindow) error {
+func (window *MaintenanceWindow) AssignProperties_From_MaintenanceWindow(source *storage.MaintenanceWindow) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1508,7 +1604,7 @@ func (window *MaintenanceWindow) AssignProperties_From_MaintenanceWindow(source 
 	if augmentedWindow, ok := windowAsAny.(augmentConversionForMaintenanceWindow); ok {
 		err := augmentedWindow.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1517,7 +1613,7 @@ func (window *MaintenanceWindow) AssignProperties_From_MaintenanceWindow(source 
 }
 
 // AssignProperties_To_MaintenanceWindow populates the provided destination MaintenanceWindow from our MaintenanceWindow
-func (window *MaintenanceWindow) AssignProperties_To_MaintenanceWindow(destination *v20210601s.MaintenanceWindow) error {
+func (window *MaintenanceWindow) AssignProperties_To_MaintenanceWindow(destination *storage.MaintenanceWindow) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(window.PropertyBag)
 
@@ -1545,7 +1641,7 @@ func (window *MaintenanceWindow) AssignProperties_To_MaintenanceWindow(destinati
 	if augmentedWindow, ok := windowAsAny.(augmentConversionForMaintenanceWindow); ok {
 		err := augmentedWindow.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1564,7 +1660,7 @@ type MaintenanceWindow_STATUS struct {
 }
 
 // AssignProperties_From_MaintenanceWindow_STATUS populates our MaintenanceWindow_STATUS from the provided source MaintenanceWindow_STATUS
-func (window *MaintenanceWindow_STATUS) AssignProperties_From_MaintenanceWindow_STATUS(source *v20210601s.MaintenanceWindow_STATUS) error {
+func (window *MaintenanceWindow_STATUS) AssignProperties_From_MaintenanceWindow_STATUS(source *storage.MaintenanceWindow_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1592,7 +1688,7 @@ func (window *MaintenanceWindow_STATUS) AssignProperties_From_MaintenanceWindow_
 	if augmentedWindow, ok := windowAsAny.(augmentConversionForMaintenanceWindow_STATUS); ok {
 		err := augmentedWindow.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1601,7 +1697,7 @@ func (window *MaintenanceWindow_STATUS) AssignProperties_From_MaintenanceWindow_
 }
 
 // AssignProperties_To_MaintenanceWindow_STATUS populates the provided destination MaintenanceWindow_STATUS from our MaintenanceWindow_STATUS
-func (window *MaintenanceWindow_STATUS) AssignProperties_To_MaintenanceWindow_STATUS(destination *v20210601s.MaintenanceWindow_STATUS) error {
+func (window *MaintenanceWindow_STATUS) AssignProperties_To_MaintenanceWindow_STATUS(destination *storage.MaintenanceWindow_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(window.PropertyBag)
 
@@ -1629,7 +1725,7 @@ func (window *MaintenanceWindow_STATUS) AssignProperties_To_MaintenanceWindow_ST
 	if augmentedWindow, ok := windowAsAny.(augmentConversionForMaintenanceWindow_STATUS); ok {
 		err := augmentedWindow.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1649,7 +1745,7 @@ type Network struct {
 }
 
 // AssignProperties_From_Network populates our Network from the provided source Network
-func (network *Network) AssignProperties_From_Network(source *v20210601s.Network) error {
+func (network *Network) AssignProperties_From_Network(source *storage.Network) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1681,7 +1777,7 @@ func (network *Network) AssignProperties_From_Network(source *v20210601s.Network
 	if augmentedNetwork, ok := networkAsAny.(augmentConversionForNetwork); ok {
 		err := augmentedNetwork.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1690,7 +1786,7 @@ func (network *Network) AssignProperties_From_Network(source *v20210601s.Network
 }
 
 // AssignProperties_To_Network populates the provided destination Network from our Network
-func (network *Network) AssignProperties_To_Network(destination *v20210601s.Network) error {
+func (network *Network) AssignProperties_To_Network(destination *storage.Network) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(network.PropertyBag)
 
@@ -1722,7 +1818,7 @@ func (network *Network) AssignProperties_To_Network(destination *v20210601s.Netw
 	if augmentedNetwork, ok := networkAsAny.(augmentConversionForNetwork); ok {
 		err := augmentedNetwork.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1740,7 +1836,7 @@ type Network_STATUS struct {
 }
 
 // AssignProperties_From_Network_STATUS populates our Network_STATUS from the provided source Network_STATUS
-func (network *Network_STATUS) AssignProperties_From_Network_STATUS(source *v20210601s.Network_STATUS) error {
+func (network *Network_STATUS) AssignProperties_From_Network_STATUS(source *storage.Network_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1765,7 +1861,7 @@ func (network *Network_STATUS) AssignProperties_From_Network_STATUS(source *v202
 	if augmentedNetwork, ok := networkAsAny.(augmentConversionForNetwork_STATUS); ok {
 		err := augmentedNetwork.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1774,7 +1870,7 @@ func (network *Network_STATUS) AssignProperties_From_Network_STATUS(source *v202
 }
 
 // AssignProperties_To_Network_STATUS populates the provided destination Network_STATUS from our Network_STATUS
-func (network *Network_STATUS) AssignProperties_To_Network_STATUS(destination *v20210601s.Network_STATUS) error {
+func (network *Network_STATUS) AssignProperties_To_Network_STATUS(destination *storage.Network_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(network.PropertyBag)
 
@@ -1799,7 +1895,7 @@ func (network *Network_STATUS) AssignProperties_To_Network_STATUS(destination *v
 	if augmentedNetwork, ok := networkAsAny.(augmentConversionForNetwork_STATUS); ok {
 		err := augmentedNetwork.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1816,7 +1912,7 @@ type Sku struct {
 }
 
 // AssignProperties_From_Sku populates our Sku from the provided source Sku
-func (sku *Sku) AssignProperties_From_Sku(source *v20210601s.Sku) error {
+func (sku *Sku) AssignProperties_From_Sku(source *storage.Sku) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1838,7 +1934,7 @@ func (sku *Sku) AssignProperties_From_Sku(source *v20210601s.Sku) error {
 	if augmentedSku, ok := skuAsAny.(augmentConversionForSku); ok {
 		err := augmentedSku.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1847,7 +1943,7 @@ func (sku *Sku) AssignProperties_From_Sku(source *v20210601s.Sku) error {
 }
 
 // AssignProperties_To_Sku populates the provided destination Sku from our Sku
-func (sku *Sku) AssignProperties_To_Sku(destination *v20210601s.Sku) error {
+func (sku *Sku) AssignProperties_To_Sku(destination *storage.Sku) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(sku.PropertyBag)
 
@@ -1869,7 +1965,7 @@ func (sku *Sku) AssignProperties_To_Sku(destination *v20210601s.Sku) error {
 	if augmentedSku, ok := skuAsAny.(augmentConversionForSku); ok {
 		err := augmentedSku.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1886,7 +1982,7 @@ type Sku_STATUS struct {
 }
 
 // AssignProperties_From_Sku_STATUS populates our Sku_STATUS from the provided source Sku_STATUS
-func (sku *Sku_STATUS) AssignProperties_From_Sku_STATUS(source *v20210601s.Sku_STATUS) error {
+func (sku *Sku_STATUS) AssignProperties_From_Sku_STATUS(source *storage.Sku_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1908,7 +2004,7 @@ func (sku *Sku_STATUS) AssignProperties_From_Sku_STATUS(source *v20210601s.Sku_S
 	if augmentedSku, ok := skuAsAny.(augmentConversionForSku_STATUS); ok {
 		err := augmentedSku.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1917,7 +2013,7 @@ func (sku *Sku_STATUS) AssignProperties_From_Sku_STATUS(source *v20210601s.Sku_S
 }
 
 // AssignProperties_To_Sku_STATUS populates the provided destination Sku_STATUS from our Sku_STATUS
-func (sku *Sku_STATUS) AssignProperties_To_Sku_STATUS(destination *v20210601s.Sku_STATUS) error {
+func (sku *Sku_STATUS) AssignProperties_To_Sku_STATUS(destination *storage.Sku_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(sku.PropertyBag)
 
@@ -1939,7 +2035,7 @@ func (sku *Sku_STATUS) AssignProperties_To_Sku_STATUS(destination *v20210601s.Sk
 	if augmentedSku, ok := skuAsAny.(augmentConversionForSku_STATUS); ok {
 		err := augmentedSku.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -1955,7 +2051,7 @@ type Storage struct {
 }
 
 // AssignProperties_From_Storage populates our Storage from the provided source Storage
-func (storage *Storage) AssignProperties_From_Storage(source *v20210601s.Storage) error {
+func (storage *Storage) AssignProperties_From_Storage(source *storage.Storage) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -1974,7 +2070,7 @@ func (storage *Storage) AssignProperties_From_Storage(source *v20210601s.Storage
 	if augmentedStorage, ok := storageAsAny.(augmentConversionForStorage); ok {
 		err := augmentedStorage.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -1983,7 +2079,7 @@ func (storage *Storage) AssignProperties_From_Storage(source *v20210601s.Storage
 }
 
 // AssignProperties_To_Storage populates the provided destination Storage from our Storage
-func (storage *Storage) AssignProperties_To_Storage(destination *v20210601s.Storage) error {
+func (storage *Storage) AssignProperties_To_Storage(destination *storage.Storage) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(storage.PropertyBag)
 
@@ -2002,7 +2098,7 @@ func (storage *Storage) AssignProperties_To_Storage(destination *v20210601s.Stor
 	if augmentedStorage, ok := storageAsAny.(augmentConversionForStorage); ok {
 		err := augmentedStorage.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2018,7 +2114,7 @@ type Storage_STATUS struct {
 }
 
 // AssignProperties_From_Storage_STATUS populates our Storage_STATUS from the provided source Storage_STATUS
-func (storage *Storage_STATUS) AssignProperties_From_Storage_STATUS(source *v20210601s.Storage_STATUS) error {
+func (storage *Storage_STATUS) AssignProperties_From_Storage_STATUS(source *storage.Storage_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -2037,7 +2133,7 @@ func (storage *Storage_STATUS) AssignProperties_From_Storage_STATUS(source *v202
 	if augmentedStorage, ok := storageAsAny.(augmentConversionForStorage_STATUS); ok {
 		err := augmentedStorage.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2046,7 +2142,7 @@ func (storage *Storage_STATUS) AssignProperties_From_Storage_STATUS(source *v202
 }
 
 // AssignProperties_To_Storage_STATUS populates the provided destination Storage_STATUS from our Storage_STATUS
-func (storage *Storage_STATUS) AssignProperties_To_Storage_STATUS(destination *v20210601s.Storage_STATUS) error {
+func (storage *Storage_STATUS) AssignProperties_To_Storage_STATUS(destination *storage.Storage_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(storage.PropertyBag)
 
@@ -2065,7 +2161,7 @@ func (storage *Storage_STATUS) AssignProperties_To_Storage_STATUS(destination *v
 	if augmentedStorage, ok := storageAsAny.(augmentConversionForStorage_STATUS); ok {
 		err := augmentedStorage.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2086,7 +2182,7 @@ type SystemData_STATUS struct {
 }
 
 // AssignProperties_From_SystemData_STATUS populates our SystemData_STATUS from the provided source SystemData_STATUS
-func (data *SystemData_STATUS) AssignProperties_From_SystemData_STATUS(source *v20210601s.SystemData_STATUS) error {
+func (data *SystemData_STATUS) AssignProperties_From_SystemData_STATUS(source *storage.SystemData_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
@@ -2120,7 +2216,7 @@ func (data *SystemData_STATUS) AssignProperties_From_SystemData_STATUS(source *v
 	if augmentedData, ok := dataAsAny.(augmentConversionForSystemData_STATUS); ok {
 		err := augmentedData.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2129,7 +2225,7 @@ func (data *SystemData_STATUS) AssignProperties_From_SystemData_STATUS(source *v
 }
 
 // AssignProperties_To_SystemData_STATUS populates the provided destination SystemData_STATUS from our SystemData_STATUS
-func (data *SystemData_STATUS) AssignProperties_To_SystemData_STATUS(destination *v20210601s.SystemData_STATUS) error {
+func (data *SystemData_STATUS) AssignProperties_To_SystemData_STATUS(destination *storage.SystemData_STATUS) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(data.PropertyBag)
 
@@ -2163,7 +2259,7 @@ func (data *SystemData_STATUS) AssignProperties_To_SystemData_STATUS(destination
 	if augmentedData, ok := dataAsAny.(augmentConversionForSystemData_STATUS); ok {
 		err := augmentedData.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2172,73 +2268,73 @@ func (data *SystemData_STATUS) AssignProperties_To_SystemData_STATUS(destination
 }
 
 type augmentConversionForBackup interface {
-	AssignPropertiesFrom(src *v20210601s.Backup) error
-	AssignPropertiesTo(dst *v20210601s.Backup) error
+	AssignPropertiesFrom(src *storage.Backup) error
+	AssignPropertiesTo(dst *storage.Backup) error
 }
 
 type augmentConversionForBackup_STATUS interface {
-	AssignPropertiesFrom(src *v20210601s.Backup_STATUS) error
-	AssignPropertiesTo(dst *v20210601s.Backup_STATUS) error
+	AssignPropertiesFrom(src *storage.Backup_STATUS) error
+	AssignPropertiesTo(dst *storage.Backup_STATUS) error
 }
 
 type augmentConversionForFlexibleServerOperatorSpec interface {
-	AssignPropertiesFrom(src *v20210601s.FlexibleServerOperatorSpec) error
-	AssignPropertiesTo(dst *v20210601s.FlexibleServerOperatorSpec) error
+	AssignPropertiesFrom(src *storage.FlexibleServerOperatorSpec) error
+	AssignPropertiesTo(dst *storage.FlexibleServerOperatorSpec) error
 }
 
 type augmentConversionForHighAvailability interface {
-	AssignPropertiesFrom(src *v20210601s.HighAvailability) error
-	AssignPropertiesTo(dst *v20210601s.HighAvailability) error
+	AssignPropertiesFrom(src *storage.HighAvailability) error
+	AssignPropertiesTo(dst *storage.HighAvailability) error
 }
 
 type augmentConversionForHighAvailability_STATUS interface {
-	AssignPropertiesFrom(src *v20210601s.HighAvailability_STATUS) error
-	AssignPropertiesTo(dst *v20210601s.HighAvailability_STATUS) error
+	AssignPropertiesFrom(src *storage.HighAvailability_STATUS) error
+	AssignPropertiesTo(dst *storage.HighAvailability_STATUS) error
 }
 
 type augmentConversionForMaintenanceWindow interface {
-	AssignPropertiesFrom(src *v20210601s.MaintenanceWindow) error
-	AssignPropertiesTo(dst *v20210601s.MaintenanceWindow) error
+	AssignPropertiesFrom(src *storage.MaintenanceWindow) error
+	AssignPropertiesTo(dst *storage.MaintenanceWindow) error
 }
 
 type augmentConversionForMaintenanceWindow_STATUS interface {
-	AssignPropertiesFrom(src *v20210601s.MaintenanceWindow_STATUS) error
-	AssignPropertiesTo(dst *v20210601s.MaintenanceWindow_STATUS) error
+	AssignPropertiesFrom(src *storage.MaintenanceWindow_STATUS) error
+	AssignPropertiesTo(dst *storage.MaintenanceWindow_STATUS) error
 }
 
 type augmentConversionForNetwork interface {
-	AssignPropertiesFrom(src *v20210601s.Network) error
-	AssignPropertiesTo(dst *v20210601s.Network) error
+	AssignPropertiesFrom(src *storage.Network) error
+	AssignPropertiesTo(dst *storage.Network) error
 }
 
 type augmentConversionForNetwork_STATUS interface {
-	AssignPropertiesFrom(src *v20210601s.Network_STATUS) error
-	AssignPropertiesTo(dst *v20210601s.Network_STATUS) error
+	AssignPropertiesFrom(src *storage.Network_STATUS) error
+	AssignPropertiesTo(dst *storage.Network_STATUS) error
 }
 
 type augmentConversionForSku interface {
-	AssignPropertiesFrom(src *v20210601s.Sku) error
-	AssignPropertiesTo(dst *v20210601s.Sku) error
+	AssignPropertiesFrom(src *storage.Sku) error
+	AssignPropertiesTo(dst *storage.Sku) error
 }
 
 type augmentConversionForSku_STATUS interface {
-	AssignPropertiesFrom(src *v20210601s.Sku_STATUS) error
-	AssignPropertiesTo(dst *v20210601s.Sku_STATUS) error
+	AssignPropertiesFrom(src *storage.Sku_STATUS) error
+	AssignPropertiesTo(dst *storage.Sku_STATUS) error
 }
 
 type augmentConversionForStorage interface {
-	AssignPropertiesFrom(src *v20210601s.Storage) error
-	AssignPropertiesTo(dst *v20210601s.Storage) error
+	AssignPropertiesFrom(src *storage.Storage) error
+	AssignPropertiesTo(dst *storage.Storage) error
 }
 
 type augmentConversionForStorage_STATUS interface {
-	AssignPropertiesFrom(src *v20210601s.Storage_STATUS) error
-	AssignPropertiesTo(dst *v20210601s.Storage_STATUS) error
+	AssignPropertiesFrom(src *storage.Storage_STATUS) error
+	AssignPropertiesTo(dst *storage.Storage_STATUS) error
 }
 
 type augmentConversionForSystemData_STATUS interface {
-	AssignPropertiesFrom(src *v20210601s.SystemData_STATUS) error
-	AssignPropertiesTo(dst *v20210601s.SystemData_STATUS) error
+	AssignPropertiesFrom(src *storage.SystemData_STATUS) error
+	AssignPropertiesTo(dst *storage.SystemData_STATUS) error
 }
 
 // Storage version of v1api20220120preview.FlexibleServerOperatorConfigMaps
@@ -2248,13 +2344,13 @@ type FlexibleServerOperatorConfigMaps struct {
 }
 
 // AssignProperties_From_FlexibleServerOperatorConfigMaps populates our FlexibleServerOperatorConfigMaps from the provided source FlexibleServerOperatorConfigMaps
-func (maps *FlexibleServerOperatorConfigMaps) AssignProperties_From_FlexibleServerOperatorConfigMaps(source *v20221201s.FlexibleServerOperatorConfigMaps) error {
+func (maps *FlexibleServerOperatorConfigMaps) AssignProperties_From_FlexibleServerOperatorConfigMaps(source *storage.FlexibleServerOperatorConfigMaps) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
 	// FullyQualifiedDomainName
 	if source.FullyQualifiedDomainName != nil {
-		fullyQualifiedDomainName := source.FullyQualifiedDomainName.Copy()
+		fullyQualifiedDomainName := *source.FullyQualifiedDomainName.DeepCopy()
 		maps.FullyQualifiedDomainName = &fullyQualifiedDomainName
 	} else {
 		maps.FullyQualifiedDomainName = nil
@@ -2272,7 +2368,7 @@ func (maps *FlexibleServerOperatorConfigMaps) AssignProperties_From_FlexibleServ
 	if augmentedMaps, ok := mapsAsAny.(augmentConversionForFlexibleServerOperatorConfigMaps); ok {
 		err := augmentedMaps.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2281,13 +2377,13 @@ func (maps *FlexibleServerOperatorConfigMaps) AssignProperties_From_FlexibleServ
 }
 
 // AssignProperties_To_FlexibleServerOperatorConfigMaps populates the provided destination FlexibleServerOperatorConfigMaps from our FlexibleServerOperatorConfigMaps
-func (maps *FlexibleServerOperatorConfigMaps) AssignProperties_To_FlexibleServerOperatorConfigMaps(destination *v20221201s.FlexibleServerOperatorConfigMaps) error {
+func (maps *FlexibleServerOperatorConfigMaps) AssignProperties_To_FlexibleServerOperatorConfigMaps(destination *storage.FlexibleServerOperatorConfigMaps) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(maps.PropertyBag)
 
 	// FullyQualifiedDomainName
 	if maps.FullyQualifiedDomainName != nil {
-		fullyQualifiedDomainName := maps.FullyQualifiedDomainName.Copy()
+		fullyQualifiedDomainName := *maps.FullyQualifiedDomainName.DeepCopy()
 		destination.FullyQualifiedDomainName = &fullyQualifiedDomainName
 	} else {
 		destination.FullyQualifiedDomainName = nil
@@ -2305,7 +2401,7 @@ func (maps *FlexibleServerOperatorConfigMaps) AssignProperties_To_FlexibleServer
 	if augmentedMaps, ok := mapsAsAny.(augmentConversionForFlexibleServerOperatorConfigMaps); ok {
 		err := augmentedMaps.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2320,13 +2416,13 @@ type FlexibleServerOperatorSecrets struct {
 }
 
 // AssignProperties_From_FlexibleServerOperatorSecrets populates our FlexibleServerOperatorSecrets from the provided source FlexibleServerOperatorSecrets
-func (secrets *FlexibleServerOperatorSecrets) AssignProperties_From_FlexibleServerOperatorSecrets(source *v20210601s.FlexibleServerOperatorSecrets) error {
+func (secrets *FlexibleServerOperatorSecrets) AssignProperties_From_FlexibleServerOperatorSecrets(source *storage.FlexibleServerOperatorSecrets) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
 
 	// FullyQualifiedDomainName
 	if source.FullyQualifiedDomainName != nil {
-		fullyQualifiedDomainName := source.FullyQualifiedDomainName.Copy()
+		fullyQualifiedDomainName := *source.FullyQualifiedDomainName.DeepCopy()
 		secrets.FullyQualifiedDomainName = &fullyQualifiedDomainName
 	} else {
 		secrets.FullyQualifiedDomainName = nil
@@ -2344,7 +2440,7 @@ func (secrets *FlexibleServerOperatorSecrets) AssignProperties_From_FlexibleServ
 	if augmentedSecrets, ok := secretsAsAny.(augmentConversionForFlexibleServerOperatorSecrets); ok {
 		err := augmentedSecrets.AssignPropertiesFrom(source)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
 		}
 	}
 
@@ -2353,13 +2449,13 @@ func (secrets *FlexibleServerOperatorSecrets) AssignProperties_From_FlexibleServ
 }
 
 // AssignProperties_To_FlexibleServerOperatorSecrets populates the provided destination FlexibleServerOperatorSecrets from our FlexibleServerOperatorSecrets
-func (secrets *FlexibleServerOperatorSecrets) AssignProperties_To_FlexibleServerOperatorSecrets(destination *v20210601s.FlexibleServerOperatorSecrets) error {
+func (secrets *FlexibleServerOperatorSecrets) AssignProperties_To_FlexibleServerOperatorSecrets(destination *storage.FlexibleServerOperatorSecrets) error {
 	// Clone the existing property bag
 	propertyBag := genruntime.NewPropertyBag(secrets.PropertyBag)
 
 	// FullyQualifiedDomainName
 	if secrets.FullyQualifiedDomainName != nil {
-		fullyQualifiedDomainName := secrets.FullyQualifiedDomainName.Copy()
+		fullyQualifiedDomainName := *secrets.FullyQualifiedDomainName.DeepCopy()
 		destination.FullyQualifiedDomainName = &fullyQualifiedDomainName
 	} else {
 		destination.FullyQualifiedDomainName = nil
@@ -2377,7 +2473,7 @@ func (secrets *FlexibleServerOperatorSecrets) AssignProperties_To_FlexibleServer
 	if augmentedSecrets, ok := secretsAsAny.(augmentConversionForFlexibleServerOperatorSecrets); ok {
 		err := augmentedSecrets.AssignPropertiesTo(destination)
 		if err != nil {
-			return errors.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
 		}
 	}
 
@@ -2386,13 +2482,13 @@ func (secrets *FlexibleServerOperatorSecrets) AssignProperties_To_FlexibleServer
 }
 
 type augmentConversionForFlexibleServerOperatorConfigMaps interface {
-	AssignPropertiesFrom(src *v20221201s.FlexibleServerOperatorConfigMaps) error
-	AssignPropertiesTo(dst *v20221201s.FlexibleServerOperatorConfigMaps) error
+	AssignPropertiesFrom(src *storage.FlexibleServerOperatorConfigMaps) error
+	AssignPropertiesTo(dst *storage.FlexibleServerOperatorConfigMaps) error
 }
 
 type augmentConversionForFlexibleServerOperatorSecrets interface {
-	AssignPropertiesFrom(src *v20210601s.FlexibleServerOperatorSecrets) error
-	AssignPropertiesTo(dst *v20210601s.FlexibleServerOperatorSecrets) error
+	AssignPropertiesFrom(src *storage.FlexibleServerOperatorSecrets) error
+	AssignPropertiesTo(dst *storage.FlexibleServerOperatorSecrets) error
 }
 
 func init() {

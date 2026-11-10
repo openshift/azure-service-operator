@@ -6,7 +6,7 @@
 package config
 
 import (
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"gopkg.in/yaml.v3"
 
 	"github.com/Azure/azure-service-operator/v2/internal/util/match"
@@ -63,10 +63,10 @@ func (dm *FieldMatcher) IsRestrictive() bool {
 }
 
 // UnmarshalYAML populates our instance from the YAML.
-// We expect just a single string, which we use create an actual StringMatcher
+// We expect just a single string, which we use to create an actual StringMatcher
 func (dm *FieldMatcher) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind != yaml.ScalarNode {
-		return errors.New("expected scalar value")
+		return eris.New("expected scalar value")
 	}
 
 	actual := match.NewStringMatcher(value.Value)

@@ -9,13 +9,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"gopkg.in/yaml.v3"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/internal/util/typo"
-
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
@@ -64,14 +63,22 @@ func NewGroupConfiguration(name string) *GroupConfiguration {
 // In addition to indexing by the name of the version, we also index by the local-package-name and storage-package-name
 // of the version, so we can do lookups via TypeName. All indexing is lower-case to allow case-insensitive lookups (this
 // makes our configuration more forgiving).
-func (gc *GroupConfiguration) addVersion(name string, version *VersionConfiguration) {
+func (gc *GroupConfiguration) addVersion(name string, version *VersionConfiguration) error {
+	// Check for duplicate on the primary name key before adding
+	primaryKey := strings.ToLower(name)
+	if _, exists := gc.versions[primaryKey]; exists {
+		return eris.Errorf("duplicate version configuration: %q already exists", name)
+	}
+
 	// Convert version.name into a package version
 	// We do this by constructing a local package reference because this avoids replicating the logic here and risking
 	// inconsistency if things are changed in the future.
-	local := astmodel.MakeLocalPackageReference("prefix", "group", astmodel.GeneratorVersion, name)
+	local := astmodel.MakeVersionedLocalPackageReference("prefix", "group", name)
 
-	gc.versions[strings.ToLower(name)] = version
+	gc.versions[primaryKey] = version
 	gc.versions[strings.ToLower(local.Version())] = version
+
+	return nil
 }
 
 // visitVersion invokes the provided visitor on the specified version if present.
@@ -87,7 +94,7 @@ func (gc *GroupConfiguration) visitVersion(
 
 	err := visitor.visitVersion(vc)
 	if err != nil {
-		return errors.Wrapf(err, "configuration of group %s", gc.name)
+		return eris.Wrapf(err, "configuration of group %s", gc.name)
 	}
 
 	return nil
@@ -112,10 +119,11 @@ func (gc *GroupConfiguration) visitVersions(visitor *configurationVisitor) error
 	}
 
 	// Both errors.Wrapf() and kerrors.NewAggregate() return nil if nothing went wrong
-	return errors.Wrapf(
+	return eris.Wrapf(
 		kerrors.NewAggregate(errs),
 		"group %s",
-		gc.name)
+		gc.name,
+	)
 }
 
 // findVersion uses the provided PackageReference to work out which nested VersionConfiguration should be used
@@ -125,8 +133,6 @@ func (gc *GroupConfiguration) findVersion(ref astmodel.PackageReference) *Versio
 		return gc.findVersion(r.Base())
 	case astmodel.LocalPackageReference:
 		return gc.findVersionForLocalPackageReference(r)
-	case astmodel.SubPackageReference:
-		return gc.findVersion(r.Parent())
 	}
 
 	panic(fmt.Sprintf("didn't expect PackageReference of type %T", ref))
@@ -134,11 +140,11 @@ func (gc *GroupConfiguration) findVersion(ref astmodel.PackageReference) *Versio
 
 // findVersion uses the provided LocalPackageReference to work out which nested VersionConfiguration should be used
 func (gc *GroupConfiguration) findVersionForLocalPackageReference(ref astmodel.LocalPackageReference) *VersionConfiguration {
-	gc.advisor.AddTerm(ref.ApiVersion())
+	gc.advisor.AddTerm(ref.APIVersion())
 	gc.advisor.AddTerm(ref.PackageName())
 
 	// Check based on the ApiVersion alone
-	apiKey := strings.ToLower(ref.ApiVersion())
+	apiKey := strings.ToLower(ref.APIVersion())
 	if version, ok := gc.versions[apiKey]; ok {
 		// make sure there's an exact match on the actual version name, so we don't generate a recommendation
 		gc.advisor.AddTerm(version.name)
@@ -160,33 +166,36 @@ func (gc *GroupConfiguration) findVersionForLocalPackageReference(ref astmodel.L
 // The slice node.Content contains pairs of nodes, first one for an ID, then one for the value.
 func (gc *GroupConfiguration) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind != yaml.MappingNode {
-		return errors.New("expected mapping")
+		return eris.New("expected mapping")
 	}
 
 	gc.versions = make(map[string]*VersionConfiguration)
-	var lastId string
+	var lastID string
 
 	for i, c := range value.Content {
 		// Grab identifiers and loop to handle the associated value
 		if i%2 == 0 {
-			lastId = c.Value
+			lastID = c.Value
 			continue
 		}
 
 		// Handle nested version metadata
 		if c.Kind == yaml.MappingNode {
-			v := NewVersionConfiguration(lastId)
+			v := NewVersionConfiguration(lastID)
 			err := c.Decode(&v)
 			if err != nil {
-				return errors.Wrapf(err, "decoding yaml for %q", lastId)
+				return eris.Wrapf(err, "decoding yaml for %q", lastID)
 			}
 
-			gc.addVersion(lastId, v)
+			err = gc.addVersion(lastID, v)
+			if err != nil {
+				return eris.Wrapf(err, "adding version %q", lastID)
+			}
 			continue
 		}
 
 		// $payloadType: <string>
-		if strings.EqualFold(lastId, payloadTypeTag) && c.Kind == yaml.ScalarNode {
+		if strings.EqualFold(lastID, payloadTypeTag) && c.Kind == yaml.ScalarNode {
 			switch strings.ToLower(c.Value) {
 			case string(OmitEmptyProperties):
 				gc.PayloadType.Set(OmitEmptyProperties)
@@ -197,34 +206,18 @@ func (gc *GroupConfiguration) UnmarshalYAML(value *yaml.Node) error {
 			case string(ExplicitProperties):
 				gc.PayloadType.Set(ExplicitProperties)
 			default:
-				return errors.Errorf("unknown %s value: %s.", payloadTypeTag, c.Value)
+				return eris.Errorf("unknown %s value: %s.", payloadTypeTag, c.Value)
 			}
 
 			continue
 		}
 
 		// No handler for this value, return an error
-		return errors.Errorf(
-			"group configuration, unexpected yaml value %s: %s (line %d col %d)", lastId, c.Value, c.Line, c.Column)
+		return eris.Errorf(
+			"group configuration, unexpected yaml value %s: %s (line %d col %d)", lastID, c.Value, c.Line, c.Column,
+		)
+
 	}
 
 	return nil
-}
-
-// configuredVersions returns a sorted slice containing all the versions configured in this group
-func (gc *GroupConfiguration) configuredVersions() []string {
-	// All our versions are listed twice, under two different keys, so we hedge against processing them multiple times
-	versionsSeen := set.Make[string]()
-	result := make([]string, 0, len(gc.versions))
-	for _, v := range gc.versions {
-		if versionsSeen.Contains(v.name) {
-			continue
-		}
-
-		// Use the actual names of the versions, not the lower-cased keys of the map
-		result = append(result, v.name)
-		versionsSeen.Add(v.name)
-	}
-
-	return result
 }

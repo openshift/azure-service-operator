@@ -6,9 +6,9 @@
 package kustomization
 
 import (
-	"io/ioutil"
+	"os"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"gopkg.in/yaml.v3"
 )
 
@@ -54,12 +54,12 @@ func (k *CRDKustomizeFile) AddConfiguration(configFilePath string) {
 func (k *CRDKustomizeFile) Save(destination string) error {
 	data, err := yaml.Marshal(*k)
 	if err != nil {
-		return errors.Wrap(err, "serializing to yaml")
+		return eris.Wrap(err, "serializing to yaml")
 	}
 
-	err = ioutil.WriteFile(destination, data, 0o644) // #nosec G306
+	err = os.WriteFile(destination, data, 0o644) // #nosec G306
 	if err != nil {
-		return errors.Wrapf(err, "writing to %s", destination)
+		return eris.Wrapf(err, "writing to %s", destination)
 	}
 
 	return nil

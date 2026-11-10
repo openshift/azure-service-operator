@@ -14,18 +14,25 @@ import (
 func TestMakeStoragePackageReference(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
+	cases := map[string]struct {
 		group           string
 		version         string
 		expectedVersion string
 	}{
-		{"group", "1", "storage"},
-		{"microsoft.network", "2018-05-01", "storage"},
+		"group": {
+			group:           "group",
+			version:         "1",
+			expectedVersion: "storage",
+		},
+		"microsoft.network": {
+			group:           "microsoft.network",
+			version:         "2018-05-01",
+			expectedVersion: "storage",
+		},
 	}
 
-	for _, c := range cases {
-		c := c
-		t.Run(c.group, func(t *testing.T) {
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
@@ -45,21 +52,35 @@ func TestStoragePackageReferenceEquals(t *testing.T) {
 	storageRef := MakeStoragePackageReference(localRef)
 	otherRef := MakeStoragePackageReference(localRef)
 
-	cases := []struct {
-		name          string
+	cases := map[string]struct {
 		storageRef    InternalPackageReference
 		otherRef      InternalPackageReference
 		expectedEqual bool
 	}{
-		{"Equal to self", storageRef, storageRef, true},
-		{"Equal to other", storageRef, otherRef, true},
-		{"Equal to other (reversed)", otherRef, storageRef, true},
-		{"Not equal to local", storageRef, localRef, false},
+		"Equal to self": {
+			storageRef:    storageRef,
+			otherRef:      storageRef,
+			expectedEqual: true,
+		},
+		"Equal to other": {
+			storageRef:    storageRef,
+			otherRef:      otherRef,
+			expectedEqual: true,
+		},
+		"Equal to other (reversed)": {
+			storageRef:    otherRef,
+			otherRef:      storageRef,
+			expectedEqual: true,
+		},
+		"Not equal to local": {
+			storageRef:    storageRef,
+			otherRef:      localRef,
+			expectedEqual: false,
+		},
 	}
 
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
@@ -73,26 +94,39 @@ func TestStoragePackageReferenceEquals(t *testing.T) {
 func TestStoragePackageReferenceIsPreview(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name      string
+	cases := map[string]struct {
 		version   string
 		isPreview bool
 	}{
-		{"GA storage Release is not preview", "v20200901", false},
-		{"Preview storage release is preview", "v20200901preview", true},
-		{"Preview storage re-release is preview", "v20200901preview2", true},
-		{"Alpha storage release is preview", "v20200901alpha", true},
-		{"Beta storage release is preview", "v20200901betas", true},
+		"GA storage Release is not preview": {
+			version:   "v20200901",
+			isPreview: false,
+		},
+		"Preview storage release is preview": {
+			version:   "v20200901preview",
+			isPreview: true,
+		},
+		"Preview storage re-release is preview": {
+			version:   "v20200901preview2",
+			isPreview: true,
+		},
+		"Alpha storage release is preview": {
+			version:   "v20200901alpha",
+			isPreview: true,
+		},
+		"Beta storage release is preview": {
+			version:   "v20200901betas",
+			isPreview: true,
+		},
 	}
 
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
 			// Using GeneratorVersion here to make sure IsPreview isn't fooled
-			local := MakeLocalPackageReference("prefix", "microsoft.storage", GeneratorVersion, c.version)
+			local := MakeVersionedLocalPackageReference("prefix", "microsoft.storage", c.version)
 			ref := MakeStoragePackageReference(local)
 
 			g.Expect(ref.IsPreview()).To(Equal(c.isPreview))
@@ -103,8 +137,7 @@ func TestStoragePackageReferenceIsPreview(t *testing.T) {
 func Test_StoragePackageReference_ImportAlias_ReturnsExpectedAlias(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name             string
+	cases := map[string]struct {
 		group            string
 		generatorVersion string
 		apiVersion       string
@@ -112,29 +145,80 @@ func Test_StoragePackageReference_ImportAlias_ReturnsExpectedAlias(t *testing.T)
 		expected         string
 	}{
 		// Current generator version
-		{"GeneratorVersionOnly", "storage", GeneratorVersion, "20200901", VersionOnly, "v20200901s"},
-		{"GeneratorGroupOnly", "storage", GeneratorVersion, "20200901", GroupOnly, "storage"},
-		{"GeneratorGroupAndVersion", "storage", GeneratorVersion, "20200901", GroupAndVersion, "storage_v20200901s"},
-		{"GeneratorPreviewVersionOnly", "storage", GeneratorVersion, "20200901preview", VersionOnly, "v20200901ps"},
-		{"GeneratorPreviewGroupOnly", "storage", GeneratorVersion, "20200901preview", GroupOnly, "storage"},
-		{"GeneratorPreviewGroupAndVersion", "storage", GeneratorVersion, "20200901preview", GroupAndVersion, "storage_v20200901ps"},
+		"GeneratorVersionOnly": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      VersionOnly,
+			expected:   "v20200901s",
+		},
+		"GeneratorGroupOnly": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      GroupOnly,
+			expected:   "storage",
+		},
+		"GeneratorGroupAndVersion": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      GroupAndVersion,
+			expected:   "storage_v20200901s",
+		},
+		"GeneratorPreviewVersionOnly": {
+			group:      "storage",
+			apiVersion: "20200901preview",
+			style:      VersionOnly,
+			expected:   "v20200901ps",
+		},
+		"GeneratorPreviewGroupOnly": {
+			group:      "storage",
+			apiVersion: "20200901preview",
+			style:      GroupOnly,
+			expected:   "storage",
+		},
+		"GeneratorPreviewGroupAndVersion": {
+			group:      "storage",
+			apiVersion: "20200901preview",
+			style:      GroupAndVersion,
+			expected:   "storage_v20200901ps",
+		},
 		// Hard coded to v1api
-		{"v1apiVersionOnly", "storage", "v1api", "20200901", VersionOnly, "v20200901s"},
-		{"v1apiGroupOnly", "storage", "v1api", "20200901", GroupOnly, "storage"},
-		{"v1apiGroupAndVersion", "storage", "v1api", "20200901", GroupAndVersion, "storage_v20200901s"},
-		// Hard coded to v1beta
-		{"v1betaVersionOnly", "storage", "v1beta", "20200901", VersionOnly, "v1beta20200901s"},
-		{"v1betaGroupOnly", "storage", "v1beta", "20200901", GroupOnly, "storage"},
-		{"v1betaGroupAndVersion", "storage", "v1beta", "20200901", GroupAndVersion, "storage_v1beta20200901s"},
+		"v1apiVersionOnly": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      VersionOnly,
+			expected:   "v20200901s",
+		},
+		"v1apiGroupOnly": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      GroupOnly,
+			expected:   "storage",
+		},
+		"v1apiGroupAndVersion": {
+			group:      "storage",
+			apiVersion: "20200901",
+			style:      GroupAndVersion,
+			expected:   "storage_v20200901s",
+		},
+		"v1apiGroupAndFullVersion": {
+			group:            "storage",
+			generatorVersion: "v1api",
+			apiVersion:       "20200901",
+			style:            GroupAndFullVersion,
+			expected:         "storage_v1api20200901s",
+		},
 	}
 
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := NewGomegaWithT(t)
 
-			lpr := MakeLocalPackageReference("v", c.group, c.generatorVersion, c.apiVersion)
+			lpr := MakeVersionedLocalPackageReference("v", c.group, c.apiVersion)
+			if c.generatorVersion != "" {
+				lpr = lpr.WithVersionPrefix(c.generatorVersion)
+			}
+
 			ref := MakeStoragePackageReference(lpr)
 			g.Expect(ref.ImportAlias(c.style)).To(Equal(c.expected))
 		})

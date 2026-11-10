@@ -4,32 +4,35 @@
 package storage
 
 import (
+	"fmt"
+	storage "github.com/Azure/azure-service-operator/v2/api/cdn/v20230501/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// +kubebuilder:rbac:groups=cdn.azure.com,resources=afdorigins,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=cdn.azure.com,resources={afdorigins/status,afdorigins/finalizers},verbs=get;update;patch
-
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,cdn}
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20230501.AfdOrigin
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/originGroups/{originGroupName}/origins/{originName}
 type AfdOrigin struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Profiles_OriginGroups_Origin_Spec   `json:"spec,omitempty"`
-	Status            Profiles_OriginGroups_Origin_STATUS `json:"status,omitempty"`
+	Spec              AfdOrigin_Spec   `json:"spec,omitempty"`
+	Status            AfdOrigin_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &AfdOrigin{}
@@ -44,6 +47,48 @@ func (origin *AfdOrigin) SetConditions(conditions conditions.Conditions) {
 	origin.Status.Conditions = conditions
 }
 
+var _ conversion.Convertible = &AfdOrigin{}
+
+// ConvertFrom populates our AfdOrigin from the provided hub AfdOrigin
+func (origin *AfdOrigin) ConvertFrom(hub conversion.Hub) error {
+	source, ok := hub.(*storage.AfdOrigin)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20230501/storage/AfdOrigin but received %T instead", hub)
+	}
+
+	return origin.AssignProperties_From_AfdOrigin(source)
+}
+
+// ConvertTo populates the provided hub AfdOrigin from our AfdOrigin
+func (origin *AfdOrigin) ConvertTo(hub conversion.Hub) error {
+	destination, ok := hub.(*storage.AfdOrigin)
+	if !ok {
+		return fmt.Errorf("expected cdn/v20230501/storage/AfdOrigin but received %T instead", hub)
+	}
+
+	return origin.AssignProperties_To_AfdOrigin(destination)
+}
+
+var _ configmaps.Exporter = &AfdOrigin{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (origin *AfdOrigin) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if origin.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return origin.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &AfdOrigin{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (origin *AfdOrigin) SecretDestinationExpressions() []*core.DestinationExpression {
+	if origin.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return origin.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &AfdOrigin{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +98,7 @@ func (origin *AfdOrigin) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-05-01"
 func (origin AfdOrigin) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-05-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -87,11 +132,15 @@ func (origin *AfdOrigin) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (origin *AfdOrigin) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Profiles_OriginGroups_Origin_STATUS{}
+	return &AfdOrigin_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (origin *AfdOrigin) Owner() *genruntime.ResourceReference {
+	if origin.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(origin.Spec)
 	return origin.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -99,24 +148,91 @@ func (origin *AfdOrigin) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (origin *AfdOrigin) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Profiles_OriginGroups_Origin_STATUS); ok {
+	if st, ok := status.(*AfdOrigin_STATUS); ok {
 		origin.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Profiles_OriginGroups_Origin_STATUS
+	var st AfdOrigin_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	origin.Status = st
 	return nil
 }
 
-// Hub marks that this AfdOrigin is the hub type for conversion
-func (origin *AfdOrigin) Hub() {}
+// AssignProperties_From_AfdOrigin populates our AfdOrigin from the provided source AfdOrigin
+func (origin *AfdOrigin) AssignProperties_From_AfdOrigin(source *storage.AfdOrigin) error {
+
+	// ObjectMeta
+	origin.ObjectMeta = *source.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec AfdOrigin_Spec
+	err := spec.AssignProperties_From_AfdOrigin_Spec(&source.Spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_AfdOrigin_Spec() to populate field Spec")
+	}
+	origin.Spec = spec
+
+	// Status
+	var status AfdOrigin_STATUS
+	err = status.AssignProperties_From_AfdOrigin_STATUS(&source.Status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_AfdOrigin_STATUS() to populate field Status")
+	}
+	origin.Status = status
+
+	// Invoke the augmentConversionForAfdOrigin interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForAfdOrigin); ok {
+		err := augmentedOrigin.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdOrigin populates the provided destination AfdOrigin from our AfdOrigin
+func (origin *AfdOrigin) AssignProperties_To_AfdOrigin(destination *storage.AfdOrigin) error {
+
+	// ObjectMeta
+	destination.ObjectMeta = *origin.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec storage.AfdOrigin_Spec
+	err := origin.Spec.AssignProperties_To_AfdOrigin_Spec(&spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_AfdOrigin_Spec() to populate field Spec")
+	}
+	destination.Spec = spec
+
+	// Status
+	var status storage.AfdOrigin_STATUS
+	err = origin.Status.AssignProperties_To_AfdOrigin_STATUS(&status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_AfdOrigin_STATUS() to populate field Status")
+	}
+	destination.Status = status
+
+	// Invoke the augmentConversionForAfdOrigin interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForAfdOrigin); ok {
+		err := augmentedOrigin.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
 
 // OriginalGVK returns a GroupValueKind for the original API version used to create the resource
 func (origin *AfdOrigin) OriginalGVK() *schema.GroupVersionKind {
@@ -130,7 +246,7 @@ func (origin *AfdOrigin) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20230501.AfdOrigin
 // Generator information:
-// - Generated from: /cdn/resource-manager/Microsoft.Cdn/stable/2023-05-01/afdx.json
+// - Generated from: /cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2023-05-01/afdx.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Cdn/profiles/{profileName}/originGroups/{originGroupName}/origins/{originName}
 type AfdOriginList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -138,19 +254,21 @@ type AfdOriginList struct {
 	Items           []AfdOrigin `json:"items"`
 }
 
-// Storage version of v1api20230501.Profiles_OriginGroups_Origin_Spec
-type Profiles_OriginGroups_Origin_Spec struct {
+// Storage version of v1api20230501.AfdOrigin_Spec
+type AfdOrigin_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName                   string             `json:"azureName,omitempty"`
-	AzureOrigin                 *ResourceReference `json:"azureOrigin,omitempty"`
-	EnabledState                *string            `json:"enabledState,omitempty"`
-	EnforceCertificateNameCheck *bool              `json:"enforceCertificateNameCheck,omitempty"`
-	HostName                    *string            `json:"hostName,omitempty"`
-	HttpPort                    *int               `json:"httpPort,omitempty"`
-	HttpsPort                   *int               `json:"httpsPort,omitempty"`
-	OriginHostHeader            *string            `json:"originHostHeader,omitempty"`
-	OriginalVersion             string             `json:"originalVersion,omitempty"`
+	AzureName                   string                         `json:"azureName,omitempty"`
+	AzureOrigin                 *ResourceReference             `json:"azureOrigin,omitempty"`
+	EnabledState                *string                        `json:"enabledState,omitempty"`
+	EnforceCertificateNameCheck *bool                          `json:"enforceCertificateNameCheck,omitempty"`
+	HostName                    *string                        `json:"hostName,omitempty" optionalConfigMapPair:"HostName"`
+	HostNameFromConfig          *genruntime.ConfigMapReference `json:"hostNameFromConfig,omitempty" optionalConfigMapPair:"HostName"`
+	HttpPort                    *int                           `json:"httpPort,omitempty"`
+	HttpsPort                   *int                           `json:"httpsPort,omitempty"`
+	OperatorSpec                *AfdOriginOperatorSpec         `json:"operatorSpec,omitempty"`
+	OriginHostHeader            *string                        `json:"originHostHeader,omitempty"`
+	OriginalVersion             string                         `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -163,28 +281,282 @@ type Profiles_OriginGroups_Origin_Spec struct {
 	Weight                    *int                                 `json:"weight,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Profiles_OriginGroups_Origin_Spec{}
+var _ genruntime.ConvertibleSpec = &AfdOrigin_Spec{}
 
-// ConvertSpecFrom populates our Profiles_OriginGroups_Origin_Spec from the provided source
-func (origin *Profiles_OriginGroups_Origin_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == origin {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our AfdOrigin_Spec from the provided source
+func (origin *AfdOrigin_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.AfdOrigin_Spec)
+	if ok {
+		// Populate our instance from source
+		return origin.AssignProperties_From_AfdOrigin_Spec(src)
 	}
 
-	return source.ConvertSpecTo(origin)
-}
-
-// ConvertSpecTo populates the provided destination from our Profiles_OriginGroups_Origin_Spec
-func (origin *Profiles_OriginGroups_Origin_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == origin {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	// Convert to an intermediate form
+	src = &storage.AfdOrigin_Spec{}
+	err := src.ConvertSpecFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
-	return destination.ConvertSpecFrom(origin)
+	// Update our instance from src
+	err = origin.AssignProperties_From_AfdOrigin_Spec(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+	}
+
+	return nil
 }
 
-// Storage version of v1api20230501.Profiles_OriginGroups_Origin_STATUS
-type Profiles_OriginGroups_Origin_STATUS struct {
+// ConvertSpecTo populates the provided destination from our AfdOrigin_Spec
+func (origin *AfdOrigin_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.AfdOrigin_Spec)
+	if ok {
+		// Populate destination from our instance
+		return origin.AssignProperties_To_AfdOrigin_Spec(dst)
+	}
+
+	// Convert to an intermediate form
+	dst = &storage.AfdOrigin_Spec{}
+	err := origin.AssignProperties_To_AfdOrigin_Spec(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertSpecTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_AfdOrigin_Spec populates our AfdOrigin_Spec from the provided source AfdOrigin_Spec
+func (origin *AfdOrigin_Spec) AssignProperties_From_AfdOrigin_Spec(source *storage.AfdOrigin_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureName
+	origin.AzureName = source.AzureName
+
+	// AzureOrigin
+	if source.AzureOrigin != nil {
+		var azureOrigin ResourceReference
+		err := azureOrigin.AssignProperties_From_ResourceReference(source.AzureOrigin)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field AzureOrigin")
+		}
+		origin.AzureOrigin = &azureOrigin
+	} else {
+		origin.AzureOrigin = nil
+	}
+
+	// EnabledState
+	origin.EnabledState = genruntime.ClonePointerToString(source.EnabledState)
+
+	// EnforceCertificateNameCheck
+	if source.EnforceCertificateNameCheck != nil {
+		enforceCertificateNameCheck := *source.EnforceCertificateNameCheck
+		origin.EnforceCertificateNameCheck = &enforceCertificateNameCheck
+	} else {
+		origin.EnforceCertificateNameCheck = nil
+	}
+
+	// HostName
+	origin.HostName = genruntime.ClonePointerToString(source.HostName)
+
+	// HostNameFromConfig
+	if source.HostNameFromConfig != nil {
+		hostNameFromConfig := source.HostNameFromConfig.Copy()
+		origin.HostNameFromConfig = &hostNameFromConfig
+	} else {
+		origin.HostNameFromConfig = nil
+	}
+
+	// HttpPort
+	origin.HttpPort = genruntime.ClonePointerToInt(source.HttpPort)
+
+	// HttpsPort
+	origin.HttpsPort = genruntime.ClonePointerToInt(source.HttpsPort)
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec AfdOriginOperatorSpec
+		err := operatorSpec.AssignProperties_From_AfdOriginOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AfdOriginOperatorSpec() to populate field OperatorSpec")
+		}
+		origin.OperatorSpec = &operatorSpec
+	} else {
+		origin.OperatorSpec = nil
+	}
+
+	// OriginHostHeader
+	origin.OriginHostHeader = genruntime.ClonePointerToString(source.OriginHostHeader)
+
+	// OriginalVersion
+	origin.OriginalVersion = source.OriginalVersion
+
+	// Owner
+	if source.Owner != nil {
+		owner := source.Owner.Copy()
+		origin.Owner = &owner
+	} else {
+		origin.Owner = nil
+	}
+
+	// Priority
+	origin.Priority = genruntime.ClonePointerToInt(source.Priority)
+
+	// SharedPrivateLinkResource
+	if source.SharedPrivateLinkResource != nil {
+		var sharedPrivateLinkResource SharedPrivateLinkResourceProperties
+		err := sharedPrivateLinkResource.AssignProperties_From_SharedPrivateLinkResourceProperties(source.SharedPrivateLinkResource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SharedPrivateLinkResourceProperties() to populate field SharedPrivateLinkResource")
+		}
+		origin.SharedPrivateLinkResource = &sharedPrivateLinkResource
+	} else {
+		origin.SharedPrivateLinkResource = nil
+	}
+
+	// Weight
+	origin.Weight = genruntime.ClonePointerToInt(source.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		origin.PropertyBag = propertyBag
+	} else {
+		origin.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdOrigin_Spec interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForAfdOrigin_Spec); ok {
+		err := augmentedOrigin.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdOrigin_Spec populates the provided destination AfdOrigin_Spec from our AfdOrigin_Spec
+func (origin *AfdOrigin_Spec) AssignProperties_To_AfdOrigin_Spec(destination *storage.AfdOrigin_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(origin.PropertyBag)
+
+	// AzureName
+	destination.AzureName = origin.AzureName
+
+	// AzureOrigin
+	if origin.AzureOrigin != nil {
+		var azureOrigin storage.ResourceReference
+		err := origin.AzureOrigin.AssignProperties_To_ResourceReference(&azureOrigin)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field AzureOrigin")
+		}
+		destination.AzureOrigin = &azureOrigin
+	} else {
+		destination.AzureOrigin = nil
+	}
+
+	// EnabledState
+	destination.EnabledState = genruntime.ClonePointerToString(origin.EnabledState)
+
+	// EnforceCertificateNameCheck
+	if origin.EnforceCertificateNameCheck != nil {
+		enforceCertificateNameCheck := *origin.EnforceCertificateNameCheck
+		destination.EnforceCertificateNameCheck = &enforceCertificateNameCheck
+	} else {
+		destination.EnforceCertificateNameCheck = nil
+	}
+
+	// HostName
+	destination.HostName = genruntime.ClonePointerToString(origin.HostName)
+
+	// HostNameFromConfig
+	if origin.HostNameFromConfig != nil {
+		hostNameFromConfig := origin.HostNameFromConfig.Copy()
+		destination.HostNameFromConfig = &hostNameFromConfig
+	} else {
+		destination.HostNameFromConfig = nil
+	}
+
+	// HttpPort
+	destination.HttpPort = genruntime.ClonePointerToInt(origin.HttpPort)
+
+	// HttpsPort
+	destination.HttpsPort = genruntime.ClonePointerToInt(origin.HttpsPort)
+
+	// OperatorSpec
+	if origin.OperatorSpec != nil {
+		var operatorSpec storage.AfdOriginOperatorSpec
+		err := origin.OperatorSpec.AssignProperties_To_AfdOriginOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AfdOriginOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
+	// OriginHostHeader
+	destination.OriginHostHeader = genruntime.ClonePointerToString(origin.OriginHostHeader)
+
+	// OriginalVersion
+	destination.OriginalVersion = origin.OriginalVersion
+
+	// Owner
+	if origin.Owner != nil {
+		owner := origin.Owner.Copy()
+		destination.Owner = &owner
+	} else {
+		destination.Owner = nil
+	}
+
+	// Priority
+	destination.Priority = genruntime.ClonePointerToInt(origin.Priority)
+
+	// SharedPrivateLinkResource
+	if origin.SharedPrivateLinkResource != nil {
+		var sharedPrivateLinkResource storage.SharedPrivateLinkResourceProperties
+		err := origin.SharedPrivateLinkResource.AssignProperties_To_SharedPrivateLinkResourceProperties(&sharedPrivateLinkResource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SharedPrivateLinkResourceProperties() to populate field SharedPrivateLinkResource")
+		}
+		destination.SharedPrivateLinkResource = &sharedPrivateLinkResource
+	} else {
+		destination.SharedPrivateLinkResource = nil
+	}
+
+	// Weight
+	destination.Weight = genruntime.ClonePointerToInt(origin.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdOrigin_Spec interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForAfdOrigin_Spec); ok {
+		err := augmentedOrigin.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20230501.AfdOrigin_STATUS
+type AfdOrigin_STATUS struct {
 	AzureOrigin                 *ResourceReference_STATUS                   `json:"azureOrigin,omitempty"`
 	Conditions                  []conditions.Condition                      `json:"conditions,omitempty"`
 	DeploymentStatus            *string                                     `json:"deploymentStatus,omitempty"`
@@ -206,24 +578,413 @@ type Profiles_OriginGroups_Origin_STATUS struct {
 	Weight                      *int                                        `json:"weight,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Profiles_OriginGroups_Origin_STATUS{}
+var _ genruntime.ConvertibleStatus = &AfdOrigin_STATUS{}
 
-// ConvertStatusFrom populates our Profiles_OriginGroups_Origin_STATUS from the provided source
-func (origin *Profiles_OriginGroups_Origin_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == origin {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our AfdOrigin_STATUS from the provided source
+func (origin *AfdOrigin_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.AfdOrigin_STATUS)
+	if ok {
+		// Populate our instance from source
+		return origin.AssignProperties_From_AfdOrigin_STATUS(src)
 	}
 
-	return source.ConvertStatusTo(origin)
+	// Convert to an intermediate form
+	src = &storage.AfdOrigin_STATUS{}
+	err := src.ConvertStatusFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+	}
+
+	// Update our instance from src
+	err = origin.AssignProperties_From_AfdOrigin_STATUS(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+	}
+
+	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Profiles_OriginGroups_Origin_STATUS
-func (origin *Profiles_OriginGroups_Origin_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == origin {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our AfdOrigin_STATUS
+func (origin *AfdOrigin_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.AfdOrigin_STATUS)
+	if ok {
+		// Populate destination from our instance
+		return origin.AssignProperties_To_AfdOrigin_STATUS(dst)
 	}
 
-	return destination.ConvertStatusFrom(origin)
+	// Convert to an intermediate form
+	dst = &storage.AfdOrigin_STATUS{}
+	err := origin.AssignProperties_To_AfdOrigin_STATUS(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertStatusTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_AfdOrigin_STATUS populates our AfdOrigin_STATUS from the provided source AfdOrigin_STATUS
+func (origin *AfdOrigin_STATUS) AssignProperties_From_AfdOrigin_STATUS(source *storage.AfdOrigin_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AzureOrigin
+	if source.AzureOrigin != nil {
+		var azureOrigin ResourceReference_STATUS
+		err := azureOrigin.AssignProperties_From_ResourceReference_STATUS(source.AzureOrigin)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field AzureOrigin")
+		}
+		origin.AzureOrigin = &azureOrigin
+	} else {
+		origin.AzureOrigin = nil
+	}
+
+	// Conditions
+	origin.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
+
+	// DeploymentStatus
+	origin.DeploymentStatus = genruntime.ClonePointerToString(source.DeploymentStatus)
+
+	// EnabledState
+	origin.EnabledState = genruntime.ClonePointerToString(source.EnabledState)
+
+	// EnforceCertificateNameCheck
+	if source.EnforceCertificateNameCheck != nil {
+		enforceCertificateNameCheck := *source.EnforceCertificateNameCheck
+		origin.EnforceCertificateNameCheck = &enforceCertificateNameCheck
+	} else {
+		origin.EnforceCertificateNameCheck = nil
+	}
+
+	// HostName
+	origin.HostName = genruntime.ClonePointerToString(source.HostName)
+
+	// HttpPort
+	origin.HttpPort = genruntime.ClonePointerToInt(source.HttpPort)
+
+	// HttpsPort
+	origin.HttpsPort = genruntime.ClonePointerToInt(source.HttpsPort)
+
+	// Id
+	origin.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Name
+	origin.Name = genruntime.ClonePointerToString(source.Name)
+
+	// OriginGroupName
+	origin.OriginGroupName = genruntime.ClonePointerToString(source.OriginGroupName)
+
+	// OriginHostHeader
+	origin.OriginHostHeader = genruntime.ClonePointerToString(source.OriginHostHeader)
+
+	// Priority
+	origin.Priority = genruntime.ClonePointerToInt(source.Priority)
+
+	// ProvisioningState
+	origin.ProvisioningState = genruntime.ClonePointerToString(source.ProvisioningState)
+
+	// SharedPrivateLinkResource
+	if source.SharedPrivateLinkResource != nil {
+		var sharedPrivateLinkResource SharedPrivateLinkResourceProperties_STATUS
+		err := sharedPrivateLinkResource.AssignProperties_From_SharedPrivateLinkResourceProperties_STATUS(source.SharedPrivateLinkResource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SharedPrivateLinkResourceProperties_STATUS() to populate field SharedPrivateLinkResource")
+		}
+		origin.SharedPrivateLinkResource = &sharedPrivateLinkResource
+	} else {
+		origin.SharedPrivateLinkResource = nil
+	}
+
+	// SystemData
+	if source.SystemData != nil {
+		var systemDatum SystemData_STATUS
+		err := systemDatum.AssignProperties_From_SystemData_STATUS(source.SystemData)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_SystemData_STATUS() to populate field SystemData")
+		}
+		origin.SystemData = &systemDatum
+	} else {
+		origin.SystemData = nil
+	}
+
+	// Type
+	origin.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Weight
+	origin.Weight = genruntime.ClonePointerToInt(source.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		origin.PropertyBag = propertyBag
+	} else {
+		origin.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdOrigin_STATUS interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForAfdOrigin_STATUS); ok {
+		err := augmentedOrigin.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdOrigin_STATUS populates the provided destination AfdOrigin_STATUS from our AfdOrigin_STATUS
+func (origin *AfdOrigin_STATUS) AssignProperties_To_AfdOrigin_STATUS(destination *storage.AfdOrigin_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(origin.PropertyBag)
+
+	// AzureOrigin
+	if origin.AzureOrigin != nil {
+		var azureOrigin storage.ResourceReference_STATUS
+		err := origin.AzureOrigin.AssignProperties_To_ResourceReference_STATUS(&azureOrigin)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field AzureOrigin")
+		}
+		destination.AzureOrigin = &azureOrigin
+	} else {
+		destination.AzureOrigin = nil
+	}
+
+	// Conditions
+	destination.Conditions = genruntime.CloneSliceOfCondition(origin.Conditions)
+
+	// DeploymentStatus
+	destination.DeploymentStatus = genruntime.ClonePointerToString(origin.DeploymentStatus)
+
+	// EnabledState
+	destination.EnabledState = genruntime.ClonePointerToString(origin.EnabledState)
+
+	// EnforceCertificateNameCheck
+	if origin.EnforceCertificateNameCheck != nil {
+		enforceCertificateNameCheck := *origin.EnforceCertificateNameCheck
+		destination.EnforceCertificateNameCheck = &enforceCertificateNameCheck
+	} else {
+		destination.EnforceCertificateNameCheck = nil
+	}
+
+	// HostName
+	destination.HostName = genruntime.ClonePointerToString(origin.HostName)
+
+	// HttpPort
+	destination.HttpPort = genruntime.ClonePointerToInt(origin.HttpPort)
+
+	// HttpsPort
+	destination.HttpsPort = genruntime.ClonePointerToInt(origin.HttpsPort)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(origin.Id)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(origin.Name)
+
+	// OriginGroupName
+	destination.OriginGroupName = genruntime.ClonePointerToString(origin.OriginGroupName)
+
+	// OriginHostHeader
+	destination.OriginHostHeader = genruntime.ClonePointerToString(origin.OriginHostHeader)
+
+	// Priority
+	destination.Priority = genruntime.ClonePointerToInt(origin.Priority)
+
+	// ProvisioningState
+	destination.ProvisioningState = genruntime.ClonePointerToString(origin.ProvisioningState)
+
+	// SharedPrivateLinkResource
+	if origin.SharedPrivateLinkResource != nil {
+		var sharedPrivateLinkResource storage.SharedPrivateLinkResourceProperties_STATUS
+		err := origin.SharedPrivateLinkResource.AssignProperties_To_SharedPrivateLinkResourceProperties_STATUS(&sharedPrivateLinkResource)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SharedPrivateLinkResourceProperties_STATUS() to populate field SharedPrivateLinkResource")
+		}
+		destination.SharedPrivateLinkResource = &sharedPrivateLinkResource
+	} else {
+		destination.SharedPrivateLinkResource = nil
+	}
+
+	// SystemData
+	if origin.SystemData != nil {
+		var systemDatum storage.SystemData_STATUS
+		err := origin.SystemData.AssignProperties_To_SystemData_STATUS(&systemDatum)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_SystemData_STATUS() to populate field SystemData")
+		}
+		destination.SystemData = &systemDatum
+	} else {
+		destination.SystemData = nil
+	}
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(origin.Type)
+
+	// Weight
+	destination.Weight = genruntime.ClonePointerToInt(origin.Weight)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdOrigin_STATUS interface (if implemented) to customize the conversion
+	var originAsAny any = origin
+	if augmentedOrigin, ok := originAsAny.(augmentConversionForAfdOrigin_STATUS); ok {
+		err := augmentedOrigin.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForAfdOrigin interface {
+	AssignPropertiesFrom(src *storage.AfdOrigin) error
+	AssignPropertiesTo(dst *storage.AfdOrigin) error
+}
+
+// Storage version of v1api20230501.AfdOriginOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type AfdOriginOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_AfdOriginOperatorSpec populates our AfdOriginOperatorSpec from the provided source AfdOriginOperatorSpec
+func (operator *AfdOriginOperatorSpec) AssignProperties_From_AfdOriginOperatorSpec(source *storage.AfdOriginOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		operator.PropertyBag = propertyBag
+	} else {
+		operator.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdOriginOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForAfdOriginOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AfdOriginOperatorSpec populates the provided destination AfdOriginOperatorSpec from our AfdOriginOperatorSpec
+func (operator *AfdOriginOperatorSpec) AssignProperties_To_AfdOriginOperatorSpec(destination *storage.AfdOriginOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAfdOriginOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForAfdOriginOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForAfdOrigin_Spec interface {
+	AssignPropertiesFrom(src *storage.AfdOrigin_Spec) error
+	AssignPropertiesTo(dst *storage.AfdOrigin_Spec) error
+}
+
+type augmentConversionForAfdOrigin_STATUS interface {
+	AssignPropertiesFrom(src *storage.AfdOrigin_STATUS) error
+	AssignPropertiesTo(dst *storage.AfdOrigin_STATUS) error
 }
 
 // Storage version of v1api20230501.SharedPrivateLinkResourceProperties
@@ -237,6 +998,104 @@ type SharedPrivateLinkResourceProperties struct {
 	Status              *string                `json:"status,omitempty"`
 }
 
+// AssignProperties_From_SharedPrivateLinkResourceProperties populates our SharedPrivateLinkResourceProperties from the provided source SharedPrivateLinkResourceProperties
+func (properties *SharedPrivateLinkResourceProperties) AssignProperties_From_SharedPrivateLinkResourceProperties(source *storage.SharedPrivateLinkResourceProperties) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// GroupId
+	properties.GroupId = genruntime.ClonePointerToString(source.GroupId)
+
+	// PrivateLink
+	if source.PrivateLink != nil {
+		var privateLink ResourceReference
+		err := privateLink.AssignProperties_From_ResourceReference(source.PrivateLink)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference() to populate field PrivateLink")
+		}
+		properties.PrivateLink = &privateLink
+	} else {
+		properties.PrivateLink = nil
+	}
+
+	// PrivateLinkLocation
+	properties.PrivateLinkLocation = genruntime.ClonePointerToString(source.PrivateLinkLocation)
+
+	// RequestMessage
+	properties.RequestMessage = genruntime.ClonePointerToString(source.RequestMessage)
+
+	// Status
+	properties.Status = genruntime.ClonePointerToString(source.Status)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		properties.PropertyBag = propertyBag
+	} else {
+		properties.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSharedPrivateLinkResourceProperties interface (if implemented) to customize the conversion
+	var propertiesAsAny any = properties
+	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForSharedPrivateLinkResourceProperties); ok {
+		err := augmentedProperties.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SharedPrivateLinkResourceProperties populates the provided destination SharedPrivateLinkResourceProperties from our SharedPrivateLinkResourceProperties
+func (properties *SharedPrivateLinkResourceProperties) AssignProperties_To_SharedPrivateLinkResourceProperties(destination *storage.SharedPrivateLinkResourceProperties) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(properties.PropertyBag)
+
+	// GroupId
+	destination.GroupId = genruntime.ClonePointerToString(properties.GroupId)
+
+	// PrivateLink
+	if properties.PrivateLink != nil {
+		var privateLink storage.ResourceReference
+		err := properties.PrivateLink.AssignProperties_To_ResourceReference(&privateLink)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference() to populate field PrivateLink")
+		}
+		destination.PrivateLink = &privateLink
+	} else {
+		destination.PrivateLink = nil
+	}
+
+	// PrivateLinkLocation
+	destination.PrivateLinkLocation = genruntime.ClonePointerToString(properties.PrivateLinkLocation)
+
+	// RequestMessage
+	destination.RequestMessage = genruntime.ClonePointerToString(properties.RequestMessage)
+
+	// Status
+	destination.Status = genruntime.ClonePointerToString(properties.Status)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSharedPrivateLinkResourceProperties interface (if implemented) to customize the conversion
+	var propertiesAsAny any = properties
+	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForSharedPrivateLinkResourceProperties); ok {
+		err := augmentedProperties.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20230501.SharedPrivateLinkResourceProperties_STATUS
 // Describes the properties of an existing Shared Private Link Resource to use when connecting to a private origin.
 type SharedPrivateLinkResourceProperties_STATUS struct {
@@ -246,6 +1105,119 @@ type SharedPrivateLinkResourceProperties_STATUS struct {
 	PropertyBag         genruntime.PropertyBag    `json:"$propertyBag,omitempty"`
 	RequestMessage      *string                   `json:"requestMessage,omitempty"`
 	Status              *string                   `json:"status,omitempty"`
+}
+
+// AssignProperties_From_SharedPrivateLinkResourceProperties_STATUS populates our SharedPrivateLinkResourceProperties_STATUS from the provided source SharedPrivateLinkResourceProperties_STATUS
+func (properties *SharedPrivateLinkResourceProperties_STATUS) AssignProperties_From_SharedPrivateLinkResourceProperties_STATUS(source *storage.SharedPrivateLinkResourceProperties_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// GroupId
+	properties.GroupId = genruntime.ClonePointerToString(source.GroupId)
+
+	// PrivateLink
+	if source.PrivateLink != nil {
+		var privateLink ResourceReference_STATUS
+		err := privateLink.AssignProperties_From_ResourceReference_STATUS(source.PrivateLink)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_ResourceReference_STATUS() to populate field PrivateLink")
+		}
+		properties.PrivateLink = &privateLink
+	} else {
+		properties.PrivateLink = nil
+	}
+
+	// PrivateLinkLocation
+	properties.PrivateLinkLocation = genruntime.ClonePointerToString(source.PrivateLinkLocation)
+
+	// RequestMessage
+	properties.RequestMessage = genruntime.ClonePointerToString(source.RequestMessage)
+
+	// Status
+	properties.Status = genruntime.ClonePointerToString(source.Status)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		properties.PropertyBag = propertyBag
+	} else {
+		properties.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSharedPrivateLinkResourceProperties_STATUS interface (if implemented) to customize the conversion
+	var propertiesAsAny any = properties
+	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForSharedPrivateLinkResourceProperties_STATUS); ok {
+		err := augmentedProperties.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SharedPrivateLinkResourceProperties_STATUS populates the provided destination SharedPrivateLinkResourceProperties_STATUS from our SharedPrivateLinkResourceProperties_STATUS
+func (properties *SharedPrivateLinkResourceProperties_STATUS) AssignProperties_To_SharedPrivateLinkResourceProperties_STATUS(destination *storage.SharedPrivateLinkResourceProperties_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(properties.PropertyBag)
+
+	// GroupId
+	destination.GroupId = genruntime.ClonePointerToString(properties.GroupId)
+
+	// PrivateLink
+	if properties.PrivateLink != nil {
+		var privateLink storage.ResourceReference_STATUS
+		err := properties.PrivateLink.AssignProperties_To_ResourceReference_STATUS(&privateLink)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_ResourceReference_STATUS() to populate field PrivateLink")
+		}
+		destination.PrivateLink = &privateLink
+	} else {
+		destination.PrivateLink = nil
+	}
+
+	// PrivateLinkLocation
+	destination.PrivateLinkLocation = genruntime.ClonePointerToString(properties.PrivateLinkLocation)
+
+	// RequestMessage
+	destination.RequestMessage = genruntime.ClonePointerToString(properties.RequestMessage)
+
+	// Status
+	destination.Status = genruntime.ClonePointerToString(properties.Status)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSharedPrivateLinkResourceProperties_STATUS interface (if implemented) to customize the conversion
+	var propertiesAsAny any = properties
+	if augmentedProperties, ok := propertiesAsAny.(augmentConversionForSharedPrivateLinkResourceProperties_STATUS); ok {
+		err := augmentedProperties.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForAfdOriginOperatorSpec interface {
+	AssignPropertiesFrom(src *storage.AfdOriginOperatorSpec) error
+	AssignPropertiesTo(dst *storage.AfdOriginOperatorSpec) error
+}
+
+type augmentConversionForSharedPrivateLinkResourceProperties interface {
+	AssignPropertiesFrom(src *storage.SharedPrivateLinkResourceProperties) error
+	AssignPropertiesTo(dst *storage.SharedPrivateLinkResourceProperties) error
+}
+
+type augmentConversionForSharedPrivateLinkResourceProperties_STATUS interface {
+	AssignPropertiesFrom(src *storage.SharedPrivateLinkResourceProperties_STATUS) error
+	AssignPropertiesTo(dst *storage.SharedPrivateLinkResourceProperties_STATUS) error
 }
 
 func init() {

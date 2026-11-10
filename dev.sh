@@ -10,7 +10,7 @@ $GIT_ROOT/.devcontainer/install-dependencies.sh --skip-installed
 
 # Setup envtest binaries and define KUBEBUILDER_ASSETS
 # NB: if you change this, .devcontainer/Dockerfile also likely needs updating
-if ! ENVTEST=$("$TOOL_DEST/setup-envtest" use --print env 1.27.1) ; then
+if ! ENVTEST=$("$TOOL_DEST/setup-envtest" use --print env 1.35.0) ; then
     echo "Failed to setup envtest"
     exit 1
 fi
@@ -18,6 +18,12 @@ fi
 source <(echo $ENVTEST)
 
 export PATH="$KUBEBUILDER_ASSETS:$TOOL_DEST:$PATH"
+
+# Allow users to run a command within the shell, with auto-exit when complete
+if [[ ${1:-} == "-c" ]]; then
+    "$SHELL" "$@"
+    exit
+fi
 
 echo "Entering $SHELL with expanded PATH (use 'exit' to quit)."
 echo "Try running 'task -l' to see possible commands."

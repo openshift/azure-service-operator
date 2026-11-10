@@ -4,9 +4,13 @@
 package storage
 
 import (
+	storage "github.com/Azure/azure-service-operator/v2/api/insights/v1api20230311/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -15,6 +19,7 @@ import (
 // +kubebuilder:rbac:groups=insights.azure.com,resources={autoscalesettings/status,autoscalesettings/finalizers},verbs=get;update;patch
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,insights}
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
@@ -23,12 +28,12 @@ import (
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Storage version of v1api20221001.AutoscaleSetting
 // Generator information:
-// - Generated from: /monitor/resource-manager/Microsoft.Insights/stable/2022-10-01/autoscale_API.json
-// - ARM URI: /subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Insights/autoscalesettings/{autoscaleSettingName}
+// - Generated from: /monitor/resource-manager/Microsoft.Insights/Insights/stable/2022-10-01/autoScale.json
+// - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Insights/autoscalesettings/{autoscaleSettingName}
 type AutoscaleSetting struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Autoscalesetting_Spec   `json:"spec,omitempty"`
+	Spec              AutoscaleSetting_Spec   `json:"spec,omitempty"`
 	Status            Autoscalesetting_STATUS `json:"status,omitempty"`
 }
 
@@ -44,6 +49,26 @@ func (setting *AutoscaleSetting) SetConditions(conditions conditions.Conditions)
 	setting.Status.Conditions = conditions
 }
 
+var _ configmaps.Exporter = &AutoscaleSetting{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (setting *AutoscaleSetting) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if setting.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return setting.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &AutoscaleSetting{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (setting *AutoscaleSetting) SecretDestinationExpressions() []*core.DestinationExpression {
+	if setting.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return setting.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &AutoscaleSetting{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +78,7 @@ func (setting *AutoscaleSetting) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-10-01"
 func (setting AutoscaleSetting) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-10-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -92,6 +117,10 @@ func (setting *AutoscaleSetting) NewEmptyStatus() genruntime.ConvertibleStatus {
 
 // Owner returns the ResourceReference of the owner
 func (setting *AutoscaleSetting) Owner() *genruntime.ResourceReference {
+	if setting.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(setting.Spec)
 	return setting.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -108,7 +137,7 @@ func (setting *AutoscaleSetting) SetStatus(status genruntime.ConvertibleStatus) 
 	var st Autoscalesetting_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	setting.Status = st
@@ -130,8 +159,8 @@ func (setting *AutoscaleSetting) OriginalGVK() *schema.GroupVersionKind {
 // +kubebuilder:object:root=true
 // Storage version of v1api20221001.AutoscaleSetting
 // Generator information:
-// - Generated from: /monitor/resource-manager/Microsoft.Insights/stable/2022-10-01/autoscale_API.json
-// - ARM URI: /subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/Microsoft.Insights/autoscalesettings/{autoscaleSettingName}
+// - Generated from: /monitor/resource-manager/Microsoft.Insights/Insights/stable/2022-10-01/autoScale.json
+// - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Insights/autoscalesettings/{autoscaleSettingName}
 type AutoscaleSettingList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -144,16 +173,17 @@ type APIVersion string
 
 const APIVersion_Value = APIVersion("2022-10-01")
 
-// Storage version of v1api20221001.Autoscalesetting_Spec
-type Autoscalesetting_Spec struct {
+// Storage version of v1api20221001.AutoscaleSetting_Spec
+type AutoscaleSetting_Spec struct {
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName       string                  `json:"azureName,omitempty"`
-	Enabled         *bool                   `json:"enabled,omitempty"`
-	Location        *string                 `json:"location,omitempty"`
-	Name            *string                 `json:"name,omitempty"`
-	Notifications   []AutoscaleNotification `json:"notifications,omitempty"`
-	OriginalVersion string                  `json:"originalVersion,omitempty"`
+	AzureName       string                        `json:"azureName,omitempty"`
+	Enabled         *bool                         `json:"enabled,omitempty"`
+	Location        *string                       `json:"location,omitempty"`
+	Name            *string                       `json:"name,omitempty"`
+	Notifications   []AutoscaleNotification       `json:"notifications,omitempty"`
+	OperatorSpec    *AutoscaleSettingOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion string                        `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -170,24 +200,24 @@ type Autoscalesetting_Spec struct {
 	TargetResourceUriReference *genruntime.ResourceReference `armReference:"TargetResourceUri" json:"targetResourceUriReference,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &Autoscalesetting_Spec{}
+var _ genruntime.ConvertibleSpec = &AutoscaleSetting_Spec{}
 
-// ConvertSpecFrom populates our Autoscalesetting_Spec from the provided source
-func (autoscalesetting *Autoscalesetting_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == autoscalesetting {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our AutoscaleSetting_Spec from the provided source
+func (setting *AutoscaleSetting_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	if source == setting {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
-	return source.ConvertSpecTo(autoscalesetting)
+	return source.ConvertSpecTo(setting)
 }
 
-// ConvertSpecTo populates the provided destination from our Autoscalesetting_Spec
-func (autoscalesetting *Autoscalesetting_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == autoscalesetting {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecTo populates the provided destination from our AutoscaleSetting_Spec
+func (setting *AutoscaleSetting_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	if destination == setting {
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
 	}
 
-	return destination.ConvertSpecFrom(autoscalesetting)
+	return destination.ConvertSpecFrom(setting)
 }
 
 // Storage version of v1api20221001.Autoscalesetting_STATUS
@@ -214,7 +244,7 @@ var _ genruntime.ConvertibleStatus = &Autoscalesetting_STATUS{}
 // ConvertStatusFrom populates our Autoscalesetting_STATUS from the provided source
 func (autoscalesetting *Autoscalesetting_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
 	if source == autoscalesetting {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return source.ConvertStatusTo(autoscalesetting)
@@ -223,7 +253,7 @@ func (autoscalesetting *Autoscalesetting_STATUS) ConvertStatusFrom(source genrun
 // ConvertStatusTo populates the provided destination from our Autoscalesetting_STATUS
 func (autoscalesetting *Autoscalesetting_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
 	if destination == autoscalesetting {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+		return eris.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
 	}
 
 	return destination.ConvertStatusFrom(autoscalesetting)
@@ -269,6 +299,14 @@ type AutoscaleProfile_STATUS struct {
 	Rules       []ScaleRule_STATUS     `json:"rules,omitempty"`
 }
 
+// Storage version of v1api20221001.AutoscaleSettingOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type AutoscaleSettingOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
 // Storage version of v1api20221001.PredictiveAutoscalePolicy
 // The parameters for enabling predictive autoscale.
 type PredictiveAutoscalePolicy struct {
@@ -295,6 +333,97 @@ type SystemData_STATUS struct {
 	LastModifiedBy     *string                `json:"lastModifiedBy,omitempty"`
 	LastModifiedByType *string                `json:"lastModifiedByType,omitempty"`
 	PropertyBag        genruntime.PropertyBag `json:"$propertyBag,omitempty"`
+}
+
+// AssignProperties_From_SystemData_STATUS populates our SystemData_STATUS from the provided source SystemData_STATUS
+func (data *SystemData_STATUS) AssignProperties_From_SystemData_STATUS(source *storage.SystemData_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// CreatedAt
+	data.CreatedAt = genruntime.ClonePointerToString(source.CreatedAt)
+
+	// CreatedBy
+	data.CreatedBy = genruntime.ClonePointerToString(source.CreatedBy)
+
+	// CreatedByType
+	data.CreatedByType = genruntime.ClonePointerToString(source.CreatedByType)
+
+	// LastModifiedAt
+	data.LastModifiedAt = genruntime.ClonePointerToString(source.LastModifiedAt)
+
+	// LastModifiedBy
+	data.LastModifiedBy = genruntime.ClonePointerToString(source.LastModifiedBy)
+
+	// LastModifiedByType
+	data.LastModifiedByType = genruntime.ClonePointerToString(source.LastModifiedByType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		data.PropertyBag = propertyBag
+	} else {
+		data.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSystemData_STATUS interface (if implemented) to customize the conversion
+	var dataAsAny any = data
+	if augmentedData, ok := dataAsAny.(augmentConversionForSystemData_STATUS); ok {
+		err := augmentedData.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SystemData_STATUS populates the provided destination SystemData_STATUS from our SystemData_STATUS
+func (data *SystemData_STATUS) AssignProperties_To_SystemData_STATUS(destination *storage.SystemData_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(data.PropertyBag)
+
+	// CreatedAt
+	destination.CreatedAt = genruntime.ClonePointerToString(data.CreatedAt)
+
+	// CreatedBy
+	destination.CreatedBy = genruntime.ClonePointerToString(data.CreatedBy)
+
+	// CreatedByType
+	destination.CreatedByType = genruntime.ClonePointerToString(data.CreatedByType)
+
+	// LastModifiedAt
+	destination.LastModifiedAt = genruntime.ClonePointerToString(data.LastModifiedAt)
+
+	// LastModifiedBy
+	destination.LastModifiedBy = genruntime.ClonePointerToString(data.LastModifiedBy)
+
+	// LastModifiedByType
+	destination.LastModifiedByType = genruntime.ClonePointerToString(data.LastModifiedByType)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSystemData_STATUS interface (if implemented) to customize the conversion
+	var dataAsAny any = data
+	if augmentedData, ok := dataAsAny.(augmentConversionForSystemData_STATUS); ok {
+		err := augmentedData.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForSystemData_STATUS interface {
+	AssignPropertiesFrom(src *storage.SystemData_STATUS) error
+	AssignPropertiesTo(dst *storage.SystemData_STATUS) error
 }
 
 // Storage version of v1api20221001.EmailNotification
@@ -386,9 +515,10 @@ type TimeWindow_STATUS struct {
 // Storage version of v1api20221001.WebhookNotification
 // Webhook notification of an autoscale event.
 type WebhookNotification struct {
-	Properties  map[string]string      `json:"properties,omitempty"`
-	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
-	ServiceUri  *string                `json:"serviceUri,omitempty"`
+	Properties           map[string]string           `json:"properties,omitempty"`
+	PropertyBag          genruntime.PropertyBag      `json:"$propertyBag,omitempty"`
+	ServiceUri           *string                     `json:"serviceUri,omitempty" optionalSecretPair:"ServiceUri"`
+	ServiceUriFromSecret *genruntime.SecretReference `json:"serviceUriFromSecret,omitempty" optionalSecretPair:"ServiceUri"`
 }
 
 // Storage version of v1api20221001.WebhookNotification_STATUS
@@ -396,7 +526,6 @@ type WebhookNotification struct {
 type WebhookNotification_STATUS struct {
 	Properties  map[string]string      `json:"properties,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
-	ServiceUri  *string                `json:"serviceUri,omitempty"`
 }
 
 // Storage version of v1api20221001.MetricTrigger

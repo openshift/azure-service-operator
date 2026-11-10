@@ -8,7 +8,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
@@ -23,14 +23,12 @@ func CollapseCrossGroupReferences(idFactory astmodel.IdentifierFactory) *Stage {
 		CollapseCrossGroupReferencesStageID,
 		"Find and remove cross group references",
 		func(ctx context.Context, state *State) (*State, error) {
-			resources := astmodel.FindResourceDefinitions(state.Definitions())
 			result := make(astmodel.TypeDefinitionSet)
-
-			for name, def := range resources {
+			for name, def := range state.Definitions().AllResources() {
 				walker := newTypeWalker(idFactory, state.Definitions(), name)
 				updatedTypes, err := walker.Walk(def)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed walking definitions")
+					return nil, eris.Wrapf(err, "failed walking definitions")
 				}
 
 				for _, newDef := range updatedTypes {
@@ -42,7 +40,8 @@ func CollapseCrossGroupReferences(idFactory astmodel.IdentifierFactory) *Stage {
 			}
 
 			return state.WithDefinitions(result), nil
-		})
+		},
+	)
 }
 
 func newTypeWalker(

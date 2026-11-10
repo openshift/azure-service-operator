@@ -8,8 +8,9 @@ package pipeline
 import (
 	"testing"
 
-	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -28,7 +29,8 @@ func TestGolden_InjectJsonSerializationTests(t *testing.T) {
 		"Person",
 		test.FullNameProperty,
 		test.FamilyNameProperty,
-		test.KnownAsProperty)
+		test.KnownAsProperty,
+	)
 	statusV1 := test.CreateStatus(test.Pkg2020, "Person")
 	resourceV1 := test.CreateResource(test.Pkg2020, "Person", specV1, statusV1)
 
@@ -43,7 +45,8 @@ func TestGolden_InjectJsonSerializationTests(t *testing.T) {
 		test.FamilyNameProperty,
 		test.KnownAsProperty,
 		test.ResidentialAddress2021,
-		test.PostalAddress2021)
+		test.PostalAddress2021,
+	)
 	statusV2 := test.CreateStatus(test.Pkg2021, "Person")
 	resourceV2 := test.CreateResource(test.Pkg2021, "Person", specV2, statusV2)
 
@@ -55,10 +58,13 @@ func TestGolden_InjectJsonSerializationTests(t *testing.T) {
 	cfg := config.NewConfiguration()
 	finalState, err := RunTestPipeline(
 		state,
-		CreateStorageTypes(),            // First create the storage types
-		CreateConversionGraph(cfg, "v"), // Then, create the conversion graph showing relationships
+		CreateStorageTypes(),       // First create the storage types
+		CreateConversionGraph(cfg), // Then, create the conversion graph showing relationships
 		InjectPropertyAssignmentFunctions(cfg, idFactory, logr.Discard()),
-		InjectJsonSerializationTests(idFactory))
+		InjectJSONSerializationTests(idFactory),
+		InjectRapidSerializationTests(idFactory),
+	)
+
 	g.Expect(err).To(Succeed())
 
 	/*

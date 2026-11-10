@@ -11,6 +11,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
@@ -61,7 +62,8 @@ func Test_SetCondition_ReadyTrueToReadyFalse_UpdatesConditionAndChangesTimestamp
 		conditions.ConditionSeverityError,
 		0,
 		"MyReason",
-		"a message")
+		"a message",
+	)
 	conditions.SetCondition(o, updatedCondition)
 
 	g.Expect(o.Conditions).To(HaveLen(1))
@@ -81,7 +83,8 @@ func Test_SetCondition_ChangeReason_TimestampChanged(t *testing.T) {
 		conditions.ConditionSeverityError,
 		0,
 		"MyReason",
-		"a message")
+		"a message",
+	)
 	conditions.SetCondition(o, initialCondition)
 
 	clk.Add(1 * time.Second)
@@ -92,7 +95,8 @@ func Test_SetCondition_ChangeReason_TimestampChanged(t *testing.T) {
 		conditions.ConditionSeverityError,
 		0,
 		"MyNewReason",
-		"a message")
+		"a message",
+	)
 	conditions.SetCondition(o, updatedCondition)
 
 	// Set the expected condition to the updated condition
@@ -112,7 +116,8 @@ func Test_SetCondition_SameConditionTimestampUnchanged(t *testing.T) {
 		conditions.ConditionSeverityError,
 		0,
 		"MyReason",
-		"a message")
+		"a message",
+	)
 	conditions.SetCondition(o, initialCondition)
 
 	clk.Add(1 * time.Second)
@@ -123,7 +128,8 @@ func Test_SetCondition_SameConditionTimestampUnchanged(t *testing.T) {
 		conditions.ConditionSeverityError,
 		0,
 		"MyReason",
-		"a message")
+		"a message",
+	)
 	conditions.SetCondition(o, updatedCondition)
 
 	// Set the expected condition to the updated condition
@@ -141,55 +147,64 @@ func Test_SetCondition_OverwritesAsExpected(t *testing.T) {
 		conditions.ConditionSeverityInfo,
 		1,
 		"InfoReason",
-		"a message")
+		"a message",
+	)
 	differentInfoGeneration1Condition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityInfo,
 		1,
 		"ADifferentInfoReason",
-		"a message")
+		"a message",
+	)
 	infoGeneration2Condition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityInfo,
 		2,
 		"InfoOtherReason",
-		"a message")
+		"a message",
+	)
 	warningGeneration1Condition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityWarning,
 		1,
 		"WarningReason",
-		"a message")
+		"a message",
+	)
 	differentWarningGeneration1Condition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityWarning,
 		1,
 		"ADifferentWarningReason",
-		"a message")
+		"a message",
+	)
 	warningGeneration2Condition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityWarning,
 		2,
 		"WarningOtherReason",
-		"a message")
+		"a message",
+	)
 	errorGeneration1Condition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityError,
 		1,
 		"MyReason",
-		"a message")
+		"a message",
+	)
 	differentErrorGeneration1Condition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityError,
 		1,
 		"ADifferentErrorReason",
-		"a message")
+		"a message",
+	)
 	errorGeneration2Condition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityError,
 		2,
 		"MyOtherReason",
-		"a message")
+		"a message",
+	)
 	trueGeneration1Condition := builder.MakeTrueCondition(conditions.ConditionTypeReady, 1)
 	trueGeneration2Condition := builder.MakeTrueCondition(conditions.ConditionTypeReady, 2)
 
@@ -197,12 +212,14 @@ func Test_SetCondition_OverwritesAsExpected(t *testing.T) {
 		conditions.ConditionTypeReady,
 		1,
 		"UnknownReason",
-		"a message")
+		"a message",
+	)
 	unknownGeneration2Condition := builder.MakeUnknownCondition(
 		conditions.ConditionTypeReady,
 		2,
 		"UnknownOtherReason",
-		"a message")
+		"a message",
+	)
 
 	gen1List := []conditions.Condition{
 		trueGeneration1Condition,
@@ -227,6 +244,7 @@ func Test_SetCondition_OverwritesAsExpected(t *testing.T) {
 		expectedOverwrite bool
 	}
 
+	//nolint:prealloc // not performance critical - test code
 	tests := []testStruct{
 		// Something overwrites nothing
 		{name: "True overwrites empty", initial: nil, new: trueGeneration1Condition, expectedOverwrite: true},
@@ -269,7 +287,8 @@ func Test_SetCondition_OverwritesAsExpected(t *testing.T) {
 					initial:           &gen1,
 					new:               gen2,
 					expectedOverwrite: true,
-				})
+				},
+			)
 		}
 	}
 
@@ -304,49 +323,57 @@ func Test_SetConditionReasonAware_OverwritesAsExpected(t *testing.T) {
 		conditions.ConditionSeverityInfo,
 		1,
 		conditions.ReasonReconciling.Name,
-		"a message")
+		"a message",
+	)
 	referenceNotFoundCondition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityWarning,
 		1,
 		conditions.ReasonReferenceNotFound.Name,
-		"a message")
+		"a message",
+	)
 	secretNotFoundCondition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityWarning,
 		1,
 		conditions.ReasonSecretNotFound.Name,
-		"a message")
+		"a message",
+	)
 	azureResourceNotFound := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityError,
 		1,
 		conditions.ReasonAzureResourceNotFound.Name,
-		"a message")
+		"a message",
+	)
 	arbitraryInfoCondition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityInfo,
 		1,
 		"InfoReason",
-		"a message")
+		"a message",
+	)
 	arbitraryWarningCondition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityWarning,
 		1,
 		"WarningReason",
-		"a message")
+		"a message",
+	)
 	arbitraryErrorCondition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityError,
 		1,
 		"ErrorReason",
-		"a message")
+		"a message",
+	)
 	waitingForOwnerWarningCondition := builder.MakeFalseCondition(
 		conditions.ConditionTypeReady,
 		conditions.ConditionSeverityWarning,
 		1,
 		conditions.ReasonWaitingForOwner.Name,
-		"a message")
+		"a message",
+	)
 	successCondition := builder.MakeTrueCondition(conditions.ConditionTypeReady, 1)
 
 	type testStruct struct {
@@ -405,9 +432,12 @@ func Test_SetConditionReasonAware_OverwritesAsExpected(t *testing.T) {
 
 func makeFriendlyString(condition conditions.Condition) string {
 	result := string(condition.Severity)
-	if condition.Status == metav1.ConditionTrue {
+	switch condition.Status {
+	case metav1.ConditionTrue:
 		result = "True"
-	} else if condition.Status == metav1.ConditionUnknown {
+	case metav1.ConditionFalse:
+		result = "False"
+	case metav1.ConditionUnknown:
 		result = "Unknown"
 	}
 
