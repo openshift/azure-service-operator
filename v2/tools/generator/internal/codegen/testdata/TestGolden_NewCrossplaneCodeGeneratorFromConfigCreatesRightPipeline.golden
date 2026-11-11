@@ -20,6 +20,7 @@ stripUnreferenced                                       Strip unreferenced types
 assertTypesStructureValid                               Verify that all local TypeNames refer to a type
 catalogKnownResources                                   Catalog known resources
 filterTypes                                             Apply export filters to reduce the number of generated types
+promoteRootOneOfProperties                              Promote selected properties on OneOf objects directly referenced by resources
 add-api-version-enums                                   Add enums for API Versions in each package
 removeAliases                                           Remove type aliases
 makeStatusPropertiesOptional                            Force all status properties to be optional
@@ -30,12 +31,14 @@ verifyNoErroredTypes                                    Verify there are no Erro
 stripUnreferenced                                       Strip unreferenced types
 replaceAnyTypeWithJSON                                  Replace properties using interface{} with arbitrary JSON
 improvePropertyDescriptions                             Improve property descriptions by copying from the corresponding type
+stripDocumentation                                      Strip descriptions for CRDs that have the $stripDocumentation flag set
 fixOptionalCollectionAliases                            Replace types which are optional aliases to collections with just the collection alias
 transformCrossResourceReferencesToString     crossplane Replace cross-resource references with string
 addSerializationTypeTag                                 Adds a property tag to properties with special serialization instructions to initialize empty collections when serializing the payload to Azure
 flattenProperties                                       Apply flattening to properties marked for flattening
 stripUnreferenced                                       Strip unreferenced types
 renameProperties                                        Rename properties
+overrideDescriptions                                    Applies the configured description overrides
 addCrossplaneOwnerProperties                 crossplane Add the 3-tuple of (xName, xNameRef, xNameSelector) for each owning resource
 addCrossplaneForProviderProperty             crossplane Add a 'ForProvider' property on every spec
 addCrossplaneAtProviderProperty              crossplane Add an 'AtProvider' property on every status
@@ -48,3 +51,4 @@ deleteGenerated                                         Delete generated code fr
 exportPackages                                          Export packages to "."
 reportResourceVersions                                  Generate a report listing all the resources generated
 reportResourceStructure                                 Reports the structure of resources in each package
+reportUpgradableResources                               Generate a report identifying resources with available upgrades

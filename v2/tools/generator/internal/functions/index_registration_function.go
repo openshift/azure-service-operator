@@ -8,9 +8,8 @@ package functions
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	"github.com/dave/dst"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -88,13 +87,14 @@ func (f *IndexRegistrationFunction) AsFunc(
 	// obj, ok := rawObj.(*<type>)
 	resourceTypeNameExpr, err := f.resourceTypeName.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", f.resourceTypeName)
+		return nil, eris.Wrapf(err, "creating type expression for %s", f.resourceTypeName)
 	}
 
 	cast := astbuilder.TypeAssert(
 		dst.NewIdent(objName),
 		dst.NewIdent(rawObjName),
-		astbuilder.PointerTo(resourceTypeNameExpr))
+		astbuilder.PointerTo(resourceTypeNameExpr),
+	)
 
 	// if !ok { return nil }
 	checkAssert := astbuilder.ReturnIfNotOk(astbuilder.Nil())
@@ -106,7 +106,7 @@ func (f *IndexRegistrationFunction) AsFunc(
 	} else {
 		stmts, err = f.multipleValues(specSelector)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to generate multiple value index registration function for %s", f.resourceTypeName)
+			return nil, eris.Wrapf(err, "failed to generate multiple value index registration function for %s", f.resourceTypeName)
 		}
 	}
 
@@ -115,12 +115,13 @@ func (f *IndexRegistrationFunction) AsFunc(
 		Body: astbuilder.Statements(
 			cast,
 			checkAssert,
-			stmts),
+			stmts,
+		),
 	}
 
 	controllerRuntimeObjectExpr, err := astmodel.ControllerRuntimeObjectType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating type expression for index registration function")
+		return nil, eris.Wrap(err, "creating type expression for index registration function")
 	}
 
 	fn.AddParameter(rawObjName, controllerRuntimeObjectExpr)
@@ -161,7 +162,8 @@ func (f *IndexRegistrationFunction) multipleValues(selector *dst.SelectorExpr) (
 		&dst.ArrayType{
 			Elt: dst.NewIdent("string"),
 		},
-		"")
+		"",
+	)
 
 	locals := astmodel.NewKnownLocalsSet(f.idFactory)
 
@@ -174,7 +176,7 @@ func (f *IndexRegistrationFunction) multipleValues(selector *dst.SelectorExpr) (
 		astbuilder.Returns(astbuilder.Nil()),
 	)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to make statements for property chain %s", f.propertyChain)
+		return nil, eris.Wrapf(err, "failed to make statements for property chain %s", f.propertyChain)
 	}
 
 	ret := astbuilder.Returns(dst.NewIdent("result"))
@@ -182,7 +184,8 @@ func (f *IndexRegistrationFunction) multipleValues(selector *dst.SelectorExpr) (
 	return astbuilder.Statements(
 		resultVar,
 		stmts,
-		ret), nil
+		ret,
+	), nil
 }
 
 func (f *IndexRegistrationFunction) makeStatements(
@@ -222,7 +225,7 @@ func (f *IndexRegistrationFunction) makeStatements(
 		return f.handleMap(result, locals, ident, remainingChain)
 	}
 
-	return nil, errors.Errorf("can't produce index registration function for type %T", t)
+	return nil, eris.Errorf("can't produce index registration function for type %T", t)
 }
 
 func (f *IndexRegistrationFunction) handleArray(
@@ -237,13 +240,14 @@ func (f *IndexRegistrationFunction) handleArray(
 	nilHandler := astbuilder.Continue()
 	loopStatements, err := f.makeStatements(result, locals.Clone(), dst.NewIdent(local), remainingChain[1:], nilHandler)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to make loop statements for array property %s", p.PropertyName())
+		return nil, eris.Wrapf(err, "failed to make loop statements for array property %s", p.PropertyName())
 	}
 
 	loop := astbuilder.IterateOverSlice(
 		local,
 		astbuilder.Selector(ident, p.PropertyName().String()),
-		loopStatements...)
+		loopStatements...,
+	)
 	return astbuilder.Statements(loop), nil
 }
 
@@ -261,14 +265,15 @@ func (f *IndexRegistrationFunction) handleMap(
 	nilHandler := astbuilder.Continue()
 	loopStatements, err := f.makeStatements(result, locals.Clone(), dst.NewIdent(value), remainingChain[1:], nilHandler)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to make loop statements for map property %s", p.PropertyName())
+		return nil, eris.Wrapf(err, "failed to make loop statements for map property %s", p.PropertyName())
 	}
 
 	loop := astbuilder.IterateOverMapWithValue(
 		key,
 		value,
 		astbuilder.Selector(ident, p.PropertyName().String()),
-		loopStatements...)
+		loopStatements...,
+	)
 
 	return astbuilder.Statements(loop), nil
 }

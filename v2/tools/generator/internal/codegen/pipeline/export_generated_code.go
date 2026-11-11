@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
@@ -31,22 +31,25 @@ func ExportPackages(
 	log logr.Logger,
 ) *Stage {
 	description := fmt.Sprintf("Export packages to %q", outputPath)
-	stage := NewLegacyStage(
+	stage := NewStage(
 		ExportPackagesStageID,
 		description,
-		func(ctx context.Context, definitions astmodel.TypeDefinitionSet) (astmodel.TypeDefinitionSet, error) {
+		func(ctx context.Context, state *State) (*State, error) {
+			definitions := state.Definitions()
+
 			packages, err := CreatePackagesForDefinitions(definitions)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to assign generated definitions to packages")
+				return nil, eris.Wrapf(err, "failed to assign generated definitions to packages")
 			}
 
 			err = writeFiles(packages, outputPath, emitDocFiles, log)
 			if err != nil {
-				return nil, errors.Wrapf(err, "unable to write files into %q", outputPath)
+				return nil, eris.Wrapf(err, "unable to write files into %q", outputPath)
 			}
 
-			return definitions, nil
-		})
+			return state, nil
+		},
+	)
 
 	stage.RequiresPrerequisiteStages(DeleteGeneratedCodeStageID)
 
@@ -95,13 +98,15 @@ func writeFiles(
 			} else {
 				return 0
 			}
-		})
+		},
+	)
 
 	// emit each package
 	log.Info(
 		"Writing packages",
 		"count", len(pkgs),
-		"outputPath", outputPath)
+		"outputPath", outputPath,
+	)
 
 	globalProgress := newProgressMeter()
 	groupProgress := newProgressMeter()
@@ -117,13 +122,13 @@ func writeFiles(
 			if _, err := os.Stat(outputDir); os.IsNotExist(err) {
 				err = os.MkdirAll(outputDir, 0o700)
 				if err != nil {
-					return errors.Wrapf(err, "unable to create directory %q", outputDir)
+					return eris.Wrapf(err, "unable to create directory %q", outputDir)
 				}
 			}
 
 			count, err := pkg.EmitDefinitions(outputDir, packages, emitDocFiles)
 			if err != nil {
-				return errors.Wrapf(err, "error writing definitions into %q", outputDir)
+				return eris.Wrapf(err, "error writing definitions into %q", outputDir)
 			}
 
 			globalProgress.LogProgress("", pkg.DefinitionCount(), count, log)
@@ -177,13 +182,15 @@ func (export *progressMeter) Log(log logr.Logger) {
 			"label", export.label,
 			"files", export.files,
 			"types", export.definitions,
-			"elapsed", elapsed)
+			"elapsed", elapsed,
+		)
 	} else {
 		log.V(1).Info(
 			"Wrote files",
 			"files", export.files,
 			"types", export.definitions,
-			"elapsed", elapsed)
+			"elapsed", elapsed,
+		)
 	}
 
 	export.resetAt = time.Now()

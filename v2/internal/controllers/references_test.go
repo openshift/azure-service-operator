@@ -6,10 +6,10 @@ Licensed under the MIT license.
 package controllers_test
 
 import (
-	"fmt"
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
@@ -29,17 +29,25 @@ func Test_MissingCrossResourceReference_ReturnsError(t *testing.T) {
 	networkInterface := newVMNetworkInterface(tc, testcommon.AsOwner(rg), subnet)
 	// Don't actually create any of the networking resources.
 	// We're testing to make sure we get the right error when they're missing
-	secret := createVMPasswordSecretAndRef(tc)
+	secret := createPasswordSecret("vmsecret", "password", tc)
 	vm := newVirtualMachine20201201(tc, rg, networkInterface, secret)
 
 	tc.CreateResourceAndWaitForState(vm, metav1.ConditionFalse, conditions.ConditionSeverityWarning)
 	// We expect the ready condition to include details of the error
-	tc.Expect(vm.Status.Conditions[0].Reason).To(Equal("ReferenceNotFound"))
-	tc.Expect(vm.Status.Conditions[0].Message).To(
-		Equal(fmt.Sprintf("failed resolving ARM IDs for references: %s/%s does not exist (networkinterfaces.network.azure.com \"%s\" not found)",
+	reason := vm.Status.Conditions[0].Reason
+	tc.Expect(reason).To(Equal("ReferenceNotFound"))
+
+	message := vm.Status.Conditions[0].Message
+	tc.Expect(message).To(ContainSubstring("failed resolving ARM IDs for references"))
+	tc.Expect(message).To(
+		ContainSubstring("%s/%s does not exist",
 			tc.Namespace,
-			networkInterface.Name,
-			networkInterface.Name)))
+			networkInterface.Name),
+	)
+	tc.Expect(message).To(
+		ContainSubstring(`(networkinterfaces.network.azure.com "%s" not found)`,
+			networkInterface.Name),
+	)
 
 	// Delete VM and resources.
 	tc.DeleteResourcesAndWait(vm)

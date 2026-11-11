@@ -7,7 +7,7 @@ package embeddedresources
 
 import (
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -66,7 +66,8 @@ func findEmptyObjectTypes(
 
 		log.V(1).Info(
 			"Removing empty type",
-			"name", def.Name())
+			"name", def.Name(),
+		)
 
 		result.Add(def.Name())
 	}
@@ -89,7 +90,7 @@ func removeReferencesToTypes(
 
 		updatedDef, err := visitor.VisitDefinition(def, nil)
 		if err != nil {
-			return nil, errors.Wrapf(err, "visiting definition %q", def.Name())
+			return nil, eris.Wrapf(err, "visiting definition %q", def.Name())
 		}
 		result.Add(updatedDef)
 	}
@@ -125,7 +126,8 @@ func makeRemovedTypeVisitor(
 				log.V(1).Info(
 					"Removing reference to empty type",
 					"property", prop.PropertyName(),
-					"referencing", ctx.typeName)
+					"referencing", ctx.typeName,
+				)
 			}
 		})
 
@@ -168,7 +170,7 @@ func makeRemovedTypeVisitor(
 		// Safety check that we're not overwriting typeName
 		if ctx != nil {
 			if !ctx.typeName.IsEmpty() {
-				return nil, errors.Errorf("would've overwritten ctx.typeName %q", ctx.typeName)
+				return nil, eris.Errorf("would've overwritten ctx.typeName %q", ctx.typeName)
 			}
 
 			ctx.typeName = it

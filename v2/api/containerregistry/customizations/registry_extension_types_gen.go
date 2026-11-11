@@ -4,8 +4,16 @@
 package customizations
 
 import (
-	v20210901 "github.com/Azure/azure-service-operator/v2/api/containerregistry/v1api20210901"
-	storage "github.com/Azure/azure-service-operator/v2/api/containerregistry/v1api20210901/storage"
+	containerregistry_v1api20210901 "github.com/Azure/azure-service-operator/v2/api/containerregistry/v1api20210901"
+	containerregistry_v1api20210901s "github.com/Azure/azure-service-operator/v2/api/containerregistry/v1api20210901/storage"
+	containerregistry_v1api20230701 "github.com/Azure/azure-service-operator/v2/api/containerregistry/v1api20230701"
+	containerregistry_v1api20230701s "github.com/Azure/azure-service-operator/v2/api/containerregistry/v1api20230701/storage"
+	containerregistry_v20210901 "github.com/Azure/azure-service-operator/v2/api/containerregistry/v20210901"
+	containerregistry_v20210901s "github.com/Azure/azure-service-operator/v2/api/containerregistry/v20210901/storage"
+	containerregistry_v20230701 "github.com/Azure/azure-service-operator/v2/api/containerregistry/v20230701"
+	containerregistry_v20230701s "github.com/Azure/azure-service-operator/v2/api/containerregistry/v20230701/storage"
+	containerregistry_v20251101 "github.com/Azure/azure-service-operator/v2/api/containerregistry/v20251101"
+	containerregistry_v20251101s "github.com/Azure/azure-service-operator/v2/api/containerregistry/v20251101/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 )
 
@@ -15,6 +23,14 @@ type RegistryExtension struct {
 // GetExtendedResources Returns the KubernetesResource slice for Resource versions
 func (extension *RegistryExtension) GetExtendedResources() []genruntime.KubernetesResource {
 	return []genruntime.KubernetesResource{
-		&v20210901.Registry{},
-		&storage.Registry{}}
+		&containerregistry_v1api20210901.Registry{},
+		&containerregistry_v1api20210901s.Registry{},
+		&containerregistry_v1api20230701.Registry{},
+		&containerregistry_v1api20230701s.Registry{},
+		&containerregistry_v20210901.Registry{},
+		&containerregistry_v20210901s.Registry{},
+		&containerregistry_v20230701.Registry{},
+		&containerregistry_v20230701s.Registry{},
+		&containerregistry_v20251101.Registry{},
+		&containerregistry_v20251101s.Registry{}}
 }

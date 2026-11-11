@@ -8,12 +8,11 @@ package crd
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/azure-service-operator/v2/internal/crdmanagement"
+	asolabels "github.com/Azure/azure-service-operator/v2/pkg/common/labels"
 )
 
 type Cleaner struct {
@@ -65,7 +65,11 @@ func (c *Cleaner) Run(ctx context.Context) error {
 		c.log.Info("Starting update")
 	}
 
-	appLabelRequirement, err := labels.NewRequirement(crdmanagement.ServiceOperatorAppLabel, selection.Equals, []string{crdmanagement.ServiceOperatorAppValue})
+	appLabelRequirement, err := labels.NewRequirement(
+		asolabels.ServiceOperatorAppLabel,
+		selection.Equals,
+		[]string{asolabels.ServiceOperatorAppValue},
+	)
 	if err != nil {
 		return err
 	}
@@ -73,10 +77,14 @@ func (c *Cleaner) Run(ctx context.Context) error {
 	selector = selector.Add(*appLabelRequirement)
 	crdsWithNewLabel, err := c.apiExtensionsClient.List(ctx, v1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
-		return errors.Wrap(err, "failed to list CRDs")
+		return eris.Wrap(err, "failed to list CRDs")
 	}
 
-	versionLabelRequirement, err := labels.NewRequirement(crdmanagement.ServiceOperatorVersionLabelOld, selection.Exists, []string{})
+	versionLabelRequirement, err := labels.NewRequirement(
+		asolabels.ServiceOperatorVersionLabelOld,
+		selection.Exists,
+		[]string{},
+	)
 	if err != nil {
 		return err
 	}
@@ -84,33 +92,35 @@ func (c *Cleaner) Run(ctx context.Context) error {
 	selector = selector.Add(*versionLabelRequirement)
 	crdsWithOldLabel, err := c.apiExtensionsClient.List(ctx, v1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
-		return errors.Wrap(err, "failed to list CRDs")
+		return eris.Wrap(err, "failed to list CRDs")
 	}
 
-	var crds []apiextensions.CustomResourceDefinition
+	crds := make(
+		[]apiextensions.CustomResourceDefinition,
+		0,
+		len(crdsWithNewLabel.Items)+len(crdsWithOldLabel.Items),
+	)
 	crds = append(crds, crdsWithNewLabel.Items...)
 	crds = append(crds, crdsWithOldLabel.Items...)
 
 	var updated int
 	var asoCRDsSeen int
-	deprecatedVersionRegexp := regexp.MustCompile(`((v1alpha1api|v1beta)\d{8}(preview)?(storage)?|v1beta1)`) // handcrafted (non-ARM) resources have v1beta1 version
 
 	for _, crd := range crds {
-		crd := crd
-
 		asoCRDsSeen++
-		newStoredVersions, deprecatedVersion := removeMatchingStoredVersions(crd.Status.StoredVersions, deprecatedVersionRegexp)
+		newStoredVersions, deprecatedVersions := crdmanagement.GetDeprecatedStorageVersions(crd)
 
-		// If there is no new version found other than the matched version, we short circuit here, as there is no updated version found in the CRDs
-		if len(newStoredVersions) <= 0 {
-			return errors.New(fmt.Sprintf("it doesn't look like your version of ASO is one that supports deprecating version %q. Have you upgraded ASO yet?", deprecatedVersion))
+		// If there is no new version found other than alpha/beta, it means there wasn't a newer version installed/reconciled yet and we short circuit here, as there is no updated version found in the CRDs
+		if len(newStoredVersions) == 1 && (strings.HasPrefix(newStoredVersions[0], "v1alpha") || strings.HasPrefix(newStoredVersions[0], "v1beta")) {
+			return eris.Errorf("it doesn't look like your version of ASO is one that supports deprecating CRD %q, versions %q. Have you upgraded ASO yet?", crd.Name, deprecatedVersions)
 		}
 
 		// If the slice was not updated, there is no version to deprecate.
 		if len(newStoredVersions) == len(crd.Status.StoredVersions) {
 			c.log.Info(
 				"Nothing to update",
-				"crd-name", crd.Name)
+				"crd-name", crd.Name,
+			)
 			continue
 		}
 
@@ -119,7 +129,8 @@ func (c *Cleaner) Run(ctx context.Context) error {
 		activeVersion := newStoredVersions[len(newStoredVersions)-1]
 		c.log.Info(
 			"Starting cleanup",
-			"crd-name", crd.Name)
+			"crd-name", crd.Name,
+		)
 
 		objectsToMigrate, err := c.getObjectsForMigration(ctx, crd, activeVersion)
 		if err != nil {
@@ -140,7 +151,7 @@ func (c *Cleaner) Run(ctx context.Context) error {
 	}
 
 	if asoCRDsSeen <= 0 {
-		return errors.New("found no Azure Service Operator CRDs, make sure you have ASO installed.")
+		return eris.New("found no Azure Service Operator CRDs, make sure you have ASO installed.")
 	}
 
 	if c.dryRun {
@@ -148,7 +159,8 @@ func (c *Cleaner) Run(ctx context.Context) error {
 	} else {
 		c.log.Info(
 			"Update finished",
-			"crd-count", updated)
+			"crd-count", updated,
+		)
 	}
 
 	return nil
@@ -163,7 +175,8 @@ func (c *Cleaner) updateStorageVersions(
 		c.log.Info(
 			"Would update storedVersions",
 			"crd-name", crd.Name,
-			"storedVersions", newStoredVersions)
+			"storedVersions", newStoredVersions,
+		)
 		return nil
 	}
 
@@ -175,7 +188,8 @@ func (c *Cleaner) updateStorageVersions(
 	c.log.Info(
 		"Updated CRD status storedVersions",
 		"crd-name", crd.Name,
-		"storedVersions", updatedCrd.Status.StoredVersions)
+		"storedVersions", updatedCrd.Status.StoredVersions,
+	)
 
 	return nil
 }
@@ -187,7 +201,8 @@ func (c *Cleaner) migrateObjects(ctx context.Context, objectsToMigrate *unstruct
 			c.log.Info(
 				"Would migrate resource",
 				"name", obj.GetName(),
-				"kind", obj.GroupVersionKind().Kind)
+				"kind", obj.GroupVersionKind().Kind,
+			)
 			continue
 		}
 
@@ -195,7 +210,7 @@ func (c *Cleaner) migrateObjects(ctx context.Context, objectsToMigrate *unstruct
 
 		originalVersion, found, err := unstructured.NestedString(obj.Object, originalVersionFieldPath...)
 		if err != nil {
-			return errors.Wrap(err,
+			return eris.Wrap(err,
 				fmt.Sprintf("migrating %q of kind %s", obj.GetName(), obj.GroupVersionKind().Kind))
 		}
 
@@ -203,7 +218,7 @@ func (c *Cleaner) migrateObjects(ctx context.Context, objectsToMigrate *unstruct
 			originalVersion = strings.Replace(originalVersion, "v1alpha1api", "v1beta", 1)
 			err = unstructured.SetNestedField(obj.Object, originalVersion, originalVersionFieldPath...)
 			if err != nil {
-				return errors.Wrap(err,
+				return eris.Wrap(err,
 					fmt.Sprintf("migrating %q of kind %s", obj.GetName(), obj.GroupVersionKind().Kind))
 			}
 		} else {
@@ -212,7 +227,8 @@ func (c *Cleaner) migrateObjects(ctx context.Context, objectsToMigrate *unstruct
 			c.log.Info(
 				"originalVersion not found. Continuing with the latest.",
 				"name", obj.GetName(),
-				"kind", obj.GroupVersionKind().Kind)
+				"kind", obj.GroupVersionKind().Kind,
+			)
 		}
 
 		err = retry.OnError(c.migrationBackoff, isErrorFatal, func() error { return c.client.Update(ctx, &obj) })
@@ -223,12 +239,14 @@ func (c *Cleaner) migrateObjects(ctx context.Context, objectsToMigrate *unstruct
 		c.log.Info(
 			"Migrated resource",
 			"name", obj.GetName(),
-			"kind", obj.GroupVersionKind().Kind)
+			"kind", obj.GroupVersionKind().Kind,
+		)
 	}
 
 	c.log.Info(
 		"Migration finished",
-		"resource-count", len(objectsToMigrate.Items))
+		"resource-count", len(objectsToMigrate.Items),
+	)
 
 	return nil
 }
@@ -264,20 +282,4 @@ func (c *Cleaner) getObjectsForMigration(ctx context.Context, crd apiextensions.
 	}
 
 	return list, nil
-}
-
-// removeMatchingStoredVersions returns a new list of storedVersions by removing the non-storage matched version
-func removeMatchingStoredVersions(oldVersions []string, versionRegexp *regexp.Regexp) ([]string, string) {
-	newStoredVersions := make([]string, 0, len(oldVersions))
-	var matchedStoredVersion string
-	for _, version := range oldVersions {
-		if versionRegexp.MatchString(version) {
-			matchedStoredVersion = version
-			continue
-		}
-
-		newStoredVersions = append(newStoredVersions, version)
-	}
-
-	return newStoredVersions, matchedStoredVersion
 }

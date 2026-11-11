@@ -8,7 +8,7 @@ package kubeclient
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -44,6 +44,10 @@ func NewClient(client client.Client) Client {
 	return &clientHelper{
 		client: client,
 	}
+}
+
+func (c *clientHelper) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	return c.client.Apply(ctx, obj, opts...)
 }
 
 func (c *clientHelper) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
@@ -101,12 +105,12 @@ func (c *clientHelper) IsObjectNamespaced(obj runtime.Object) (bool, error) {
 func (c *clientHelper) GetObject(ctx context.Context, namespacedName types.NamespacedName, gvk schema.GroupVersionKind) (client.Object, error) {
 	obj, err := c.Scheme().New(gvk)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to create object from gvk %s with", gvk)
+		return nil, eris.Wrapf(err, "unable to create object from gvk %s with", gvk)
 	}
 
 	clientObj, ok := obj.(client.Object)
 	if !ok {
-		return nil, errors.Errorf("gvk %s doesn't implement client.Object", gvk)
+		return nil, eris.Errorf("gvk %s doesn't implement client.Object", gvk)
 	}
 
 	if err := c.Get(ctx, namespacedName, clientObj); err != nil {
@@ -147,7 +151,7 @@ func (c *clientHelper) CommitObject(ctx context.Context, obj client.Object, comm
 
 	err := c.Update(ctx, clone)
 	if err != nil {
-		return errors.Wrapf(err, "updating %s/%s resource", obj.GetNamespace(), obj.GetName())
+		return eris.Wrapf(err, "updating %s/%s resource", obj.GetNamespace(), obj.GetName())
 	}
 
 	obj.SetResourceVersion(clone.GetResourceVersion())
@@ -157,7 +161,7 @@ func (c *clientHelper) CommitObject(ctx context.Context, obj client.Object, comm
 		// See: https://github.com/kubernetes-sigs/controller-runtime/issues/1464.
 		err = c.Status().Update(ctx, obj)
 		if err != nil {
-			return errors.Wrapf(err, "updating %s/%s resource status", obj.GetNamespace(), obj.GetName())
+			return eris.Wrapf(err, "updating %s/%s resource status", obj.GetNamespace(), obj.GetName())
 		}
 	}
 

@@ -8,7 +8,7 @@ package reflecthelpers
 import (
 	"reflect"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 )
 
 var primitiveKinds = []reflect.Kind{
@@ -83,8 +83,8 @@ func (r *ReflectVisitor) visit(val reflect.Value, ctx interface{}) error {
 		return r.VisitPrimitive(r, val, ctx)
 	}
 
-	switch kind { // nolint: exhaustive
-	case reflect.Ptr:
+	switch kind {
+	case reflect.Pointer:
 		return r.VisitPtr(r, val, ctx)
 	case reflect.Slice:
 		return r.VisitSlice(r, val, ctx)
@@ -93,7 +93,7 @@ func (r *ReflectVisitor) visit(val reflect.Value, ctx interface{}) error {
 	case reflect.Struct:
 		return r.VisitStruct(r, val, ctx)
 	default:
-		return errors.Errorf("unknown reflect.Kind: %s", kind)
+		return eris.Errorf("unknown reflect.Kind: %s", kind)
 	}
 }
 

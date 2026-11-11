@@ -8,7 +8,7 @@ package astmodel
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 )
 
 // CodeGenerationContext stores context about the location code-generation is occurring.
@@ -67,7 +67,7 @@ func (ctx *CodeGenerationContext) UsedPackageImports() *PackageImportSet {
 func (ctx *CodeGenerationContext) GetImportedPackageName(reference PackageReference) (string, error) {
 	packageImport, ok := ctx.packageImports.ImportFor(reference)
 	if !ok {
-		return "", errors.Errorf("package %s not imported", reference)
+		return "", eris.Errorf("package %s not imported", reference)
 	}
 
 	ctx.usedImports.AddImport(packageImport)
@@ -88,14 +88,16 @@ func (ctx *CodeGenerationContext) MustGetImportedPackageName(reference PackageRe
 // GetGeneratedPackage gets a reference to the PackageDefinition referred to by the provided reference
 func (ctx *CodeGenerationContext) GetGeneratedPackage(reference InternalPackageReference) (*PackageDefinition, error) {
 	// Make sure that we're actually importing that package -- don't want to allow references to things we aren't importing
-	_, err := ctx.GetImportedPackageName(reference)
-	if !reference.Equals(ctx.currentPackage) && err != nil {
-		return nil, err
+	if !reference.Equals(ctx.currentPackage) {
+		_, err := ctx.GetImportedPackageName(reference)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	packageDef, ok := ctx.generatedPackages[reference]
 	if !ok {
-		return nil, errors.Errorf("%s not imported", reference)
+		return nil, eris.Errorf("%s not imported", reference)
 	}
 	return packageDef, nil
 }

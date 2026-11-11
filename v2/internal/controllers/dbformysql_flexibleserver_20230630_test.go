@@ -8,10 +8,11 @@ package controllers_test
 import (
 	"testing"
 
-	"github.com/kr/pretty"
 	. "github.com/onsi/gomega"
 
-	mysql "github.com/Azure/azure-service-operator/v2/api/dbformysql/v1api20230630"
+	"github.com/kr/pretty"
+
+	mysql "github.com/Azure/azure-service-operator/v2/api/dbformysql/v20230630"
 	managedidentity "github.com/Azure/azure-service-operator/v2/api/managedidentity/v1api20181130"
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
@@ -23,11 +24,14 @@ func Test_DBForMySQL_FlexibleServer_20230630_CRUD(t *testing.T) {
 	t.Parallel()
 	tc := globalTestContext.ForTest(t)
 
-	tc.AzureRegion = to.Ptr("eastus")
+	tc.AzureRegion = to.Ptr("ukwest")
 
 	rg := tc.CreateTestResourceGroupAndWait()
 	secretName := "mysqlsecret"
 	adminPasswordKey := "adminPassword"
+	// Hack here to maintain the consistency of the seed for name generation.
+	// TODO: We need to remove this redundant call to `GenerateNameOfLength` and re-record the test
+	_ = tc.Namer.GenerateNameOfLength(40)
 	adminPasswordSecretRef := createPasswordSecret(secretName, adminPasswordKey, tc)
 
 	flexibleServer, fqdnSecret := newFlexibleServer20230630(tc, rg, adminPasswordSecretRef)
@@ -92,8 +96,12 @@ func Test_DBForMySQL_FlexibleServer_20230630_CRUD(t *testing.T) {
 	tc.Expect(exists).To(BeFalse())
 }
 
-func newFlexibleServer20230630(tc *testcommon.KubePerTestContext, rg *resources.ResourceGroup, adminPasswordSecretRef genruntime.SecretReference) (*mysql.FlexibleServer, string) {
-	version := mysql.ServerVersion_8021
+func newFlexibleServer20230630(
+	tc *testcommon.KubePerTestContext,
+	rg *resources.ResourceGroup,
+	adminPasswordSecretRef genruntime.SecretReference,
+) (*mysql.FlexibleServer, string) {
+	version := "8.0.21"
 	tier := mysql.MySQLServerSku_Tier_GeneralPurpose
 	fqdnSecret := "fqdnsecret"
 	flexibleServer := &mysql.FlexibleServer{
@@ -127,7 +135,7 @@ func MySQLFlexibleServer_Database_20230630_CRUD(tc *testcommon.KubePerTestContex
 	// although it doesn't give nice errors to point this out
 	database := &mysql.FlexibleServersDatabase{
 		ObjectMeta: tc.MakeObjectMetaWithName(tc.NoSpaceNamer.GenerateName("db")),
-		Spec: mysql.FlexibleServers_Database_Spec{
+		Spec: mysql.FlexibleServersDatabase_Spec{
 			Owner:   testcommon.AsOwner(flexibleServer),
 			Charset: to.Ptr("utf8mb4"),
 		},
@@ -141,7 +149,7 @@ func MySQLFlexibleServer_Database_20230630_CRUD(tc *testcommon.KubePerTestContex
 func MySQLFlexibleServer_FirewallRule_20230630_CRUD(tc *testcommon.KubePerTestContext, flexibleServer *mysql.FlexibleServer) {
 	rule := &mysql.FlexibleServersFirewallRule{
 		ObjectMeta: tc.MakeObjectMeta("fwrule"),
-		Spec: mysql.FlexibleServers_FirewallRule_Spec{
+		Spec: mysql.FlexibleServersFirewallRule_Spec{
 			Owner:          testcommon.AsOwner(flexibleServer),
 			StartIpAddress: to.Ptr("1.2.3.4"),
 			EndIpAddress:   to.Ptr("1.2.3.4"),
@@ -207,7 +215,7 @@ func MySQLFlexibleServer_AADAdmin_20230630_CRUD(tc *testcommon.KubePerTestContex
 	aadAdmin := mysql.AdministratorProperties_AdministratorType_ActiveDirectory
 	admin := &mysql.FlexibleServersAdministrator{
 		ObjectMeta: tc.MakeObjectMeta("aadadmin"),
-		Spec: mysql.FlexibleServers_Administrator_Spec{
+		Spec: mysql.FlexibleServersAdministrator_Spec{
 			Owner:             testcommon.AsOwner(server),
 			AdministratorType: &aadAdmin,
 			Login:             &mi.Name,
@@ -232,13 +240,18 @@ func MySQLFlexibleServer_AADAdmin_20230630_CRUD(tc *testcommon.KubePerTestContex
 func MySQLFlexibleServer_Configuration_20230630_CRUD(tc *testcommon.KubePerTestContext, flexibleServer *mysql.FlexibleServer) {
 	configuration := &mysql.FlexibleServersConfiguration{
 		ObjectMeta: tc.MakeObjectMetaWithName("maxconnections"),
-		Spec: mysql.FlexibleServers_Configuration_Spec{
+		Spec: mysql.FlexibleServersConfiguration_Spec{
 			AzureName: "max_connections",
 			Owner:     testcommon.AsOwner(flexibleServer),
 			Source:    to.Ptr(mysql.ConfigurationProperties_Source_UserOverride),
 			Value:     to.Ptr("20"),
 		},
 	}
+
+	// Don't try to delete directly, this is not a real resource - to delete it in Azure you must delete its parent.
+	// We can delete it from the cluster by applying this annotation, but this won't change anything in Azure.
+	tc.AddAnnotation(&configuration.ObjectMeta, "serviceoperator.azure.com/reconcile-policy", "detach-on-delete")
+
 	tc.CreateResourceAndWait(configuration)
 	tc.Expect(configuration.Status.Id).ToNot(BeNil())
 }

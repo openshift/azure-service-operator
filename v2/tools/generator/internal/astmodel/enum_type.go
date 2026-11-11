@@ -12,10 +12,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
-
 	"github.com/dave/dst"
+	"github.com/rotisserie/eris"
+	"golang.org/x/exp/slices"
 
 	"github.com/Azure/azure-service-operator/v2/internal/set"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
@@ -63,7 +62,8 @@ func NewEnumType(baseType *PrimitiveType, options ...EnumValue) *EnumType {
 			}
 
 			return strings.Compare(left.Identifier, right.Identifier)
-		})
+		},
+	)
 
 	return &EnumType{
 		baseType:       baseType,
@@ -95,12 +95,13 @@ func (enum *EnumType) AsDeclarations(
 		codeGenerationContext,
 		declContext.Name,
 		declContext.Description,
-		declContext.Validations)
+		declContext.Validations,
+	)
 
 	valuesDeclaration := enum.createValuesDeclaration(declContext)
 	mapperDeclaration, err := enum.createMappingDeclaration(declContext.Name, codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating mapping declaration")
+		return nil, eris.Wrap(err, "creating mapping declaration")
 	}
 
 	return astbuilder.Declarations(
@@ -175,21 +176,22 @@ func (enum *EnumType) createMappingDeclaration(
 
 	baseTypeExpr, err := enum.baseType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating base type expression")
+		return nil, eris.Wrap(err, "creating base type expression")
 	}
 
 	nameExpr, err := name.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating name expression")
+		return nil, eris.Wrap(err, "creating name expression")
 	}
 
 	literal := astbuilder.NewMapLiteral(
 		baseTypeExpr,
-		nameExpr)
+		nameExpr,
+	)
 
 	for _, v := range enum.options {
 		key := astbuilder.TextLiteral(strings.ToLower(v.Value))
-		value := dst.NewIdent(GetEnumValueId(name.Name(), v))
+		value := dst.NewIdent(GetEnumValueID(name.Name(), v))
 		literal.Add(key, value)
 	}
 
@@ -201,14 +203,15 @@ func (enum *EnumType) createMappingDeclaration(
 	decl.Decorations().Before = dst.EmptyLine
 	decl.Decorations().Start = append(
 		decl.Decorations().Start,
-		fmt.Sprintf("// Mapping from string to %s", name.Name()))
+		fmt.Sprintf("// Mapping from string to %s", name.Name()),
+	)
 
 	return decl, nil
 }
 
 func (enum *EnumType) createValueDeclaration(name TypeName, value EnumValue) dst.Spec {
 	valueSpec := &dst.ValueSpec{
-		Names: []*dst.Ident{dst.NewIdent(GetEnumValueId(name.Name(), value))},
+		Names: []*dst.Ident{dst.NewIdent(GetEnumValueID(name.Name(), value))},
 		Values: []dst.Expr{
 			astbuilder.CallFunc(name.Name(), astbuilder.TextLiteral(value.Value)),
 		},
@@ -220,7 +223,7 @@ func (enum *EnumType) createValueDeclaration(name TypeName, value EnumValue) dst
 // AsType implements Type for EnumType
 func (enum *EnumType) AsTypeExpr(codeGenerationContext *CodeGenerationContext) (dst.Expr, error) {
 	// this should "never" happen as we name all enums; panic if it does
-	panic(errors.New("Emitting unnamed enum, something’s awry"))
+	panic(eris.New("Emitting unnamed enum, something’s awry"))
 }
 
 // AsZero renders an expression for the "zero" value of the type,
@@ -302,7 +305,7 @@ func (enum *EnumType) clone() *EnumType {
 	return &result
 }
 
-func GetEnumValueId(name string, value EnumValue) string {
+func GetEnumValueID(name string, value EnumValue) string {
 	return name + "_" + value.Identifier
 }
 

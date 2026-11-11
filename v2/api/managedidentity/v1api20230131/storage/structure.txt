@@ -3,13 +3,18 @@ github.com/Azure/azure-service-operator/v2/api/managedidentity/v1api20230131/sto
 ------------------------------------------------------------------------------------
 APIVersion: Enum (1 value)
 └── "2023-01-31"
+
 FederatedIdentityCredential: Resource
 ├── Owner: managedidentity/v1api20230131.UserAssignedIdentity
-├── Spec: Object (9 properties)
+├── Spec: Object (10 properties)
 │   ├── Audiences: string[]
 │   ├── AzureName: string
 │   ├── Issuer: *string
 │   ├── IssuerFromConfig: *genruntime.ConfigMapReference
+│   ├── OperatorSpec: *Object (3 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
+│   │   ├── PropertyBag: genruntime.PropertyBag
+│   │   └── SecretExpressions: *core.DestinationExpression[]
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
 │   ├── PropertyBag: genruntime.PropertyBag
@@ -32,22 +37,26 @@ FederatedIdentityCredential: Resource
     │   ├── LastModifiedByType: *string
     │   └── PropertyBag: genruntime.PropertyBag
     └── Type: *string
+
 UserAssignedIdentity: Resource
 ├── Owner: resources/v1apiv20191001.ResourceGroup
 ├── Spec: Object (7 properties)
 │   ├── AzureName: string
 │   ├── Location: *string
-│   ├── OperatorSpec: *Object (3 properties)
+│   ├── OperatorSpec: *Object (5 properties)
+│   │   ├── ConfigMapExpressions: *core.DestinationExpression[]
 │   │   ├── ConfigMaps: *Object (4 properties)
 │   │   │   ├── ClientId: *genruntime.ConfigMapDestination
 │   │   │   ├── PrincipalId: *genruntime.ConfigMapDestination
 │   │   │   ├── PropertyBag: genruntime.PropertyBag
 │   │   │   └── TenantId: *genruntime.ConfigMapDestination
 │   │   ├── PropertyBag: genruntime.PropertyBag
-│   │   └── Secrets: *Object (4 properties)
+│   │   ├── SecretExpressions: *core.DestinationExpression[]
+│   │   └── Secrets: *Object (5 properties)
 │   │       ├── ClientId: *genruntime.SecretDestination
 │   │       ├── PrincipalId: *genruntime.SecretDestination
 │   │       ├── PropertyBag: genruntime.PropertyBag
+│   │       ├── SubscriptionId: *genruntime.SecretDestination
 │   │       └── TenantId: *genruntime.SecretDestination
 │   ├── OriginalVersion: string
 │   ├── Owner: *genruntime.KnownResourceReference
@@ -72,3 +81,4 @@ UserAssignedIdentity: Resource
     ├── Tags: map[string]string
     ├── TenantId: *string
     └── Type: *string
+

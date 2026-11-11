@@ -9,7 +9,7 @@ import (
 	"go/token"
 
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -26,10 +26,10 @@ func GetConditionsFunction(
 	receiver astmodel.TypeName,
 	methodName string,
 ) (*dst.FuncDecl, error) {
-	receiverIdent := k.IdFactory().CreateReceiver(receiver.Name())
+	receiverIdent := k.IDFactory().CreateReceiver(receiver.Name())
 	receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", receiver)
+		return nil, eris.Wrapf(err, "creating type expression for %s", receiver)
 	}
 
 	status := astbuilder.Selector(dst.NewIdent(receiverIdent), "Status")
@@ -38,15 +38,15 @@ func GetConditionsFunction(
 		Name:          methodName,
 		ReceiverIdent: receiverIdent,
 		ReceiverType:  astbuilder.PointerTo(receiverExpr),
-		Body: []dst.Stmt{
+		Body: astbuilder.Statements(
 			astbuilder.Returns(astbuilder.Selector(status, astmodel.ConditionsProperty)),
-		},
+		),
 	}
 
 	fn.AddComments("returns the conditions of the resource")
 	conditionsTypeExpr, err := astmodel.ConditionsType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", astmodel.ConditionsType)
+		return nil, eris.Wrapf(err, "creating type expression for %s", astmodel.ConditionsType)
 	}
 
 	fn.AddReturn(conditionsTypeExpr)
@@ -65,12 +65,12 @@ func SetConditionsFunction(
 	receiver astmodel.TypeName,
 	methodName string,
 ) (*dst.FuncDecl, error) {
-	conditionsParameterName := k.IdFactory().CreateIdentifier(astmodel.ConditionsProperty, astmodel.NotExported)
+	conditionsParameterName := k.IDFactory().CreateIdentifier(astmodel.ConditionsProperty, astmodel.NotExported)
 
-	receiverIdent := k.IdFactory().CreateReceiver(receiver.Name())
+	receiverIdent := k.IDFactory().CreateReceiver(receiver.Name())
 	receiverExpr, err := receiver.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating type expression for %s", receiver)
+		return nil, eris.Wrapf(err, "creating type expression for %s", receiver)
 	}
 
 	status := astbuilder.Selector(dst.NewIdent(receiverIdent), "Status")
@@ -79,19 +79,20 @@ func SetConditionsFunction(
 		Name:          methodName,
 		ReceiverIdent: receiverIdent,
 		ReceiverType:  astbuilder.PointerTo(receiverExpr),
-		Body: []dst.Stmt{
+		Body: astbuilder.Statements(
 			astbuilder.QualifiedAssignment(status, "Conditions", token.ASSIGN, dst.NewIdent(conditionsParameterName)),
-		},
+		),
 	}
 
 	conditionsTypeExpr, err := astmodel.ConditionsType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to render type expression for %s", astmodel.ConditionsType)
+		return nil, eris.Wrapf(err, "unable to render type expression for %s", astmodel.ConditionsType)
 	}
 
 	fn.AddParameter(
 		conditionsParameterName,
-		conditionsTypeExpr)
+		conditionsTypeExpr,
+	)
 	fn.AddComments("sets the conditions on the resource status")
 
 	return fn.DefineFunc(), nil

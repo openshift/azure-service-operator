@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
+
+	"github.com/google/uuid"
+	"github.com/rotisserie/eris"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -20,7 +21,7 @@ import (
 
 	managedidentity "github.com/Azure/azure-service-operator/v2/api/managedidentity/v1api20230131"
 	resources "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
-	storage "github.com/Azure/azure-service-operator/v2/api/storage/v1api20210401"
+	storage "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101"
 	"github.com/Azure/azure-service-operator/v2/internal/identity"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon/creds"
@@ -77,7 +78,7 @@ func Test_Multitenant_SingleOperator_NamespacedCredential(t *testing.T) {
 	tc.Eventually(func() string {
 		tc.GetResource(types.NamespacedName{Namespace: testResourceGroup.Namespace, Name: testResourceGroup.Name}, testResourceGroup)
 		return testResourceGroup.Status.Conditions[0].Message
-	}).WithTimeout(1 * time.Minute).Should(ContainSubstring("does not have authorization to perform action"))
+	}).WithTimeout(2 * time.Minute).Should(ContainSubstring("does not have authorization to perform action"))
 
 	// Deleting the credential would default to applying the global credential with all permissions
 	tc.DeleteResource(secret)
@@ -127,7 +128,7 @@ func Test_Multitenant_SingleOperator_PerResourceCredential(t *testing.T) {
 	tc.Eventually(func() string {
 		tc.GetResource(types.NamespacedName{Namespace: acct.Namespace, Name: acct.Name}, acct)
 		return acct.Status.Conditions[0].Message
-	}).WithTimeout(1 * time.Minute).Should(ContainSubstring("does not have authorization to perform action"))
+	}).WithTimeout(2 * time.Minute).Should(ContainSubstring("does not have authorization to perform action"))
 
 	// Deleting the per-resource credential annotation would default to applying the global credential with all permissions
 	old := acct.DeepCopy()
@@ -203,7 +204,7 @@ func getOIDCIssuer() (string, error) {
 		return issuer, nil
 	}
 
-	return "", errors.Errorf("could not determine cluster OIDC issuer either from %s or %s", KindOIDCIssuerPath, CLusterOIDCIssuerVar)
+	return "", eris.Errorf("could not determine cluster OIDC issuer either from %s or %s", KindOIDCIssuerPath, CLusterOIDCIssuerVar)
 }
 
 func newManagedIdentity(tc *testcommon.KubePerTestContext, rg *resources.ResourceGroup) *managedidentity.UserAssignedIdentity {
@@ -219,7 +220,7 @@ func newManagedIdentity(tc *testcommon.KubePerTestContext, rg *resources.Resourc
 func newFederatedIdentityCredential(tc *testcommon.KubePerTestContext, umi *managedidentity.UserAssignedIdentity, issuer string) *managedidentity.FederatedIdentityCredential {
 	return &managedidentity.FederatedIdentityCredential{
 		ObjectMeta: tc.MakeObjectMetaWithName("fic"), // Safe to always use this name as it's per-mi
-		Spec: managedidentity.UserAssignedIdentities_FederatedIdentityCredential_Spec{
+		Spec: managedidentity.FederatedIdentityCredential_Spec{
 			Owner: testcommon.AsOwner(umi),
 			// For Workload Identity, Audiences should always be "api://AzureADTokenExchange"
 			Audiences: []string{

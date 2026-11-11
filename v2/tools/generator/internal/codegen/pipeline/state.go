@@ -6,7 +6,7 @@
 package pipeline
 
 import (
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/maps"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -14,7 +14,16 @@ import (
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 )
 
-// State is an immutable instance that captures the information being passed along the pipeline
+// State is an immutable instance that captures the information being passed along the pipeline.
+//
+// Conceptually the State is immutable: each "With…" method returns a new *State whose internal
+// data structures (definitions, stagesSeen, stagesExpected, stateInfo) are treated as logically
+// independent from those of the receiver. In practice, several of those structures are shared by
+// reference rather than deep-copied — this is safe because all mutation is done through the
+// "With…" methods.
+//
+// Clients MUST use those methods to create new states rather than mutating the fields of an existing state,
+// and MUST NOT mutate the fields directly.
 type State struct {
 	definitions    astmodel.TypeDefinitionSet // set of type definitions generated so far
 	stagesSeen     set.Set[string]            // set of ids of the stages already run
@@ -93,18 +102,24 @@ func (s *State) Definitions() astmodel.TypeDefinitionSet {
 func (s *State) CheckFinalState() error {
 	var errs []error
 	for required, requiredBy := range s.stagesExpected {
-		for stageId := range requiredBy {
-			errs = append(errs, errors.Errorf("postrequisite %q of stage %q not satisfied", required, stageId))
+		for stageID := range requiredBy {
+			errs = append(errs, eris.Errorf("postrequisite %q of stage %q not satisfied", required, stageID))
 		}
 	}
 
 	return kerrors.NewAggregate(errs)
 }
 
-// copy creates a new independent copy of the state
+// copy creates a new State instance based on the receiver.
+//
+// definitions, stagesSeen, and stagesExpected are intentionally shared by reference with the
+// receiver: see the documentation on State for the reasoning. The caller is responsible for
+// ensuring any mutations after copy() preserve the logical immutability of earlier states
+// (in practice, all callers either replace the field outright or apply a single targeted
+// mutation immediately after).
 func (s *State) copy() *State {
 	return &State{
-		definitions:    s.definitions.Copy(),
+		definitions:    s.definitions,
 		stagesSeen:     s.stagesSeen,
 		stagesExpected: s.stagesExpected,
 		stateInfo:      maps.Clone(s.stateInfo),
@@ -138,24 +153,26 @@ func GetStateData[I any](
 ) (I, error) {
 	if state.stateInfo == nil {
 		var zero I
-		return zero, errors.Errorf("no state information available")
+		return zero, eris.Errorf("no state information available")
 	}
 
 	value, ok := state.stateInfo[key]
 	if !ok {
 		var zero I
-		return zero, errors.Errorf("no state information found for key %s", key)
+		return zero, eris.Errorf("no state information found for key %s", key)
 	}
 
 	info, ok := value.(I)
 	if !ok {
 		var zero I
 		return zero,
-			errors.Errorf(
+			eris.Errorf(
 				"state information found for key %s of type %T, expected %T",
 				key,
 				value,
-				zero)
+				zero,
+			)
+
 	}
 
 	return info, nil

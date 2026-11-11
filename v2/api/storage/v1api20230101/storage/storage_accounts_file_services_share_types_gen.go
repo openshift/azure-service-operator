@@ -4,19 +4,21 @@
 package storage
 
 import (
+	storage "github.com/Azure/azure-service-operator/v2/api/storage/v20230101/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// +kubebuilder:rbac:groups=storage.azure.com,resources=storageaccountsfileservicesshares,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=storage.azure.com,resources={storageaccountsfileservicesshares/status,storageaccountsfileservicesshares/finalizers},verbs=get;update;patch
-
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,storage}
 // +kubebuilder:subresource:status
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
@@ -28,8 +30,8 @@ import (
 type StorageAccountsFileServicesShare struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              StorageAccounts_FileServices_Share_Spec   `json:"spec,omitempty"`
-	Status            StorageAccounts_FileServices_Share_STATUS `json:"status,omitempty"`
+	Spec              StorageAccountsFileServicesShare_Spec   `json:"spec,omitempty"`
+	Status            StorageAccountsFileServicesShare_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &StorageAccountsFileServicesShare{}
@@ -44,6 +46,62 @@ func (share *StorageAccountsFileServicesShare) SetConditions(conditions conditio
 	share.Status.Conditions = conditions
 }
 
+var _ conversion.Convertible = &StorageAccountsFileServicesShare{}
+
+// ConvertFrom populates our StorageAccountsFileServicesShare from the provided hub StorageAccountsFileServicesShare
+func (share *StorageAccountsFileServicesShare) ConvertFrom(hub conversion.Hub) error {
+	// intermediate variable for conversion
+	var source storage.StorageAccountsFileServicesShare
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
+	}
+
+	err = share.AssignProperties_From_StorageAccountsFileServicesShare(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to share")
+	}
+
+	return nil
+}
+
+// ConvertTo populates the provided hub StorageAccountsFileServicesShare from our StorageAccountsFileServicesShare
+func (share *StorageAccountsFileServicesShare) ConvertTo(hub conversion.Hub) error {
+	// intermediate variable for conversion
+	var destination storage.StorageAccountsFileServicesShare
+	err := share.AssignProperties_To_StorageAccountsFileServicesShare(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from share")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
+	}
+
+	return nil
+}
+
+var _ configmaps.Exporter = &StorageAccountsFileServicesShare{}
+
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (share *StorageAccountsFileServicesShare) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if share.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return share.Spec.OperatorSpec.ConfigMapExpressions
+}
+
+var _ secrets.Exporter = &StorageAccountsFileServicesShare{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (share *StorageAccountsFileServicesShare) SecretDestinationExpressions() []*core.DestinationExpression {
+	if share.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return share.Spec.OperatorSpec.SecretExpressions
+}
+
 var _ genruntime.KubernetesResource = &StorageAccountsFileServicesShare{}
 
 // AzureName returns the Azure name of the resource
@@ -53,7 +111,7 @@ func (share *StorageAccountsFileServicesShare) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2023-01-01"
 func (share StorageAccountsFileServicesShare) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2023-01-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -87,11 +145,15 @@ func (share *StorageAccountsFileServicesShare) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (share *StorageAccountsFileServicesShare) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &StorageAccounts_FileServices_Share_STATUS{}
+	return &StorageAccountsFileServicesShare_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (share *StorageAccountsFileServicesShare) Owner() *genruntime.ResourceReference {
+	if share.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(share.Spec)
 	return share.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -99,24 +161,91 @@ func (share *StorageAccountsFileServicesShare) Owner() *genruntime.ResourceRefer
 // SetStatus sets the status of this resource
 func (share *StorageAccountsFileServicesShare) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*StorageAccounts_FileServices_Share_STATUS); ok {
+	if st, ok := status.(*StorageAccountsFileServicesShare_STATUS); ok {
 		share.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st StorageAccounts_FileServices_Share_STATUS
+	var st StorageAccountsFileServicesShare_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	share.Status = st
 	return nil
 }
 
-// Hub marks that this StorageAccountsFileServicesShare is the hub type for conversion
-func (share *StorageAccountsFileServicesShare) Hub() {}
+// AssignProperties_From_StorageAccountsFileServicesShare populates our StorageAccountsFileServicesShare from the provided source StorageAccountsFileServicesShare
+func (share *StorageAccountsFileServicesShare) AssignProperties_From_StorageAccountsFileServicesShare(source *storage.StorageAccountsFileServicesShare) error {
+
+	// ObjectMeta
+	share.ObjectMeta = *source.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec StorageAccountsFileServicesShare_Spec
+	err := spec.AssignProperties_From_StorageAccountsFileServicesShare_Spec(&source.Spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_StorageAccountsFileServicesShare_Spec() to populate field Spec")
+	}
+	share.Spec = spec
+
+	// Status
+	var status StorageAccountsFileServicesShare_STATUS
+	err = status.AssignProperties_From_StorageAccountsFileServicesShare_STATUS(&source.Status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_From_StorageAccountsFileServicesShare_STATUS() to populate field Status")
+	}
+	share.Status = status
+
+	// Invoke the augmentConversionForStorageAccountsFileServicesShare interface (if implemented) to customize the conversion
+	var shareAsAny any = share
+	if augmentedShare, ok := shareAsAny.(augmentConversionForStorageAccountsFileServicesShare); ok {
+		err := augmentedShare.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_StorageAccountsFileServicesShare populates the provided destination StorageAccountsFileServicesShare from our StorageAccountsFileServicesShare
+func (share *StorageAccountsFileServicesShare) AssignProperties_To_StorageAccountsFileServicesShare(destination *storage.StorageAccountsFileServicesShare) error {
+
+	// ObjectMeta
+	destination.ObjectMeta = *share.ObjectMeta.DeepCopy()
+
+	// Spec
+	var spec storage.StorageAccountsFileServicesShare_Spec
+	err := share.Spec.AssignProperties_To_StorageAccountsFileServicesShare_Spec(&spec)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_StorageAccountsFileServicesShare_Spec() to populate field Spec")
+	}
+	destination.Spec = spec
+
+	// Status
+	var status storage.StorageAccountsFileServicesShare_STATUS
+	err = share.Status.AssignProperties_To_StorageAccountsFileServicesShare_STATUS(&status)
+	if err != nil {
+		return eris.Wrap(err, "calling AssignProperties_To_StorageAccountsFileServicesShare_STATUS() to populate field Status")
+	}
+	destination.Status = status
+
+	// Invoke the augmentConversionForStorageAccountsFileServicesShare interface (if implemented) to customize the conversion
+	var shareAsAny any = share
+	if augmentedShare, ok := shareAsAny.(augmentConversionForStorageAccountsFileServicesShare); ok {
+		err := augmentedShare.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
 
 // OriginalGVK returns a GroupValueKind for the original API version used to create the resource
 func (share *StorageAccountsFileServicesShare) OriginalGVK() *schema.GroupVersionKind {
@@ -138,16 +267,22 @@ type StorageAccountsFileServicesShareList struct {
 	Items           []StorageAccountsFileServicesShare `json:"items"`
 }
 
-// Storage version of v1api20230101.StorageAccounts_FileServices_Share_Spec
-type StorageAccounts_FileServices_Share_Spec struct {
+type augmentConversionForStorageAccountsFileServicesShare interface {
+	AssignPropertiesFrom(src *storage.StorageAccountsFileServicesShare) error
+	AssignPropertiesTo(dst *storage.StorageAccountsFileServicesShare) error
+}
+
+// Storage version of v1api20230101.StorageAccountsFileServicesShare_Spec
+type StorageAccountsFileServicesShare_Spec struct {
 	AccessTier *string `json:"accessTier,omitempty"`
 
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
-	AzureName        string            `json:"azureName,omitempty"`
-	EnabledProtocols *string           `json:"enabledProtocols,omitempty"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
-	OriginalVersion  string            `json:"originalVersion,omitempty"`
+	AzureName        string                                        `json:"azureName,omitempty"`
+	EnabledProtocols *string                                       `json:"enabledProtocols,omitempty"`
+	Metadata         map[string]string                             `json:"metadata,omitempty"`
+	OperatorSpec     *StorageAccountsFileServicesShareOperatorSpec `json:"operatorSpec,omitempty"`
+	OriginalVersion  string                                        `json:"originalVersion,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
@@ -160,28 +295,222 @@ type StorageAccounts_FileServices_Share_Spec struct {
 	SignedIdentifiers []SignedIdentifier                 `json:"signedIdentifiers,omitempty"`
 }
 
-var _ genruntime.ConvertibleSpec = &StorageAccounts_FileServices_Share_Spec{}
+var _ genruntime.ConvertibleSpec = &StorageAccountsFileServicesShare_Spec{}
 
-// ConvertSpecFrom populates our StorageAccounts_FileServices_Share_Spec from the provided source
-func (share *StorageAccounts_FileServices_Share_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	if source == share {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+// ConvertSpecFrom populates our StorageAccountsFileServicesShare_Spec from the provided source
+func (share *StorageAccountsFileServicesShare_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.StorageAccountsFileServicesShare_Spec)
+	if ok {
+		// Populate our instance from source
+		return share.AssignProperties_From_StorageAccountsFileServicesShare_Spec(src)
 	}
 
-	return source.ConvertSpecTo(share)
-}
-
-// ConvertSpecTo populates the provided destination from our StorageAccounts_FileServices_Share_Spec
-func (share *StorageAccounts_FileServices_Share_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	if destination == share {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleSpec")
+	// Convert to an intermediate form
+	src = &storage.StorageAccountsFileServicesShare_Spec{}
+	err := src.ConvertSpecFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
-	return destination.ConvertSpecFrom(share)
+	// Update our instance from src
+	err = share.AssignProperties_From_StorageAccountsFileServicesShare_Spec(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+	}
+
+	return nil
 }
 
-// Storage version of v1api20230101.StorageAccounts_FileServices_Share_STATUS
-type StorageAccounts_FileServices_Share_STATUS struct {
+// ConvertSpecTo populates the provided destination from our StorageAccountsFileServicesShare_Spec
+func (share *StorageAccountsFileServicesShare_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.StorageAccountsFileServicesShare_Spec)
+	if ok {
+		// Populate destination from our instance
+		return share.AssignProperties_To_StorageAccountsFileServicesShare_Spec(dst)
+	}
+
+	// Convert to an intermediate form
+	dst = &storage.StorageAccountsFileServicesShare_Spec{}
+	err := share.AssignProperties_To_StorageAccountsFileServicesShare_Spec(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertSpecTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_StorageAccountsFileServicesShare_Spec populates our StorageAccountsFileServicesShare_Spec from the provided source StorageAccountsFileServicesShare_Spec
+func (share *StorageAccountsFileServicesShare_Spec) AssignProperties_From_StorageAccountsFileServicesShare_Spec(source *storage.StorageAccountsFileServicesShare_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AccessTier
+	share.AccessTier = genruntime.ClonePointerToString(source.AccessTier)
+
+	// AzureName
+	share.AzureName = source.AzureName
+
+	// EnabledProtocols
+	share.EnabledProtocols = genruntime.ClonePointerToString(source.EnabledProtocols)
+
+	// Metadata
+	share.Metadata = genruntime.CloneMapOfStringToString(source.Metadata)
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec StorageAccountsFileServicesShareOperatorSpec
+		err := operatorSpec.AssignProperties_From_StorageAccountsFileServicesShareOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_StorageAccountsFileServicesShareOperatorSpec() to populate field OperatorSpec")
+		}
+		share.OperatorSpec = &operatorSpec
+	} else {
+		share.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	share.OriginalVersion = source.OriginalVersion
+
+	// Owner
+	if source.Owner != nil {
+		owner := source.Owner.Copy()
+		share.Owner = &owner
+	} else {
+		share.Owner = nil
+	}
+
+	// RootSquash
+	share.RootSquash = genruntime.ClonePointerToString(source.RootSquash)
+
+	// ShareQuota
+	share.ShareQuota = genruntime.ClonePointerToInt(source.ShareQuota)
+
+	// SignedIdentifiers
+	if source.SignedIdentifiers != nil {
+		signedIdentifierList := make([]SignedIdentifier, len(source.SignedIdentifiers))
+		for signedIdentifierIndex, signedIdentifierItem := range source.SignedIdentifiers {
+			var signedIdentifier SignedIdentifier
+			err := signedIdentifier.AssignProperties_From_SignedIdentifier(&signedIdentifierItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_SignedIdentifier() to populate field SignedIdentifiers")
+			}
+			signedIdentifierList[signedIdentifierIndex] = signedIdentifier
+		}
+		share.SignedIdentifiers = signedIdentifierList
+	} else {
+		share.SignedIdentifiers = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		share.PropertyBag = propertyBag
+	} else {
+		share.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForStorageAccountsFileServicesShare_Spec interface (if implemented) to customize the conversion
+	var shareAsAny any = share
+	if augmentedShare, ok := shareAsAny.(augmentConversionForStorageAccountsFileServicesShare_Spec); ok {
+		err := augmentedShare.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_StorageAccountsFileServicesShare_Spec populates the provided destination StorageAccountsFileServicesShare_Spec from our StorageAccountsFileServicesShare_Spec
+func (share *StorageAccountsFileServicesShare_Spec) AssignProperties_To_StorageAccountsFileServicesShare_Spec(destination *storage.StorageAccountsFileServicesShare_Spec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(share.PropertyBag)
+
+	// AccessTier
+	destination.AccessTier = genruntime.ClonePointerToString(share.AccessTier)
+
+	// AzureName
+	destination.AzureName = share.AzureName
+
+	// EnabledProtocols
+	destination.EnabledProtocols = genruntime.ClonePointerToString(share.EnabledProtocols)
+
+	// Metadata
+	destination.Metadata = genruntime.CloneMapOfStringToString(share.Metadata)
+
+	// OperatorSpec
+	if share.OperatorSpec != nil {
+		var operatorSpec storage.StorageAccountsFileServicesShareOperatorSpec
+		err := share.OperatorSpec.AssignProperties_To_StorageAccountsFileServicesShareOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_StorageAccountsFileServicesShareOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
+	// OriginalVersion
+	destination.OriginalVersion = share.OriginalVersion
+
+	// Owner
+	if share.Owner != nil {
+		owner := share.Owner.Copy()
+		destination.Owner = &owner
+	} else {
+		destination.Owner = nil
+	}
+
+	// RootSquash
+	destination.RootSquash = genruntime.ClonePointerToString(share.RootSquash)
+
+	// ShareQuota
+	destination.ShareQuota = genruntime.ClonePointerToInt(share.ShareQuota)
+
+	// SignedIdentifiers
+	if share.SignedIdentifiers != nil {
+		signedIdentifierList := make([]storage.SignedIdentifier, len(share.SignedIdentifiers))
+		for signedIdentifierIndex, signedIdentifierItem := range share.SignedIdentifiers {
+			var signedIdentifier storage.SignedIdentifier
+			err := signedIdentifierItem.AssignProperties_To_SignedIdentifier(&signedIdentifier)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_SignedIdentifier() to populate field SignedIdentifiers")
+			}
+			signedIdentifierList[signedIdentifierIndex] = signedIdentifier
+		}
+		destination.SignedIdentifiers = signedIdentifierList
+	} else {
+		destination.SignedIdentifiers = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForStorageAccountsFileServicesShare_Spec interface (if implemented) to customize the conversion
+	var shareAsAny any = share
+	if augmentedShare, ok := shareAsAny.(augmentConversionForStorageAccountsFileServicesShare_Spec); ok {
+		err := augmentedShare.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20230101.StorageAccountsFileServicesShare_STATUS
+type StorageAccountsFileServicesShare_STATUS struct {
 	AccessTier             *string                   `json:"accessTier,omitempty"`
 	AccessTierChangeTime   *string                   `json:"accessTierChangeTime,omitempty"`
 	AccessTierStatus       *string                   `json:"accessTierStatus,omitempty"`
@@ -208,24 +537,288 @@ type StorageAccounts_FileServices_Share_STATUS struct {
 	Version                *string                   `json:"version,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &StorageAccounts_FileServices_Share_STATUS{}
+var _ genruntime.ConvertibleStatus = &StorageAccountsFileServicesShare_STATUS{}
 
-// ConvertStatusFrom populates our StorageAccounts_FileServices_Share_STATUS from the provided source
-func (share *StorageAccounts_FileServices_Share_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	if source == share {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusFrom populates our StorageAccountsFileServicesShare_STATUS from the provided source
+func (share *StorageAccountsFileServicesShare_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.StorageAccountsFileServicesShare_STATUS)
+	if ok {
+		// Populate our instance from source
+		return share.AssignProperties_From_StorageAccountsFileServicesShare_STATUS(src)
 	}
 
-	return source.ConvertStatusTo(share)
+	// Convert to an intermediate form
+	src = &storage.StorageAccountsFileServicesShare_STATUS{}
+	err := src.ConvertStatusFrom(source)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+	}
+
+	// Update our instance from src
+	err = share.AssignProperties_From_StorageAccountsFileServicesShare_STATUS(src)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+	}
+
+	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our StorageAccounts_FileServices_Share_STATUS
-func (share *StorageAccounts_FileServices_Share_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	if destination == share {
-		return errors.New("attempted conversion between unrelated implementations of github.com/Azure/azure-service-operator/v2/pkg/genruntime/ConvertibleStatus")
+// ConvertStatusTo populates the provided destination from our StorageAccountsFileServicesShare_STATUS
+func (share *StorageAccountsFileServicesShare_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.StorageAccountsFileServicesShare_STATUS)
+	if ok {
+		// Populate destination from our instance
+		return share.AssignProperties_To_StorageAccountsFileServicesShare_STATUS(dst)
 	}
 
-	return destination.ConvertStatusFrom(share)
+	// Convert to an intermediate form
+	dst = &storage.StorageAccountsFileServicesShare_STATUS{}
+	err := share.AssignProperties_To_StorageAccountsFileServicesShare_STATUS(dst)
+	if err != nil {
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+	}
+
+	// Update dst from our instance
+	err = dst.ConvertStatusTo(destination)
+	if err != nil {
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
+	}
+
+	return nil
+}
+
+// AssignProperties_From_StorageAccountsFileServicesShare_STATUS populates our StorageAccountsFileServicesShare_STATUS from the provided source StorageAccountsFileServicesShare_STATUS
+func (share *StorageAccountsFileServicesShare_STATUS) AssignProperties_From_StorageAccountsFileServicesShare_STATUS(source *storage.StorageAccountsFileServicesShare_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AccessTier
+	share.AccessTier = genruntime.ClonePointerToString(source.AccessTier)
+
+	// AccessTierChangeTime
+	share.AccessTierChangeTime = genruntime.ClonePointerToString(source.AccessTierChangeTime)
+
+	// AccessTierStatus
+	share.AccessTierStatus = genruntime.ClonePointerToString(source.AccessTierStatus)
+
+	// Conditions
+	share.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
+
+	// Deleted
+	if source.Deleted != nil {
+		deleted := *source.Deleted
+		share.Deleted = &deleted
+	} else {
+		share.Deleted = nil
+	}
+
+	// DeletedTime
+	share.DeletedTime = genruntime.ClonePointerToString(source.DeletedTime)
+
+	// EnabledProtocols
+	share.EnabledProtocols = genruntime.ClonePointerToString(source.EnabledProtocols)
+
+	// Etag
+	share.Etag = genruntime.ClonePointerToString(source.Etag)
+
+	// Id
+	share.Id = genruntime.ClonePointerToString(source.Id)
+
+	// LastModifiedTime
+	share.LastModifiedTime = genruntime.ClonePointerToString(source.LastModifiedTime)
+
+	// LeaseDuration
+	share.LeaseDuration = genruntime.ClonePointerToString(source.LeaseDuration)
+
+	// LeaseState
+	share.LeaseState = genruntime.ClonePointerToString(source.LeaseState)
+
+	// LeaseStatus
+	share.LeaseStatus = genruntime.ClonePointerToString(source.LeaseStatus)
+
+	// Metadata
+	share.Metadata = genruntime.CloneMapOfStringToString(source.Metadata)
+
+	// Name
+	share.Name = genruntime.ClonePointerToString(source.Name)
+
+	// RemainingRetentionDays
+	share.RemainingRetentionDays = genruntime.ClonePointerToInt(source.RemainingRetentionDays)
+
+	// RootSquash
+	share.RootSquash = genruntime.ClonePointerToString(source.RootSquash)
+
+	// ShareQuota
+	share.ShareQuota = genruntime.ClonePointerToInt(source.ShareQuota)
+
+	// ShareUsageBytes
+	share.ShareUsageBytes = genruntime.ClonePointerToInt(source.ShareUsageBytes)
+
+	// SignedIdentifiers
+	if source.SignedIdentifiers != nil {
+		signedIdentifierList := make([]SignedIdentifier_STATUS, len(source.SignedIdentifiers))
+		for signedIdentifierIndex, signedIdentifierItem := range source.SignedIdentifiers {
+			var signedIdentifier SignedIdentifier_STATUS
+			err := signedIdentifier.AssignProperties_From_SignedIdentifier_STATUS(&signedIdentifierItem)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_From_SignedIdentifier_STATUS() to populate field SignedIdentifiers")
+			}
+			signedIdentifierList[signedIdentifierIndex] = signedIdentifier
+		}
+		share.SignedIdentifiers = signedIdentifierList
+	} else {
+		share.SignedIdentifiers = nil
+	}
+
+	// SnapshotTime
+	share.SnapshotTime = genruntime.ClonePointerToString(source.SnapshotTime)
+
+	// Type
+	share.Type = genruntime.ClonePointerToString(source.Type)
+
+	// Version
+	share.Version = genruntime.ClonePointerToString(source.Version)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		share.PropertyBag = propertyBag
+	} else {
+		share.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForStorageAccountsFileServicesShare_STATUS interface (if implemented) to customize the conversion
+	var shareAsAny any = share
+	if augmentedShare, ok := shareAsAny.(augmentConversionForStorageAccountsFileServicesShare_STATUS); ok {
+		err := augmentedShare.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_StorageAccountsFileServicesShare_STATUS populates the provided destination StorageAccountsFileServicesShare_STATUS from our StorageAccountsFileServicesShare_STATUS
+func (share *StorageAccountsFileServicesShare_STATUS) AssignProperties_To_StorageAccountsFileServicesShare_STATUS(destination *storage.StorageAccountsFileServicesShare_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(share.PropertyBag)
+
+	// AccessTier
+	destination.AccessTier = genruntime.ClonePointerToString(share.AccessTier)
+
+	// AccessTierChangeTime
+	destination.AccessTierChangeTime = genruntime.ClonePointerToString(share.AccessTierChangeTime)
+
+	// AccessTierStatus
+	destination.AccessTierStatus = genruntime.ClonePointerToString(share.AccessTierStatus)
+
+	// Conditions
+	destination.Conditions = genruntime.CloneSliceOfCondition(share.Conditions)
+
+	// Deleted
+	if share.Deleted != nil {
+		deleted := *share.Deleted
+		destination.Deleted = &deleted
+	} else {
+		destination.Deleted = nil
+	}
+
+	// DeletedTime
+	destination.DeletedTime = genruntime.ClonePointerToString(share.DeletedTime)
+
+	// EnabledProtocols
+	destination.EnabledProtocols = genruntime.ClonePointerToString(share.EnabledProtocols)
+
+	// Etag
+	destination.Etag = genruntime.ClonePointerToString(share.Etag)
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(share.Id)
+
+	// LastModifiedTime
+	destination.LastModifiedTime = genruntime.ClonePointerToString(share.LastModifiedTime)
+
+	// LeaseDuration
+	destination.LeaseDuration = genruntime.ClonePointerToString(share.LeaseDuration)
+
+	// LeaseState
+	destination.LeaseState = genruntime.ClonePointerToString(share.LeaseState)
+
+	// LeaseStatus
+	destination.LeaseStatus = genruntime.ClonePointerToString(share.LeaseStatus)
+
+	// Metadata
+	destination.Metadata = genruntime.CloneMapOfStringToString(share.Metadata)
+
+	// Name
+	destination.Name = genruntime.ClonePointerToString(share.Name)
+
+	// RemainingRetentionDays
+	destination.RemainingRetentionDays = genruntime.ClonePointerToInt(share.RemainingRetentionDays)
+
+	// RootSquash
+	destination.RootSquash = genruntime.ClonePointerToString(share.RootSquash)
+
+	// ShareQuota
+	destination.ShareQuota = genruntime.ClonePointerToInt(share.ShareQuota)
+
+	// ShareUsageBytes
+	destination.ShareUsageBytes = genruntime.ClonePointerToInt(share.ShareUsageBytes)
+
+	// SignedIdentifiers
+	if share.SignedIdentifiers != nil {
+		signedIdentifierList := make([]storage.SignedIdentifier_STATUS, len(share.SignedIdentifiers))
+		for signedIdentifierIndex, signedIdentifierItem := range share.SignedIdentifiers {
+			var signedIdentifier storage.SignedIdentifier_STATUS
+			err := signedIdentifierItem.AssignProperties_To_SignedIdentifier_STATUS(&signedIdentifier)
+			if err != nil {
+				return eris.Wrap(err, "calling AssignProperties_To_SignedIdentifier_STATUS() to populate field SignedIdentifiers")
+			}
+			signedIdentifierList[signedIdentifierIndex] = signedIdentifier
+		}
+		destination.SignedIdentifiers = signedIdentifierList
+	} else {
+		destination.SignedIdentifiers = nil
+	}
+
+	// SnapshotTime
+	destination.SnapshotTime = genruntime.ClonePointerToString(share.SnapshotTime)
+
+	// Type
+	destination.Type = genruntime.ClonePointerToString(share.Type)
+
+	// Version
+	destination.Version = genruntime.ClonePointerToString(share.Version)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForStorageAccountsFileServicesShare_STATUS interface (if implemented) to customize the conversion
+	var shareAsAny any = share
+	if augmentedShare, ok := shareAsAny.(augmentConversionForStorageAccountsFileServicesShare_STATUS); ok {
+		err := augmentedShare.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForStorageAccountsFileServicesShare_Spec interface {
+	AssignPropertiesFrom(src *storage.StorageAccountsFileServicesShare_Spec) error
+	AssignPropertiesTo(dst *storage.StorageAccountsFileServicesShare_Spec) error
+}
+
+type augmentConversionForStorageAccountsFileServicesShare_STATUS interface {
+	AssignPropertiesFrom(src *storage.StorageAccountsFileServicesShare_STATUS) error
+	AssignPropertiesTo(dst *storage.StorageAccountsFileServicesShare_STATUS) error
 }
 
 // Storage version of v1api20230101.SignedIdentifier
@@ -237,11 +830,303 @@ type SignedIdentifier struct {
 	Reference *genruntime.ResourceReference `armReference:"Id" json:"reference,omitempty"`
 }
 
+// AssignProperties_From_SignedIdentifier populates our SignedIdentifier from the provided source SignedIdentifier
+func (identifier *SignedIdentifier) AssignProperties_From_SignedIdentifier(source *storage.SignedIdentifier) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AccessPolicy
+	if source.AccessPolicy != nil {
+		var accessPolicy AccessPolicy
+		err := accessPolicy.AssignProperties_From_AccessPolicy(source.AccessPolicy)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AccessPolicy() to populate field AccessPolicy")
+		}
+		identifier.AccessPolicy = &accessPolicy
+	} else {
+		identifier.AccessPolicy = nil
+	}
+
+	// Reference
+	if source.Reference != nil {
+		reference := source.Reference.Copy()
+		identifier.Reference = &reference
+	} else {
+		identifier.Reference = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		identifier.PropertyBag = propertyBag
+	} else {
+		identifier.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSignedIdentifier interface (if implemented) to customize the conversion
+	var identifierAsAny any = identifier
+	if augmentedIdentifier, ok := identifierAsAny.(augmentConversionForSignedIdentifier); ok {
+		err := augmentedIdentifier.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SignedIdentifier populates the provided destination SignedIdentifier from our SignedIdentifier
+func (identifier *SignedIdentifier) AssignProperties_To_SignedIdentifier(destination *storage.SignedIdentifier) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(identifier.PropertyBag)
+
+	// AccessPolicy
+	if identifier.AccessPolicy != nil {
+		var accessPolicy storage.AccessPolicy
+		err := identifier.AccessPolicy.AssignProperties_To_AccessPolicy(&accessPolicy)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AccessPolicy() to populate field AccessPolicy")
+		}
+		destination.AccessPolicy = &accessPolicy
+	} else {
+		destination.AccessPolicy = nil
+	}
+
+	// Reference
+	if identifier.Reference != nil {
+		reference := identifier.Reference.Copy()
+		destination.Reference = &reference
+	} else {
+		destination.Reference = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSignedIdentifier interface (if implemented) to customize the conversion
+	var identifierAsAny any = identifier
+	if augmentedIdentifier, ok := identifierAsAny.(augmentConversionForSignedIdentifier); ok {
+		err := augmentedIdentifier.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20230101.SignedIdentifier_STATUS
 type SignedIdentifier_STATUS struct {
 	AccessPolicy *AccessPolicy_STATUS   `json:"accessPolicy,omitempty"`
 	Id           *string                `json:"id,omitempty"`
 	PropertyBag  genruntime.PropertyBag `json:"$propertyBag,omitempty"`
+}
+
+// AssignProperties_From_SignedIdentifier_STATUS populates our SignedIdentifier_STATUS from the provided source SignedIdentifier_STATUS
+func (identifier *SignedIdentifier_STATUS) AssignProperties_From_SignedIdentifier_STATUS(source *storage.SignedIdentifier_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// AccessPolicy
+	if source.AccessPolicy != nil {
+		var accessPolicy AccessPolicy_STATUS
+		err := accessPolicy.AssignProperties_From_AccessPolicy_STATUS(source.AccessPolicy)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_AccessPolicy_STATUS() to populate field AccessPolicy")
+		}
+		identifier.AccessPolicy = &accessPolicy
+	} else {
+		identifier.AccessPolicy = nil
+	}
+
+	// Id
+	identifier.Id = genruntime.ClonePointerToString(source.Id)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		identifier.PropertyBag = propertyBag
+	} else {
+		identifier.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSignedIdentifier_STATUS interface (if implemented) to customize the conversion
+	var identifierAsAny any = identifier
+	if augmentedIdentifier, ok := identifierAsAny.(augmentConversionForSignedIdentifier_STATUS); ok {
+		err := augmentedIdentifier.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_SignedIdentifier_STATUS populates the provided destination SignedIdentifier_STATUS from our SignedIdentifier_STATUS
+func (identifier *SignedIdentifier_STATUS) AssignProperties_To_SignedIdentifier_STATUS(destination *storage.SignedIdentifier_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(identifier.PropertyBag)
+
+	// AccessPolicy
+	if identifier.AccessPolicy != nil {
+		var accessPolicy storage.AccessPolicy_STATUS
+		err := identifier.AccessPolicy.AssignProperties_To_AccessPolicy_STATUS(&accessPolicy)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_AccessPolicy_STATUS() to populate field AccessPolicy")
+		}
+		destination.AccessPolicy = &accessPolicy
+	} else {
+		destination.AccessPolicy = nil
+	}
+
+	// Id
+	destination.Id = genruntime.ClonePointerToString(identifier.Id)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForSignedIdentifier_STATUS interface (if implemented) to customize the conversion
+	var identifierAsAny any = identifier
+	if augmentedIdentifier, ok := identifierAsAny.(augmentConversionForSignedIdentifier_STATUS); ok {
+		err := augmentedIdentifier.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// Storage version of v1api20230101.StorageAccountsFileServicesShareOperatorSpec
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type StorageAccountsFileServicesShareOperatorSpec struct {
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+	PropertyBag          genruntime.PropertyBag        `json:"$propertyBag,omitempty"`
+	SecretExpressions    []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_StorageAccountsFileServicesShareOperatorSpec populates our StorageAccountsFileServicesShareOperatorSpec from the provided source StorageAccountsFileServicesShareOperatorSpec
+func (operator *StorageAccountsFileServicesShareOperatorSpec) AssignProperties_From_StorageAccountsFileServicesShareOperatorSpec(source *storage.StorageAccountsFileServicesShareOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		operator.PropertyBag = propertyBag
+	} else {
+		operator.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForStorageAccountsFileServicesShareOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForStorageAccountsFileServicesShareOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_StorageAccountsFileServicesShareOperatorSpec populates the provided destination StorageAccountsFileServicesShareOperatorSpec from our StorageAccountsFileServicesShareOperatorSpec
+func (operator *StorageAccountsFileServicesShareOperatorSpec) AssignProperties_To_StorageAccountsFileServicesShareOperatorSpec(destination *storage.StorageAccountsFileServicesShareOperatorSpec) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(operator.PropertyBag)
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForStorageAccountsFileServicesShareOperatorSpec interface (if implemented) to customize the conversion
+	var operatorAsAny any = operator
+	if augmentedOperator, ok := operatorAsAny.(augmentConversionForStorageAccountsFileServicesShareOperatorSpec); ok {
+		err := augmentedOperator.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
 }
 
 // Storage version of v1api20230101.AccessPolicy
@@ -252,12 +1137,173 @@ type AccessPolicy struct {
 	StartTime   *string                `json:"startTime,omitempty"`
 }
 
+// AssignProperties_From_AccessPolicy populates our AccessPolicy from the provided source AccessPolicy
+func (policy *AccessPolicy) AssignProperties_From_AccessPolicy(source *storage.AccessPolicy) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ExpiryTime
+	policy.ExpiryTime = genruntime.ClonePointerToString(source.ExpiryTime)
+
+	// Permission
+	policy.Permission = genruntime.ClonePointerToString(source.Permission)
+
+	// StartTime
+	policy.StartTime = genruntime.ClonePointerToString(source.StartTime)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		policy.PropertyBag = propertyBag
+	} else {
+		policy.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAccessPolicy interface (if implemented) to customize the conversion
+	var policyAsAny any = policy
+	if augmentedPolicy, ok := policyAsAny.(augmentConversionForAccessPolicy); ok {
+		err := augmentedPolicy.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AccessPolicy populates the provided destination AccessPolicy from our AccessPolicy
+func (policy *AccessPolicy) AssignProperties_To_AccessPolicy(destination *storage.AccessPolicy) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(policy.PropertyBag)
+
+	// ExpiryTime
+	destination.ExpiryTime = genruntime.ClonePointerToString(policy.ExpiryTime)
+
+	// Permission
+	destination.Permission = genruntime.ClonePointerToString(policy.Permission)
+
+	// StartTime
+	destination.StartTime = genruntime.ClonePointerToString(policy.StartTime)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAccessPolicy interface (if implemented) to customize the conversion
+	var policyAsAny any = policy
+	if augmentedPolicy, ok := policyAsAny.(augmentConversionForAccessPolicy); ok {
+		err := augmentedPolicy.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
 // Storage version of v1api20230101.AccessPolicy_STATUS
 type AccessPolicy_STATUS struct {
 	ExpiryTime  *string                `json:"expiryTime,omitempty"`
 	Permission  *string                `json:"permission,omitempty"`
 	PropertyBag genruntime.PropertyBag `json:"$propertyBag,omitempty"`
 	StartTime   *string                `json:"startTime,omitempty"`
+}
+
+// AssignProperties_From_AccessPolicy_STATUS populates our AccessPolicy_STATUS from the provided source AccessPolicy_STATUS
+func (policy *AccessPolicy_STATUS) AssignProperties_From_AccessPolicy_STATUS(source *storage.AccessPolicy_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(source.PropertyBag)
+
+	// ExpiryTime
+	policy.ExpiryTime = genruntime.ClonePointerToString(source.ExpiryTime)
+
+	// Permission
+	policy.Permission = genruntime.ClonePointerToString(source.Permission)
+
+	// StartTime
+	policy.StartTime = genruntime.ClonePointerToString(source.StartTime)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		policy.PropertyBag = propertyBag
+	} else {
+		policy.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAccessPolicy_STATUS interface (if implemented) to customize the conversion
+	var policyAsAny any = policy
+	if augmentedPolicy, ok := policyAsAny.(augmentConversionForAccessPolicy_STATUS); ok {
+		err := augmentedPolicy.AssignPropertiesFrom(source)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesFrom() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_AccessPolicy_STATUS populates the provided destination AccessPolicy_STATUS from our AccessPolicy_STATUS
+func (policy *AccessPolicy_STATUS) AssignProperties_To_AccessPolicy_STATUS(destination *storage.AccessPolicy_STATUS) error {
+	// Clone the existing property bag
+	propertyBag := genruntime.NewPropertyBag(policy.PropertyBag)
+
+	// ExpiryTime
+	destination.ExpiryTime = genruntime.ClonePointerToString(policy.ExpiryTime)
+
+	// Permission
+	destination.Permission = genruntime.ClonePointerToString(policy.Permission)
+
+	// StartTime
+	destination.StartTime = genruntime.ClonePointerToString(policy.StartTime)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// Invoke the augmentConversionForAccessPolicy_STATUS interface (if implemented) to customize the conversion
+	var policyAsAny any = policy
+	if augmentedPolicy, ok := policyAsAny.(augmentConversionForAccessPolicy_STATUS); ok {
+		err := augmentedPolicy.AssignPropertiesTo(destination)
+		if err != nil {
+			return eris.Wrap(err, "calling augmented AssignPropertiesTo() for conversion")
+		}
+	}
+
+	// No error
+	return nil
+}
+
+type augmentConversionForSignedIdentifier interface {
+	AssignPropertiesFrom(src *storage.SignedIdentifier) error
+	AssignPropertiesTo(dst *storage.SignedIdentifier) error
+}
+
+type augmentConversionForSignedIdentifier_STATUS interface {
+	AssignPropertiesFrom(src *storage.SignedIdentifier_STATUS) error
+	AssignPropertiesTo(dst *storage.SignedIdentifier_STATUS) error
+}
+
+type augmentConversionForStorageAccountsFileServicesShareOperatorSpec interface {
+	AssignPropertiesFrom(src *storage.StorageAccountsFileServicesShareOperatorSpec) error
+	AssignPropertiesTo(dst *storage.StorageAccountsFileServicesShareOperatorSpec) error
+}
+
+type augmentConversionForAccessPolicy interface {
+	AssignPropertiesFrom(src *storage.AccessPolicy) error
+	AssignPropertiesTo(dst *storage.AccessPolicy) error
+}
+
+type augmentConversionForAccessPolicy_STATUS interface {
+	AssignPropertiesFrom(src *storage.AccessPolicy_STATUS) error
+	AssignPropertiesTo(dst *storage.AccessPolicy_STATUS) error
 }
 
 func init() {

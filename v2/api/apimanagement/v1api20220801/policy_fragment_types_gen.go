@@ -5,32 +5,34 @@ package v1api20220801
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/apimanagement/v1api20220801/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/apimanagement/v1api20220801/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,apimanagement}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /apimanagement/resource-manager/Microsoft.ApiManagement/stable/2022-08-01/apimpolicyfragments.json
+// - Generated from: /apimanagement/resource-manager/Microsoft.ApiManagement/ApiManagement/stable/2022-08-01/apimpolicyfragments.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ApiManagement/service/{serviceName}/policyFragments/{id}
 type PolicyFragment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Service_PolicyFragment_Spec   `json:"spec,omitempty"`
-	Status            Service_PolicyFragment_STATUS `json:"status,omitempty"`
+	Spec              PolicyFragment_Spec   `json:"spec,omitempty"`
+	Status            PolicyFragment_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &PolicyFragment{}
@@ -49,56 +51,56 @@ var _ conversion.Convertible = &PolicyFragment{}
 
 // ConvertFrom populates our PolicyFragment from the provided hub PolicyFragment
 func (fragment *PolicyFragment) ConvertFrom(hub conversion.Hub) error {
-	source, ok := hub.(*storage.PolicyFragment)
-	if !ok {
-		return fmt.Errorf("expected apimanagement/v1api20220801/storage/PolicyFragment but received %T instead", hub)
+	// intermediate variable for conversion
+	var source storage.PolicyFragment
+
+	err := source.ConvertFrom(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from hub to source")
 	}
 
-	return fragment.AssignProperties_From_PolicyFragment(source)
+	err = fragment.AssignProperties_From_PolicyFragment(&source)
+	if err != nil {
+		return eris.Wrap(err, "converting from source to fragment")
+	}
+
+	return nil
 }
 
 // ConvertTo populates the provided hub PolicyFragment from our PolicyFragment
 func (fragment *PolicyFragment) ConvertTo(hub conversion.Hub) error {
-	destination, ok := hub.(*storage.PolicyFragment)
-	if !ok {
-		return fmt.Errorf("expected apimanagement/v1api20220801/storage/PolicyFragment but received %T instead", hub)
+	// intermediate variable for conversion
+	var destination storage.PolicyFragment
+	err := fragment.AssignProperties_To_PolicyFragment(&destination)
+	if err != nil {
+		return eris.Wrap(err, "converting to destination from fragment")
+	}
+	err = destination.ConvertTo(hub)
+	if err != nil {
+		return eris.Wrap(err, "converting from destination to hub")
 	}
 
-	return fragment.AssignProperties_To_PolicyFragment(destination)
+	return nil
 }
 
-// +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20220801-policyfragment,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=policyfragments,verbs=create;update,versions=v1api20220801,name=default.v1api20220801.policyfragments.apimanagement.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &PolicyFragment{}
 
-var _ admission.Defaulter = &PolicyFragment{}
-
-// Default applies defaults to the PolicyFragment resource
-func (fragment *PolicyFragment) Default() {
-	fragment.defaultImpl()
-	var temp any = fragment
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (fragment *PolicyFragment) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if fragment.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return fragment.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (fragment *PolicyFragment) defaultAzureName() {
-	if fragment.Spec.AzureName == "" {
-		fragment.Spec.AzureName = fragment.Name
+var _ secrets.Exporter = &PolicyFragment{}
+
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (fragment *PolicyFragment) SecretDestinationExpressions() []*core.DestinationExpression {
+	if fragment.Spec.OperatorSpec == nil {
+		return nil
 	}
-}
-
-// defaultImpl applies the code generated defaults to the PolicyFragment resource
-func (fragment *PolicyFragment) defaultImpl() { fragment.defaultAzureName() }
-
-var _ genruntime.ImportableResource = &PolicyFragment{}
-
-// InitializeSpec initializes the spec for this resource from the given status
-func (fragment *PolicyFragment) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*Service_PolicyFragment_STATUS); ok {
-		return fragment.Spec.Initialize_From_Service_PolicyFragment_STATUS(s)
-	}
-
-	return fmt.Errorf("expected Status of type Service_PolicyFragment_STATUS but received %T instead", status)
+	return fragment.Spec.OperatorSpec.SecretExpressions
 }
 
 var _ genruntime.KubernetesResource = &PolicyFragment{}
@@ -110,7 +112,7 @@ func (fragment *PolicyFragment) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-08-01"
 func (fragment PolicyFragment) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-08-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -145,11 +147,15 @@ func (fragment *PolicyFragment) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (fragment *PolicyFragment) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Service_PolicyFragment_STATUS{}
+	return &PolicyFragment_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (fragment *PolicyFragment) Owner() *genruntime.ResourceReference {
+	if fragment.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(fragment.Spec)
 	return fragment.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -157,101 +163,20 @@ func (fragment *PolicyFragment) Owner() *genruntime.ResourceReference {
 // SetStatus sets the status of this resource
 func (fragment *PolicyFragment) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Service_PolicyFragment_STATUS); ok {
+	if st, ok := status.(*PolicyFragment_STATUS); ok {
 		fragment.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Service_PolicyFragment_STATUS
+	var st PolicyFragment_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	fragment.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20220801-policyfragment,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=policyfragments,verbs=create;update,versions=v1api20220801,name=validate.v1api20220801.policyfragments.apimanagement.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &PolicyFragment{}
-
-// ValidateCreate validates the creation of the resource
-func (fragment *PolicyFragment) ValidateCreate() (admission.Warnings, error) {
-	validations := fragment.createValidations()
-	var temp any = fragment
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (fragment *PolicyFragment) ValidateDelete() (admission.Warnings, error) {
-	validations := fragment.deleteValidations()
-	var temp any = fragment
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (fragment *PolicyFragment) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := fragment.updateValidations()
-	var temp any = fragment
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (fragment *PolicyFragment) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){fragment.validateResourceReferences, fragment.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (fragment *PolicyFragment) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (fragment *PolicyFragment) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return fragment.validateResourceReferences()
-		},
-		fragment.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return fragment.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (fragment *PolicyFragment) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(fragment)
-}
-
-// validateResourceReferences validates all resource references
-func (fragment *PolicyFragment) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&fragment.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (fragment *PolicyFragment) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*PolicyFragment)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, fragment)
 }
 
 // AssignProperties_From_PolicyFragment populates our PolicyFragment from the provided source PolicyFragment
@@ -261,18 +186,18 @@ func (fragment *PolicyFragment) AssignProperties_From_PolicyFragment(source *sto
 	fragment.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec Service_PolicyFragment_Spec
-	err := spec.AssignProperties_From_Service_PolicyFragment_Spec(&source.Spec)
+	var spec PolicyFragment_Spec
+	err := spec.AssignProperties_From_PolicyFragment_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Service_PolicyFragment_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_PolicyFragment_Spec() to populate field Spec")
 	}
 	fragment.Spec = spec
 
 	// Status
-	var status Service_PolicyFragment_STATUS
-	err = status.AssignProperties_From_Service_PolicyFragment_STATUS(&source.Status)
+	var status PolicyFragment_STATUS
+	err = status.AssignProperties_From_PolicyFragment_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Service_PolicyFragment_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_PolicyFragment_STATUS() to populate field Status")
 	}
 	fragment.Status = status
 
@@ -287,18 +212,18 @@ func (fragment *PolicyFragment) AssignProperties_To_PolicyFragment(destination *
 	destination.ObjectMeta = *fragment.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.Service_PolicyFragment_Spec
-	err := fragment.Spec.AssignProperties_To_Service_PolicyFragment_Spec(&spec)
+	var spec storage.PolicyFragment_Spec
+	err := fragment.Spec.AssignProperties_To_PolicyFragment_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Service_PolicyFragment_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_PolicyFragment_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.Service_PolicyFragment_STATUS
-	err = fragment.Status.AssignProperties_To_Service_PolicyFragment_STATUS(&status)
+	var status storage.PolicyFragment_STATUS
+	err = fragment.Status.AssignProperties_To_PolicyFragment_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Service_PolicyFragment_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_PolicyFragment_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -317,7 +242,7 @@ func (fragment *PolicyFragment) OriginalGVK() *schema.GroupVersionKind {
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /apimanagement/resource-manager/Microsoft.ApiManagement/stable/2022-08-01/apimpolicyfragments.json
+// - Generated from: /apimanagement/resource-manager/Microsoft.ApiManagement/ApiManagement/stable/2022-08-01/apimpolicyfragments.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ApiManagement/service/{serviceName}/policyFragments/{id}
 type PolicyFragmentList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -325,7 +250,7 @@ type PolicyFragmentList struct {
 	Items           []PolicyFragment `json:"items"`
 }
 
-type Service_PolicyFragment_Spec struct {
+type PolicyFragment_Spec struct {
 	// +kubebuilder:validation:MaxLength=80
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:Pattern="(^[\\w]+$)|(^[\\w][\\w\\-]+[\\w]$)"
@@ -341,6 +266,10 @@ type Service_PolicyFragment_Spec struct {
 	// Format: Format of the policy fragment content.
 	Format *PolicyFragmentContractProperties_Format `json:"format,omitempty"`
 
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *PolicyFragmentOperatorSpec `json:"operatorSpec,omitempty"`
+
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
 	// controls the resources lifecycle. When the owner is deleted the resource will also be deleted. Owner is expected to be a
@@ -352,14 +281,14 @@ type Service_PolicyFragment_Spec struct {
 	Value *string `json:"value,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &Service_PolicyFragment_Spec{}
+var _ genruntime.ARMTransformer = &PolicyFragment_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (fragment *Service_PolicyFragment_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (fragment *PolicyFragment_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if fragment == nil {
 		return nil, nil
 	}
-	result := &Service_PolicyFragment_Spec_ARM{}
+	result := &arm.PolicyFragment_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
@@ -368,14 +297,16 @@ func (fragment *Service_PolicyFragment_Spec) ConvertToARM(resolved genruntime.Co
 	if fragment.Description != nil ||
 		fragment.Format != nil ||
 		fragment.Value != nil {
-		result.Properties = &PolicyFragmentContractProperties_ARM{}
+		result.Properties = &arm.PolicyFragmentContractProperties{}
 	}
 	if fragment.Description != nil {
 		description := *fragment.Description
 		result.Properties.Description = &description
 	}
 	if fragment.Format != nil {
-		format := *fragment.Format
+		var temp string
+		temp = string(*fragment.Format)
+		format := arm.PolicyFragmentContractProperties_Format(temp)
 		result.Properties.Format = &format
 	}
 	if fragment.Value != nil {
@@ -386,15 +317,15 @@ func (fragment *Service_PolicyFragment_Spec) ConvertToARM(resolved genruntime.Co
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (fragment *Service_PolicyFragment_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Service_PolicyFragment_Spec_ARM{}
+func (fragment *PolicyFragment_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.PolicyFragment_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (fragment *Service_PolicyFragment_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Service_PolicyFragment_Spec_ARM)
+func (fragment *PolicyFragment_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.PolicyFragment_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Service_PolicyFragment_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PolicyFragment_Spec, got %T", armInput)
 	}
 
 	// Set property "AzureName":
@@ -413,10 +344,14 @@ func (fragment *Service_PolicyFragment_Spec) PopulateFromARM(owner genruntime.Ar
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.Format != nil {
-			format := *typedInput.Properties.Format
+			var temp string
+			temp = string(*typedInput.Properties.Format)
+			format := PolicyFragmentContractProperties_Format(temp)
 			fragment.Format = &format
 		}
 	}
+
+	// no assignment for property "OperatorSpec"
 
 	// Set property "Owner":
 	fragment.Owner = &genruntime.KnownResourceReference{
@@ -437,69 +372,64 @@ func (fragment *Service_PolicyFragment_Spec) PopulateFromARM(owner genruntime.Ar
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &Service_PolicyFragment_Spec{}
+var _ genruntime.ConvertibleSpec = &PolicyFragment_Spec{}
 
-// ConvertSpecFrom populates our Service_PolicyFragment_Spec from the provided source
-func (fragment *Service_PolicyFragment_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.Service_PolicyFragment_Spec)
+// ConvertSpecFrom populates our PolicyFragment_Spec from the provided source
+func (fragment *PolicyFragment_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.PolicyFragment_Spec)
 	if ok {
 		// Populate our instance from source
-		return fragment.AssignProperties_From_Service_PolicyFragment_Spec(src)
+		return fragment.AssignProperties_From_PolicyFragment_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Service_PolicyFragment_Spec{}
+	src = &storage.PolicyFragment_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = fragment.AssignProperties_From_Service_PolicyFragment_Spec(src)
+	err = fragment.AssignProperties_From_PolicyFragment_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our Service_PolicyFragment_Spec
-func (fragment *Service_PolicyFragment_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.Service_PolicyFragment_Spec)
+// ConvertSpecTo populates the provided destination from our PolicyFragment_Spec
+func (fragment *PolicyFragment_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.PolicyFragment_Spec)
 	if ok {
 		// Populate destination from our instance
-		return fragment.AssignProperties_To_Service_PolicyFragment_Spec(dst)
+		return fragment.AssignProperties_To_PolicyFragment_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Service_PolicyFragment_Spec{}
-	err := fragment.AssignProperties_To_Service_PolicyFragment_Spec(dst)
+	dst = &storage.PolicyFragment_Spec{}
+	err := fragment.AssignProperties_To_PolicyFragment_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_Service_PolicyFragment_Spec populates our Service_PolicyFragment_Spec from the provided source Service_PolicyFragment_Spec
-func (fragment *Service_PolicyFragment_Spec) AssignProperties_From_Service_PolicyFragment_Spec(source *storage.Service_PolicyFragment_Spec) error {
+// AssignProperties_From_PolicyFragment_Spec populates our PolicyFragment_Spec from the provided source PolicyFragment_Spec
+func (fragment *PolicyFragment_Spec) AssignProperties_From_PolicyFragment_Spec(source *storage.PolicyFragment_Spec) error {
 
 	// AzureName
 	fragment.AzureName = source.AzureName
 
 	// Description
-	if source.Description != nil {
-		description := *source.Description
-		fragment.Description = &description
-	} else {
-		fragment.Description = nil
-	}
+	fragment.Description = genruntime.ClonePointerToString(source.Description)
 
 	// Format
 	if source.Format != nil {
@@ -508,6 +438,18 @@ func (fragment *Service_PolicyFragment_Spec) AssignProperties_From_Service_Polic
 		fragment.Format = &formatTemp
 	} else {
 		fragment.Format = nil
+	}
+
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec PolicyFragmentOperatorSpec
+		err := operatorSpec.AssignProperties_From_PolicyFragmentOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_PolicyFragmentOperatorSpec() to populate field OperatorSpec")
+		}
+		fragment.OperatorSpec = &operatorSpec
+	} else {
+		fragment.OperatorSpec = nil
 	}
 
 	// Owner
@@ -525,8 +467,8 @@ func (fragment *Service_PolicyFragment_Spec) AssignProperties_From_Service_Polic
 	return nil
 }
 
-// AssignProperties_To_Service_PolicyFragment_Spec populates the provided destination Service_PolicyFragment_Spec from our Service_PolicyFragment_Spec
-func (fragment *Service_PolicyFragment_Spec) AssignProperties_To_Service_PolicyFragment_Spec(destination *storage.Service_PolicyFragment_Spec) error {
+// AssignProperties_To_PolicyFragment_Spec populates the provided destination PolicyFragment_Spec from our PolicyFragment_Spec
+func (fragment *PolicyFragment_Spec) AssignProperties_To_PolicyFragment_Spec(destination *storage.PolicyFragment_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -534,12 +476,7 @@ func (fragment *Service_PolicyFragment_Spec) AssignProperties_To_Service_PolicyF
 	destination.AzureName = fragment.AzureName
 
 	// Description
-	if fragment.Description != nil {
-		description := *fragment.Description
-		destination.Description = &description
-	} else {
-		destination.Description = nil
-	}
+	destination.Description = genruntime.ClonePointerToString(fragment.Description)
 
 	// Format
 	if fragment.Format != nil {
@@ -547,6 +484,18 @@ func (fragment *Service_PolicyFragment_Spec) AssignProperties_To_Service_PolicyF
 		destination.Format = &format
 	} else {
 		destination.Format = nil
+	}
+
+	// OperatorSpec
+	if fragment.OperatorSpec != nil {
+		var operatorSpec storage.PolicyFragmentOperatorSpec
+		err := fragment.OperatorSpec.AssignProperties_To_PolicyFragmentOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_PolicyFragmentOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
 	}
 
 	// OriginalVersion
@@ -574,43 +523,15 @@ func (fragment *Service_PolicyFragment_Spec) AssignProperties_To_Service_PolicyF
 	return nil
 }
 
-// Initialize_From_Service_PolicyFragment_STATUS populates our Service_PolicyFragment_Spec from the provided source Service_PolicyFragment_STATUS
-func (fragment *Service_PolicyFragment_Spec) Initialize_From_Service_PolicyFragment_STATUS(source *Service_PolicyFragment_STATUS) error {
-
-	// Description
-	if source.Description != nil {
-		description := *source.Description
-		fragment.Description = &description
-	} else {
-		fragment.Description = nil
-	}
-
-	// Format
-	if source.Format != nil {
-		format := genruntime.ToEnum(string(*source.Format), policyFragmentContractProperties_Format_Values)
-		fragment.Format = &format
-	} else {
-		fragment.Format = nil
-	}
-
-	// Value
-	fragment.Value = genruntime.ClonePointerToString(source.Value)
-
-	// No error
-	return nil
-}
-
 // OriginalVersion returns the original API version used to create the resource.
-func (fragment *Service_PolicyFragment_Spec) OriginalVersion() string {
+func (fragment *PolicyFragment_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
 // SetAzureName sets the Azure name of the resource
-func (fragment *Service_PolicyFragment_Spec) SetAzureName(azureName string) {
-	fragment.AzureName = azureName
-}
+func (fragment *PolicyFragment_Spec) SetAzureName(azureName string) { fragment.AzureName = azureName }
 
-type Service_PolicyFragment_STATUS struct {
+type PolicyFragment_STATUS struct {
 	// Conditions: The observed state of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty"`
 
@@ -634,68 +555,68 @@ type Service_PolicyFragment_STATUS struct {
 	Value *string `json:"value,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Service_PolicyFragment_STATUS{}
+var _ genruntime.ConvertibleStatus = &PolicyFragment_STATUS{}
 
-// ConvertStatusFrom populates our Service_PolicyFragment_STATUS from the provided source
-func (fragment *Service_PolicyFragment_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.Service_PolicyFragment_STATUS)
+// ConvertStatusFrom populates our PolicyFragment_STATUS from the provided source
+func (fragment *PolicyFragment_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.PolicyFragment_STATUS)
 	if ok {
 		// Populate our instance from source
-		return fragment.AssignProperties_From_Service_PolicyFragment_STATUS(src)
+		return fragment.AssignProperties_From_PolicyFragment_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Service_PolicyFragment_STATUS{}
+	src = &storage.PolicyFragment_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = fragment.AssignProperties_From_Service_PolicyFragment_STATUS(src)
+	err = fragment.AssignProperties_From_PolicyFragment_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Service_PolicyFragment_STATUS
-func (fragment *Service_PolicyFragment_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.Service_PolicyFragment_STATUS)
+// ConvertStatusTo populates the provided destination from our PolicyFragment_STATUS
+func (fragment *PolicyFragment_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.PolicyFragment_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return fragment.AssignProperties_To_Service_PolicyFragment_STATUS(dst)
+		return fragment.AssignProperties_To_PolicyFragment_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Service_PolicyFragment_STATUS{}
-	err := fragment.AssignProperties_To_Service_PolicyFragment_STATUS(dst)
+	dst = &storage.PolicyFragment_STATUS{}
+	err := fragment.AssignProperties_To_PolicyFragment_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &Service_PolicyFragment_STATUS{}
+var _ genruntime.FromARMConverter = &PolicyFragment_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (fragment *Service_PolicyFragment_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Service_PolicyFragment_STATUS_ARM{}
+func (fragment *PolicyFragment_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.PolicyFragment_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (fragment *Service_PolicyFragment_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Service_PolicyFragment_STATUS_ARM)
+func (fragment *PolicyFragment_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.PolicyFragment_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Service_PolicyFragment_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.PolicyFragment_STATUS, got %T", armInput)
 	}
 
 	// no assignment for property "Conditions"
@@ -713,7 +634,9 @@ func (fragment *Service_PolicyFragment_STATUS) PopulateFromARM(owner genruntime.
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.Format != nil {
-			format := *typedInput.Properties.Format
+			var temp string
+			temp = string(*typedInput.Properties.Format)
+			format := PolicyFragmentContractProperties_Format_STATUS(temp)
 			fragment.Format = &format
 		}
 	}
@@ -749,8 +672,8 @@ func (fragment *Service_PolicyFragment_STATUS) PopulateFromARM(owner genruntime.
 	return nil
 }
 
-// AssignProperties_From_Service_PolicyFragment_STATUS populates our Service_PolicyFragment_STATUS from the provided source Service_PolicyFragment_STATUS
-func (fragment *Service_PolicyFragment_STATUS) AssignProperties_From_Service_PolicyFragment_STATUS(source *storage.Service_PolicyFragment_STATUS) error {
+// AssignProperties_From_PolicyFragment_STATUS populates our PolicyFragment_STATUS from the provided source PolicyFragment_STATUS
+func (fragment *PolicyFragment_STATUS) AssignProperties_From_PolicyFragment_STATUS(source *storage.PolicyFragment_STATUS) error {
 
 	// Conditions
 	fragment.Conditions = genruntime.CloneSliceOfCondition(source.Conditions)
@@ -783,8 +706,8 @@ func (fragment *Service_PolicyFragment_STATUS) AssignProperties_From_Service_Pol
 	return nil
 }
 
-// AssignProperties_To_Service_PolicyFragment_STATUS populates the provided destination Service_PolicyFragment_STATUS from our Service_PolicyFragment_STATUS
-func (fragment *Service_PolicyFragment_STATUS) AssignProperties_To_Service_PolicyFragment_STATUS(destination *storage.Service_PolicyFragment_STATUS) error {
+// AssignProperties_To_PolicyFragment_STATUS populates the provided destination PolicyFragment_STATUS from our PolicyFragment_STATUS
+func (fragment *PolicyFragment_STATUS) AssignProperties_To_PolicyFragment_STATUS(destination *storage.PolicyFragment_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -850,6 +773,102 @@ const (
 var policyFragmentContractProperties_Format_STATUS_Values = map[string]PolicyFragmentContractProperties_Format_STATUS{
 	"rawxml": PolicyFragmentContractProperties_Format_STATUS_Rawxml,
 	"xml":    PolicyFragmentContractProperties_Format_STATUS_Xml,
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type PolicyFragmentOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_PolicyFragmentOperatorSpec populates our PolicyFragmentOperatorSpec from the provided source PolicyFragmentOperatorSpec
+func (operator *PolicyFragmentOperatorSpec) AssignProperties_From_PolicyFragmentOperatorSpec(source *storage.PolicyFragmentOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_PolicyFragmentOperatorSpec populates the provided destination PolicyFragmentOperatorSpec from our PolicyFragmentOperatorSpec
+func (operator *PolicyFragmentOperatorSpec) AssignProperties_To_PolicyFragmentOperatorSpec(destination *storage.PolicyFragmentOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
 }
 
 func init() {

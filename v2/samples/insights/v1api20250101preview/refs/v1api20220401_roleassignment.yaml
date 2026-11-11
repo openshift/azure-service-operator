@@ -1,0 +1,17 @@
+apiVersion: authorization.azure.com/v1api20220401
+kind: RoleAssignment
+metadata:
+  name: aso-sample-roleassignment
+  namespace: default
+spec:
+  owner:
+    name: aso-sample-rg
+    group: resources.azure.com
+    kind: ResourceGroup
+  principalIdFromConfig:
+    name: admin-settings
+    key: principalId
+  roleDefinitionReference:
+    # ASO allows you to specify Azure built-in roles by name instead of the published GUID. Lookup is case insensitive.
+    # For a roleDefinition you've created yourself, use either group/kind/name or armID.
+    wellKnownName: contributor

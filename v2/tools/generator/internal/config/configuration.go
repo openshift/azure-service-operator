@@ -11,9 +11,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/mod/modfile"
 	"gopkg.in/yaml.v3"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -47,6 +48,8 @@ type Configuration struct {
 	AnyTypePackages []string `yaml:"anyTypePackages"`
 	// Filters used to control which types are created from the JSON schema
 	TypeFilters []*TypeFilter `yaml:"typeFilters"`
+	// Renamers used to resolve naming collisions during loading
+	TypeLoaderRenames []*TypeLoaderRename `yaml:"typeLoaderRenames"`
 	// Transformers used to remap types
 	Transformers []*TypeTransformer `yaml:"typeTransformers"`
 	// RootURL is the root URL for ASOv2 repo, paths are appended to this to generate resource links.
@@ -57,8 +60,12 @@ type Configuration struct {
 	EmitDocFiles bool `yaml:"emitDocFiles"`
 	// Destination file and additional information for our supported resources report
 	SupportedResourcesReport *SupportedResourcesReport `yaml:"supportedResourcesReport"`
+	// Destination file and additional information for our upgradable resources report
+	UpgradableResourcesReport *UpgradableResourcesReport `yaml:"upgradableResourcesReport"`
 	// Additional information about our object model
 	ObjectModelConfiguration *ObjectModelConfiguration `yaml:"objectModelConfiguration"`
+	// Imported group-specific configuration files, keyed by group name
+	Imports map[string]string `yaml:"imports,omitempty"`
 
 	goModulePath string
 }
@@ -75,7 +82,8 @@ func (config *Configuration) LocalPathPrefix() string {
 func (config *Configuration) FullTypesOutputPath() string {
 	return filepath.Join(
 		filepath.Dir(config.DestinationGoModuleFile),
-		config.TypesOutputPath)
+		config.TypesOutputPath,
+	)
 }
 
 func (config *Configuration) FullTypesRegistrationOutputFilePath() string {
@@ -85,7 +93,8 @@ func (config *Configuration) FullTypesRegistrationOutputFilePath() string {
 
 	return filepath.Join(
 		filepath.Dir(config.DestinationGoModuleFile),
-		config.TypeRegistrationOutputFile)
+		config.TypeRegistrationOutputFile,
+	)
 }
 
 func (config *Configuration) FullSamplesPath() string {
@@ -96,7 +105,8 @@ func (config *Configuration) FullSamplesPath() string {
 	if config.DestinationGoModuleFile != "" {
 		return filepath.Join(
 			filepath.Dir(config.DestinationGoModuleFile),
-			config.SamplesPath)
+			config.SamplesPath,
+		)
 	}
 
 	result, err := filepath.Abs(config.SamplesPath)
@@ -110,7 +120,7 @@ func (config *Configuration) FullSamplesPath() string {
 func (config *Configuration) GetTypeFiltersError() error {
 	for _, filter := range config.TypeFilters {
 		if err := filter.RequiredTypesWereMatched(); err != nil {
-			return errors.Wrapf(err, "type filter action: %q", filter.Action)
+			return eris.Wrapf(err, "type filter action: %q", filter.Action)
 		}
 	}
 
@@ -120,12 +130,12 @@ func (config *Configuration) GetTypeFiltersError() error {
 func (config *Configuration) GetTransformersError() error {
 	for _, filter := range config.Transformers {
 		if err := filter.RequiredTypesWereMatched(); err != nil {
-			return errors.Wrap(err, "type transformer")
+			return eris.Wrap(err, "type transformer")
 		}
 
 		if filter.Property.IsRestrictive() {
-			if err := filter.RequiredTypesWereMatched(); err != nil {
-				return errors.Wrap(err, "type transformer property")
+			if err := filter.RequiredPropertiesWereMatched(); err != nil {
+				return eris.Wrap(err, "type transformer property")
 			}
 		}
 	}
@@ -144,8 +154,42 @@ func NewConfiguration() *Configuration {
 	}
 
 	result.SupportedResourcesReport = NewSupportedResourcesReport(result)
+	result.UpgradableResourcesReport = NewUpgradableResourcesReport(result)
 
 	return result
+}
+
+// loadImports loads and merges all imported group configuration files
+func (c *Configuration) loadImports(configDir string) error {
+	if len(c.Imports) == 0 {
+		return nil
+	}
+
+	// Sort keys for deterministic ordering.
+	// Note: When multiple groups prepend TypeFilters, later groups (alphabetically)
+	// end up earlier in the final slice. This is functionally harmless because
+	// group-specific filters only match their own group.
+	groups := make([]string, 0, len(c.Imports))
+	for group := range c.Imports {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
+	for _, group := range groups {
+		filePath := c.Imports[group]
+		absPath := filepath.Join(configDir, filePath)
+
+		gcf, err := loadGroupConfigurationFile(absPath, group)
+		if err != nil {
+			return eris.Wrapf(err, "loading import for group %q from %q", group, filePath)
+		}
+
+		if err := gcf.mergeInto(c, group); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // LoadConfiguration loads a `Configuration` from the specified file
@@ -164,12 +208,18 @@ func LoadConfiguration(configurationFile string) (*Configuration, error) {
 
 	err = decoder.Decode(result)
 	if err != nil {
-		return nil, errors.Wrapf(err, "configuration file loaded from %q is not valid YAML", configurationFile)
+		return nil, eris.Wrapf(err, "configuration file loaded from %q is not valid YAML", configurationFile)
+	}
+
+	// Load and merge any imported group configuration files
+	configDir := filepath.Dir(configurationFile)
+	if err := result.loadImports(configDir); err != nil {
+		return nil, err
 	}
 
 	err = result.initialize(configurationFile)
 	if err != nil {
-		return nil, errors.Wrapf(err, "configuration file loaded from %q is invalid", configurationFile)
+		return nil, eris.Wrapf(err, "configuration file loaded from %q is invalid", configurationFile)
 	}
 
 	return result, nil
@@ -189,12 +239,12 @@ const (
 // which need additional setup after json deserialization
 func (config *Configuration) initialize(configPath string) error {
 	if config.SchemaRoot == "" {
-		return errors.New("SchemaRoot missing")
+		return eris.New("SchemaRoot missing")
 	}
 
 	absConfigLocation, err := filepath.Abs(configPath)
 	if err != nil {
-		return errors.Wrapf(err, "unable to find absolute config file location")
+		return eris.Wrapf(err, "unable to find absolute config file location")
 	}
 
 	configDirectory := filepath.Dir(absConfigLocation)
@@ -222,12 +272,12 @@ func (config *Configuration) initialize(configPath string) error {
 		case string(GenerationPipelineCrossplane):
 			config.Pipeline = GenerationPipelineCrossplane
 		default:
-			errs = append(errs, errors.Errorf("unknown pipeline kind %s", config.Pipeline))
+			errs = append(errs, eris.Errorf("unknown pipeline kind %s", config.Pipeline))
 		}
 	}
 
 	if config.DestinationGoModuleFile == "" {
-		errs = append(errs, errors.Errorf("destination Go module must be specified"))
+		errs = append(errs, eris.Errorf("destination Go module must be specified"))
 	}
 
 	// Ensure config.DestinationGoModuleFile is a fully qualified path
@@ -270,7 +320,7 @@ func (config *Configuration) ShouldPrune(typeName astmodel.InternalTypeName) (re
 			case TypeFilterInclude:
 				return Include, f.Because
 			default:
-				panic(errors.Errorf("unknown typefilter directive: %s", f.Action))
+				panic(eris.Errorf("unknown typefilter directive: %s", f.Action))
 			}
 		}
 	}
@@ -283,7 +333,8 @@ func (config *Configuration) ShouldPrune(typeName astmodel.InternalTypeName) (re
 	if !config.ObjectModelConfiguration.IsEmpty() &&
 		!config.ObjectModelConfiguration.IsGroupConfigured(typeName.InternalPackageReference()) {
 		return Prune, fmt.Sprintf(
-			"No resources configured for export from %s", typeName.InternalPackageReference().PackagePath())
+			"No resources configured for export from %s", typeName.InternalPackageReference().PackagePath(),
+		)
 	}
 
 	// By default, we include all types
@@ -292,7 +343,7 @@ func (config *Configuration) ShouldPrune(typeName astmodel.InternalTypeName) (re
 
 // MakeLocalPackageReference creates a local package reference based on the configured destination location
 func (config *Configuration) MakeLocalPackageReference(group string, version string) astmodel.LocalPackageReference {
-	return astmodel.MakeLocalPackageReference(config.LocalPathPrefix(), group, astmodel.GeneratorVersion, version)
+	return astmodel.MakeVersionedLocalPackageReference(config.LocalPathPrefix(), group, version)
 }
 
 func getModulePathFromModFile(modFilePath string) (string, error) {
@@ -304,7 +355,7 @@ func getModulePathFromModFile(modFilePath string) (string, error) {
 
 	modPath := modfile.ModulePath(modFileData)
 	if modPath == "" {
-		return "", errors.Errorf("couldn't find module path in mod file %s", modFilePath)
+		return "", eris.Errorf("couldn't find module path in mod file %s", modFilePath)
 	}
 
 	return modPath, nil

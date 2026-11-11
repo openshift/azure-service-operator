@@ -8,20 +8,31 @@ package extensions
 import (
 	"context"
 
+	. "github.com/Azure/azure-service-operator/v2/internal/logging"
+
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
-	. "github.com/Azure/azure-service-operator/v2/internal/logging"
 	"github.com/Azure/azure-service-operator/v2/internal/resolver"
 	"github.com/Azure/azure-service-operator/v2/internal/util/kubeclient"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 )
 
 // ARMResourceModifier provides a hook allowing resources to modify the payload that will be sent to ARM just before it is sent.
+// This extension is invoked during PUT and PATCH operations to ARM, after standard conversion but before the HTTP request.
+// Use cases include: handling soft-delete scenarios (e.g., Key Vault), including child resources in parent payloads (e.g., VNET subnets),
+// and conditional field population based on Azure state.
 type ARMResourceModifier interface {
 	// ModifyARMResource takes a genruntime.ARMResource and returns an updated genruntime.ARMResource. The updated resource
 	// is then serialized and sent to ARM in the body of a PUT request.
+	// ctx is the current operation context.
+	// armClient allows making additional ARM API calls if needed to determine modifications.
+	// armObj is the ARM resource representation about to be sent.
+	// obj is the Kubernetes resource being reconciled.
+	// kubeClient allows access to the Kubernetes cluster.
+	// resolver helps resolve resource references.
+	// log is a logger for the current operation.
 	ModifyARMResource(
 		ctx context.Context,
 		armClient *genericarmclient.GenericClient,
@@ -57,7 +68,7 @@ func CreateARMResourceModifier(
 		armResource, err := impl.ModifyARMResource(ctx, armClient, armObj, obj, kubeClient, resolver, log)
 		if err != nil {
 			log.V(Status).Info("Failed to modify ARM resource payload", "error", err.Error())
-			return nil, errors.Wrap(err, "failed to modify ARM payload")
+			return nil, eris.Wrap(err, "failed to modify ARM payload")
 		}
 
 		log.V(Info).Info("Successfully modified ARM payload")

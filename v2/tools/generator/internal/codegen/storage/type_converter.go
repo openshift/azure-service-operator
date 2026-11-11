@@ -8,7 +8,7 @@ package storage
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
@@ -82,7 +82,7 @@ func (t *TypeConverter) convertObjectType(
 	for name, prop := range properties {
 		p, err := t.propertyConverter.ConvertProperty(prop)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "property %s", name))
+			errs = append(errs, eris.Wrapf(err, "property %s", name))
 		} else {
 			properties[name] = p
 		}
@@ -116,7 +116,7 @@ func (t *TypeConverter) redirectTypeNamesToStoragePackage(name astmodel.Internal
 	}
 
 	// Failed to redirect into a storage package, return an error
-	return nil, errors.Errorf("unable to redirect %s into a storage package", name)
+	return nil, eris.Errorf("unable to redirect %s into a storage package", name)
 }
 
 // stripAllFlags removes all flags
@@ -147,12 +147,11 @@ func (t *TypeConverter) tryConvertToStoragePackage(name astmodel.InternalTypeNam
 
 // descriptionForStorageVariant creates a description for a storage variant, indicating which
 // original type it is based upon
-func (_ *TypeConverter) descriptionForStorageVariant(definition astmodel.TypeDefinition) []string {
+func (*TypeConverter) descriptionForStorageVariant(definition astmodel.TypeDefinition) []string {
 	pkg := definition.Name().PackageReference().PackageName()
 
-	result := []string{
-		fmt.Sprintf("Storage version of %s.%s", pkg, definition.Name().Name()),
-	}
+	result := make([]string, 0, 1+len(definition.Description()))
+	result = append(result, fmt.Sprintf("Storage version of %s.%s", pkg, definition.Name().Name()))
 	result = append(result, definition.Description()...)
 
 	return result
@@ -178,5 +177,5 @@ func (t *TypeConverter) selectPropertyBagName(object *astmodel.ObjectType) (astm
 		return name, nil
 	}
 
-	return "", errors.Errorf("failed to find non-clashing name for PropertyBag (tried %q)", candidateNames)
+	return "", eris.Errorf("failed to find non-clashing name for PropertyBag (tried %q)", candidateNames)
 }

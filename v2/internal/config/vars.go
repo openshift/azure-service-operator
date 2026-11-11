@@ -4,6 +4,7 @@
 package config
 
 import (
+	"crypto/tls"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,19 +12,50 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
+	"github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
+	asocloud "github.com/Azure/azure-service-operator/v2/pkg/common/cloud"
 	"github.com/Azure/azure-service-operator/v2/pkg/common/config"
 )
 
-// These are hardcoded because the init function that initializes them in azcore isn't in /cloud it's in /arm which
-// we don't import.
+const (
+	DefaultSyncIntervalString = "1h"
+
+	// DefaultTLSMinVersion is the minimum TLS version used when TLS_MIN_VERSION is not set.
+	DefaultTLSMinVersion = "VersionTLS13"
+)
+
+// tlsVersionMap maps the supported TLS_MIN_VERSION string values to their crypto/tls constants.
+var tlsVersionMap = map[string]uint16{
+	"VersionTLS12": tls.VersionTLS12,
+	"VersionTLS13": tls.VersionTLS13,
+}
+
+// ParseTLSMinVersion converts a TLS_MIN_VERSION string value (for example "VersionTLS12")
+// into the corresponding crypto/tls version constant, returning an error for unsupported values.
+func ParseTLSMinVersion(s string) (uint16, error) {
+	v, ok := tlsVersionMap[s]
+	if !ok {
+		return 0, eris.Errorf("invalid TLS version %q, must be one of: VersionTLS12, VersionTLS13", s)
+	}
+	return v, nil
+}
+
+// tlsMinVersionName returns the string name for a TLS version constant, falling back to its
+// numeric value when the constant is not one of the supported values.
+func tlsMinVersionName(v uint16) string {
+	for name, val := range tlsVersionMap {
+		if val == v {
+			return name
+		}
+	}
+	return strconv.FormatUint(uint64(v), 10)
+}
 
 var (
-	DefaultEndpoint                = "https://management.azure.com"
-	DefaultAudience                = "https://management.core.windows.net/"
-	DefaultAADAuthorityHost        = "https://login.microsoftonline.com/"
-	DefaultMaxConcurrentReconciles = 1
+	DefaultMaxConcurrentReconciles = 4
+	DefaultSyncInterval            = mustParseDuration(DefaultSyncIntervalString)
 )
 
 // NOTE: Changes to documentation or available values here should be documented in Helm values.yaml as well
@@ -37,6 +69,10 @@ type Values struct {
 	// TenantID is the Azure tenantID the operator will use
 	// for ARM communication.
 	TenantID string
+
+	// AdditionalTenants is the set of allowed additional tenants,
+	// used for cross-tenant auth.
+	AdditionalTenants []string
 
 	// ClientID is the Azure clientID the operator will use
 	// for ARM communication.
@@ -87,22 +123,50 @@ type Values struct {
 	// UseWorkloadIdentityAuth boolean is used to determine if we're using Workload Identity authentication for global credential
 	UseWorkloadIdentityAuth bool
 
+	// WorkloadIdentityAuthMode controls how namespace and per-resource Workload Identity credentials obtain assertions.
+	// Allowed values are `relaxed` and `strict`. If not specified, the default is `relaxed`.
+	// relaxed: ASO uses a single Federated Identity Credential (FIC) for all authentication to Azure, via the ASO controller service account. This is simple to set up but is less secure. See
+	// https://github.com/Azure/azure-service-operator/issues/4810 for more details about why this is less secure.
+	// strict: ASO uses separate Federated Identity Credentials (FICs) via separate service accounts for each authentication to Azure. This is more secure but requires more setup.
+	// The secret may select the ServiceAccount with `AZURE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT`; when omitted, ASO uses `aso-workload`.
+	WorkloadIdentityAuthMode WorkloadIdentityAuthMode
+
 	// UserAgentSuffix is appended to the default User-Agent for Azure HTTP clients.
 	UserAgentSuffix string
 
 	// MaxConcurrentReconciles is the number of threads/goroutines dedicated to reconciling each resource type.
-	// If not specified, the default is 1.
+	// If not specified, the default is 4.
 	// IMPORTANT: Having MaxConcurrentReconciles set to N does not mean that ASO is limited to N interactions with
 	// Azure at any given time, because the control loop yields to another resource while it is not actively issuing HTTP
 	// calls to Azure. Any single resource only blocks the control-loop for its resource-type for as long as it takes to issue
 	// an HTTP call to Azure, view the result, and make a decision. In most cases the time taken to perform these actions
 	// (and thus how long the loop is blocked and preventing other resources from being acted upon) is a few hundred
-	// milliseconds to at most a second or two. In a typical 60s period, many hundreds or even thousands of resources
-	// can be managed with this set to 1.
+	// milliseconds to at most a second or two. In a typical 60s period, hundreds of resources
+	// for a given resource type can be managed with this set to 1.
 	// MaxConcurrentReconciles applies to every registered resource type being watched/managed by ASO.
 	MaxConcurrentReconciles int
 
 	RateLimit RateLimit
+
+	// DefaultReconcilePolicy allows to override the default reconcile policy that should be used by ASO
+	// when the annotation serviceoperator.azure.com/reconcile-policy is omitted
+	DefaultReconcilePolicy annotations.ReconcilePolicyValue
+
+	// AllowMultiEnvManagement determines whether per-namespace and per-resource credentials can specify
+	// their own Azure cloud environment settings (AZURE_RESOURCE_MANAGER_ENDPOINT, AZURE_RESOURCE_MANAGER_AUDIENCE,
+	// and AZURE_AUTHORITY_HOST). When enabled, credentials must specify ALL three of these settings or NONE of them.
+	// When disabled, any attempt to specify these settings in a credential will cause reconciliation to fail.
+	// This defaults to false for security reasons.
+	AllowMultiEnvManagement bool
+
+	// TLSMinVersion is the minimum TLS version used by the webhook and metrics servers,
+	// stored as a crypto/tls version constant (for example tls.VersionTLS12).
+	TLSMinVersion uint16
+
+	// FederatedTokenFilePath overrides the default projected token file path used for Workload
+	// Identity authentication, read from AZURE_FEDERATED_TOKEN_FILE. Empty means "not set" — callers
+	// fall back to their own default (identity.FederatedTokenFilePath) in that case.
+	FederatedTokenFilePath string
 }
 
 type RateLimitMode string
@@ -119,7 +183,7 @@ func ParseRateLimitMode(s string) (RateLimitMode, error) {
 	case string(RateLimitModeBucket):
 		return RateLimitModeBucket, nil
 	default:
-		return "", errors.Errorf("invalid rate limit mode %q", s)
+		return "", eris.Errorf("invalid rate limit mode %q", s)
 	}
 }
 
@@ -149,6 +213,24 @@ type RateLimit struct {
 	BucketSize int
 }
 
+type WorkloadIdentityAuthMode string
+
+const (
+	WorkloadIdentityAuthModeRelaxed = WorkloadIdentityAuthMode("relaxed")
+	WorkloadIdentityAuthModeStrict  = WorkloadIdentityAuthMode("strict")
+)
+
+func ParseWorkloadIdentityAuthMode(s string) (WorkloadIdentityAuthMode, error) {
+	switch s {
+	case string(WorkloadIdentityAuthModeRelaxed):
+		return WorkloadIdentityAuthModeRelaxed, nil
+	case string(WorkloadIdentityAuthModeStrict):
+		return WorkloadIdentityAuthModeStrict, nil
+	default:
+		return "", eris.Errorf("invalid workload identity auth mode %q", s)
+	}
+}
+
 func (r RateLimit) String() string {
 	var builder strings.Builder
 
@@ -170,6 +252,7 @@ func (v Values) String() string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("SubscriptionID:%s/", v.SubscriptionID))
 	builder.WriteString(fmt.Sprintf("TenantID:%s/", v.TenantID))
+	builder.WriteString(fmt.Sprintf("AdditionalTenants:%s/", strings.Join(v.AdditionalTenants, "|")))
 	builder.WriteString(fmt.Sprintf("ClientID:%s/", v.ClientID))
 	builder.WriteString(fmt.Sprintf("PodNamespace:%s/", v.PodNamespace))
 	builder.WriteString(fmt.Sprintf("OperatorMode:%s/", v.OperatorMode))
@@ -179,48 +262,27 @@ func (v Values) String() string {
 	builder.WriteString(fmt.Sprintf("ResourceManagerAudience:%s/", v.ResourceManagerAudience))
 	builder.WriteString(fmt.Sprintf("AzureAuthorityHost:%s/", v.AzureAuthorityHost))
 	builder.WriteString(fmt.Sprintf("UseWorkloadIdentityAuth:%t/", v.UseWorkloadIdentityAuth))
+	builder.WriteString(fmt.Sprintf("WorkloadIdentityAuthMode:%s/", v.WorkloadIdentityAuthMode))
 	builder.WriteString(fmt.Sprintf("UserAgentSuffix:%s/", v.UserAgentSuffix))
 	builder.WriteString(fmt.Sprintf("MaxConcurrentReconciles:%d/", v.MaxConcurrentReconciles))
-	builder.WriteString(fmt.Sprintf("RateLimit:[%s]", v.RateLimit.String()))
+	builder.WriteString(fmt.Sprintf("RateLimit:[%s]/", v.RateLimit.String()))
+	builder.WriteString(fmt.Sprintf("DefaultReconcilePolicy:[%s]/", v.DefaultReconcilePolicy))
+	builder.WriteString(fmt.Sprintf("AllowMultiEnvManagement:%t/", v.AllowMultiEnvManagement))
+	builder.WriteString(fmt.Sprintf("TLSMinVersion:%s/", tlsMinVersionName(v.TLSMinVersion)))
+	builder.WriteString(fmt.Sprintf("FederatedTokenFilePath:%s", v.FederatedTokenFilePath))
 
 	return builder.String()
 }
 
 // Cloud returns the cloud the configuration is using
 func (v Values) Cloud() cloud.Configuration {
-	// Special handling if we've got all the defaults just return the official public cloud
-	// configuration
-	hasDefaultAzureAuthorityHost := v.AzureAuthorityHost == "" || v.AzureAuthorityHost == DefaultAADAuthorityHost
-	hasDefaultResourceManagerEndpoint := v.ResourceManagerEndpoint == "" || v.ResourceManagerEndpoint == DefaultEndpoint
-	hasDefaultResourceManagerAudience := v.ResourceManagerAudience == "" || v.ResourceManagerAudience == DefaultAudience
-
-	if hasDefaultResourceManagerEndpoint && hasDefaultResourceManagerAudience && hasDefaultAzureAuthorityHost {
-		return cloud.AzurePublic
+	cfg := asocloud.Configuration{
+		AzureAuthorityHost:      v.AzureAuthorityHost,
+		ResourceManagerAudience: v.ResourceManagerAudience,
+		ResourceManagerEndpoint: v.ResourceManagerEndpoint,
 	}
 
-	// We default here too to more easily support empty Values objects
-	azureAuthorityHost := v.AzureAuthorityHost
-	resourceManagerEndpoint := v.ResourceManagerEndpoint
-	resourceManagerAudience := v.ResourceManagerAudience
-	if azureAuthorityHost == "" {
-		azureAuthorityHost = DefaultAADAuthorityHost
-	}
-	if resourceManagerAudience == "" {
-		resourceManagerAudience = DefaultAudience
-	}
-	if resourceManagerEndpoint == "" {
-		resourceManagerEndpoint = DefaultEndpoint
-	}
-
-	return cloud.Configuration{
-		ActiveDirectoryAuthorityHost: azureAuthorityHost,
-		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-			cloud.ResourceManager: {
-				Endpoint: resourceManagerEndpoint,
-				Audience: resourceManagerAudience,
-			},
-		},
-	}
+	return cfg.Cloud()
 }
 
 // ReadFromEnvironment loads configuration values from the AZURE_*
@@ -242,17 +304,18 @@ func ReadFromEnvironment() (Values, error) {
 
 	result.SubscriptionID = os.Getenv(config.AzureSubscriptionID)
 	result.PodNamespace = os.Getenv(config.PodNamespace)
-	result.TargetNamespaces = parseTargetNamespaces(os.Getenv(config.TargetNamespaces))
+	result.TargetNamespaces = config.ParseCommaCollection(os.Getenv(config.TargetNamespaces))
 	result.SyncPeriod, err = parseSyncPeriod()
 	if err != nil {
-		return result, errors.Wrapf(err, "parsing %q", config.SyncPeriod)
+		return result, eris.Wrapf(err, "parsing %q", config.SyncPeriod)
 	}
 
-	result.ResourceManagerEndpoint = envOrDefault(config.ResourceManagerEndpoint, DefaultEndpoint)
-	result.ResourceManagerAudience = envOrDefault(config.ResourceManagerAudience, DefaultAudience)
-	result.AzureAuthorityHost = envOrDefault(config.AzureAuthorityHost, DefaultAADAuthorityHost)
+	result.ResourceManagerEndpoint = envOrDefault(config.ResourceManagerEndpoint, asocloud.DefaultEndpoint)
+	result.ResourceManagerAudience = envOrDefault(config.ResourceManagerAudience, asocloud.DefaultAudience)
+	result.AzureAuthorityHost = envOrDefault(config.AzureAuthorityHost, asocloud.DefaultAADAuthorityHost)
 	result.ClientID = os.Getenv(config.AzureClientID)
 	result.TenantID = os.Getenv(config.AzureTenantID)
+	result.AdditionalTenants = config.ParseCommaCollection(os.Getenv(config.AzureAdditionalTenants))
 	result.MaxConcurrentReconciles, err = envParseOrDefault(config.MaxConcurrentReconciles, DefaultMaxConcurrentReconciles)
 	if err != nil {
 		return result, err
@@ -260,6 +323,12 @@ func ReadFromEnvironment() (Values, error) {
 
 	// Ignoring error here, as any other value or empty value means we should default to false
 	result.UseWorkloadIdentityAuth, _ = strconv.ParseBool(os.Getenv(config.UseWorkloadIdentityAuth))
+	result.WorkloadIdentityAuthMode, err = ParseWorkloadIdentityAuthMode(
+		envOrDefault(config.AzureWorkloadIdentityAuthMode, string(WorkloadIdentityAuthModeRelaxed)),
+	)
+	if err != nil {
+		return result, err
+	}
 	result.UserAgentSuffix = os.Getenv(config.UserAgentSuffix)
 	result.RateLimit.Mode, err = ParseRateLimitMode(envOrDefault(config.RateLimitMode, string(RateLimitModeDisabled)))
 	if err != nil {
@@ -273,6 +342,17 @@ func ReadFromEnvironment() (Values, error) {
 	if err != nil {
 		return result, err
 	}
+	result.DefaultReconcilePolicy = annotations.ReconcilePolicyValue(envOrDefault(config.DefaultReconcilePolicy, string(annotations.ReconcilePolicyManage)))
+
+	// Ignoring error here, as any other value or empty value means we should default to false
+	result.AllowMultiEnvManagement, _ = strconv.ParseBool(os.Getenv(config.AllowMultiEnvManagement))
+
+	result.TLSMinVersion, err = ParseTLSMinVersion(envOrDefault(config.TLSMinVersion, DefaultTLSMinVersion))
+	if err != nil {
+		return result, err
+	}
+
+	result.FederatedTokenFilePath = strings.TrimSpace(os.Getenv(config.AzureFederatedTokenFile))
 
 	// Not calling validate here to support using from tests where we
 	// don't require consistent settings.
@@ -296,29 +376,18 @@ func ReadAndValidate() (Values, error) {
 // Validate checks whether the configuration settings are consistent.
 func (v Values) Validate() error {
 	if v.PodNamespace == "" {
-		return errors.Errorf("missing value for %s", config.PodNamespace)
+		return eris.Errorf("missing value for %s", config.PodNamespace)
 	}
 	if !v.OperatorMode.IncludesWatchers() && len(v.TargetNamespaces) > 0 {
-		return errors.Errorf("%s must include watchers to specify target namespaces", config.TargetNamespaces)
+		return eris.Errorf("%s must include watchers to specify target namespaces", config.TargetNamespaces)
 	}
 	if v.MaxConcurrentReconciles <= 0 {
-		return errors.Errorf("%s must be at least 1", config.MaxConcurrentReconciles)
+		return eris.Errorf("%s must be at least 1", config.MaxConcurrentReconciles)
+	}
+	if v.DefaultReconcilePolicy != annotations.ReconcilePolicyDetachOnDelete && v.DefaultReconcilePolicy != annotations.ReconcilePolicyManage && v.DefaultReconcilePolicy != annotations.ReconcilePolicySkip {
+		return eris.Errorf("%s must be set to any of (%s, %s, %s)", config.DefaultReconcilePolicy, annotations.ReconcilePolicyDetachOnDelete, annotations.ReconcilePolicyManage, annotations.ReconcilePolicySkip)
 	}
 	return nil
-}
-
-// parseTargetNamespaces splits a comma-separated string into a slice
-// of strings with spaces trimmed.
-func parseTargetNamespaces(fromEnv string) []string {
-	if len(strings.TrimSpace(fromEnv)) == 0 {
-		return nil
-	}
-	items := strings.Split(fromEnv, ",")
-	// Remove any whitespace used to separate items.
-	for i, item := range items {
-		items[i] = strings.TrimSpace(item)
-	}
-	return items
 }
 
 // parseSyncPeriod parses the sync period from the environment
@@ -349,7 +418,7 @@ func envParseOrDefault[T int | string | float64](env string, def T) (T, error) {
 	case int:
 		parsedVal, err := strconv.Atoi(str)
 		if err != nil {
-			return def, errors.Wrapf(err, "failed to parse value %q for %q", str, env)
+			return def, eris.Wrapf(err, "failed to parse value %q for %q", str, env)
 		}
 		result = any(parsedVal).(T)
 	case string:
@@ -357,11 +426,11 @@ func envParseOrDefault[T int | string | float64](env string, def T) (T, error) {
 	case float64:
 		parsedVal, err := strconv.ParseFloat(str, 64)
 		if err != nil {
-			return def, errors.Wrapf(err, "failed to parse value %q for %q", str, env)
+			return def, eris.Wrapf(err, "failed to parse value %q for %q", str, env)
 		}
 		result = any(parsedVal).(T)
 	default:
-		return def, errors.Errorf("can't read unsupported type %T from env", def)
+		return def, eris.Errorf("can't read unsupported type %T from env", def)
 	}
 
 	return result, nil
@@ -379,4 +448,12 @@ func envOrDefault(env string, def string) string {
 	}
 
 	return result
+}
+
+func mustParseDuration(s string) time.Duration {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse duration %q: %s", s, err.Error()))
+	}
+	return d
 }

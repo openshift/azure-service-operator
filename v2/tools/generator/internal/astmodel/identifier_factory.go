@@ -11,6 +11,9 @@ import (
 	"sync"
 	"unicode"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/Azure/azure-service-operator/v2/internal/set"
 )
 
@@ -176,18 +179,13 @@ func (factory *identifierFactory) cleanPart(part string, visibility Visibility) 
 	clean := filterRegex.ReplaceAllLiteralString(part, " ")
 	cleanWords := sliceIntoWords(clean)
 	caseCorrectedWords := make([]string, 0, len(cleanWords))
+	title := cases.Title(language.English, cases.NoLower)
 	for ix, word := range cleanWords {
 		var w string
 		if ix == 0 && visibility == NotExported {
 			w = strings.ToLower(word)
 		} else {
-			// Disable lint: the suggested "replacement" for this in /x/cases has fundamental
-			// differences in how it works (e.g. 'JSON' becomes 'Json'; we don’t want that).
-			// Furthermore, the cases (ha) that it "fixes" are not relevant to us
-			// (something about better handling of various punctuation characters;
-			// our words are punctuation-free).
-			//nolint:staticcheck
-			w = strings.Title(word)
+			w = title.String(word)
 		}
 
 		caseCorrectedWords = append(caseCorrectedWords, w)
@@ -222,10 +220,7 @@ func (factory *identifierFactory) CreateReceiver(name string) string {
 	words := sliceIntoWords(clean)
 
 	// Remove forbidden suffix words from the end
-	for {
-		if len(words) == 1 {
-			break
-		}
+	for len(words) != 1 {
 
 		last := len(words) - 1
 		if !factory.forbiddenReceiverSuffixes.Contains(words[last]) {
@@ -237,10 +232,13 @@ func (factory *identifierFactory) CreateReceiver(name string) string {
 
 	base := words[len(words)-1]
 
-	// Prefix with a qualifying term if one is available,
-	// AND either base is a reserved word, or it is too short (3 characters or less)
+	// Prefix with a qualifying term if one is available, AND the base is a reserved word, is too
+	// short (3 characters or less), or collides with a conversion-package alias (arm/storage) that
+	// the generated code imports - a bare receiver named after one of those would shadow the package.
 	if len(words) > 1 {
-		if _, found := factory.reservedWords[strings.ToLower(base)]; found || len(base) <= 3 {
+		lowerBase := strings.ToLower(base)
+		_, reserved := factory.reservedWords[lowerBase]
+		if reserved || len(base) <= 3 || forbiddenReceiverNames.Contains(lowerBase) {
 			base = words[len(words)-2] + base
 		}
 	}
@@ -296,12 +294,14 @@ func createReservedWords() map[string]string {
 
 // createForbiddenReceiverSuffixes creates a case-sensitive list of words we don't want to use as receiver names
 func createForbiddenReceiverSuffixes() set.Set[string] {
-	// If/when Status or Spec are all capitals, ARM isn't separated as a different word
 	status := strings.TrimPrefix(StatusSuffix, "_")
 	spec := strings.TrimPrefix(SpecSuffix, "_")
-	arm := strings.TrimPrefix(ARMSuffix, "_")
-	return set.Make(status, spec, arm, status+arm, spec+arm)
+	return set.Make(status, spec)
 }
+
+// forbiddenReceiverNames are lowercase receiver names that would shadow a conversion-package import
+// (e.g. a type ending in "Storage" yields receiver "storage", clashing with the storage subpackage alias).
+var forbiddenReceiverNames = set.Make(strings.ToLower(ARMPackageName), strings.ToLower(StoragePackageName))
 
 func (factory *identifierFactory) CreateGroupName(group string) string {
 	return strings.TrimPrefix(strings.ToLower(group), "microsoft.")

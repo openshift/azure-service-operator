@@ -5,32 +5,34 @@ package v1api20220401
 
 import (
 	"fmt"
+	arm "github.com/Azure/azure-service-operator/v2/api/network/v1api20220401/arm"
 	storage "github.com/Azure/azure-service-operator/v2/api/network/v1api20220401/storage"
-	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/conditions"
-	"github.com/pkg/errors"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/configmaps"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/core"
+	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
+	"github.com/rotisserie/eris"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={azure,network}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Severity",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].severity"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // Generator information:
-// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/stable/2022-04-01/trafficmanager.json
+// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/TrafficManager/stable/2022-04-01/trafficmanager.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficmanagerprofiles/{profileName}/AzureEndpoints/{endpointName}
 type TrafficManagerProfilesAzureEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              Trafficmanagerprofiles_AzureEndpoint_Spec   `json:"spec,omitempty"`
-	Status            Trafficmanagerprofiles_AzureEndpoint_STATUS `json:"status,omitempty"`
+	Spec              TrafficManagerProfilesAzureEndpoint_Spec   `json:"spec,omitempty"`
+	Status            TrafficManagerProfilesAzureEndpoint_STATUS `json:"status,omitempty"`
 }
 
 var _ conditions.Conditioner = &TrafficManagerProfilesAzureEndpoint{}
@@ -67,38 +69,35 @@ func (endpoint *TrafficManagerProfilesAzureEndpoint) ConvertTo(hub conversion.Hu
 	return endpoint.AssignProperties_To_TrafficManagerProfilesAzureEndpoint(destination)
 }
 
-// +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220401-trafficmanagerprofilesazureendpoint,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=trafficmanagerprofilesazureendpoints,verbs=create;update,versions=v1api20220401,name=default.v1api20220401.trafficmanagerprofilesazureendpoints.network.azure.com,admissionReviewVersions=v1
+var _ configmaps.Exporter = &TrafficManagerProfilesAzureEndpoint{}
 
-var _ admission.Defaulter = &TrafficManagerProfilesAzureEndpoint{}
-
-// Default applies defaults to the TrafficManagerProfilesAzureEndpoint resource
-func (endpoint *TrafficManagerProfilesAzureEndpoint) Default() {
-	endpoint.defaultImpl()
-	var temp any = endpoint
-	if runtimeDefaulter, ok := temp.(genruntime.Defaulter); ok {
-		runtimeDefaulter.CustomDefault()
+// ConfigMapDestinationExpressions returns the Spec.OperatorSpec.ConfigMapExpressions property
+func (endpoint *TrafficManagerProfilesAzureEndpoint) ConfigMapDestinationExpressions() []*core.DestinationExpression {
+	if endpoint.Spec.OperatorSpec == nil {
+		return nil
 	}
+	return endpoint.Spec.OperatorSpec.ConfigMapExpressions
 }
 
-// defaultAzureName defaults the Azure name of the resource to the Kubernetes name
-func (endpoint *TrafficManagerProfilesAzureEndpoint) defaultAzureName() {
-	if endpoint.Spec.AzureName == "" {
-		endpoint.Spec.AzureName = endpoint.Name
-	}
-}
+var _ secrets.Exporter = &TrafficManagerProfilesAzureEndpoint{}
 
-// defaultImpl applies the code generated defaults to the TrafficManagerProfilesAzureEndpoint resource
-func (endpoint *TrafficManagerProfilesAzureEndpoint) defaultImpl() { endpoint.defaultAzureName() }
+// SecretDestinationExpressions returns the Spec.OperatorSpec.SecretExpressions property
+func (endpoint *TrafficManagerProfilesAzureEndpoint) SecretDestinationExpressions() []*core.DestinationExpression {
+	if endpoint.Spec.OperatorSpec == nil {
+		return nil
+	}
+	return endpoint.Spec.OperatorSpec.SecretExpressions
+}
 
 var _ genruntime.ImportableResource = &TrafficManagerProfilesAzureEndpoint{}
 
 // InitializeSpec initializes the spec for this resource from the given status
 func (endpoint *TrafficManagerProfilesAzureEndpoint) InitializeSpec(status genruntime.ConvertibleStatus) error {
-	if s, ok := status.(*Trafficmanagerprofiles_AzureEndpoint_STATUS); ok {
-		return endpoint.Spec.Initialize_From_Trafficmanagerprofiles_AzureEndpoint_STATUS(s)
+	if s, ok := status.(*TrafficManagerProfilesAzureEndpoint_STATUS); ok {
+		return endpoint.Spec.Initialize_From_TrafficManagerProfilesAzureEndpoint_STATUS(s)
 	}
 
-	return fmt.Errorf("expected Status of type Trafficmanagerprofiles_AzureEndpoint_STATUS but received %T instead", status)
+	return fmt.Errorf("expected Status of type TrafficManagerProfilesAzureEndpoint_STATUS but received %T instead", status)
 }
 
 var _ genruntime.KubernetesResource = &TrafficManagerProfilesAzureEndpoint{}
@@ -110,7 +109,7 @@ func (endpoint *TrafficManagerProfilesAzureEndpoint) AzureName() string {
 
 // GetAPIVersion returns the ARM API version of the resource. This is always "2022-04-01"
 func (endpoint TrafficManagerProfilesAzureEndpoint) GetAPIVersion() string {
-	return string(APIVersion_Value)
+	return "2022-04-01"
 }
 
 // GetResourceScope returns the scope of the resource
@@ -144,11 +143,15 @@ func (endpoint *TrafficManagerProfilesAzureEndpoint) GetType() string {
 
 // NewEmptyStatus returns a new empty (blank) status
 func (endpoint *TrafficManagerProfilesAzureEndpoint) NewEmptyStatus() genruntime.ConvertibleStatus {
-	return &Trafficmanagerprofiles_AzureEndpoint_STATUS{}
+	return &TrafficManagerProfilesAzureEndpoint_STATUS{}
 }
 
 // Owner returns the ResourceReference of the owner
 func (endpoint *TrafficManagerProfilesAzureEndpoint) Owner() *genruntime.ResourceReference {
+	if endpoint.Spec.Owner == nil {
+		return nil
+	}
+
 	group, kind := genruntime.LookupOwnerGroupKind(endpoint.Spec)
 	return endpoint.Spec.Owner.AsResourceReference(group, kind)
 }
@@ -156,101 +159,20 @@ func (endpoint *TrafficManagerProfilesAzureEndpoint) Owner() *genruntime.Resourc
 // SetStatus sets the status of this resource
 func (endpoint *TrafficManagerProfilesAzureEndpoint) SetStatus(status genruntime.ConvertibleStatus) error {
 	// If we have exactly the right type of status, assign it
-	if st, ok := status.(*Trafficmanagerprofiles_AzureEndpoint_STATUS); ok {
+	if st, ok := status.(*TrafficManagerProfilesAzureEndpoint_STATUS); ok {
 		endpoint.Status = *st
 		return nil
 	}
 
 	// Convert status to required version
-	var st Trafficmanagerprofiles_AzureEndpoint_STATUS
+	var st TrafficManagerProfilesAzureEndpoint_STATUS
 	err := status.ConvertStatusTo(&st)
 	if err != nil {
-		return errors.Wrap(err, "failed to convert status")
+		return eris.Wrap(err, "failed to convert status")
 	}
 
 	endpoint.Status = st
 	return nil
-}
-
-// +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220401-trafficmanagerprofilesazureendpoint,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=trafficmanagerprofilesazureendpoints,verbs=create;update,versions=v1api20220401,name=validate.v1api20220401.trafficmanagerprofilesazureendpoints.network.azure.com,admissionReviewVersions=v1
-
-var _ admission.Validator = &TrafficManagerProfilesAzureEndpoint{}
-
-// ValidateCreate validates the creation of the resource
-func (endpoint *TrafficManagerProfilesAzureEndpoint) ValidateCreate() (admission.Warnings, error) {
-	validations := endpoint.createValidations()
-	var temp any = endpoint
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.CreateValidations()...)
-	}
-	return genruntime.ValidateCreate(validations)
-}
-
-// ValidateDelete validates the deletion of the resource
-func (endpoint *TrafficManagerProfilesAzureEndpoint) ValidateDelete() (admission.Warnings, error) {
-	validations := endpoint.deleteValidations()
-	var temp any = endpoint
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.DeleteValidations()...)
-	}
-	return genruntime.ValidateDelete(validations)
-}
-
-// ValidateUpdate validates an update of the resource
-func (endpoint *TrafficManagerProfilesAzureEndpoint) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	validations := endpoint.updateValidations()
-	var temp any = endpoint
-	if runtimeValidator, ok := temp.(genruntime.Validator); ok {
-		validations = append(validations, runtimeValidator.UpdateValidations()...)
-	}
-	return genruntime.ValidateUpdate(old, validations)
-}
-
-// createValidations validates the creation of the resource
-func (endpoint *TrafficManagerProfilesAzureEndpoint) createValidations() []func() (admission.Warnings, error) {
-	return []func() (admission.Warnings, error){endpoint.validateResourceReferences, endpoint.validateOwnerReference}
-}
-
-// deleteValidations validates the deletion of the resource
-func (endpoint *TrafficManagerProfilesAzureEndpoint) deleteValidations() []func() (admission.Warnings, error) {
-	return nil
-}
-
-// updateValidations validates the update of the resource
-func (endpoint *TrafficManagerProfilesAzureEndpoint) updateValidations() []func(old runtime.Object) (admission.Warnings, error) {
-	return []func(old runtime.Object) (admission.Warnings, error){
-		func(old runtime.Object) (admission.Warnings, error) {
-			return endpoint.validateResourceReferences()
-		},
-		endpoint.validateWriteOnceProperties,
-		func(old runtime.Object) (admission.Warnings, error) {
-			return endpoint.validateOwnerReference()
-		},
-	}
-}
-
-// validateOwnerReference validates the owner field
-func (endpoint *TrafficManagerProfilesAzureEndpoint) validateOwnerReference() (admission.Warnings, error) {
-	return genruntime.ValidateOwner(endpoint)
-}
-
-// validateResourceReferences validates all resource references
-func (endpoint *TrafficManagerProfilesAzureEndpoint) validateResourceReferences() (admission.Warnings, error) {
-	refs, err := reflecthelpers.FindResourceReferences(&endpoint.Spec)
-	if err != nil {
-		return nil, err
-	}
-	return genruntime.ValidateResourceReferences(refs)
-}
-
-// validateWriteOnceProperties validates all WriteOnce properties
-func (endpoint *TrafficManagerProfilesAzureEndpoint) validateWriteOnceProperties(old runtime.Object) (admission.Warnings, error) {
-	oldObj, ok := old.(*TrafficManagerProfilesAzureEndpoint)
-	if !ok {
-		return nil, nil
-	}
-
-	return genruntime.ValidateWriteOnceProperties(oldObj, endpoint)
 }
 
 // AssignProperties_From_TrafficManagerProfilesAzureEndpoint populates our TrafficManagerProfilesAzureEndpoint from the provided source TrafficManagerProfilesAzureEndpoint
@@ -260,18 +182,18 @@ func (endpoint *TrafficManagerProfilesAzureEndpoint) AssignProperties_From_Traff
 	endpoint.ObjectMeta = *source.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec Trafficmanagerprofiles_AzureEndpoint_Spec
-	err := spec.AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_Spec(&source.Spec)
+	var spec TrafficManagerProfilesAzureEndpoint_Spec
+	err := spec.AssignProperties_From_TrafficManagerProfilesAzureEndpoint_Spec(&source.Spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_From_TrafficManagerProfilesAzureEndpoint_Spec() to populate field Spec")
 	}
 	endpoint.Spec = spec
 
 	// Status
-	var status Trafficmanagerprofiles_AzureEndpoint_STATUS
-	err = status.AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_STATUS(&source.Status)
+	var status TrafficManagerProfilesAzureEndpoint_STATUS
+	err = status.AssignProperties_From_TrafficManagerProfilesAzureEndpoint_STATUS(&source.Status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_From_TrafficManagerProfilesAzureEndpoint_STATUS() to populate field Status")
 	}
 	endpoint.Status = status
 
@@ -286,18 +208,18 @@ func (endpoint *TrafficManagerProfilesAzureEndpoint) AssignProperties_To_Traffic
 	destination.ObjectMeta = *endpoint.ObjectMeta.DeepCopy()
 
 	// Spec
-	var spec storage.Trafficmanagerprofiles_AzureEndpoint_Spec
-	err := endpoint.Spec.AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_Spec(&spec)
+	var spec storage.TrafficManagerProfilesAzureEndpoint_Spec
+	err := endpoint.Spec.AssignProperties_To_TrafficManagerProfilesAzureEndpoint_Spec(&spec)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_Spec() to populate field Spec")
+		return eris.Wrap(err, "calling AssignProperties_To_TrafficManagerProfilesAzureEndpoint_Spec() to populate field Spec")
 	}
 	destination.Spec = spec
 
 	// Status
-	var status storage.Trafficmanagerprofiles_AzureEndpoint_STATUS
-	err = endpoint.Status.AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_STATUS(&status)
+	var status storage.TrafficManagerProfilesAzureEndpoint_STATUS
+	err = endpoint.Status.AssignProperties_To_TrafficManagerProfilesAzureEndpoint_STATUS(&status)
 	if err != nil {
-		return errors.Wrap(err, "calling AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_STATUS() to populate field Status")
+		return eris.Wrap(err, "calling AssignProperties_To_TrafficManagerProfilesAzureEndpoint_STATUS() to populate field Status")
 	}
 	destination.Status = status
 
@@ -316,7 +238,7 @@ func (endpoint *TrafficManagerProfilesAzureEndpoint) OriginalGVK() *schema.Group
 
 // +kubebuilder:object:root=true
 // Generator information:
-// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/stable/2022-04-01/trafficmanager.json
+// - Generated from: /trafficmanager/resource-manager/Microsoft.Network/TrafficManager/stable/2022-04-01/trafficmanager.json
 // - ARM URI: /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/trafficmanagerprofiles/{profileName}/AzureEndpoints/{endpointName}
 type TrafficManagerProfilesAzureEndpointList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -324,28 +246,28 @@ type TrafficManagerProfilesAzureEndpointList struct {
 	Items           []TrafficManagerProfilesAzureEndpoint `json:"items"`
 }
 
-type Trafficmanagerprofiles_AzureEndpoint_Spec struct {
+type TrafficManagerProfilesAzureEndpoint_Spec struct {
 	// AlwaysServe: If Always Serve is enabled, probing for endpoint health will be disabled and endpoints will be included in
 	// the traffic routing method.
-	AlwaysServe *EndpointProperties_AlwaysServe `json:"alwaysServe,omitempty"`
+	AlwaysServe *AlwaysServe `json:"alwaysServe,omitempty"`
 
 	// AzureName: The name of the resource in Azure. This is often the same as the name of the resource in Kubernetes but it
 	// doesn't have to be.
 	AzureName string `json:"azureName,omitempty"`
 
 	// CustomHeaders: List of custom headers.
-	CustomHeaders []EndpointProperties_CustomHeaders `json:"customHeaders,omitempty"`
+	CustomHeaders []EndpointPropertiesCustomHeadersItem `json:"customHeaders,omitempty"`
 
 	// EndpointLocation: Specifies the location of the external or nested endpoints when using the 'Performance' traffic
 	// routing method.
 	EndpointLocation *string `json:"endpointLocation,omitempty"`
 
 	// EndpointMonitorStatus: The monitoring status of the endpoint.
-	EndpointMonitorStatus *EndpointProperties_EndpointMonitorStatus `json:"endpointMonitorStatus,omitempty"`
+	EndpointMonitorStatus *EndpointMonitorStatus `json:"endpointMonitorStatus,omitempty"`
 
 	// EndpointStatus: The status of the endpoint. If the endpoint is Enabled, it is probed for endpoint health and is included
 	// in the traffic routing method.
-	EndpointStatus *EndpointProperties_EndpointStatus `json:"endpointStatus,omitempty"`
+	EndpointStatus *EndpointStatus `json:"endpointStatus,omitempty"`
 
 	// GeoMapping: The list of countries/regions mapped to this endpoint when using the 'Geographic' traffic routing method.
 	// Please consult Traffic Manager Geographic documentation for a full list of accepted values.
@@ -365,6 +287,10 @@ type Trafficmanagerprofiles_AzureEndpoint_Spec struct {
 	// 'NestedEndpoints'.
 	MinChildEndpointsIPv6 *int `json:"minChildEndpointsIPv6,omitempty"`
 
+	// OperatorSpec: The specification for configuring operator behavior. This field is interpreted by the operator and not
+	// passed directly to Azure
+	OperatorSpec *TrafficManagerProfilesAzureEndpointOperatorSpec `json:"operatorSpec,omitempty"`
+
 	// +kubebuilder:validation:Required
 	// Owner: The owner of the resource. The owner controls where the resource goes when it is deployed. The owner also
 	// controls the resources lifecycle. When the owner is deleted the resource will also be deleted. Owner is expected to be a
@@ -378,7 +304,7 @@ type Trafficmanagerprofiles_AzureEndpoint_Spec struct {
 
 	// Subnets: The list of subnets, IP addresses, and/or address ranges mapped to this endpoint when using the 'Subnet'
 	// traffic routing method. An empty list will match all ranges not covered by other endpoints.
-	Subnets []EndpointProperties_Subnets `json:"subnets,omitempty"`
+	Subnets []EndpointPropertiesSubnetsItem `json:"subnets,omitempty"`
 
 	// Target: The fully-qualified DNS name or IP address of the endpoint. Traffic Manager returns this value in DNS responses
 	// to direct traffic to this endpoint.
@@ -395,14 +321,14 @@ type Trafficmanagerprofiles_AzureEndpoint_Spec struct {
 	Weight *int `json:"weight,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &Trafficmanagerprofiles_AzureEndpoint_Spec{}
+var _ genruntime.ARMTransformer = &TrafficManagerProfilesAzureEndpoint_Spec{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
 	if endpoint == nil {
 		return nil, nil
 	}
-	result := &Trafficmanagerprofiles_AzureEndpoint_Spec_ARM{}
+	result := &arm.TrafficManagerProfilesAzureEndpoint_Spec{}
 
 	// Set property "Name":
 	result.Name = resolved.Name
@@ -422,10 +348,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) ConvertToARM(resolved
 		endpoint.Target != nil ||
 		endpoint.TargetResourceReference != nil ||
 		endpoint.Weight != nil {
-		result.Properties = &EndpointProperties_ARM{}
+		result.Properties = &arm.EndpointProperties{}
 	}
 	if endpoint.AlwaysServe != nil {
-		alwaysServe := *endpoint.AlwaysServe
+		var temp string
+		temp = string(*endpoint.AlwaysServe)
+		alwaysServe := arm.AlwaysServe(temp)
 		result.Properties.AlwaysServe = &alwaysServe
 	}
 	for _, item := range endpoint.CustomHeaders {
@@ -433,18 +361,22 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) ConvertToARM(resolved
 		if err != nil {
 			return nil, err
 		}
-		result.Properties.CustomHeaders = append(result.Properties.CustomHeaders, *item_ARM.(*EndpointProperties_CustomHeaders_ARM))
+		result.Properties.CustomHeaders = append(result.Properties.CustomHeaders, *item_ARM.(*arm.EndpointPropertiesCustomHeadersItem))
 	}
 	if endpoint.EndpointLocation != nil {
 		endpointLocation := *endpoint.EndpointLocation
 		result.Properties.EndpointLocation = &endpointLocation
 	}
 	if endpoint.EndpointMonitorStatus != nil {
-		endpointMonitorStatus := *endpoint.EndpointMonitorStatus
+		var temp string
+		temp = string(*endpoint.EndpointMonitorStatus)
+		endpointMonitorStatus := arm.EndpointMonitorStatus(temp)
 		result.Properties.EndpointMonitorStatus = &endpointMonitorStatus
 	}
 	if endpoint.EndpointStatus != nil {
-		endpointStatus := *endpoint.EndpointStatus
+		var temp string
+		temp = string(*endpoint.EndpointStatus)
+		endpointStatus := arm.EndpointStatus(temp)
 		result.Properties.EndpointStatus = &endpointStatus
 	}
 	for _, item := range endpoint.GeoMapping {
@@ -471,7 +403,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) ConvertToARM(resolved
 		if err != nil {
 			return nil, err
 		}
-		result.Properties.Subnets = append(result.Properties.Subnets, *item_ARM.(*EndpointProperties_Subnets_ARM))
+		result.Properties.Subnets = append(result.Properties.Subnets, *item_ARM.(*arm.EndpointPropertiesSubnetsItem))
 	}
 	if endpoint.Target != nil {
 		target := *endpoint.Target
@@ -499,22 +431,24 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) ConvertToARM(resolved
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Trafficmanagerprofiles_AzureEndpoint_Spec_ARM{}
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.TrafficManagerProfilesAzureEndpoint_Spec{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Trafficmanagerprofiles_AzureEndpoint_Spec_ARM)
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.TrafficManagerProfilesAzureEndpoint_Spec)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Trafficmanagerprofiles_AzureEndpoint_Spec_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.TrafficManagerProfilesAzureEndpoint_Spec, got %T", armInput)
 	}
 
 	// Set property "AlwaysServe":
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.AlwaysServe != nil {
-			alwaysServe := *typedInput.Properties.AlwaysServe
+			var temp string
+			temp = string(*typedInput.Properties.AlwaysServe)
+			alwaysServe := AlwaysServe(temp)
 			endpoint.AlwaysServe = &alwaysServe
 		}
 	}
@@ -526,7 +460,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) PopulateFromARM(owner
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		for _, item := range typedInput.Properties.CustomHeaders {
-			var item1 EndpointProperties_CustomHeaders
+			var item1 EndpointPropertiesCustomHeadersItem
 			err := item1.PopulateFromARM(owner, item)
 			if err != nil {
 				return err
@@ -548,7 +482,9 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) PopulateFromARM(owner
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.EndpointMonitorStatus != nil {
-			endpointMonitorStatus := *typedInput.Properties.EndpointMonitorStatus
+			var temp string
+			temp = string(*typedInput.Properties.EndpointMonitorStatus)
+			endpointMonitorStatus := EndpointMonitorStatus(temp)
 			endpoint.EndpointMonitorStatus = &endpointMonitorStatus
 		}
 	}
@@ -557,7 +493,9 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) PopulateFromARM(owner
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.EndpointStatus != nil {
-			endpointStatus := *typedInput.Properties.EndpointStatus
+			var temp string
+			temp = string(*typedInput.Properties.EndpointStatus)
+			endpointStatus := EndpointStatus(temp)
 			endpoint.EndpointStatus = &endpointStatus
 		}
 	}
@@ -597,6 +535,8 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) PopulateFromARM(owner
 		}
 	}
 
+	// no assignment for property "OperatorSpec"
+
 	// Set property "Owner":
 	endpoint.Owner = &genruntime.KnownResourceReference{
 		Name:  owner.Name,
@@ -616,7 +556,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) PopulateFromARM(owner
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		for _, item := range typedInput.Properties.Subnets {
-			var item1 EndpointProperties_Subnets
+			var item1 EndpointPropertiesSubnetsItem
 			err := item1.PopulateFromARM(owner, item)
 			if err != nil {
 				return err
@@ -655,63 +595,63 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) PopulateFromARM(owner
 	return nil
 }
 
-var _ genruntime.ConvertibleSpec = &Trafficmanagerprofiles_AzureEndpoint_Spec{}
+var _ genruntime.ConvertibleSpec = &TrafficManagerProfilesAzureEndpoint_Spec{}
 
-// ConvertSpecFrom populates our Trafficmanagerprofiles_AzureEndpoint_Spec from the provided source
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
-	src, ok := source.(*storage.Trafficmanagerprofiles_AzureEndpoint_Spec)
+// ConvertSpecFrom populates our TrafficManagerProfilesAzureEndpoint_Spec from the provided source
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) ConvertSpecFrom(source genruntime.ConvertibleSpec) error {
+	src, ok := source.(*storage.TrafficManagerProfilesAzureEndpoint_Spec)
 	if ok {
 		// Populate our instance from source
-		return endpoint.AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_Spec(src)
+		return endpoint.AssignProperties_From_TrafficManagerProfilesAzureEndpoint_Spec(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Trafficmanagerprofiles_AzureEndpoint_Spec{}
+	src = &storage.TrafficManagerProfilesAzureEndpoint_Spec{}
 	err := src.ConvertSpecFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecFrom()")
 	}
 
 	// Update our instance from src
-	err = endpoint.AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_Spec(src)
+	err = endpoint.AssignProperties_From_TrafficManagerProfilesAzureEndpoint_Spec(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecFrom()")
 	}
 
 	return nil
 }
 
-// ConvertSpecTo populates the provided destination from our Trafficmanagerprofiles_AzureEndpoint_Spec
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
-	dst, ok := destination.(*storage.Trafficmanagerprofiles_AzureEndpoint_Spec)
+// ConvertSpecTo populates the provided destination from our TrafficManagerProfilesAzureEndpoint_Spec
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) ConvertSpecTo(destination genruntime.ConvertibleSpec) error {
+	dst, ok := destination.(*storage.TrafficManagerProfilesAzureEndpoint_Spec)
 	if ok {
 		// Populate destination from our instance
-		return endpoint.AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_Spec(dst)
+		return endpoint.AssignProperties_To_TrafficManagerProfilesAzureEndpoint_Spec(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Trafficmanagerprofiles_AzureEndpoint_Spec{}
-	err := endpoint.AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_Spec(dst)
+	dst = &storage.TrafficManagerProfilesAzureEndpoint_Spec{}
+	err := endpoint.AssignProperties_To_TrafficManagerProfilesAzureEndpoint_Spec(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertSpecTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertSpecTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertSpecTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertSpecTo()")
 	}
 
 	return nil
 }
 
-// AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_Spec populates our Trafficmanagerprofiles_AzureEndpoint_Spec from the provided source Trafficmanagerprofiles_AzureEndpoint_Spec
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_Spec(source *storage.Trafficmanagerprofiles_AzureEndpoint_Spec) error {
+// AssignProperties_From_TrafficManagerProfilesAzureEndpoint_Spec populates our TrafficManagerProfilesAzureEndpoint_Spec from the provided source TrafficManagerProfilesAzureEndpoint_Spec
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) AssignProperties_From_TrafficManagerProfilesAzureEndpoint_Spec(source *storage.TrafficManagerProfilesAzureEndpoint_Spec) error {
 
 	// AlwaysServe
 	if source.AlwaysServe != nil {
 		alwaysServe := *source.AlwaysServe
-		alwaysServeTemp := genruntime.ToEnum(alwaysServe, endpointProperties_AlwaysServe_Values)
+		alwaysServeTemp := genruntime.ToEnum(alwaysServe, alwaysServe_Values)
 		endpoint.AlwaysServe = &alwaysServeTemp
 	} else {
 		endpoint.AlwaysServe = nil
@@ -722,14 +662,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_From
 
 	// CustomHeaders
 	if source.CustomHeaders != nil {
-		customHeaderList := make([]EndpointProperties_CustomHeaders, len(source.CustomHeaders))
+		customHeaderList := make([]EndpointPropertiesCustomHeadersItem, len(source.CustomHeaders))
 		for customHeaderIndex, customHeaderItem := range source.CustomHeaders {
-			// Shadow the loop variable to avoid aliasing
-			customHeaderItem := customHeaderItem
-			var customHeader EndpointProperties_CustomHeaders
-			err := customHeader.AssignProperties_From_EndpointProperties_CustomHeaders(&customHeaderItem)
+			var customHeader EndpointPropertiesCustomHeadersItem
+			err := customHeader.AssignProperties_From_EndpointPropertiesCustomHeadersItem(&customHeaderItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_EndpointProperties_CustomHeaders() to populate field CustomHeaders")
+				return eris.Wrap(err, "calling AssignProperties_From_EndpointPropertiesCustomHeadersItem() to populate field CustomHeaders")
 			}
 			customHeaderList[customHeaderIndex] = customHeader
 		}
@@ -744,7 +682,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_From
 	// EndpointMonitorStatus
 	if source.EndpointMonitorStatus != nil {
 		endpointMonitorStatus := *source.EndpointMonitorStatus
-		endpointMonitorStatusTemp := genruntime.ToEnum(endpointMonitorStatus, endpointProperties_EndpointMonitorStatus_Values)
+		endpointMonitorStatusTemp := genruntime.ToEnum(endpointMonitorStatus, endpointMonitorStatus_Values)
 		endpoint.EndpointMonitorStatus = &endpointMonitorStatusTemp
 	} else {
 		endpoint.EndpointMonitorStatus = nil
@@ -753,7 +691,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_From
 	// EndpointStatus
 	if source.EndpointStatus != nil {
 		endpointStatus := *source.EndpointStatus
-		endpointStatusTemp := genruntime.ToEnum(endpointStatus, endpointProperties_EndpointStatus_Values)
+		endpointStatusTemp := genruntime.ToEnum(endpointStatus, endpointStatus_Values)
 		endpoint.EndpointStatus = &endpointStatusTemp
 	} else {
 		endpoint.EndpointStatus = nil
@@ -771,6 +709,18 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_From
 	// MinChildEndpointsIPv6
 	endpoint.MinChildEndpointsIPv6 = genruntime.ClonePointerToInt(source.MinChildEndpointsIPv6)
 
+	// OperatorSpec
+	if source.OperatorSpec != nil {
+		var operatorSpec TrafficManagerProfilesAzureEndpointOperatorSpec
+		err := operatorSpec.AssignProperties_From_TrafficManagerProfilesAzureEndpointOperatorSpec(source.OperatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_From_TrafficManagerProfilesAzureEndpointOperatorSpec() to populate field OperatorSpec")
+		}
+		endpoint.OperatorSpec = &operatorSpec
+	} else {
+		endpoint.OperatorSpec = nil
+	}
+
 	// Owner
 	if source.Owner != nil {
 		owner := source.Owner.Copy()
@@ -784,14 +734,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_From
 
 	// Subnets
 	if source.Subnets != nil {
-		subnetList := make([]EndpointProperties_Subnets, len(source.Subnets))
+		subnetList := make([]EndpointPropertiesSubnetsItem, len(source.Subnets))
 		for subnetIndex, subnetItem := range source.Subnets {
-			// Shadow the loop variable to avoid aliasing
-			subnetItem := subnetItem
-			var subnet EndpointProperties_Subnets
-			err := subnet.AssignProperties_From_EndpointProperties_Subnets(&subnetItem)
+			var subnet EndpointPropertiesSubnetsItem
+			err := subnet.AssignProperties_From_EndpointPropertiesSubnetsItem(&subnetItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_EndpointProperties_Subnets() to populate field Subnets")
+				return eris.Wrap(err, "calling AssignProperties_From_EndpointPropertiesSubnetsItem() to populate field Subnets")
 			}
 			subnetList[subnetIndex] = subnet
 		}
@@ -821,8 +769,8 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_From
 	return nil
 }
 
-// AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_Spec populates the provided destination Trafficmanagerprofiles_AzureEndpoint_Spec from our Trafficmanagerprofiles_AzureEndpoint_Spec
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_Spec(destination *storage.Trafficmanagerprofiles_AzureEndpoint_Spec) error {
+// AssignProperties_To_TrafficManagerProfilesAzureEndpoint_Spec populates the provided destination TrafficManagerProfilesAzureEndpoint_Spec from our TrafficManagerProfilesAzureEndpoint_Spec
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) AssignProperties_To_TrafficManagerProfilesAzureEndpoint_Spec(destination *storage.TrafficManagerProfilesAzureEndpoint_Spec) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -839,14 +787,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_To_T
 
 	// CustomHeaders
 	if endpoint.CustomHeaders != nil {
-		customHeaderList := make([]storage.EndpointProperties_CustomHeaders, len(endpoint.CustomHeaders))
+		customHeaderList := make([]storage.EndpointPropertiesCustomHeadersItem, len(endpoint.CustomHeaders))
 		for customHeaderIndex, customHeaderItem := range endpoint.CustomHeaders {
-			// Shadow the loop variable to avoid aliasing
-			customHeaderItem := customHeaderItem
-			var customHeader storage.EndpointProperties_CustomHeaders
-			err := customHeaderItem.AssignProperties_To_EndpointProperties_CustomHeaders(&customHeader)
+			var customHeader storage.EndpointPropertiesCustomHeadersItem
+			err := customHeaderItem.AssignProperties_To_EndpointPropertiesCustomHeadersItem(&customHeader)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_EndpointProperties_CustomHeaders() to populate field CustomHeaders")
+				return eris.Wrap(err, "calling AssignProperties_To_EndpointPropertiesCustomHeadersItem() to populate field CustomHeaders")
 			}
 			customHeaderList[customHeaderIndex] = customHeader
 		}
@@ -886,6 +832,18 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_To_T
 	// MinChildEndpointsIPv6
 	destination.MinChildEndpointsIPv6 = genruntime.ClonePointerToInt(endpoint.MinChildEndpointsIPv6)
 
+	// OperatorSpec
+	if endpoint.OperatorSpec != nil {
+		var operatorSpec storage.TrafficManagerProfilesAzureEndpointOperatorSpec
+		err := endpoint.OperatorSpec.AssignProperties_To_TrafficManagerProfilesAzureEndpointOperatorSpec(&operatorSpec)
+		if err != nil {
+			return eris.Wrap(err, "calling AssignProperties_To_TrafficManagerProfilesAzureEndpointOperatorSpec() to populate field OperatorSpec")
+		}
+		destination.OperatorSpec = &operatorSpec
+	} else {
+		destination.OperatorSpec = nil
+	}
+
 	// OriginalVersion
 	destination.OriginalVersion = endpoint.OriginalVersion()
 
@@ -902,14 +860,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_To_T
 
 	// Subnets
 	if endpoint.Subnets != nil {
-		subnetList := make([]storage.EndpointProperties_Subnets, len(endpoint.Subnets))
+		subnetList := make([]storage.EndpointPropertiesSubnetsItem, len(endpoint.Subnets))
 		for subnetIndex, subnetItem := range endpoint.Subnets {
-			// Shadow the loop variable to avoid aliasing
-			subnetItem := subnetItem
-			var subnet storage.EndpointProperties_Subnets
-			err := subnetItem.AssignProperties_To_EndpointProperties_Subnets(&subnet)
+			var subnet storage.EndpointPropertiesSubnetsItem
+			err := subnetItem.AssignProperties_To_EndpointPropertiesSubnetsItem(&subnet)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_EndpointProperties_Subnets() to populate field Subnets")
+				return eris.Wrap(err, "calling AssignProperties_To_EndpointPropertiesSubnetsItem() to populate field Subnets")
 			}
 			subnetList[subnetIndex] = subnet
 		}
@@ -946,12 +902,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) AssignProperties_To_T
 	return nil
 }
 
-// Initialize_From_Trafficmanagerprofiles_AzureEndpoint_STATUS populates our Trafficmanagerprofiles_AzureEndpoint_Spec from the provided source Trafficmanagerprofiles_AzureEndpoint_STATUS
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) Initialize_From_Trafficmanagerprofiles_AzureEndpoint_STATUS(source *Trafficmanagerprofiles_AzureEndpoint_STATUS) error {
+// Initialize_From_TrafficManagerProfilesAzureEndpoint_STATUS populates our TrafficManagerProfilesAzureEndpoint_Spec from the provided source TrafficManagerProfilesAzureEndpoint_STATUS
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) Initialize_From_TrafficManagerProfilesAzureEndpoint_STATUS(source *TrafficManagerProfilesAzureEndpoint_STATUS) error {
 
 	// AlwaysServe
 	if source.AlwaysServe != nil {
-		alwaysServe := genruntime.ToEnum(string(*source.AlwaysServe), endpointProperties_AlwaysServe_Values)
+		alwaysServe := genruntime.ToEnum(string(*source.AlwaysServe), alwaysServe_Values)
 		endpoint.AlwaysServe = &alwaysServe
 	} else {
 		endpoint.AlwaysServe = nil
@@ -959,14 +915,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) Initialize_From_Traff
 
 	// CustomHeaders
 	if source.CustomHeaders != nil {
-		customHeaderList := make([]EndpointProperties_CustomHeaders, len(source.CustomHeaders))
+		customHeaderList := make([]EndpointPropertiesCustomHeadersItem, len(source.CustomHeaders))
 		for customHeaderIndex, customHeaderItem := range source.CustomHeaders {
-			// Shadow the loop variable to avoid aliasing
-			customHeaderItem := customHeaderItem
-			var customHeader EndpointProperties_CustomHeaders
-			err := customHeader.Initialize_From_EndpointProperties_CustomHeaders_STATUS(&customHeaderItem)
+			var customHeader EndpointPropertiesCustomHeadersItem
+			err := customHeader.Initialize_From_EndpointPropertiesCustomHeadersItem_STATUS(&customHeaderItem)
 			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_EndpointProperties_CustomHeaders_STATUS() to populate field CustomHeaders")
+				return eris.Wrap(err, "calling Initialize_From_EndpointPropertiesCustomHeadersItem_STATUS() to populate field CustomHeaders")
 			}
 			customHeaderList[customHeaderIndex] = customHeader
 		}
@@ -980,7 +934,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) Initialize_From_Traff
 
 	// EndpointMonitorStatus
 	if source.EndpointMonitorStatus != nil {
-		endpointMonitorStatus := genruntime.ToEnum(string(*source.EndpointMonitorStatus), endpointProperties_EndpointMonitorStatus_Values)
+		endpointMonitorStatus := genruntime.ToEnum(string(*source.EndpointMonitorStatus), endpointMonitorStatus_Values)
 		endpoint.EndpointMonitorStatus = &endpointMonitorStatus
 	} else {
 		endpoint.EndpointMonitorStatus = nil
@@ -988,7 +942,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) Initialize_From_Traff
 
 	// EndpointStatus
 	if source.EndpointStatus != nil {
-		endpointStatus := genruntime.ToEnum(string(*source.EndpointStatus), endpointProperties_EndpointStatus_Values)
+		endpointStatus := genruntime.ToEnum(string(*source.EndpointStatus), endpointStatus_Values)
 		endpoint.EndpointStatus = &endpointStatus
 	} else {
 		endpoint.EndpointStatus = nil
@@ -1011,14 +965,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) Initialize_From_Traff
 
 	// Subnets
 	if source.Subnets != nil {
-		subnetList := make([]EndpointProperties_Subnets, len(source.Subnets))
+		subnetList := make([]EndpointPropertiesSubnetsItem, len(source.Subnets))
 		for subnetIndex, subnetItem := range source.Subnets {
-			// Shadow the loop variable to avoid aliasing
-			subnetItem := subnetItem
-			var subnet EndpointProperties_Subnets
-			err := subnet.Initialize_From_EndpointProperties_Subnets_STATUS(&subnetItem)
+			var subnet EndpointPropertiesSubnetsItem
+			err := subnet.Initialize_From_EndpointPropertiesSubnetsItem_STATUS(&subnetItem)
 			if err != nil {
-				return errors.Wrap(err, "calling Initialize_From_EndpointProperties_Subnets_STATUS() to populate field Subnets")
+				return eris.Wrap(err, "calling Initialize_From_EndpointPropertiesSubnetsItem_STATUS() to populate field Subnets")
 			}
 			subnetList[subnetIndex] = subnet
 		}
@@ -1049,36 +1001,36 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) Initialize_From_Traff
 }
 
 // OriginalVersion returns the original API version used to create the resource.
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) OriginalVersion() string {
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) OriginalVersion() string {
 	return GroupVersion.Version
 }
 
 // SetAzureName sets the Azure name of the resource
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_Spec) SetAzureName(azureName string) {
+func (endpoint *TrafficManagerProfilesAzureEndpoint_Spec) SetAzureName(azureName string) {
 	endpoint.AzureName = azureName
 }
 
-type Trafficmanagerprofiles_AzureEndpoint_STATUS struct {
+type TrafficManagerProfilesAzureEndpoint_STATUS struct {
 	// AlwaysServe: If Always Serve is enabled, probing for endpoint health will be disabled and endpoints will be included in
 	// the traffic routing method.
-	AlwaysServe *EndpointProperties_AlwaysServe_STATUS `json:"alwaysServe,omitempty"`
+	AlwaysServe *AlwaysServe_STATUS `json:"alwaysServe,omitempty"`
 
 	// Conditions: The observed state of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty"`
 
 	// CustomHeaders: List of custom headers.
-	CustomHeaders []EndpointProperties_CustomHeaders_STATUS `json:"customHeaders,omitempty"`
+	CustomHeaders []EndpointPropertiesCustomHeadersItem_STATUS `json:"customHeaders,omitempty"`
 
 	// EndpointLocation: Specifies the location of the external or nested endpoints when using the 'Performance' traffic
 	// routing method.
 	EndpointLocation *string `json:"endpointLocation,omitempty"`
 
 	// EndpointMonitorStatus: The monitoring status of the endpoint.
-	EndpointMonitorStatus *EndpointProperties_EndpointMonitorStatus_STATUS `json:"endpointMonitorStatus,omitempty"`
+	EndpointMonitorStatus *EndpointMonitorStatus_STATUS `json:"endpointMonitorStatus,omitempty"`
 
 	// EndpointStatus: The status of the endpoint. If the endpoint is Enabled, it is probed for endpoint health and is included
 	// in the traffic routing method.
-	EndpointStatus *EndpointProperties_EndpointStatus_STATUS `json:"endpointStatus,omitempty"`
+	EndpointStatus *EndpointStatus_STATUS `json:"endpointStatus,omitempty"`
 
 	// GeoMapping: The list of countries/regions mapped to this endpoint when using the 'Geographic' traffic routing method.
 	// Please consult Traffic Manager Geographic documentation for a full list of accepted values.
@@ -1112,7 +1064,7 @@ type Trafficmanagerprofiles_AzureEndpoint_STATUS struct {
 
 	// Subnets: The list of subnets, IP addresses, and/or address ranges mapped to this endpoint when using the 'Subnet'
 	// traffic routing method. An empty list will match all ranges not covered by other endpoints.
-	Subnets []EndpointProperties_Subnets_STATUS `json:"subnets,omitempty"`
+	Subnets []EndpointPropertiesSubnetsItem_STATUS `json:"subnets,omitempty"`
 
 	// Target: The fully-qualified DNS name or IP address of the endpoint. Traffic Manager returns this value in DNS responses
 	// to direct traffic to this endpoint.
@@ -1128,75 +1080,77 @@ type Trafficmanagerprofiles_AzureEndpoint_STATUS struct {
 	Weight *int `json:"weight,omitempty"`
 }
 
-var _ genruntime.ConvertibleStatus = &Trafficmanagerprofiles_AzureEndpoint_STATUS{}
+var _ genruntime.ConvertibleStatus = &TrafficManagerProfilesAzureEndpoint_STATUS{}
 
-// ConvertStatusFrom populates our Trafficmanagerprofiles_AzureEndpoint_STATUS from the provided source
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
-	src, ok := source.(*storage.Trafficmanagerprofiles_AzureEndpoint_STATUS)
+// ConvertStatusFrom populates our TrafficManagerProfilesAzureEndpoint_STATUS from the provided source
+func (endpoint *TrafficManagerProfilesAzureEndpoint_STATUS) ConvertStatusFrom(source genruntime.ConvertibleStatus) error {
+	src, ok := source.(*storage.TrafficManagerProfilesAzureEndpoint_STATUS)
 	if ok {
 		// Populate our instance from source
-		return endpoint.AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_STATUS(src)
+		return endpoint.AssignProperties_From_TrafficManagerProfilesAzureEndpoint_STATUS(src)
 	}
 
 	// Convert to an intermediate form
-	src = &storage.Trafficmanagerprofiles_AzureEndpoint_STATUS{}
+	src = &storage.TrafficManagerProfilesAzureEndpoint_STATUS{}
 	err := src.ConvertStatusFrom(source)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusFrom()")
 	}
 
 	// Update our instance from src
-	err = endpoint.AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_STATUS(src)
+	err = endpoint.AssignProperties_From_TrafficManagerProfilesAzureEndpoint_STATUS(src)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusFrom()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusFrom()")
 	}
 
 	return nil
 }
 
-// ConvertStatusTo populates the provided destination from our Trafficmanagerprofiles_AzureEndpoint_STATUS
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
-	dst, ok := destination.(*storage.Trafficmanagerprofiles_AzureEndpoint_STATUS)
+// ConvertStatusTo populates the provided destination from our TrafficManagerProfilesAzureEndpoint_STATUS
+func (endpoint *TrafficManagerProfilesAzureEndpoint_STATUS) ConvertStatusTo(destination genruntime.ConvertibleStatus) error {
+	dst, ok := destination.(*storage.TrafficManagerProfilesAzureEndpoint_STATUS)
 	if ok {
 		// Populate destination from our instance
-		return endpoint.AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_STATUS(dst)
+		return endpoint.AssignProperties_To_TrafficManagerProfilesAzureEndpoint_STATUS(dst)
 	}
 
 	// Convert to an intermediate form
-	dst = &storage.Trafficmanagerprofiles_AzureEndpoint_STATUS{}
-	err := endpoint.AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_STATUS(dst)
+	dst = &storage.TrafficManagerProfilesAzureEndpoint_STATUS{}
+	err := endpoint.AssignProperties_To_TrafficManagerProfilesAzureEndpoint_STATUS(dst)
 	if err != nil {
-		return errors.Wrap(err, "initial step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "initial step of conversion in ConvertStatusTo()")
 	}
 
 	// Update dst from our instance
 	err = dst.ConvertStatusTo(destination)
 	if err != nil {
-		return errors.Wrap(err, "final step of conversion in ConvertStatusTo()")
+		return eris.Wrap(err, "final step of conversion in ConvertStatusTo()")
 	}
 
 	return nil
 }
 
-var _ genruntime.FromARMConverter = &Trafficmanagerprofiles_AzureEndpoint_STATUS{}
+var _ genruntime.FromARMConverter = &TrafficManagerProfilesAzureEndpoint_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &Trafficmanagerprofiles_AzureEndpoint_STATUS_ARM{}
+func (endpoint *TrafficManagerProfilesAzureEndpoint_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.TrafficManagerProfilesAzureEndpoint_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(Trafficmanagerprofiles_AzureEndpoint_STATUS_ARM)
+func (endpoint *TrafficManagerProfilesAzureEndpoint_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.TrafficManagerProfilesAzureEndpoint_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected Trafficmanagerprofiles_AzureEndpoint_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.TrafficManagerProfilesAzureEndpoint_STATUS, got %T", armInput)
 	}
 
 	// Set property "AlwaysServe":
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.AlwaysServe != nil {
-			alwaysServe := *typedInput.Properties.AlwaysServe
+			var temp string
+			temp = string(*typedInput.Properties.AlwaysServe)
+			alwaysServe := AlwaysServe_STATUS(temp)
 			endpoint.AlwaysServe = &alwaysServe
 		}
 	}
@@ -1207,7 +1161,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) PopulateFromARM(own
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		for _, item := range typedInput.Properties.CustomHeaders {
-			var item1 EndpointProperties_CustomHeaders_STATUS
+			var item1 EndpointPropertiesCustomHeadersItem_STATUS
 			err := item1.PopulateFromARM(owner, item)
 			if err != nil {
 				return err
@@ -1229,7 +1183,9 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) PopulateFromARM(own
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.EndpointMonitorStatus != nil {
-			endpointMonitorStatus := *typedInput.Properties.EndpointMonitorStatus
+			var temp string
+			temp = string(*typedInput.Properties.EndpointMonitorStatus)
+			endpointMonitorStatus := EndpointMonitorStatus_STATUS(temp)
 			endpoint.EndpointMonitorStatus = &endpointMonitorStatus
 		}
 	}
@@ -1238,7 +1194,9 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) PopulateFromARM(own
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		if typedInput.Properties.EndpointStatus != nil {
-			endpointStatus := *typedInput.Properties.EndpointStatus
+			var temp string
+			temp = string(*typedInput.Properties.EndpointStatus)
+			endpointStatus := EndpointStatus_STATUS(temp)
 			endpoint.EndpointStatus = &endpointStatus
 		}
 	}
@@ -1303,7 +1261,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) PopulateFromARM(own
 	// copying flattened property:
 	if typedInput.Properties != nil {
 		for _, item := range typedInput.Properties.Subnets {
-			var item1 EndpointProperties_Subnets_STATUS
+			var item1 EndpointPropertiesSubnetsItem_STATUS
 			err := item1.PopulateFromARM(owner, item)
 			if err != nil {
 				return err
@@ -1349,13 +1307,13 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) PopulateFromARM(own
 	return nil
 }
 
-// AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_STATUS populates our Trafficmanagerprofiles_AzureEndpoint_STATUS from the provided source Trafficmanagerprofiles_AzureEndpoint_STATUS
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_From_Trafficmanagerprofiles_AzureEndpoint_STATUS(source *storage.Trafficmanagerprofiles_AzureEndpoint_STATUS) error {
+// AssignProperties_From_TrafficManagerProfilesAzureEndpoint_STATUS populates our TrafficManagerProfilesAzureEndpoint_STATUS from the provided source TrafficManagerProfilesAzureEndpoint_STATUS
+func (endpoint *TrafficManagerProfilesAzureEndpoint_STATUS) AssignProperties_From_TrafficManagerProfilesAzureEndpoint_STATUS(source *storage.TrafficManagerProfilesAzureEndpoint_STATUS) error {
 
 	// AlwaysServe
 	if source.AlwaysServe != nil {
 		alwaysServe := *source.AlwaysServe
-		alwaysServeTemp := genruntime.ToEnum(alwaysServe, endpointProperties_AlwaysServe_STATUS_Values)
+		alwaysServeTemp := genruntime.ToEnum(alwaysServe, alwaysServe_STATUS_Values)
 		endpoint.AlwaysServe = &alwaysServeTemp
 	} else {
 		endpoint.AlwaysServe = nil
@@ -1366,14 +1324,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_Fr
 
 	// CustomHeaders
 	if source.CustomHeaders != nil {
-		customHeaderList := make([]EndpointProperties_CustomHeaders_STATUS, len(source.CustomHeaders))
+		customHeaderList := make([]EndpointPropertiesCustomHeadersItem_STATUS, len(source.CustomHeaders))
 		for customHeaderIndex, customHeaderItem := range source.CustomHeaders {
-			// Shadow the loop variable to avoid aliasing
-			customHeaderItem := customHeaderItem
-			var customHeader EndpointProperties_CustomHeaders_STATUS
-			err := customHeader.AssignProperties_From_EndpointProperties_CustomHeaders_STATUS(&customHeaderItem)
+			var customHeader EndpointPropertiesCustomHeadersItem_STATUS
+			err := customHeader.AssignProperties_From_EndpointPropertiesCustomHeadersItem_STATUS(&customHeaderItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_EndpointProperties_CustomHeaders_STATUS() to populate field CustomHeaders")
+				return eris.Wrap(err, "calling AssignProperties_From_EndpointPropertiesCustomHeadersItem_STATUS() to populate field CustomHeaders")
 			}
 			customHeaderList[customHeaderIndex] = customHeader
 		}
@@ -1388,7 +1344,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_Fr
 	// EndpointMonitorStatus
 	if source.EndpointMonitorStatus != nil {
 		endpointMonitorStatus := *source.EndpointMonitorStatus
-		endpointMonitorStatusTemp := genruntime.ToEnum(endpointMonitorStatus, endpointProperties_EndpointMonitorStatus_STATUS_Values)
+		endpointMonitorStatusTemp := genruntime.ToEnum(endpointMonitorStatus, endpointMonitorStatus_STATUS_Values)
 		endpoint.EndpointMonitorStatus = &endpointMonitorStatusTemp
 	} else {
 		endpoint.EndpointMonitorStatus = nil
@@ -1397,7 +1353,7 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_Fr
 	// EndpointStatus
 	if source.EndpointStatus != nil {
 		endpointStatus := *source.EndpointStatus
-		endpointStatusTemp := genruntime.ToEnum(endpointStatus, endpointProperties_EndpointStatus_STATUS_Values)
+		endpointStatusTemp := genruntime.ToEnum(endpointStatus, endpointStatus_STATUS_Values)
 		endpoint.EndpointStatus = &endpointStatusTemp
 	} else {
 		endpoint.EndpointStatus = nil
@@ -1426,14 +1382,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_Fr
 
 	// Subnets
 	if source.Subnets != nil {
-		subnetList := make([]EndpointProperties_Subnets_STATUS, len(source.Subnets))
+		subnetList := make([]EndpointPropertiesSubnetsItem_STATUS, len(source.Subnets))
 		for subnetIndex, subnetItem := range source.Subnets {
-			// Shadow the loop variable to avoid aliasing
-			subnetItem := subnetItem
-			var subnet EndpointProperties_Subnets_STATUS
-			err := subnet.AssignProperties_From_EndpointProperties_Subnets_STATUS(&subnetItem)
+			var subnet EndpointPropertiesSubnetsItem_STATUS
+			err := subnet.AssignProperties_From_EndpointPropertiesSubnetsItem_STATUS(&subnetItem)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_From_EndpointProperties_Subnets_STATUS() to populate field Subnets")
+				return eris.Wrap(err, "calling AssignProperties_From_EndpointPropertiesSubnetsItem_STATUS() to populate field Subnets")
 			}
 			subnetList[subnetIndex] = subnet
 		}
@@ -1458,8 +1412,8 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_Fr
 	return nil
 }
 
-// AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_STATUS populates the provided destination Trafficmanagerprofiles_AzureEndpoint_STATUS from our Trafficmanagerprofiles_AzureEndpoint_STATUS
-func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_To_Trafficmanagerprofiles_AzureEndpoint_STATUS(destination *storage.Trafficmanagerprofiles_AzureEndpoint_STATUS) error {
+// AssignProperties_To_TrafficManagerProfilesAzureEndpoint_STATUS populates the provided destination TrafficManagerProfilesAzureEndpoint_STATUS from our TrafficManagerProfilesAzureEndpoint_STATUS
+func (endpoint *TrafficManagerProfilesAzureEndpoint_STATUS) AssignProperties_To_TrafficManagerProfilesAzureEndpoint_STATUS(destination *storage.TrafficManagerProfilesAzureEndpoint_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
@@ -1476,14 +1430,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_To
 
 	// CustomHeaders
 	if endpoint.CustomHeaders != nil {
-		customHeaderList := make([]storage.EndpointProperties_CustomHeaders_STATUS, len(endpoint.CustomHeaders))
+		customHeaderList := make([]storage.EndpointPropertiesCustomHeadersItem_STATUS, len(endpoint.CustomHeaders))
 		for customHeaderIndex, customHeaderItem := range endpoint.CustomHeaders {
-			// Shadow the loop variable to avoid aliasing
-			customHeaderItem := customHeaderItem
-			var customHeader storage.EndpointProperties_CustomHeaders_STATUS
-			err := customHeaderItem.AssignProperties_To_EndpointProperties_CustomHeaders_STATUS(&customHeader)
+			var customHeader storage.EndpointPropertiesCustomHeadersItem_STATUS
+			err := customHeaderItem.AssignProperties_To_EndpointPropertiesCustomHeadersItem_STATUS(&customHeader)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_EndpointProperties_CustomHeaders_STATUS() to populate field CustomHeaders")
+				return eris.Wrap(err, "calling AssignProperties_To_EndpointPropertiesCustomHeadersItem_STATUS() to populate field CustomHeaders")
 			}
 			customHeaderList[customHeaderIndex] = customHeader
 		}
@@ -1534,14 +1486,12 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_To
 
 	// Subnets
 	if endpoint.Subnets != nil {
-		subnetList := make([]storage.EndpointProperties_Subnets_STATUS, len(endpoint.Subnets))
+		subnetList := make([]storage.EndpointPropertiesSubnetsItem_STATUS, len(endpoint.Subnets))
 		for subnetIndex, subnetItem := range endpoint.Subnets {
-			// Shadow the loop variable to avoid aliasing
-			subnetItem := subnetItem
-			var subnet storage.EndpointProperties_Subnets_STATUS
-			err := subnetItem.AssignProperties_To_EndpointProperties_Subnets_STATUS(&subnet)
+			var subnet storage.EndpointPropertiesSubnetsItem_STATUS
+			err := subnetItem.AssignProperties_To_EndpointPropertiesSubnetsItem_STATUS(&subnet)
 			if err != nil {
-				return errors.Wrap(err, "calling AssignProperties_To_EndpointProperties_Subnets_STATUS() to populate field Subnets")
+				return eris.Wrap(err, "calling AssignProperties_To_EndpointPropertiesSubnetsItem_STATUS() to populate field Subnets")
 			}
 			subnetList[subnetIndex] = subnet
 		}
@@ -1573,34 +1523,88 @@ func (endpoint *Trafficmanagerprofiles_AzureEndpoint_STATUS) AssignProperties_To
 	return nil
 }
 
+// If Always Serve is enabled, probing for endpoint health will be disabled and endpoints will be included in the traffic
+// routing method.
 // +kubebuilder:validation:Enum={"Disabled","Enabled"}
-type EndpointProperties_AlwaysServe string
+type AlwaysServe string
 
 const (
-	EndpointProperties_AlwaysServe_Disabled = EndpointProperties_AlwaysServe("Disabled")
-	EndpointProperties_AlwaysServe_Enabled  = EndpointProperties_AlwaysServe("Enabled")
+	AlwaysServe_Disabled = AlwaysServe("Disabled")
+	AlwaysServe_Enabled  = AlwaysServe("Enabled")
 )
 
-// Mapping from string to EndpointProperties_AlwaysServe
-var endpointProperties_AlwaysServe_Values = map[string]EndpointProperties_AlwaysServe{
-	"disabled": EndpointProperties_AlwaysServe_Disabled,
-	"enabled":  EndpointProperties_AlwaysServe_Enabled,
+// Mapping from string to AlwaysServe
+var alwaysServe_Values = map[string]AlwaysServe{
+	"disabled": AlwaysServe_Disabled,
+	"enabled":  AlwaysServe_Enabled,
 }
 
-type EndpointProperties_AlwaysServe_STATUS string
+// If Always Serve is enabled, probing for endpoint health will be disabled and endpoints will be included in the traffic
+// routing method.
+type AlwaysServe_STATUS string
 
 const (
-	EndpointProperties_AlwaysServe_STATUS_Disabled = EndpointProperties_AlwaysServe_STATUS("Disabled")
-	EndpointProperties_AlwaysServe_STATUS_Enabled  = EndpointProperties_AlwaysServe_STATUS("Enabled")
+	AlwaysServe_STATUS_Disabled = AlwaysServe_STATUS("Disabled")
+	AlwaysServe_STATUS_Enabled  = AlwaysServe_STATUS("Enabled")
 )
 
-// Mapping from string to EndpointProperties_AlwaysServe_STATUS
-var endpointProperties_AlwaysServe_STATUS_Values = map[string]EndpointProperties_AlwaysServe_STATUS{
-	"disabled": EndpointProperties_AlwaysServe_STATUS_Disabled,
-	"enabled":  EndpointProperties_AlwaysServe_STATUS_Enabled,
+// Mapping from string to AlwaysServe_STATUS
+var alwaysServe_STATUS_Values = map[string]AlwaysServe_STATUS{
+	"disabled": AlwaysServe_STATUS_Disabled,
+	"enabled":  AlwaysServe_STATUS_Enabled,
 }
 
-type EndpointProperties_CustomHeaders struct {
+// The monitoring status of the endpoint.
+// +kubebuilder:validation:Enum={"CheckingEndpoint","Degraded","Disabled","Inactive","Online","Stopped","Unmonitored"}
+type EndpointMonitorStatus string
+
+const (
+	EndpointMonitorStatus_CheckingEndpoint = EndpointMonitorStatus("CheckingEndpoint")
+	EndpointMonitorStatus_Degraded         = EndpointMonitorStatus("Degraded")
+	EndpointMonitorStatus_Disabled         = EndpointMonitorStatus("Disabled")
+	EndpointMonitorStatus_Inactive         = EndpointMonitorStatus("Inactive")
+	EndpointMonitorStatus_Online           = EndpointMonitorStatus("Online")
+	EndpointMonitorStatus_Stopped          = EndpointMonitorStatus("Stopped")
+	EndpointMonitorStatus_Unmonitored      = EndpointMonitorStatus("Unmonitored")
+)
+
+// Mapping from string to EndpointMonitorStatus
+var endpointMonitorStatus_Values = map[string]EndpointMonitorStatus{
+	"checkingendpoint": EndpointMonitorStatus_CheckingEndpoint,
+	"degraded":         EndpointMonitorStatus_Degraded,
+	"disabled":         EndpointMonitorStatus_Disabled,
+	"inactive":         EndpointMonitorStatus_Inactive,
+	"online":           EndpointMonitorStatus_Online,
+	"stopped":          EndpointMonitorStatus_Stopped,
+	"unmonitored":      EndpointMonitorStatus_Unmonitored,
+}
+
+// The monitoring status of the endpoint.
+type EndpointMonitorStatus_STATUS string
+
+const (
+	EndpointMonitorStatus_STATUS_CheckingEndpoint = EndpointMonitorStatus_STATUS("CheckingEndpoint")
+	EndpointMonitorStatus_STATUS_Degraded         = EndpointMonitorStatus_STATUS("Degraded")
+	EndpointMonitorStatus_STATUS_Disabled         = EndpointMonitorStatus_STATUS("Disabled")
+	EndpointMonitorStatus_STATUS_Inactive         = EndpointMonitorStatus_STATUS("Inactive")
+	EndpointMonitorStatus_STATUS_Online           = EndpointMonitorStatus_STATUS("Online")
+	EndpointMonitorStatus_STATUS_Stopped          = EndpointMonitorStatus_STATUS("Stopped")
+	EndpointMonitorStatus_STATUS_Unmonitored      = EndpointMonitorStatus_STATUS("Unmonitored")
+)
+
+// Mapping from string to EndpointMonitorStatus_STATUS
+var endpointMonitorStatus_STATUS_Values = map[string]EndpointMonitorStatus_STATUS{
+	"checkingendpoint": EndpointMonitorStatus_STATUS_CheckingEndpoint,
+	"degraded":         EndpointMonitorStatus_STATUS_Degraded,
+	"disabled":         EndpointMonitorStatus_STATUS_Disabled,
+	"inactive":         EndpointMonitorStatus_STATUS_Inactive,
+	"online":           EndpointMonitorStatus_STATUS_Online,
+	"stopped":          EndpointMonitorStatus_STATUS_Stopped,
+	"unmonitored":      EndpointMonitorStatus_STATUS_Unmonitored,
+}
+
+// Custom header name and value.
+type EndpointPropertiesCustomHeadersItem struct {
 	// Name: Header name.
 	Name *string `json:"name,omitempty"`
 
@@ -1608,80 +1612,80 @@ type EndpointProperties_CustomHeaders struct {
 	Value *string `json:"value,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &EndpointProperties_CustomHeaders{}
+var _ genruntime.ARMTransformer = &EndpointPropertiesCustomHeadersItem{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (headers *EndpointProperties_CustomHeaders) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
-	if headers == nil {
+func (item *EndpointPropertiesCustomHeadersItem) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+	if item == nil {
 		return nil, nil
 	}
-	result := &EndpointProperties_CustomHeaders_ARM{}
+	result := &arm.EndpointPropertiesCustomHeadersItem{}
 
 	// Set property "Name":
-	if headers.Name != nil {
-		name := *headers.Name
+	if item.Name != nil {
+		name := *item.Name
 		result.Name = &name
 	}
 
 	// Set property "Value":
-	if headers.Value != nil {
-		value := *headers.Value
+	if item.Value != nil {
+		value := *item.Value
 		result.Value = &value
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (headers *EndpointProperties_CustomHeaders) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &EndpointProperties_CustomHeaders_ARM{}
+func (item *EndpointPropertiesCustomHeadersItem) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.EndpointPropertiesCustomHeadersItem{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (headers *EndpointProperties_CustomHeaders) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(EndpointProperties_CustomHeaders_ARM)
+func (item *EndpointPropertiesCustomHeadersItem) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.EndpointPropertiesCustomHeadersItem)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected EndpointProperties_CustomHeaders_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.EndpointPropertiesCustomHeadersItem, got %T", armInput)
 	}
 
 	// Set property "Name":
 	if typedInput.Name != nil {
 		name := *typedInput.Name
-		headers.Name = &name
+		item.Name = &name
 	}
 
 	// Set property "Value":
 	if typedInput.Value != nil {
 		value := *typedInput.Value
-		headers.Value = &value
+		item.Value = &value
 	}
 
 	// No error
 	return nil
 }
 
-// AssignProperties_From_EndpointProperties_CustomHeaders populates our EndpointProperties_CustomHeaders from the provided source EndpointProperties_CustomHeaders
-func (headers *EndpointProperties_CustomHeaders) AssignProperties_From_EndpointProperties_CustomHeaders(source *storage.EndpointProperties_CustomHeaders) error {
+// AssignProperties_From_EndpointPropertiesCustomHeadersItem populates our EndpointPropertiesCustomHeadersItem from the provided source EndpointPropertiesCustomHeadersItem
+func (item *EndpointPropertiesCustomHeadersItem) AssignProperties_From_EndpointPropertiesCustomHeadersItem(source *storage.EndpointPropertiesCustomHeadersItem) error {
 
 	// Name
-	headers.Name = genruntime.ClonePointerToString(source.Name)
+	item.Name = genruntime.ClonePointerToString(source.Name)
 
 	// Value
-	headers.Value = genruntime.ClonePointerToString(source.Value)
+	item.Value = genruntime.ClonePointerToString(source.Value)
 
 	// No error
 	return nil
 }
 
-// AssignProperties_To_EndpointProperties_CustomHeaders populates the provided destination EndpointProperties_CustomHeaders from our EndpointProperties_CustomHeaders
-func (headers *EndpointProperties_CustomHeaders) AssignProperties_To_EndpointProperties_CustomHeaders(destination *storage.EndpointProperties_CustomHeaders) error {
+// AssignProperties_To_EndpointPropertiesCustomHeadersItem populates the provided destination EndpointPropertiesCustomHeadersItem from our EndpointPropertiesCustomHeadersItem
+func (item *EndpointPropertiesCustomHeadersItem) AssignProperties_To_EndpointPropertiesCustomHeadersItem(destination *storage.EndpointPropertiesCustomHeadersItem) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
 	// Name
-	destination.Name = genruntime.ClonePointerToString(headers.Name)
+	destination.Name = genruntime.ClonePointerToString(item.Name)
 
 	// Value
-	destination.Value = genruntime.ClonePointerToString(headers.Value)
+	destination.Value = genruntime.ClonePointerToString(item.Value)
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
@@ -1694,20 +1698,21 @@ func (headers *EndpointProperties_CustomHeaders) AssignProperties_To_EndpointPro
 	return nil
 }
 
-// Initialize_From_EndpointProperties_CustomHeaders_STATUS populates our EndpointProperties_CustomHeaders from the provided source EndpointProperties_CustomHeaders_STATUS
-func (headers *EndpointProperties_CustomHeaders) Initialize_From_EndpointProperties_CustomHeaders_STATUS(source *EndpointProperties_CustomHeaders_STATUS) error {
+// Initialize_From_EndpointPropertiesCustomHeadersItem_STATUS populates our EndpointPropertiesCustomHeadersItem from the provided source EndpointPropertiesCustomHeadersItem_STATUS
+func (item *EndpointPropertiesCustomHeadersItem) Initialize_From_EndpointPropertiesCustomHeadersItem_STATUS(source *EndpointPropertiesCustomHeadersItem_STATUS) error {
 
 	// Name
-	headers.Name = genruntime.ClonePointerToString(source.Name)
+	item.Name = genruntime.ClonePointerToString(source.Name)
 
 	// Value
-	headers.Value = genruntime.ClonePointerToString(source.Value)
+	item.Value = genruntime.ClonePointerToString(source.Value)
 
 	// No error
 	return nil
 }
 
-type EndpointProperties_CustomHeaders_STATUS struct {
+// Custom header name and value.
+type EndpointPropertiesCustomHeadersItem_STATUS struct {
 	// Name: Header name.
 	Name *string `json:"name,omitempty"`
 
@@ -1715,59 +1720,59 @@ type EndpointProperties_CustomHeaders_STATUS struct {
 	Value *string `json:"value,omitempty"`
 }
 
-var _ genruntime.FromARMConverter = &EndpointProperties_CustomHeaders_STATUS{}
+var _ genruntime.FromARMConverter = &EndpointPropertiesCustomHeadersItem_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (headers *EndpointProperties_CustomHeaders_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &EndpointProperties_CustomHeaders_STATUS_ARM{}
+func (item *EndpointPropertiesCustomHeadersItem_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.EndpointPropertiesCustomHeadersItem_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (headers *EndpointProperties_CustomHeaders_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(EndpointProperties_CustomHeaders_STATUS_ARM)
+func (item *EndpointPropertiesCustomHeadersItem_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.EndpointPropertiesCustomHeadersItem_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected EndpointProperties_CustomHeaders_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.EndpointPropertiesCustomHeadersItem_STATUS, got %T", armInput)
 	}
 
 	// Set property "Name":
 	if typedInput.Name != nil {
 		name := *typedInput.Name
-		headers.Name = &name
+		item.Name = &name
 	}
 
 	// Set property "Value":
 	if typedInput.Value != nil {
 		value := *typedInput.Value
-		headers.Value = &value
+		item.Value = &value
 	}
 
 	// No error
 	return nil
 }
 
-// AssignProperties_From_EndpointProperties_CustomHeaders_STATUS populates our EndpointProperties_CustomHeaders_STATUS from the provided source EndpointProperties_CustomHeaders_STATUS
-func (headers *EndpointProperties_CustomHeaders_STATUS) AssignProperties_From_EndpointProperties_CustomHeaders_STATUS(source *storage.EndpointProperties_CustomHeaders_STATUS) error {
+// AssignProperties_From_EndpointPropertiesCustomHeadersItem_STATUS populates our EndpointPropertiesCustomHeadersItem_STATUS from the provided source EndpointPropertiesCustomHeadersItem_STATUS
+func (item *EndpointPropertiesCustomHeadersItem_STATUS) AssignProperties_From_EndpointPropertiesCustomHeadersItem_STATUS(source *storage.EndpointPropertiesCustomHeadersItem_STATUS) error {
 
 	// Name
-	headers.Name = genruntime.ClonePointerToString(source.Name)
+	item.Name = genruntime.ClonePointerToString(source.Name)
 
 	// Value
-	headers.Value = genruntime.ClonePointerToString(source.Value)
+	item.Value = genruntime.ClonePointerToString(source.Value)
 
 	// No error
 	return nil
 }
 
-// AssignProperties_To_EndpointProperties_CustomHeaders_STATUS populates the provided destination EndpointProperties_CustomHeaders_STATUS from our EndpointProperties_CustomHeaders_STATUS
-func (headers *EndpointProperties_CustomHeaders_STATUS) AssignProperties_To_EndpointProperties_CustomHeaders_STATUS(destination *storage.EndpointProperties_CustomHeaders_STATUS) error {
+// AssignProperties_To_EndpointPropertiesCustomHeadersItem_STATUS populates the provided destination EndpointPropertiesCustomHeadersItem_STATUS from our EndpointPropertiesCustomHeadersItem_STATUS
+func (item *EndpointPropertiesCustomHeadersItem_STATUS) AssignProperties_To_EndpointPropertiesCustomHeadersItem_STATUS(destination *storage.EndpointPropertiesCustomHeadersItem_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
 	// Name
-	destination.Name = genruntime.ClonePointerToString(headers.Name)
+	destination.Name = genruntime.ClonePointerToString(item.Name)
 
 	// Value
-	destination.Value = genruntime.ClonePointerToString(headers.Value)
+	destination.Value = genruntime.ClonePointerToString(item.Value)
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
@@ -1780,81 +1785,8 @@ func (headers *EndpointProperties_CustomHeaders_STATUS) AssignProperties_To_Endp
 	return nil
 }
 
-// +kubebuilder:validation:Enum={"CheckingEndpoint","Degraded","Disabled","Inactive","Online","Stopped","Unmonitored"}
-type EndpointProperties_EndpointMonitorStatus string
-
-const (
-	EndpointProperties_EndpointMonitorStatus_CheckingEndpoint = EndpointProperties_EndpointMonitorStatus("CheckingEndpoint")
-	EndpointProperties_EndpointMonitorStatus_Degraded         = EndpointProperties_EndpointMonitorStatus("Degraded")
-	EndpointProperties_EndpointMonitorStatus_Disabled         = EndpointProperties_EndpointMonitorStatus("Disabled")
-	EndpointProperties_EndpointMonitorStatus_Inactive         = EndpointProperties_EndpointMonitorStatus("Inactive")
-	EndpointProperties_EndpointMonitorStatus_Online           = EndpointProperties_EndpointMonitorStatus("Online")
-	EndpointProperties_EndpointMonitorStatus_Stopped          = EndpointProperties_EndpointMonitorStatus("Stopped")
-	EndpointProperties_EndpointMonitorStatus_Unmonitored      = EndpointProperties_EndpointMonitorStatus("Unmonitored")
-)
-
-// Mapping from string to EndpointProperties_EndpointMonitorStatus
-var endpointProperties_EndpointMonitorStatus_Values = map[string]EndpointProperties_EndpointMonitorStatus{
-	"checkingendpoint": EndpointProperties_EndpointMonitorStatus_CheckingEndpoint,
-	"degraded":         EndpointProperties_EndpointMonitorStatus_Degraded,
-	"disabled":         EndpointProperties_EndpointMonitorStatus_Disabled,
-	"inactive":         EndpointProperties_EndpointMonitorStatus_Inactive,
-	"online":           EndpointProperties_EndpointMonitorStatus_Online,
-	"stopped":          EndpointProperties_EndpointMonitorStatus_Stopped,
-	"unmonitored":      EndpointProperties_EndpointMonitorStatus_Unmonitored,
-}
-
-type EndpointProperties_EndpointMonitorStatus_STATUS string
-
-const (
-	EndpointProperties_EndpointMonitorStatus_STATUS_CheckingEndpoint = EndpointProperties_EndpointMonitorStatus_STATUS("CheckingEndpoint")
-	EndpointProperties_EndpointMonitorStatus_STATUS_Degraded         = EndpointProperties_EndpointMonitorStatus_STATUS("Degraded")
-	EndpointProperties_EndpointMonitorStatus_STATUS_Disabled         = EndpointProperties_EndpointMonitorStatus_STATUS("Disabled")
-	EndpointProperties_EndpointMonitorStatus_STATUS_Inactive         = EndpointProperties_EndpointMonitorStatus_STATUS("Inactive")
-	EndpointProperties_EndpointMonitorStatus_STATUS_Online           = EndpointProperties_EndpointMonitorStatus_STATUS("Online")
-	EndpointProperties_EndpointMonitorStatus_STATUS_Stopped          = EndpointProperties_EndpointMonitorStatus_STATUS("Stopped")
-	EndpointProperties_EndpointMonitorStatus_STATUS_Unmonitored      = EndpointProperties_EndpointMonitorStatus_STATUS("Unmonitored")
-)
-
-// Mapping from string to EndpointProperties_EndpointMonitorStatus_STATUS
-var endpointProperties_EndpointMonitorStatus_STATUS_Values = map[string]EndpointProperties_EndpointMonitorStatus_STATUS{
-	"checkingendpoint": EndpointProperties_EndpointMonitorStatus_STATUS_CheckingEndpoint,
-	"degraded":         EndpointProperties_EndpointMonitorStatus_STATUS_Degraded,
-	"disabled":         EndpointProperties_EndpointMonitorStatus_STATUS_Disabled,
-	"inactive":         EndpointProperties_EndpointMonitorStatus_STATUS_Inactive,
-	"online":           EndpointProperties_EndpointMonitorStatus_STATUS_Online,
-	"stopped":          EndpointProperties_EndpointMonitorStatus_STATUS_Stopped,
-	"unmonitored":      EndpointProperties_EndpointMonitorStatus_STATUS_Unmonitored,
-}
-
-// +kubebuilder:validation:Enum={"Disabled","Enabled"}
-type EndpointProperties_EndpointStatus string
-
-const (
-	EndpointProperties_EndpointStatus_Disabled = EndpointProperties_EndpointStatus("Disabled")
-	EndpointProperties_EndpointStatus_Enabled  = EndpointProperties_EndpointStatus("Enabled")
-)
-
-// Mapping from string to EndpointProperties_EndpointStatus
-var endpointProperties_EndpointStatus_Values = map[string]EndpointProperties_EndpointStatus{
-	"disabled": EndpointProperties_EndpointStatus_Disabled,
-	"enabled":  EndpointProperties_EndpointStatus_Enabled,
-}
-
-type EndpointProperties_EndpointStatus_STATUS string
-
-const (
-	EndpointProperties_EndpointStatus_STATUS_Disabled = EndpointProperties_EndpointStatus_STATUS("Disabled")
-	EndpointProperties_EndpointStatus_STATUS_Enabled  = EndpointProperties_EndpointStatus_STATUS("Enabled")
-)
-
-// Mapping from string to EndpointProperties_EndpointStatus_STATUS
-var endpointProperties_EndpointStatus_STATUS_Values = map[string]EndpointProperties_EndpointStatus_STATUS{
-	"disabled": EndpointProperties_EndpointStatus_STATUS_Disabled,
-	"enabled":  EndpointProperties_EndpointStatus_STATUS_Enabled,
-}
-
-type EndpointProperties_Subnets struct {
+// Subnet first address, scope, and/or last address.
+type EndpointPropertiesSubnetsItem struct {
 	// First: First address in the subnet.
 	First *string `json:"first,omitempty"`
 
@@ -1865,98 +1797,98 @@ type EndpointProperties_Subnets struct {
 	Scope *int `json:"scope,omitempty"`
 }
 
-var _ genruntime.ARMTransformer = &EndpointProperties_Subnets{}
+var _ genruntime.ARMTransformer = &EndpointPropertiesSubnetsItem{}
 
 // ConvertToARM converts from a Kubernetes CRD object to an ARM object
-func (subnets *EndpointProperties_Subnets) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
-	if subnets == nil {
+func (item *EndpointPropertiesSubnetsItem) ConvertToARM(resolved genruntime.ConvertToARMResolvedDetails) (interface{}, error) {
+	if item == nil {
 		return nil, nil
 	}
-	result := &EndpointProperties_Subnets_ARM{}
+	result := &arm.EndpointPropertiesSubnetsItem{}
 
 	// Set property "First":
-	if subnets.First != nil {
-		first := *subnets.First
+	if item.First != nil {
+		first := *item.First
 		result.First = &first
 	}
 
 	// Set property "Last":
-	if subnets.Last != nil {
-		last := *subnets.Last
+	if item.Last != nil {
+		last := *item.Last
 		result.Last = &last
 	}
 
 	// Set property "Scope":
-	if subnets.Scope != nil {
-		scope := *subnets.Scope
+	if item.Scope != nil {
+		scope := *item.Scope
 		result.Scope = &scope
 	}
 	return result, nil
 }
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (subnets *EndpointProperties_Subnets) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &EndpointProperties_Subnets_ARM{}
+func (item *EndpointPropertiesSubnetsItem) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.EndpointPropertiesSubnetsItem{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (subnets *EndpointProperties_Subnets) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(EndpointProperties_Subnets_ARM)
+func (item *EndpointPropertiesSubnetsItem) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.EndpointPropertiesSubnetsItem)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected EndpointProperties_Subnets_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.EndpointPropertiesSubnetsItem, got %T", armInput)
 	}
 
 	// Set property "First":
 	if typedInput.First != nil {
 		first := *typedInput.First
-		subnets.First = &first
+		item.First = &first
 	}
 
 	// Set property "Last":
 	if typedInput.Last != nil {
 		last := *typedInput.Last
-		subnets.Last = &last
+		item.Last = &last
 	}
 
 	// Set property "Scope":
 	if typedInput.Scope != nil {
 		scope := *typedInput.Scope
-		subnets.Scope = &scope
+		item.Scope = &scope
 	}
 
 	// No error
 	return nil
 }
 
-// AssignProperties_From_EndpointProperties_Subnets populates our EndpointProperties_Subnets from the provided source EndpointProperties_Subnets
-func (subnets *EndpointProperties_Subnets) AssignProperties_From_EndpointProperties_Subnets(source *storage.EndpointProperties_Subnets) error {
+// AssignProperties_From_EndpointPropertiesSubnetsItem populates our EndpointPropertiesSubnetsItem from the provided source EndpointPropertiesSubnetsItem
+func (item *EndpointPropertiesSubnetsItem) AssignProperties_From_EndpointPropertiesSubnetsItem(source *storage.EndpointPropertiesSubnetsItem) error {
 
 	// First
-	subnets.First = genruntime.ClonePointerToString(source.First)
+	item.First = genruntime.ClonePointerToString(source.First)
 
 	// Last
-	subnets.Last = genruntime.ClonePointerToString(source.Last)
+	item.Last = genruntime.ClonePointerToString(source.Last)
 
 	// Scope
-	subnets.Scope = genruntime.ClonePointerToInt(source.Scope)
+	item.Scope = genruntime.ClonePointerToInt(source.Scope)
 
 	// No error
 	return nil
 }
 
-// AssignProperties_To_EndpointProperties_Subnets populates the provided destination EndpointProperties_Subnets from our EndpointProperties_Subnets
-func (subnets *EndpointProperties_Subnets) AssignProperties_To_EndpointProperties_Subnets(destination *storage.EndpointProperties_Subnets) error {
+// AssignProperties_To_EndpointPropertiesSubnetsItem populates the provided destination EndpointPropertiesSubnetsItem from our EndpointPropertiesSubnetsItem
+func (item *EndpointPropertiesSubnetsItem) AssignProperties_To_EndpointPropertiesSubnetsItem(destination *storage.EndpointPropertiesSubnetsItem) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
 	// First
-	destination.First = genruntime.ClonePointerToString(subnets.First)
+	destination.First = genruntime.ClonePointerToString(item.First)
 
 	// Last
-	destination.Last = genruntime.ClonePointerToString(subnets.Last)
+	destination.Last = genruntime.ClonePointerToString(item.Last)
 
 	// Scope
-	destination.Scope = genruntime.ClonePointerToInt(subnets.Scope)
+	destination.Scope = genruntime.ClonePointerToInt(item.Scope)
 
 	// Update the property bag
 	if len(propertyBag) > 0 {
@@ -1969,23 +1901,24 @@ func (subnets *EndpointProperties_Subnets) AssignProperties_To_EndpointPropertie
 	return nil
 }
 
-// Initialize_From_EndpointProperties_Subnets_STATUS populates our EndpointProperties_Subnets from the provided source EndpointProperties_Subnets_STATUS
-func (subnets *EndpointProperties_Subnets) Initialize_From_EndpointProperties_Subnets_STATUS(source *EndpointProperties_Subnets_STATUS) error {
+// Initialize_From_EndpointPropertiesSubnetsItem_STATUS populates our EndpointPropertiesSubnetsItem from the provided source EndpointPropertiesSubnetsItem_STATUS
+func (item *EndpointPropertiesSubnetsItem) Initialize_From_EndpointPropertiesSubnetsItem_STATUS(source *EndpointPropertiesSubnetsItem_STATUS) error {
 
 	// First
-	subnets.First = genruntime.ClonePointerToString(source.First)
+	item.First = genruntime.ClonePointerToString(source.First)
 
 	// Last
-	subnets.Last = genruntime.ClonePointerToString(source.Last)
+	item.Last = genruntime.ClonePointerToString(source.Last)
 
 	// Scope
-	subnets.Scope = genruntime.ClonePointerToInt(source.Scope)
+	item.Scope = genruntime.ClonePointerToInt(source.Scope)
 
 	// No error
 	return nil
 }
 
-type EndpointProperties_Subnets_STATUS struct {
+// Subnet first address, scope, and/or last address.
+type EndpointPropertiesSubnetsItem_STATUS struct {
 	// First: First address in the subnet.
 	First *string `json:"first,omitempty"`
 
@@ -1996,71 +1929,198 @@ type EndpointProperties_Subnets_STATUS struct {
 	Scope *int `json:"scope,omitempty"`
 }
 
-var _ genruntime.FromARMConverter = &EndpointProperties_Subnets_STATUS{}
+var _ genruntime.FromARMConverter = &EndpointPropertiesSubnetsItem_STATUS{}
 
 // NewEmptyARMValue returns an empty ARM value suitable for deserializing into
-func (subnets *EndpointProperties_Subnets_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
-	return &EndpointProperties_Subnets_STATUS_ARM{}
+func (item *EndpointPropertiesSubnetsItem_STATUS) NewEmptyARMValue() genruntime.ARMResourceStatus {
+	return &arm.EndpointPropertiesSubnetsItem_STATUS{}
 }
 
 // PopulateFromARM populates a Kubernetes CRD object from an Azure ARM object
-func (subnets *EndpointProperties_Subnets_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
-	typedInput, ok := armInput.(EndpointProperties_Subnets_STATUS_ARM)
+func (item *EndpointPropertiesSubnetsItem_STATUS) PopulateFromARM(owner genruntime.ArbitraryOwnerReference, armInput interface{}) error {
+	typedInput, ok := armInput.(arm.EndpointPropertiesSubnetsItem_STATUS)
 	if !ok {
-		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected EndpointProperties_Subnets_STATUS_ARM, got %T", armInput)
+		return fmt.Errorf("unexpected type supplied for PopulateFromARM() function. Expected arm.EndpointPropertiesSubnetsItem_STATUS, got %T", armInput)
 	}
 
 	// Set property "First":
 	if typedInput.First != nil {
 		first := *typedInput.First
-		subnets.First = &first
+		item.First = &first
 	}
 
 	// Set property "Last":
 	if typedInput.Last != nil {
 		last := *typedInput.Last
-		subnets.Last = &last
+		item.Last = &last
 	}
 
 	// Set property "Scope":
 	if typedInput.Scope != nil {
 		scope := *typedInput.Scope
-		subnets.Scope = &scope
+		item.Scope = &scope
 	}
 
 	// No error
 	return nil
 }
 
-// AssignProperties_From_EndpointProperties_Subnets_STATUS populates our EndpointProperties_Subnets_STATUS from the provided source EndpointProperties_Subnets_STATUS
-func (subnets *EndpointProperties_Subnets_STATUS) AssignProperties_From_EndpointProperties_Subnets_STATUS(source *storage.EndpointProperties_Subnets_STATUS) error {
+// AssignProperties_From_EndpointPropertiesSubnetsItem_STATUS populates our EndpointPropertiesSubnetsItem_STATUS from the provided source EndpointPropertiesSubnetsItem_STATUS
+func (item *EndpointPropertiesSubnetsItem_STATUS) AssignProperties_From_EndpointPropertiesSubnetsItem_STATUS(source *storage.EndpointPropertiesSubnetsItem_STATUS) error {
 
 	// First
-	subnets.First = genruntime.ClonePointerToString(source.First)
+	item.First = genruntime.ClonePointerToString(source.First)
 
 	// Last
-	subnets.Last = genruntime.ClonePointerToString(source.Last)
+	item.Last = genruntime.ClonePointerToString(source.Last)
 
 	// Scope
-	subnets.Scope = genruntime.ClonePointerToInt(source.Scope)
+	item.Scope = genruntime.ClonePointerToInt(source.Scope)
 
 	// No error
 	return nil
 }
 
-// AssignProperties_To_EndpointProperties_Subnets_STATUS populates the provided destination EndpointProperties_Subnets_STATUS from our EndpointProperties_Subnets_STATUS
-func (subnets *EndpointProperties_Subnets_STATUS) AssignProperties_To_EndpointProperties_Subnets_STATUS(destination *storage.EndpointProperties_Subnets_STATUS) error {
+// AssignProperties_To_EndpointPropertiesSubnetsItem_STATUS populates the provided destination EndpointPropertiesSubnetsItem_STATUS from our EndpointPropertiesSubnetsItem_STATUS
+func (item *EndpointPropertiesSubnetsItem_STATUS) AssignProperties_To_EndpointPropertiesSubnetsItem_STATUS(destination *storage.EndpointPropertiesSubnetsItem_STATUS) error {
 	// Create a new property bag
 	propertyBag := genruntime.NewPropertyBag()
 
 	// First
-	destination.First = genruntime.ClonePointerToString(subnets.First)
+	destination.First = genruntime.ClonePointerToString(item.First)
 
 	// Last
-	destination.Last = genruntime.ClonePointerToString(subnets.Last)
+	destination.Last = genruntime.ClonePointerToString(item.Last)
 
 	// Scope
-	destination.Scope = genruntime.ClonePointerToInt(subnets.Scope)
+	destination.Scope = genruntime.ClonePointerToInt(item.Scope)
+
+	// Update the property bag
+	if len(propertyBag) > 0 {
+		destination.PropertyBag = propertyBag
+	} else {
+		destination.PropertyBag = nil
+	}
+
+	// No error
+	return nil
+}
+
+// The status of the endpoint. If the endpoint is Enabled, it is probed for endpoint health and is included in the traffic
+// routing method.
+// +kubebuilder:validation:Enum={"Disabled","Enabled"}
+type EndpointStatus string
+
+const (
+	EndpointStatus_Disabled = EndpointStatus("Disabled")
+	EndpointStatus_Enabled  = EndpointStatus("Enabled")
+)
+
+// Mapping from string to EndpointStatus
+var endpointStatus_Values = map[string]EndpointStatus{
+	"disabled": EndpointStatus_Disabled,
+	"enabled":  EndpointStatus_Enabled,
+}
+
+// The status of the endpoint. If the endpoint is Enabled, it is probed for endpoint health and is included in the traffic
+// routing method.
+type EndpointStatus_STATUS string
+
+const (
+	EndpointStatus_STATUS_Disabled = EndpointStatus_STATUS("Disabled")
+	EndpointStatus_STATUS_Enabled  = EndpointStatus_STATUS("Enabled")
+)
+
+// Mapping from string to EndpointStatus_STATUS
+var endpointStatus_STATUS_Values = map[string]EndpointStatus_STATUS{
+	"disabled": EndpointStatus_STATUS_Disabled,
+	"enabled":  EndpointStatus_STATUS_Enabled,
+}
+
+// Details for configuring operator behavior. Fields in this struct are interpreted by the operator directly rather than being passed to Azure
+type TrafficManagerProfilesAzureEndpointOperatorSpec struct {
+	// ConfigMapExpressions: configures where to place operator written dynamic ConfigMaps (created with CEL expressions).
+	ConfigMapExpressions []*core.DestinationExpression `json:"configMapExpressions,omitempty"`
+
+	// SecretExpressions: configures where to place operator written dynamic secrets (created with CEL expressions).
+	SecretExpressions []*core.DestinationExpression `json:"secretExpressions,omitempty"`
+}
+
+// AssignProperties_From_TrafficManagerProfilesAzureEndpointOperatorSpec populates our TrafficManagerProfilesAzureEndpointOperatorSpec from the provided source TrafficManagerProfilesAzureEndpointOperatorSpec
+func (operator *TrafficManagerProfilesAzureEndpointOperatorSpec) AssignProperties_From_TrafficManagerProfilesAzureEndpointOperatorSpec(source *storage.TrafficManagerProfilesAzureEndpointOperatorSpec) error {
+
+	// ConfigMapExpressions
+	if source.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(source.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range source.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		operator.ConfigMapExpressions = configMapExpressionList
+	} else {
+		operator.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if source.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(source.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range source.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		operator.SecretExpressions = secretExpressionList
+	} else {
+		operator.SecretExpressions = nil
+	}
+
+	// No error
+	return nil
+}
+
+// AssignProperties_To_TrafficManagerProfilesAzureEndpointOperatorSpec populates the provided destination TrafficManagerProfilesAzureEndpointOperatorSpec from our TrafficManagerProfilesAzureEndpointOperatorSpec
+func (operator *TrafficManagerProfilesAzureEndpointOperatorSpec) AssignProperties_To_TrafficManagerProfilesAzureEndpointOperatorSpec(destination *storage.TrafficManagerProfilesAzureEndpointOperatorSpec) error {
+	// Create a new property bag
+	propertyBag := genruntime.NewPropertyBag()
+
+	// ConfigMapExpressions
+	if operator.ConfigMapExpressions != nil {
+		configMapExpressionList := make([]*core.DestinationExpression, len(operator.ConfigMapExpressions))
+		for configMapExpressionIndex, configMapExpressionItem := range operator.ConfigMapExpressions {
+			if configMapExpressionItem != nil {
+				configMapExpression := *configMapExpressionItem.DeepCopy()
+				configMapExpressionList[configMapExpressionIndex] = &configMapExpression
+			} else {
+				configMapExpressionList[configMapExpressionIndex] = nil
+			}
+		}
+		destination.ConfigMapExpressions = configMapExpressionList
+	} else {
+		destination.ConfigMapExpressions = nil
+	}
+
+	// SecretExpressions
+	if operator.SecretExpressions != nil {
+		secretExpressionList := make([]*core.DestinationExpression, len(operator.SecretExpressions))
+		for secretExpressionIndex, secretExpressionItem := range operator.SecretExpressions {
+			if secretExpressionItem != nil {
+				secretExpression := *secretExpressionItem.DeepCopy()
+				secretExpressionList[secretExpressionIndex] = &secretExpression
+			} else {
+				secretExpressionList[secretExpressionIndex] = nil
+			}
+		}
+		destination.SecretExpressions = secretExpressionList
+	} else {
+		destination.SecretExpressions = nil
+	}
 
 	// Update the property bag
 	if len(propertyBag) > 0 {

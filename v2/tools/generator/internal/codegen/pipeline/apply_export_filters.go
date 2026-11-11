@@ -8,10 +8,11 @@ package pipeline
 import (
 	"context"
 
+	"github.com/go-logr/logr"
+	"github.com/rotisserie/eris"
+
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
-	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 )
 
 const ApplyExportFiltersStageID = "filterTypes"
@@ -26,7 +27,8 @@ func ApplyExportFilters(
 		"Apply export filters to reduce the number of generated types",
 		func(ctx context.Context, state *State) (*State, error) {
 			return filterTypes(configuration, state, log)
-		})
+		},
+	)
 
 	stage.RequiresPostrequisiteStages(VerifyNoErroredTypesStageID)
 	return stage
@@ -39,7 +41,7 @@ func filterTypes(
 	log logr.Logger,
 ) (*State, error) {
 	resourcesToExport := make(astmodel.TypeDefinitionSet)
-	for _, def := range astmodel.FindResourceDefinitions(state.Definitions()) {
+	for _, def := range state.Definitions().AllResources() {
 		defName := def.Name()
 
 		export := shouldExport(defName, configuration)
@@ -54,12 +56,39 @@ func filterTypes(
 
 	typesToExport, err := astmodel.FindConnectedDefinitions(state.Definitions(), resourcesToExport)
 	if err != nil {
-		return nil, errors.Wrap(err, "finding types connected to resources marked for export")
+		return nil, eris.Wrap(err, "finding types connected to resources marked for export")
 	}
 
-	// Find and apply renames
+	// Find and apply renames.
+	// If we rename a resource, we use that name for its spec and status as well.
 	renames := make(astmodel.TypeAssociation)
-	for n := range typesToExport {
+	addRename := func(name astmodel.InternalTypeName, newName string) error {
+		if name.Name() == newName {
+			// Nothing to do
+			return nil
+		}
+
+		n := name.WithName(newName)
+		if existing, ok := state.Definitions()[n]; ok {
+			// Can't rename, as we'd create a name collision
+			return eris.Errorf(
+				"can't rename %s to %s, name is already used by %s",
+				name,
+				newName,
+				existing.Name(),
+			)
+		}
+
+		renames[name] = n
+		// Add an alias to the configuration so that we can use the new name to access the rest of the config
+		if configuration.ObjectModelConfiguration.IsTypeConfigured(name) {
+			configuration.ObjectModelConfiguration.AddTypeAlias(name, newName)
+		}
+
+		return nil
+	}
+
+	for n, def := range typesToExport {
 		newName := ""
 		if as, ok := configuration.ObjectModelConfiguration.ExportAs.Lookup(n); ok {
 			newName = as
@@ -68,14 +97,26 @@ func filterTypes(
 		}
 
 		if newName != "" {
-			// Add an alias to the configuration so that we can use the new name to access the rest of the config
-			configuration.ObjectModelConfiguration.AddTypeAlias(n, newName)
-			renames[n] = n.WithName(newName)
-		}
-	}
+			if err := addRename(n, newName); err != nil {
+				return nil, err
+			}
 
-	if err = configuration.ObjectModelConfiguration.Export.VerifyConsumed(); err != nil {
-		return nil, err
+			// If this is a resource, we also need to rename the spec and status.
+			// These renames are optional — if there's a collision we log a warning
+			// but don't fail, as the resource rename is the important one.
+			if rt, ok := astmodel.AsResourceType(def.Type()); ok {
+				if spec, ok := astmodel.AsInternalTypeName(rt.SpecType()); ok {
+					if err := addRename(spec, newName+astmodel.SpecSuffix); err != nil {
+						log.V(1).Info("Warning: could not rename spec type", "type", spec, "error", err)
+					}
+				}
+				if status, ok := astmodel.AsInternalTypeName(rt.StatusType()); ok {
+					if err := addRename(status, newName+astmodel.StatusSuffix); err != nil {
+						log.V(1).Info("Warning: could not rename status type", "type", status, "error", err)
+					}
+				}
+			}
+		}
 	}
 
 	if err = configuration.ObjectModelConfiguration.ExportAs.VerifyConsumed(); err != nil {
@@ -98,11 +139,6 @@ func filterTypes(
 
 // shouldExport works out whether the specified Resource should be exported or not
 func shouldExport(defName astmodel.InternalTypeName, configuration *config.Configuration) bool {
-	if export, ok := configuration.ObjectModelConfiguration.Export.Lookup(defName); ok {
-		// $export is configured, return that value
-		return export
-	}
-
 	if _, ok := configuration.ObjectModelConfiguration.ExportAs.Lookup(defName); ok {
 		// $exportAs is configured, we DO want to export
 		return true

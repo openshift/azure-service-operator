@@ -5,7 +5,8 @@ package v1api20220701
 
 import (
 	"encoding/json"
-	storage "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701/storage"
+	v20220701s "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701/storage"
+	v20250301s "github.com/Azure/azure-service-operator/v2/api/network/v20250301/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -20,6 +21,11 @@ import (
 
 func Test_ApplicationSecurityGroupSpec_PrivateEndpoint_SubResourceEmbedded_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -35,7 +41,7 @@ func RunPropertyAssignmentTestForApplicationSecurityGroupSpec_PrivateEndpoint_Su
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApplicationSecurityGroupSpec_PrivateEndpoint_SubResourceEmbedded
+	var other v20220701s.ApplicationSecurityGroupSpec_PrivateEndpoint_SubResourceEmbedded
 	err := copied.AssignProperties_To_ApplicationSecurityGroupSpec_PrivateEndpoint_SubResourceEmbedded(&other)
 	if err != nil {
 		return err.Error()
@@ -62,6 +68,11 @@ func RunPropertyAssignmentTestForApplicationSecurityGroupSpec_PrivateEndpoint_Su
 
 func Test_ApplicationSecurityGroupSpec_PrivateEndpoint_SubResourceEmbedded_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -117,6 +128,11 @@ func ApplicationSecurityGroupSpec_PrivateEndpoint_SubResourceEmbeddedGenerator()
 
 func Test_ApplicationSecurityGroup_STATUS_PrivateEndpoint_SubResourceEmbedded_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -132,7 +148,7 @@ func RunPropertyAssignmentTestForApplicationSecurityGroup_STATUS_PrivateEndpoint
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ApplicationSecurityGroup_STATUS_PrivateEndpoint_SubResourceEmbedded
+	var other v20220701s.ApplicationSecurityGroup_STATUS_PrivateEndpoint_SubResourceEmbedded
 	err := copied.AssignProperties_To_ApplicationSecurityGroup_STATUS_PrivateEndpoint_SubResourceEmbedded(&other)
 	if err != nil {
 		return err.Error()
@@ -159,6 +175,11 @@ func RunPropertyAssignmentTestForApplicationSecurityGroup_STATUS_PrivateEndpoint
 
 func Test_ApplicationSecurityGroup_STATUS_PrivateEndpoint_SubResourceEmbedded_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -220,6 +241,11 @@ func AddIndependentPropertyGeneratorsForApplicationSecurityGroup_STATUS_PrivateE
 
 func Test_CustomDnsConfigPropertiesFormat_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -235,7 +261,7 @@ func RunPropertyAssignmentTestForCustomDnsConfigPropertiesFormat_STATUS(subject 
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.CustomDnsConfigPropertiesFormat_STATUS
+	var other v20220701s.CustomDnsConfigPropertiesFormat_STATUS
 	err := copied.AssignProperties_To_CustomDnsConfigPropertiesFormat_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -262,6 +288,11 @@ func RunPropertyAssignmentTestForCustomDnsConfigPropertiesFormat_STATUS(subject 
 
 func Test_CustomDnsConfigPropertiesFormat_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -324,6 +355,11 @@ func AddIndependentPropertyGeneratorsForCustomDnsConfigPropertiesFormat_STATUS(g
 
 func Test_ExtendedLocation_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -339,7 +375,7 @@ func RunPropertyAssignmentTestForExtendedLocation(subject ExtendedLocation) stri
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ExtendedLocation
+	var other v20220701s.ExtendedLocation
 	err := copied.AssignProperties_To_ExtendedLocation(&other)
 	if err != nil {
 		return err.Error()
@@ -366,6 +402,11 @@ func RunPropertyAssignmentTestForExtendedLocation(subject ExtendedLocation) stri
 
 func Test_ExtendedLocation_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -427,6 +468,11 @@ func AddIndependentPropertyGeneratorsForExtendedLocation(gens map[string]gopter.
 
 func Test_ExtendedLocation_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -442,7 +488,7 @@ func RunPropertyAssignmentTestForExtendedLocation_STATUS(subject ExtendedLocatio
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.ExtendedLocation_STATUS
+	var other v20220701s.ExtendedLocation_STATUS
 	err := copied.AssignProperties_To_ExtendedLocation_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -469,6 +515,11 @@ func RunPropertyAssignmentTestForExtendedLocation_STATUS(subject ExtendedLocatio
 
 func Test_ExtendedLocation_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -531,6 +582,11 @@ func AddIndependentPropertyGeneratorsForExtendedLocation_STATUS(gens map[string]
 
 func Test_NetworkInterface_STATUS_PrivateEndpoint_SubResourceEmbedded_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -546,7 +602,7 @@ func RunPropertyAssignmentTestForNetworkInterface_STATUS_PrivateEndpoint_SubReso
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.NetworkInterface_STATUS_PrivateEndpoint_SubResourceEmbedded
+	var other v20220701s.NetworkInterface_STATUS_PrivateEndpoint_SubResourceEmbedded
 	err := copied.AssignProperties_To_NetworkInterface_STATUS_PrivateEndpoint_SubResourceEmbedded(&other)
 	if err != nil {
 		return err.Error()
@@ -573,6 +629,11 @@ func RunPropertyAssignmentTestForNetworkInterface_STATUS_PrivateEndpoint_SubReso
 
 func Test_NetworkInterface_STATUS_PrivateEndpoint_SubResourceEmbedded_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -634,6 +695,11 @@ func AddIndependentPropertyGeneratorsForNetworkInterface_STATUS_PrivateEndpoint_
 
 func Test_PrivateEndpoint_WhenConvertedToHub_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	parameters.MinSuccessfulTests = 10
@@ -650,7 +716,7 @@ func RunResourceConversionTestForPrivateEndpoint(subject PrivateEndpoint) string
 	copied := subject.DeepCopy()
 
 	// Convert to our hub version
-	var hub storage.PrivateEndpoint
+	var hub v20250301s.PrivateEndpoint
 	err := copied.ConvertTo(&hub)
 	if err != nil {
 		return err.Error()
@@ -677,6 +743,11 @@ func RunResourceConversionTestForPrivateEndpoint(subject PrivateEndpoint) string
 
 func Test_PrivateEndpoint_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -692,7 +763,7 @@ func RunPropertyAssignmentTestForPrivateEndpoint(subject PrivateEndpoint) string
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateEndpoint
+	var other v20220701s.PrivateEndpoint
 	err := copied.AssignProperties_To_PrivateEndpoint(&other)
 	if err != nil {
 		return err.Error()
@@ -719,6 +790,11 @@ func RunPropertyAssignmentTestForPrivateEndpoint(subject PrivateEndpoint) string
 
 func Test_PrivateEndpoint_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -775,11 +851,16 @@ func PrivateEndpointGenerator() gopter.Gen {
 // AddRelatedPropertyGeneratorsForPrivateEndpoint is a factory method for creating gopter generators
 func AddRelatedPropertyGeneratorsForPrivateEndpoint(gens map[string]gopter.Gen) {
 	gens["Spec"] = PrivateEndpoint_SpecGenerator()
-	gens["Status"] = PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator()
+	gens["Status"] = PrivateEndpoint_STATUSGenerator()
 }
 
 func Test_PrivateEndpointIPConfiguration_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -795,7 +876,7 @@ func RunPropertyAssignmentTestForPrivateEndpointIPConfiguration(subject PrivateE
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateEndpointIPConfiguration
+	var other v20220701s.PrivateEndpointIPConfiguration
 	err := copied.AssignProperties_To_PrivateEndpointIPConfiguration(&other)
 	if err != nil {
 		return err.Error()
@@ -822,6 +903,11 @@ func RunPropertyAssignmentTestForPrivateEndpointIPConfiguration(subject PrivateE
 
 func Test_PrivateEndpointIPConfiguration_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -886,6 +972,11 @@ func AddIndependentPropertyGeneratorsForPrivateEndpointIPConfiguration(gens map[
 
 func Test_PrivateEndpointIPConfiguration_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -901,7 +992,7 @@ func RunPropertyAssignmentTestForPrivateEndpointIPConfiguration_STATUS(subject P
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateEndpointIPConfiguration_STATUS
+	var other v20220701s.PrivateEndpointIPConfiguration_STATUS
 	err := copied.AssignProperties_To_PrivateEndpointIPConfiguration_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -928,6 +1019,11 @@ func RunPropertyAssignmentTestForPrivateEndpointIPConfiguration_STATUS(subject P
 
 func Test_PrivateEndpointIPConfiguration_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -994,6 +1090,11 @@ func AddIndependentPropertyGeneratorsForPrivateEndpointIPConfiguration_STATUS(ge
 
 func Test_PrivateEndpointOperatorConfigMaps_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1009,7 +1110,7 @@ func RunPropertyAssignmentTestForPrivateEndpointOperatorConfigMaps(subject Priva
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateEndpointOperatorConfigMaps
+	var other v20220701s.PrivateEndpointOperatorConfigMaps
 	err := copied.AssignProperties_To_PrivateEndpointOperatorConfigMaps(&other)
 	if err != nil {
 		return err.Error()
@@ -1036,6 +1137,11 @@ func RunPropertyAssignmentTestForPrivateEndpointOperatorConfigMaps(subject Priva
 
 func Test_PrivateEndpointOperatorConfigMaps_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1091,6 +1197,11 @@ func PrivateEndpointOperatorConfigMapsGenerator() gopter.Gen {
 
 func Test_PrivateEndpointOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1106,7 +1217,7 @@ func RunPropertyAssignmentTestForPrivateEndpointOperatorSpec(subject PrivateEndp
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateEndpointOperatorSpec
+	var other v20220701s.PrivateEndpointOperatorSpec
 	err := copied.AssignProperties_To_PrivateEndpointOperatorSpec(&other)
 	if err != nil {
 		return err.Error()
@@ -1133,6 +1244,11 @@ func RunPropertyAssignmentTestForPrivateEndpointOperatorSpec(subject PrivateEndp
 
 func Test_PrivateEndpointOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1192,32 +1308,37 @@ func AddRelatedPropertyGeneratorsForPrivateEndpointOperatorSpec(gens map[string]
 	gens["ConfigMaps"] = gen.PtrOf(PrivateEndpointOperatorConfigMapsGenerator())
 }
 
-func Test_PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+func Test_PrivateEndpoint_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip from PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded to PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded via AssignProperties_To_PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded & AssignProperties_From_PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded returns original",
-		prop.ForAll(RunPropertyAssignmentTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded, PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator()))
+		"Round trip from PrivateEndpoint_STATUS to PrivateEndpoint_STATUS via AssignProperties_To_PrivateEndpoint_STATUS & AssignProperties_From_PrivateEndpoint_STATUS returns original",
+		prop.ForAll(RunPropertyAssignmentTestForPrivateEndpoint_STATUS, PrivateEndpoint_STATUSGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
 }
 
-// RunPropertyAssignmentTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded tests if a specific instance of PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded can be assigned to storage and back losslessly
-func RunPropertyAssignmentTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(subject PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded) string {
+// RunPropertyAssignmentTestForPrivateEndpoint_STATUS tests if a specific instance of PrivateEndpoint_STATUS can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForPrivateEndpoint_STATUS(subject PrivateEndpoint_STATUS) string {
 	// Copy subject to make sure assignment doesn't modify it
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded
-	err := copied.AssignProperties_To_PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(&other)
+	var other v20220701s.PrivateEndpoint_STATUS
+	err := copied.AssignProperties_To_PrivateEndpoint_STATUS(&other)
 	if err != nil {
 		return err.Error()
 	}
 
 	// Use AssignPropertiesFrom() to convert back to our original type
-	var actual PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded
-	err = actual.AssignProperties_From_PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(&other)
+	var actual PrivateEndpoint_STATUS
+	err = actual.AssignProperties_From_PrivateEndpoint_STATUS(&other)
 	if err != nil {
 		return err.Error()
 	}
@@ -1234,20 +1355,25 @@ func RunPropertyAssignmentTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResou
 	return ""
 }
 
-func Test_PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+func Test_PrivateEndpoint_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
 	properties := gopter.NewProperties(parameters)
 	properties.Property(
-		"Round trip of PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded, PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator()))
+		"Round trip of PrivateEndpoint_STATUS via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForPrivateEndpoint_STATUS, PrivateEndpoint_STATUSGenerator()))
 	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
 }
 
-// RunJSONSerializationTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded runs a test to see if a specific instance of PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded round trips to JSON and back losslessly
-func RunJSONSerializationTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(subject PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded) string {
+// RunJSONSerializationTestForPrivateEndpoint_STATUS runs a test to see if a specific instance of PrivateEndpoint_STATUS round trips to JSON and back losslessly
+func RunJSONSerializationTestForPrivateEndpoint_STATUS(subject PrivateEndpoint_STATUS) string {
 	// Serialize to JSON
 	bin, err := json.Marshal(subject)
 	if err != nil {
@@ -1255,7 +1381,7 @@ func RunJSONSerializationTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResour
 	}
 
 	// Deserialize back into memory
-	var actual PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded
+	var actual PrivateEndpoint_STATUS
 	err = json.Unmarshal(bin, &actual)
 	if err != nil {
 		return err.Error()
@@ -1273,34 +1399,34 @@ func RunJSONSerializationTestForPrivateEndpoint_STATUS_PrivateEndpoint_SubResour
 	return ""
 }
 
-// Generator of PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded instances for property testing - lazily
-// instantiated by PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator()
-var privateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator gopter.Gen
+// Generator of PrivateEndpoint_STATUS instances for property testing - lazily instantiated by
+// PrivateEndpoint_STATUSGenerator()
+var privateEndpoint_STATUSGenerator gopter.Gen
 
-// PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator returns a generator of PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded instances for property testing.
-// We first initialize privateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator with a simplified generator based on the
+// PrivateEndpoint_STATUSGenerator returns a generator of PrivateEndpoint_STATUS instances for property testing.
+// We first initialize privateEndpoint_STATUSGenerator with a simplified generator based on the
 // fields with primitive types then replacing it with a more complex one that also handles complex fields
 // to ensure any cycles in the object graph properly terminate.
-func PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator() gopter.Gen {
-	if privateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator != nil {
-		return privateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator
+func PrivateEndpoint_STATUSGenerator() gopter.Gen {
+	if privateEndpoint_STATUSGenerator != nil {
+		return privateEndpoint_STATUSGenerator
 	}
 
 	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(generators)
-	privateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator = gen.Struct(reflect.TypeOf(PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded{}), generators)
+	AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS(generators)
+	privateEndpoint_STATUSGenerator = gen.Struct(reflect.TypeOf(PrivateEndpoint_STATUS{}), generators)
 
 	// The above call to gen.Struct() captures the map, so create a new one
 	generators = make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(generators)
-	AddRelatedPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(generators)
-	privateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator = gen.Struct(reflect.TypeOf(PrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded{}), generators)
+	AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS(generators)
+	AddRelatedPropertyGeneratorsForPrivateEndpoint_STATUS(generators)
+	privateEndpoint_STATUSGenerator = gen.Struct(reflect.TypeOf(PrivateEndpoint_STATUS{}), generators)
 
-	return privateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator
+	return privateEndpoint_STATUSGenerator
 }
 
-// AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(gens map[string]gopter.Gen) {
+// AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS(gens map[string]gopter.Gen) {
 	gens["CustomNetworkInterfaceName"] = gen.PtrOf(gen.AlphaString())
 	gens["Etag"] = gen.PtrOf(gen.AlphaString())
 	gens["Id"] = gen.PtrOf(gen.AlphaString())
@@ -1317,8 +1443,8 @@ func AddIndependentPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_S
 	gens["Type"] = gen.PtrOf(gen.AlphaString())
 }
 
-// AddRelatedPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded is a factory method for creating gopter generators
-func AddRelatedPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_SubResourceEmbedded(gens map[string]gopter.Gen) {
+// AddRelatedPropertyGeneratorsForPrivateEndpoint_STATUS is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForPrivateEndpoint_STATUS(gens map[string]gopter.Gen) {
 	gens["ApplicationSecurityGroups"] = gen.SliceOf(ApplicationSecurityGroup_STATUS_PrivateEndpoint_SubResourceEmbeddedGenerator())
 	gens["CustomDnsConfigs"] = gen.SliceOf(CustomDnsConfigPropertiesFormat_STATUSGenerator())
 	gens["ExtendedLocation"] = gen.PtrOf(ExtendedLocation_STATUSGenerator())
@@ -1331,6 +1457,11 @@ func AddRelatedPropertyGeneratorsForPrivateEndpoint_STATUS_PrivateEndpoint_SubRe
 
 func Test_PrivateEndpoint_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1346,7 +1477,7 @@ func RunPropertyAssignmentTestForPrivateEndpoint_Spec(subject PrivateEndpoint_Sp
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateEndpoint_Spec
+	var other v20220701s.PrivateEndpoint_Spec
 	err := copied.AssignProperties_To_PrivateEndpoint_Spec(&other)
 	if err != nil {
 		return err.Error()
@@ -1373,6 +1504,11 @@ func RunPropertyAssignmentTestForPrivateEndpoint_Spec(subject PrivateEndpoint_Sp
 
 func Test_PrivateEndpoint_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1459,6 +1595,11 @@ func AddRelatedPropertyGeneratorsForPrivateEndpoint_Spec(gens map[string]gopter.
 
 func Test_PrivateLinkServiceConnection_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1474,7 +1615,7 @@ func RunPropertyAssignmentTestForPrivateLinkServiceConnection(subject PrivateLin
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateLinkServiceConnection
+	var other v20220701s.PrivateLinkServiceConnection
 	err := copied.AssignProperties_To_PrivateLinkServiceConnection(&other)
 	if err != nil {
 		return err.Error()
@@ -1501,6 +1642,11 @@ func RunPropertyAssignmentTestForPrivateLinkServiceConnection(subject PrivateLin
 
 func Test_PrivateLinkServiceConnection_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1578,6 +1724,11 @@ func AddRelatedPropertyGeneratorsForPrivateLinkServiceConnection(gens map[string
 
 func Test_PrivateLinkServiceConnectionState_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1593,7 +1744,7 @@ func RunPropertyAssignmentTestForPrivateLinkServiceConnectionState(subject Priva
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateLinkServiceConnectionState
+	var other v20220701s.PrivateLinkServiceConnectionState
 	err := copied.AssignProperties_To_PrivateLinkServiceConnectionState(&other)
 	if err != nil {
 		return err.Error()
@@ -1620,6 +1771,11 @@ func RunPropertyAssignmentTestForPrivateLinkServiceConnectionState(subject Priva
 
 func Test_PrivateLinkServiceConnectionState_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1683,6 +1839,11 @@ func AddIndependentPropertyGeneratorsForPrivateLinkServiceConnectionState(gens m
 
 func Test_PrivateLinkServiceConnectionState_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1698,7 +1859,7 @@ func RunPropertyAssignmentTestForPrivateLinkServiceConnectionState_STATUS(subjec
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateLinkServiceConnectionState_STATUS
+	var other v20220701s.PrivateLinkServiceConnectionState_STATUS
 	err := copied.AssignProperties_To_PrivateLinkServiceConnectionState_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1725,6 +1886,11 @@ func RunPropertyAssignmentTestForPrivateLinkServiceConnectionState_STATUS(subjec
 
 func Test_PrivateLinkServiceConnectionState_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1788,6 +1954,11 @@ func AddIndependentPropertyGeneratorsForPrivateLinkServiceConnectionState_STATUS
 
 func Test_PrivateLinkServiceConnection_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1803,7 +1974,7 @@ func RunPropertyAssignmentTestForPrivateLinkServiceConnection_STATUS(subject Pri
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.PrivateLinkServiceConnection_STATUS
+	var other v20220701s.PrivateLinkServiceConnection_STATUS
 	err := copied.AssignProperties_To_PrivateLinkServiceConnection_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -1830,6 +2001,11 @@ func RunPropertyAssignmentTestForPrivateLinkServiceConnection_STATUS(subject Pri
 
 func Test_PrivateLinkServiceConnection_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1916,6 +2092,11 @@ func AddRelatedPropertyGeneratorsForPrivateLinkServiceConnection_STATUS(gens map
 
 func Test_Subnet_PrivateEndpoint_SubResourceEmbedded_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -1931,7 +2112,7 @@ func RunPropertyAssignmentTestForSubnet_PrivateEndpoint_SubResourceEmbedded(subj
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Subnet_PrivateEndpoint_SubResourceEmbedded
+	var other v20220701s.Subnet_PrivateEndpoint_SubResourceEmbedded
 	err := copied.AssignProperties_To_Subnet_PrivateEndpoint_SubResourceEmbedded(&other)
 	if err != nil {
 		return err.Error()
@@ -1958,6 +2139,11 @@ func RunPropertyAssignmentTestForSubnet_PrivateEndpoint_SubResourceEmbedded(subj
 
 func Test_Subnet_PrivateEndpoint_SubResourceEmbedded_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -2013,6 +2199,11 @@ func Subnet_PrivateEndpoint_SubResourceEmbeddedGenerator() gopter.Gen {
 
 func Test_Subnet_STATUS_PrivateEndpoint_SubResourceEmbedded_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -2028,7 +2219,7 @@ func RunPropertyAssignmentTestForSubnet_STATUS_PrivateEndpoint_SubResourceEmbedd
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Subnet_STATUS_PrivateEndpoint_SubResourceEmbedded
+	var other v20220701s.Subnet_STATUS_PrivateEndpoint_SubResourceEmbedded
 	err := copied.AssignProperties_To_Subnet_STATUS_PrivateEndpoint_SubResourceEmbedded(&other)
 	if err != nil {
 		return err.Error()
@@ -2055,6 +2246,11 @@ func RunPropertyAssignmentTestForSubnet_STATUS_PrivateEndpoint_SubResourceEmbedd
 
 func Test_Subnet_STATUS_PrivateEndpoint_SubResourceEmbedded_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3

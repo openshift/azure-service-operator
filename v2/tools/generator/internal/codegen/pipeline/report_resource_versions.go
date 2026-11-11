@@ -14,10 +14,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
+	"github.com/rotisserie/eris"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -56,7 +56,7 @@ func ReportResourceVersions(configuration *config.Configuration) *Stage {
 				outputFile := configuration.SupportedResourcesReport.GroupFullOutputPath(grp)
 				err = report.SaveGroupResourcesReportTo(grp, outputFile)
 				if err != nil {
-					errs = append(errs, errors.Wrapf(err, "writing versions report to %s for group %s", outputFile, grp))
+					errs = append(errs, eris.Wrapf(err, "writing versions report to %s for group %s", outputFile, grp))
 				}
 			}
 
@@ -66,23 +66,24 @@ func ReportResourceVersions(configuration *config.Configuration) *Stage {
 
 			err = configuration.ObjectModelConfiguration.SupportedFrom.VerifyConsumed()
 			return state, err
-		})
+		},
+	)
 }
 
 type ResourceVersionsReport struct {
 	reportConfiguration      *config.SupportedResourcesReport
 	objectModelConfiguration *config.ObjectModelConfiguration
-	rootUrl                  string
+	rootURL                  string
 	samplesPath              string
-	availableFragments       map[string]string                                      // A collection of the fragments to use in the report
-	groups                   set.Set[string]                                        // A set of all our groups
-	items                    map[string]set.Set[ResourceVersionsReportResourceItem] // For each group, the set of all available items
-	typoAdvisor              *typo.Advisor                                          // Advisor used to troubleshoot unused fragments
-	titleCase                cases.Caser                                            // Helper for title casing
-	localPath                string                                                 // Prefix to use for local packages
+	availableFragments       map[string]string                              // A collection of the fragments to use in the report
+	groups                   set.Set[string]                                // A set of all our groups
+	items                    map[string]set.Set[resourceVersionsReportItem] // For each group, the set of all available items
+	typoAdvisor              *typo.Advisor                                  // Advisor used to troubleshoot unused fragments
+	titleCase                cases.Caser                                    // Helper for title casing
+	localPath                string                                         // Prefix to use for local packages
 }
 
-type ResourceVersionsReportResourceItem struct {
+type resourceVersionsReportItem struct {
 	name          astmodel.InternalTypeName
 	armType       string
 	armVersion    string
@@ -102,11 +103,11 @@ func NewResourceVersionsReport(
 	result := &ResourceVersionsReport{
 		reportConfiguration:      cfg.SupportedResourcesReport,
 		objectModelConfiguration: cfg.ObjectModelConfiguration,
-		rootUrl:                  cfg.RootURL,
+		rootURL:                  cfg.RootURL,
 		samplesPath:              cfg.FullSamplesPath(),
 		availableFragments:       make(map[string]string),
 		groups:                   set.Make[string](),
-		items:                    make(map[string]set.Set[ResourceVersionsReportResourceItem]),
+		items:                    make(map[string]set.Set[resourceVersionsReportItem]),
 		typoAdvisor:              typo.NewAdvisor(),
 		titleCase:                cases.Title(language.English),
 		localPath:                cfg.LocalPathPrefix(),
@@ -114,12 +115,12 @@ func NewResourceVersionsReport(
 
 	err := result.loadFragments()
 	if err != nil {
-		return nil, errors.Wrapf(err, "Unable to load report fragments")
+		return nil, eris.Wrapf(err, "Unable to load report fragments")
 	}
 
 	err = result.summarize(definitions)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Unable to summarize resources")
+		return nil, eris.Wrapf(err, "Unable to summarize resources")
 	}
 
 	return result, nil
@@ -133,18 +134,29 @@ func (report *ResourceVersionsReport) loadFragments() error {
 	}
 
 	fragmentsPath := report.reportConfiguration.FullFragmentPath()
-	err := filepath.WalkDir(
-		fragmentsPath,
+	root, err := os.OpenRoot(fragmentsPath)
+	if err != nil {
+		return eris.Wrapf(err, "Unable to open fragments directory %q", fragmentsPath)
+	}
+
+	err = fs.WalkDir(
+		root.FS(),
+		".",
 		func(path string, info fs.DirEntry, err error) error {
+			if err != nil {
+				// Failed to walk into path, abort early and propagate error
+				return err
+			}
+
 			// Skip subdirectories
 			if info.IsDir() {
 				return nil
 			}
 
 			// Load the file contents
-			content, err := os.ReadFile(path)
+			content, err := root.ReadFile(path)
 			if err != nil {
-				return errors.Wrapf(err, "Unable to read fragment file %q", info.Name())
+				return eris.Wrapf(err, "Unable to read fragment file %q", info.Name())
 			}
 
 			// Strip the extension from the filename
@@ -152,9 +164,10 @@ func (report *ResourceVersionsReport) loadFragments() error {
 
 			report.availableFragments[name] = string(content)
 			return nil
-		})
+		},
+	)
 	if err != nil {
-		return errors.Wrapf(err, "Unable to load fragments from %q", fragmentsPath)
+		return eris.Wrapf(err, "Unable to load fragments from %q", fragmentsPath)
 	}
 
 	// We don't want our README to trigger an error
@@ -165,19 +178,18 @@ func (report *ResourceVersionsReport) loadFragments() error {
 
 // summarize collates a list of all resources, grouped by package
 func (report *ResourceVersionsReport) summarize(definitions astmodel.TypeDefinitionSet) error {
-	resources := astmodel.FindResourceDefinitions(definitions)
-	for _, rsrc := range resources {
+	for _, rsrc := range definitions.AllResources() {
 		name := rsrc.Name()
 		pkg := name.PackageReference()
-
-		defType := astmodel.MustBeResourceType(rsrc.Type())
-		armVersion := strings.Trim(defType.APIVersionEnumValue().Value, "\"")
-		item := report.createItem(name, defType.ARMType(), armVersion)
 
 		if astmodel.IsStoragePackageReference(pkg) {
 			// Skip storage versions - they're an implementation detail
 			continue
 		}
+
+		defType := astmodel.MustBeResourceType(rsrc.Type())
+		armVersion := strings.Trim(defType.APIVersionEnumValue().Value, "\"")
+		item := report.createItem(name, defType.ARMType(), armVersion)
 
 		report.addItem(item)
 	}
@@ -195,13 +207,13 @@ func (report *ResourceVersionsReport) summarize(definitions astmodel.TypeDefinit
 	return nil
 }
 
-func (report *ResourceVersionsReport) addItem(item ResourceVersionsReportResourceItem) {
+func (report *ResourceVersionsReport) addItem(item resourceVersionsReportItem) {
 	grp := item.name.InternalPackageReference().Group()
 	report.groups.Add(grp)
 
 	items, ok := report.items[grp]
 	if !ok {
-		items = set.Make[ResourceVersionsReportResourceItem]()
+		items = set.Make[resourceVersionsReportItem]()
 		report.items[grp] = items
 	}
 
@@ -216,12 +228,12 @@ func (report *ResourceVersionsReport) SaveAllResourcesReportTo(outputFile string
 	var buffer strings.Builder
 	err := report.WriteAllResourcesReportToBuffer(frontMatter, &buffer)
 	if err != nil {
-		return errors.Wrapf(err, "writing versions report to %s", outputFile)
+		return eris.Wrapf(err, "writing versions report to %s", outputFile)
 	}
 
 	err = report.ensureFolderExists(outputFile)
 	if err != nil {
-		return errors.Wrapf(err, "writing versions report to %s", outputFile)
+		return eris.Wrapf(err, "writing versions report to %s", outputFile)
 	}
 
 	return os.WriteFile(outputFile, []byte(buffer.String()), 0o600)
@@ -232,7 +244,7 @@ func (report *ResourceVersionsReport) ensureFolderExists(outputFile string) erro
 	if _, err := os.Stat(outputFolder); os.IsNotExist(err) {
 		err = os.MkdirAll(outputFolder, 0o700)
 		if err != nil {
-			return errors.Wrapf(err, "unable to create directory %q", outputFile)
+			return eris.Wrapf(err, "unable to create directory %q", outputFile)
 		}
 	}
 
@@ -248,12 +260,12 @@ func (report *ResourceVersionsReport) SaveGroupResourcesReportTo(group string, o
 	var buffer strings.Builder
 	err := report.WriteGroupResourcesReportToBuffer(group, frontMatter, &buffer)
 	if err != nil {
-		return errors.Wrapf(err, "writing versions report to %s for group %s", outputFile, group)
+		return eris.Wrapf(err, "writing versions report to %s for group %s", outputFile, group)
 	}
 
 	err = report.ensureFolderExists(outputFile)
 	if err != nil {
-		return errors.Wrapf(err, "writing versions report to %s", outputFile)
+		return eris.Wrapf(err, "writing versions report to %s", outputFile)
 	}
 
 	return os.WriteFile(outputFile, []byte(buffer.String()), 0o600)
@@ -273,7 +285,7 @@ func (report *ResourceVersionsReport) WriteAllResourcesReportToBuffer(
 	// Include file header if found
 	err := report.writeFragment("all-resources-header", nil, buffer)
 	if err != nil {
-		return errors.Wrapf(err, "writing all-resources-header fragment")
+		return eris.Wrapf(err, "writing all-resources-header fragment")
 	}
 
 	// Sort groups into alphabetical order
@@ -284,12 +296,14 @@ func (report *ResourceVersionsReport) WriteAllResourcesReportToBuffer(
 		items := report.items[grp]
 
 		info := report.groupInfo(grp, items)
-		buffer.WriteString(fmt.Sprintf("## %s\n\n", info.Title))
+		fmt.Fprintf(buffer, "## %s\n\n", info.Title)
 
-		// Include our group fragment
+		fmt.Fprintf(buffer, "<!-- Documentation generated by azure-service-operator-codegen. DO NOT EDIT. -->\n\n")
+
+		// Include our group header fragment
 		err := report.writeFragment("group-header", info, buffer)
 		if err != nil {
-			return errors.Wrapf(err, "writing group-header fragment for group %s", info.Group)
+			return eris.Wrapf(err, "writing group-header fragment for group %s", info.Group)
 		}
 
 		// Include a custom fragment for this group if we have one
@@ -299,7 +313,7 @@ func (report *ResourceVersionsReport) WriteAllResourcesReportToBuffer(
 			continue
 		}
 
-		err = report.writeGroupSections(info, items, buffer)
+		err = report.writeGroupSections(info, items, buffer, masterIndexPartitions)
 		if err != nil {
 			errs = append(errs, err) // Don't need to wrap, will already specify the group
 		}
@@ -334,100 +348,62 @@ func (report *ResourceVersionsReport) WriteGroupResourcesReportToBuffer(
 		buffer.WriteString(report.defaultGroupResourcesFrontMatter(info.Title))
 	}
 
+	fmt.Fprintf(buffer, "<!-- Documentation generated by azure-service-operator-codegen. DO NOT EDIT. -->\n\n")
+
 	// Include our group fragment
 	err := report.writeFragment("group-header", info, buffer)
 	if err != nil {
-		return errors.Wrapf(err, "writing group-header fragment for group %s", group)
+		return eris.Wrapf(err, "writing group-header fragment for group %s", group)
 	}
 
 	// Include a fragment for this group if we have one
 	err = report.writeFragment(group, info, buffer)
 	if err != nil {
-		return errors.Wrapf(err, "writing fragment for group %s", group)
+		return eris.Wrapf(err, "writing fragment for group %s", group)
 	}
 
-	return report.writeGroupSections(info, items, buffer)
+	return report.writeGroupSections(info, items, buffer, groupIndexPartitions)
+}
+
+var partitionTitles = map[partitionID]string{
+	partitionIDPrerelease: "Next Release",
+	partitionIDLatest:     "Latest Released Versions",
+	partitionIDOther:      "Other Supported Versions",
+	partitionIDReleased:   "Released",
+	partitionIDDeprecated: "Deprecated",
 }
 
 func (report *ResourceVersionsReport) writeGroupSections(
 	group *ResourceVersionsReportGroupInfo,
-	kinds set.Set[ResourceVersionsReportResourceItem],
+	kinds set.Set[resourceVersionsReportItem],
 	buffer *strings.Builder,
+	activeSections []partitionID,
 ) error {
-	// By default, we treat everything as released
-	releasedResources := kinds
+	partitions := partitionResources(kinds, report.reportConfiguration.CurrentRelease)
 
-	// Pull out any deprecated resources
-	deprecatedResources := releasedResources.Where(report.isDeprecatedResource)
-	releasedResources = releasedResources.Except(deprecatedResources)
-
-	// Pull out any prerelease resources
-	prereleaseResources := releasedResources.Where(report.isUnreleasedResource)
-	releasedResources = releasedResources.Except(prereleaseResources)
-
-	// First list prerelease reources, if any
-	err := report.writeSection(
-		group,
-		"prerelease",
-		"### Next Release",
-		prereleaseResources,
-		buffer)
-	if err != nil {
-		return errors.Wrapf(err, "writing prerelease resources for group %s", group)
+	for _, section := range activeSections {
+		resources := partitions[section]
+		err := report.writeSection(
+			group,
+			string(section),
+			"### "+partitionTitles[section],
+			resources,
+			buffer,
+		)
+		if err != nil {
+			return eris.Wrapf(err, "writing section %s for group %s", section, group)
+		}
 	}
 
-	// Prerelease may have no usage, but we don't want that to trigger an error
+	// We don't always have 'prerelease' resources, so we flag that fragment as always used
 	report.typoAdvisor.AddTerm("prerelease")
 
-	err = report.writeSection(
-		group,
-		"released",
-		"### Released",
-		releasedResources,
-		buffer)
-	if err != nil {
-		return errors.Wrapf(err, "writing released resources for group %s", group)
-	}
-
-	err = report.writeSection(
-		group,
-		"deprecated",
-		"### Deprecated",
-		deprecatedResources,
-		buffer)
-	if err != nil {
-		return errors.Wrapf(err, "writing deprecated resources for group %s", group)
-	}
-
-	// Deprecated fragment may have no usage, but we don't want that to trigger an error
+	// When generating the main index page, we don't show the 'deprecated' or 'other' groups,
+	// but we still want to flag those fragments as used so they don't trigger an error
 	report.typoAdvisor.AddTerm("deprecated")
+	report.typoAdvisor.AddTerm("other")
 
 	return nil
-}
-
-// isUnreleasedResource returns true if the type definition is for an unreleased resource
-func (report *ResourceVersionsReport) isUnreleasedResource(item ResourceVersionsReportResourceItem) bool {
-	currentRelease := report.reportConfiguration.CurrentRelease
-	if item.supportedFrom == currentRelease {
-		return false
-	}
-
-	result := astmodel.ComparePathAndVersion(item.supportedFrom, currentRelease)
-	return result >= 0
-}
-
-// isDeprecatedResource returns true if the type definition is for a deprecated resource
-func (report *ResourceVersionsReport) isDeprecatedResource(item ResourceVersionsReportResourceItem) bool {
-	_, ver := item.name.InternalPackageReference().GroupVersion()
-
-	// Handcrafted versions are never deprecated
-	// (reusing the regex from config to ensure consistency)
-	if config.VersionRegex.MatchString(ver) {
-		return false
-	}
-
-	result := !strings.HasPrefix(ver, astmodel.GeneratorVersion) && len(ver) > 3
-	return result
 }
 
 // writeSection writes a section to the buffer, consisting of a header, description, and a table listing resources.
@@ -435,7 +411,7 @@ func (report *ResourceVersionsReport) writeSection(
 	info *ResourceVersionsReportGroupInfo,
 	id string,
 	heading string,
-	items set.Set[ResourceVersionsReportResourceItem],
+	items set.Set[resourceVersionsReportItem],
 	buffer *strings.Builder,
 ) error {
 	// Skip if nothing to do
@@ -449,17 +425,17 @@ func (report *ResourceVersionsReport) writeSection(
 	// Write a generic description, then a specific one
 	err := report.writeFragment(fmt.Sprintf("%s-%s", info.Group, id), nil, buffer)
 	if err != nil {
-		return errors.Wrapf(err, "writing fragment for group %s", info.Group)
+		return eris.Wrapf(err, "writing fragment for group %s", info.Group)
 	}
 
 	err = report.writeFragment(id, nil, buffer)
 	if err != nil {
-		return errors.Wrapf(err, "writing fragment for group %s", info.Group)
+		return eris.Wrapf(err, "writing fragment for group %s", info.Group)
 	}
 
 	table, err := report.createTable(info, items)
 	if err != nil {
-		return errors.Wrapf(err, "creating table for group %s", info.Group)
+		return eris.Wrapf(err, "creating table for group %s", info.Group)
 	}
 
 	table.WriteTo(buffer)
@@ -470,7 +446,7 @@ func (report *ResourceVersionsReport) writeSection(
 
 func (report *ResourceVersionsReport) createTable(
 	info *ResourceVersionsReportGroupInfo,
-	items set.Set[ResourceVersionsReportResourceItem],
+	items set.Set[resourceVersionsReportItem],
 ) (*reporting.MarkdownTable, error) {
 	const (
 		name          = "Resource"
@@ -485,12 +461,13 @@ func (report *ResourceVersionsReport) createTable(
 		armVersion,
 		crdVersion,
 		supportedFrom,
-		sample)
+		sample,
+	)
 
 	toIterate := items.Values()
 	slices.SortFunc(
 		toIterate,
-		func(i ResourceVersionsReportResourceItem, j ResourceVersionsReportResourceItem) int {
+		func(i resourceVersionsReportItem, j resourceVersionsReportItem) int {
 			left := i.name
 			right := j.name
 			if left.Name() < right.Name() {
@@ -501,7 +478,8 @@ func (report *ResourceVersionsReport) createTable(
 
 			// Reversed parameters because we want more recent versions listed first
 			return astmodel.ComparePathAndVersion(right.PackageReference().ImportPath(), left.PackageReference().ImportPath())
-		})
+		},
+	)
 
 	sampleLinks, err := report.FindSampleLinks(info.Group)
 	if err != nil {
@@ -526,7 +504,8 @@ func (report *ResourceVersionsReport) createTable(
 			armVersion,
 			crdVersion,
 			supportedFrom,
-			sample)
+			sample,
+		)
 	}
 
 	return result, nil
@@ -534,10 +513,10 @@ func (report *ResourceVersionsReport) createTable(
 
 func (report *ResourceVersionsReport) FindSampleLinks(group string) (map[string]string, error) {
 	result := make(map[string]string)
-	if report.rootUrl != "" {
-		parsedRootURL, err := url.Parse(report.rootUrl)
+	if report.rootURL != "" {
+		parsedRootURL, err := url.Parse(report.rootURL)
 		if err != nil {
-			return nil, errors.Wrapf(err, "parsing rootUrl %s", report.rootUrl)
+			return nil, eris.Wrapf(err, "parsing rootUrl %s", report.rootURL)
 		}
 
 		// We look for samples within only the subfolder for this group - this avoids getting sample links wrong
@@ -549,12 +528,17 @@ func (report *ResourceVersionsReport) FindSampleLinks(group string) (map[string]
 		}
 
 		err = filepath.WalkDir(basePath, func(filePath string, d fs.DirEntry, err error) error {
+			if err != nil {
+				// Failed to walk into path, abort early and propagate error
+				return err
+			}
+
 			// We don't include 'refs' directory here, as it contains dependency references for the group and is purely for
 			// samples testing.
 			if !d.IsDir() && filepath.Base(filepath.Dir(filePath)) != "refs" {
 				filePath, err = filepath.Rel(filepath.Dir(report.samplesPath), filePath)
 				if err != nil {
-					return errors.Wrapf(err, "getting relative path for %s", filePath)
+					return eris.Wrapf(err, "getting relative path for %s", filePath)
 				}
 
 				filePath = filepath.ToSlash(filePath)
@@ -567,7 +551,7 @@ func (report *ResourceVersionsReport) FindSampleLinks(group string) (map[string]
 			return nil
 		})
 		if err != nil {
-			return nil, errors.Wrapf(err, "walking through samples directory %s", report.samplesPath)
+			return nil, eris.Wrapf(err, "walking through samples directory %s", report.samplesPath)
 		}
 	}
 
@@ -578,8 +562,8 @@ func (report *ResourceVersionsReport) createItem(
 	name astmodel.InternalTypeName,
 	armType string,
 	armVersion string,
-) ResourceVersionsReportResourceItem {
-	return ResourceVersionsReportResourceItem{
+) resourceVersionsReportItem {
+	return resourceVersionsReportItem{
 		name:          name,
 		armType:       armType,
 		armVersion:    armVersion,
@@ -588,9 +572,11 @@ func (report *ResourceVersionsReport) createItem(
 }
 
 // generateAPILink returns a link to the API definition for the given resource
-func (report *ResourceVersionsReport) generateAPILink(name astmodel.InternalTypeName) string {
+func (report *ResourceVersionsReport) generateAPILink(
+	name astmodel.InternalTypeName,
+) string {
 	crdKind := name.Name()
-	linkTemplate := report.reportConfiguration.ResourceUrlTemplate
+	linkTemplate := report.reportConfiguration.ResourceURLTemplate
 	pathTemplate := report.reportConfiguration.ResourcePathTemplate
 	if linkTemplate == "" || pathTemplate == "" {
 		// One or both of LinkTemplate and PathTemplate are not set, so we can't generate a link
@@ -598,7 +584,7 @@ func (report *ResourceVersionsReport) generateAPILink(name astmodel.InternalType
 	}
 
 	docFile := report.resourceDocFile(name)
-	if _, err := os.Stat(docFile); errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Stat(docFile); eris.Is(err, fs.ErrNotExist) {
 		// docFile does not exist, don't build a link
 		return crdKind
 	}
@@ -618,9 +604,9 @@ func (report *ResourceVersionsReport) expandPlaceholders(template string, rsrc a
 	crdGroup, crdVersion := rsrc.InternalPackageReference().GroupVersion()
 
 	result := template
-	result = strings.Replace(result, "{group}", crdGroup, -1)
-	result = strings.Replace(result, "{version}", crdVersion, -1)
-	result = strings.Replace(result, "{kind}", crdKind, -1)
+	result = strings.ReplaceAll(result, "{group}", crdGroup)
+	result = strings.ReplaceAll(result, "{version}", crdVersion)
+	result = strings.ReplaceAll(result, "{kind}", crdKind)
 	return result
 }
 
@@ -647,12 +633,27 @@ func (report *ResourceVersionsReport) supportedFrom(typeName astmodel.InternalTy
 		return ""
 	}
 
-	ver := typeName.InternalPackageReference().Version()
-
 	// Special case for resources that existed prior to GA
-	// the `v1api` versions of those resources are only available from "v2.0.0"
-	if strings.Contains(ver, v1VersionPrefix) && strings.HasPrefix(supportedFrom, "v2.0.0-") {
-		return "v2.0.0"
+	if strings.HasPrefix(supportedFrom, "v2.0.0-") {
+		supportedFrom = "v2.0.0"
+	}
+
+	// For groups that have been migrated to Hybrid versioning, the new `v`-prefixed variants of
+	// resources originally introduced in the legacy versioning era only became available in the
+	// ASO release in which the group was migrated. Override the reported supportedFrom so our
+	// documentation correctly places them in the "Next Release" section until the migration ships.
+	pkg := typeName.InternalPackageReference()
+	grp := pkg.Group()
+	if migratedIn, ok := astmodel.HybridMigrationReleaseForGroup(grp); ok {
+		_, ver := pkg.GroupVersion()
+		if config.VersionRegex.MatchString(ver) {
+			return supportedFrom
+		}
+
+		if !pkg.HasVersionPrefix(astmodel.GeneratorVersion) &&
+			astmodel.ComparePathAndVersion(supportedFrom, astmodel.LastLegacyASOVersion) <= 0 {
+			return migratedIn
+		}
 	}
 
 	return supportedFrom
@@ -710,7 +711,7 @@ func (report *ResourceVersionsReport) defaultGroupResourcesFrontMatter(title str
 func (report *ResourceVersionsReport) writeFragment(name string, data any, buffer io.Writer) error {
 	report.typoAdvisor.AddTerm(name)
 
-	// Look up the fragement
+	// Look up the fragment
 	fragment, ok := report.availableFragments[name]
 	if !ok {
 		return nil
@@ -719,30 +720,57 @@ func (report *ResourceVersionsReport) writeFragment(name string, data any, buffe
 	// Create a template based on the fragment
 	tmpl, err := template.New(name).Parse(fragment)
 	if err != nil {
-		return errors.Wrapf(err, "unable to parse template for %s", name)
+		return eris.Wrapf(err, "unable to parse template for %s", name)
 	}
 
 	// Render the template
 	err = tmpl.Execute(buffer, data)
 	if err != nil {
-		return errors.Wrapf(err, "unable to render template for %s", name)
+		return eris.Wrapf(err, "unable to render template for %s", name)
 	}
 
 	return nil
 }
 
-// groupTitle returns the title to use for the given group, based on the first resource found in that group
+type reportMetadataQuality int
+
+const (
+	poor   reportMetadataQuality = 10
+	good   reportMetadataQuality = 20
+	better reportMetadataQuality = 30
+	best   reportMetadataQuality = 40
+)
+
+// groupTitle returns metadata to use for the given group.
+// group is the name of the group to generate metadata for.
+// items is the set of items in the group.
+// Some resource-providers (incl alertsmanagement) are inconsistent with letter casing, so we
+// look for the best information we have.
 func (report *ResourceVersionsReport) groupInfo(
 	group string,
-	items set.Set[ResourceVersionsReportResourceItem],
+	items set.Set[resourceVersionsReportItem],
 ) *ResourceVersionsReportGroupInfo {
-	caser := cases.Title(language.English)
+	caser := cases.Title(language.English, cases.NoLower)
 	result := &ResourceVersionsReportGroupInfo{
 		Group:    group,
 		Title:    caser.String(group),
 		Provider: caser.String(group),
 	}
+	currentQuality := poor
 
+	saveCandidate := func(
+		title string,
+		provider string,
+		quality reportMetadataQuality,
+	) {
+		if quality > currentQuality {
+			result.Title = title
+			result.Provider = provider
+			currentQuality = quality
+		}
+	}
+
+	// Scan through available resources to find better values for Title & Provider
 	for item := range items {
 		if item.armType == "" {
 			// Didn't find a resource, keep looking
@@ -751,17 +779,29 @@ func (report *ResourceVersionsReport) groupInfo(
 
 		// Slice off the part before the first "/" to get the Provider name
 		parts := strings.Split(item.armType, "/")
-		if len(parts) == 0 {
-			// String doesn't look like a resource type, keep looking
-			continue
+		provider := parts[0]
+
+		const prefix = "Microsoft."
+		if strings.HasPrefix(provider, prefix) {
+			// If the provider starts with exactly "Microsoft." (with a case-sensitive check),
+			// that's our best bet for a properly cased provider name
+			saveCandidate(
+				strings.TrimPrefix(provider, prefix),
+				provider,
+				best,
+			)
+		} else if strings.HasPrefix(strings.ToLower(provider), strings.ToLower(prefix)) {
+			// If the provider starts with "Microsoft." (but doesn't match the case exactly),
+			// that's not so good, but better than the defaults
+			saveCandidate(
+				caser.String(provider[len(prefix):]),
+				caser.String(provider),
+				better,
+			)
+		} else {
+			// Just use what we have
+			saveCandidate(provider, provider, good)
 		}
-
-		// Store the provider name
-		result.Provider = parts[0]
-
-		// Remove the "Microsoft." prefix to make the title
-		result.Title = strings.TrimPrefix(result.Provider, "Microsoft.")
-		break
 	}
 
 	return result

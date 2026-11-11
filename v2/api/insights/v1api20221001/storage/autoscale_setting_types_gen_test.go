@@ -5,6 +5,7 @@ package storage
 
 import (
 	"encoding/json"
+	storage "github.com/Azure/azure-service-operator/v2/api/insights/v1api20230311/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -19,6 +20,11 @@ import (
 
 func Test_AutoscaleNotification_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -95,6 +101,11 @@ func AddRelatedPropertyGeneratorsForAutoscaleNotification(gens map[string]gopter
 
 func Test_AutoscaleNotification_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -171,6 +182,11 @@ func AddRelatedPropertyGeneratorsForAutoscaleNotification_STATUS(gens map[string
 
 func Test_AutoscaleProfile_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -248,6 +264,11 @@ func AddRelatedPropertyGeneratorsForAutoscaleProfile(gens map[string]gopter.Gen)
 
 func Test_AutoscaleProfile_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -326,6 +347,11 @@ func AddRelatedPropertyGeneratorsForAutoscaleProfile_STATUS(gens map[string]gopt
 
 func Test_AutoscaleSetting_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -381,12 +407,168 @@ func AutoscaleSettingGenerator() gopter.Gen {
 
 // AddRelatedPropertyGeneratorsForAutoscaleSetting is a factory method for creating gopter generators
 func AddRelatedPropertyGeneratorsForAutoscaleSetting(gens map[string]gopter.Gen) {
-	gens["Spec"] = Autoscalesetting_SpecGenerator()
+	gens["Spec"] = AutoscaleSetting_SpecGenerator()
 	gens["Status"] = Autoscalesetting_STATUSGenerator()
+}
+
+func Test_AutoscaleSettingOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of AutoscaleSettingOperatorSpec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForAutoscaleSettingOperatorSpec, AutoscaleSettingOperatorSpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForAutoscaleSettingOperatorSpec runs a test to see if a specific instance of AutoscaleSettingOperatorSpec round trips to JSON and back losslessly
+func RunJSONSerializationTestForAutoscaleSettingOperatorSpec(subject AutoscaleSettingOperatorSpec) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual AutoscaleSettingOperatorSpec
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of AutoscaleSettingOperatorSpec instances for property testing - lazily instantiated by
+// AutoscaleSettingOperatorSpecGenerator()
+var autoscaleSettingOperatorSpecGenerator gopter.Gen
+
+// AutoscaleSettingOperatorSpecGenerator returns a generator of AutoscaleSettingOperatorSpec instances for property testing.
+func AutoscaleSettingOperatorSpecGenerator() gopter.Gen {
+	if autoscaleSettingOperatorSpecGenerator != nil {
+		return autoscaleSettingOperatorSpecGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	autoscaleSettingOperatorSpecGenerator = gen.Struct(reflect.TypeOf(AutoscaleSettingOperatorSpec{}), generators)
+
+	return autoscaleSettingOperatorSpecGenerator
+}
+
+func Test_AutoscaleSetting_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 80
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of AutoscaleSetting_Spec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForAutoscaleSetting_Spec, AutoscaleSetting_SpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForAutoscaleSetting_Spec runs a test to see if a specific instance of AutoscaleSetting_Spec round trips to JSON and back losslessly
+func RunJSONSerializationTestForAutoscaleSetting_Spec(subject AutoscaleSetting_Spec) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual AutoscaleSetting_Spec
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of AutoscaleSetting_Spec instances for property testing - lazily instantiated by
+// AutoscaleSetting_SpecGenerator()
+var autoscaleSetting_SpecGenerator gopter.Gen
+
+// AutoscaleSetting_SpecGenerator returns a generator of AutoscaleSetting_Spec instances for property testing.
+// We first initialize autoscaleSetting_SpecGenerator with a simplified generator based on the
+// fields with primitive types then replacing it with a more complex one that also handles complex fields
+// to ensure any cycles in the object graph properly terminate.
+func AutoscaleSetting_SpecGenerator() gopter.Gen {
+	if autoscaleSetting_SpecGenerator != nil {
+		return autoscaleSetting_SpecGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForAutoscaleSetting_Spec(generators)
+	autoscaleSetting_SpecGenerator = gen.Struct(reflect.TypeOf(AutoscaleSetting_Spec{}), generators)
+
+	// The above call to gen.Struct() captures the map, so create a new one
+	generators = make(map[string]gopter.Gen)
+	AddIndependentPropertyGeneratorsForAutoscaleSetting_Spec(generators)
+	AddRelatedPropertyGeneratorsForAutoscaleSetting_Spec(generators)
+	autoscaleSetting_SpecGenerator = gen.Struct(reflect.TypeOf(AutoscaleSetting_Spec{}), generators)
+
+	return autoscaleSetting_SpecGenerator
+}
+
+// AddIndependentPropertyGeneratorsForAutoscaleSetting_Spec is a factory method for creating gopter generators
+func AddIndependentPropertyGeneratorsForAutoscaleSetting_Spec(gens map[string]gopter.Gen) {
+	gens["AzureName"] = gen.AlphaString()
+	gens["Enabled"] = gen.PtrOf(gen.Bool())
+	gens["Location"] = gen.PtrOf(gen.AlphaString())
+	gens["Name"] = gen.PtrOf(gen.AlphaString())
+	gens["OriginalVersion"] = gen.AlphaString()
+	gens["Tags"] = gen.MapOf(
+		gen.AlphaString(),
+		gen.AlphaString())
+	gens["TargetResourceLocation"] = gen.PtrOf(gen.AlphaString())
+}
+
+// AddRelatedPropertyGeneratorsForAutoscaleSetting_Spec is a factory method for creating gopter generators
+func AddRelatedPropertyGeneratorsForAutoscaleSetting_Spec(gens map[string]gopter.Gen) {
+	gens["Notifications"] = gen.SliceOf(AutoscaleNotificationGenerator())
+	gens["OperatorSpec"] = gen.PtrOf(AutoscaleSettingOperatorSpecGenerator())
+	gens["PredictiveAutoscalePolicy"] = gen.PtrOf(PredictiveAutoscalePolicyGenerator())
+	gens["Profiles"] = gen.SliceOf(AutoscaleProfileGenerator())
 }
 
 func Test_Autoscalesetting_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -473,93 +655,13 @@ func AddRelatedPropertyGeneratorsForAutoscalesetting_STATUS(gens map[string]gopt
 	gens["SystemData"] = gen.PtrOf(SystemData_STATUSGenerator())
 }
 
-func Test_Autoscalesetting_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
-	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 80
-	parameters.MaxSize = 3
-	properties := gopter.NewProperties(parameters)
-	properties.Property(
-		"Round trip of Autoscalesetting_Spec via JSON returns original",
-		prop.ForAll(RunJSONSerializationTestForAutoscalesetting_Spec, Autoscalesetting_SpecGenerator()))
-	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
-}
-
-// RunJSONSerializationTestForAutoscalesetting_Spec runs a test to see if a specific instance of Autoscalesetting_Spec round trips to JSON and back losslessly
-func RunJSONSerializationTestForAutoscalesetting_Spec(subject Autoscalesetting_Spec) string {
-	// Serialize to JSON
-	bin, err := json.Marshal(subject)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Deserialize back into memory
-	var actual Autoscalesetting_Spec
-	err = json.Unmarshal(bin, &actual)
-	if err != nil {
-		return err.Error()
-	}
-
-	// Check for outcome
-	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
-	if !match {
-		actualFmt := pretty.Sprint(actual)
-		subjectFmt := pretty.Sprint(subject)
-		result := diff.Diff(subjectFmt, actualFmt)
-		return result
-	}
-
-	return ""
-}
-
-// Generator of Autoscalesetting_Spec instances for property testing - lazily instantiated by
-// Autoscalesetting_SpecGenerator()
-var autoscalesetting_SpecGenerator gopter.Gen
-
-// Autoscalesetting_SpecGenerator returns a generator of Autoscalesetting_Spec instances for property testing.
-// We first initialize autoscalesetting_SpecGenerator with a simplified generator based on the
-// fields with primitive types then replacing it with a more complex one that also handles complex fields
-// to ensure any cycles in the object graph properly terminate.
-func Autoscalesetting_SpecGenerator() gopter.Gen {
-	if autoscalesetting_SpecGenerator != nil {
-		return autoscalesetting_SpecGenerator
-	}
-
-	generators := make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForAutoscalesetting_Spec(generators)
-	autoscalesetting_SpecGenerator = gen.Struct(reflect.TypeOf(Autoscalesetting_Spec{}), generators)
-
-	// The above call to gen.Struct() captures the map, so create a new one
-	generators = make(map[string]gopter.Gen)
-	AddIndependentPropertyGeneratorsForAutoscalesetting_Spec(generators)
-	AddRelatedPropertyGeneratorsForAutoscalesetting_Spec(generators)
-	autoscalesetting_SpecGenerator = gen.Struct(reflect.TypeOf(Autoscalesetting_Spec{}), generators)
-
-	return autoscalesetting_SpecGenerator
-}
-
-// AddIndependentPropertyGeneratorsForAutoscalesetting_Spec is a factory method for creating gopter generators
-func AddIndependentPropertyGeneratorsForAutoscalesetting_Spec(gens map[string]gopter.Gen) {
-	gens["AzureName"] = gen.AlphaString()
-	gens["Enabled"] = gen.PtrOf(gen.Bool())
-	gens["Location"] = gen.PtrOf(gen.AlphaString())
-	gens["Name"] = gen.PtrOf(gen.AlphaString())
-	gens["OriginalVersion"] = gen.AlphaString()
-	gens["Tags"] = gen.MapOf(
-		gen.AlphaString(),
-		gen.AlphaString())
-	gens["TargetResourceLocation"] = gen.PtrOf(gen.AlphaString())
-}
-
-// AddRelatedPropertyGeneratorsForAutoscalesetting_Spec is a factory method for creating gopter generators
-func AddRelatedPropertyGeneratorsForAutoscalesetting_Spec(gens map[string]gopter.Gen) {
-	gens["Notifications"] = gen.SliceOf(AutoscaleNotificationGenerator())
-	gens["PredictiveAutoscalePolicy"] = gen.PtrOf(PredictiveAutoscalePolicyGenerator())
-	gens["Profiles"] = gen.SliceOf(AutoscaleProfileGenerator())
-}
-
 func Test_EmailNotification_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -622,6 +724,11 @@ func AddIndependentPropertyGeneratorsForEmailNotification(gens map[string]gopter
 
 func Test_EmailNotification_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -685,6 +792,11 @@ func AddIndependentPropertyGeneratorsForEmailNotification_STATUS(gens map[string
 
 func Test_MetricTrigger_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -768,6 +880,11 @@ func AddRelatedPropertyGeneratorsForMetricTrigger(gens map[string]gopter.Gen) {
 
 func Test_MetricTrigger_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -853,6 +970,11 @@ func AddRelatedPropertyGeneratorsForMetricTrigger_STATUS(gens map[string]gopter.
 
 func Test_PredictiveAutoscalePolicy_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -915,6 +1037,11 @@ func AddIndependentPropertyGeneratorsForPredictiveAutoscalePolicy(gens map[strin
 
 func Test_PredictiveAutoscalePolicy_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -977,6 +1104,11 @@ func AddIndependentPropertyGeneratorsForPredictiveAutoscalePolicy_STATUS(gens ma
 
 func Test_Recurrence_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1051,6 +1183,11 @@ func AddRelatedPropertyGeneratorsForRecurrence(gens map[string]gopter.Gen) {
 
 func Test_Recurrence_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1125,6 +1262,11 @@ func AddRelatedPropertyGeneratorsForRecurrence_STATUS(gens map[string]gopter.Gen
 
 func Test_RecurrentSchedule_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1188,6 +1330,11 @@ func AddIndependentPropertyGeneratorsForRecurrentSchedule(gens map[string]gopter
 
 func Test_RecurrentSchedule_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1252,6 +1399,11 @@ func AddIndependentPropertyGeneratorsForRecurrentSchedule_STATUS(gens map[string
 
 func Test_ScaleAction_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1315,6 +1467,11 @@ func AddIndependentPropertyGeneratorsForScaleAction(gens map[string]gopter.Gen) 
 
 func Test_ScaleAction_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1378,6 +1535,11 @@ func AddIndependentPropertyGeneratorsForScaleAction_STATUS(gens map[string]gopte
 
 func Test_ScaleCapacity_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1440,6 +1602,11 @@ func AddIndependentPropertyGeneratorsForScaleCapacity(gens map[string]gopter.Gen
 
 func Test_ScaleCapacity_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1503,6 +1670,11 @@ func AddIndependentPropertyGeneratorsForScaleCapacity_STATUS(gens map[string]gop
 
 func Test_ScaleRule_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1564,6 +1736,11 @@ func AddRelatedPropertyGeneratorsForScaleRule(gens map[string]gopter.Gen) {
 
 func Test_ScaleRuleMetricDimension_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1627,6 +1804,11 @@ func AddIndependentPropertyGeneratorsForScaleRuleMetricDimension(gens map[string
 
 func Test_ScaleRuleMetricDimension_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1690,6 +1872,11 @@ func AddIndependentPropertyGeneratorsForScaleRuleMetricDimension_STATUS(gens map
 
 func Test_ScaleRule_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1749,8 +1936,60 @@ func AddRelatedPropertyGeneratorsForScaleRule_STATUS(gens map[string]gopter.Gen)
 	gens["ScaleAction"] = gen.PtrOf(ScaleAction_STATUSGenerator())
 }
 
+func Test_SystemData_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from SystemData_STATUS to SystemData_STATUS via AssignProperties_To_SystemData_STATUS & AssignProperties_From_SystemData_STATUS returns original",
+		prop.ForAll(RunPropertyAssignmentTestForSystemData_STATUS, SystemData_STATUSGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForSystemData_STATUS tests if a specific instance of SystemData_STATUS can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForSystemData_STATUS(subject SystemData_STATUS) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other storage.SystemData_STATUS
+	err := copied.AssignProperties_To_SystemData_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual SystemData_STATUS
+	err = actual.AssignProperties_From_SystemData_STATUS(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
 func Test_SystemData_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1816,6 +2055,11 @@ func AddIndependentPropertyGeneratorsForSystemData_STATUS(gens map[string]gopter
 
 func Test_TimeWindow_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -1878,6 +2122,11 @@ func AddIndependentPropertyGeneratorsForTimeWindow(gens map[string]gopter.Gen) {
 
 func Test_TimeWindow_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -1940,6 +2189,11 @@ func AddIndependentPropertyGeneratorsForTimeWindow_STATUS(gens map[string]gopter
 
 func Test_WebhookNotification_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -2004,6 +2258,11 @@ func AddIndependentPropertyGeneratorsForWebhookNotification(gens map[string]gopt
 
 func Test_WebhookNotification_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -2063,5 +2322,4 @@ func AddIndependentPropertyGeneratorsForWebhookNotification_STATUS(gens map[stri
 	gens["Properties"] = gen.MapOf(
 		gen.AlphaString(),
 		gen.AlphaString())
-	gens["ServiceUri"] = gen.PtrOf(gen.AlphaString())
 }

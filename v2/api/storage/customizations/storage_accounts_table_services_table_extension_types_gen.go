@@ -4,10 +4,18 @@
 package customizations
 
 import (
-	v20220901 "github.com/Azure/azure-service-operator/v2/api/storage/v1api20220901"
-	v20220901s "github.com/Azure/azure-service-operator/v2/api/storage/v1api20220901/storage"
-	v20230101 "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101"
-	v20230101s "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101/storage"
+	storage_v1api20220901 "github.com/Azure/azure-service-operator/v2/api/storage/v1api20220901"
+	storage_v1api20220901s "github.com/Azure/azure-service-operator/v2/api/storage/v1api20220901/storage"
+	storage_v1api20230101 "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101"
+	storage_v1api20230101s "github.com/Azure/azure-service-operator/v2/api/storage/v1api20230101/storage"
+	storage_v20220901 "github.com/Azure/azure-service-operator/v2/api/storage/v20220901"
+	storage_v20220901s "github.com/Azure/azure-service-operator/v2/api/storage/v20220901/storage"
+	storage_v20230101 "github.com/Azure/azure-service-operator/v2/api/storage/v20230101"
+	storage_v20230101s "github.com/Azure/azure-service-operator/v2/api/storage/v20230101/storage"
+	storage_v20250601 "github.com/Azure/azure-service-operator/v2/api/storage/v20250601"
+	storage_v20250601s "github.com/Azure/azure-service-operator/v2/api/storage/v20250601/storage"
+	storage_v20260601 "github.com/Azure/azure-service-operator/v2/api/storage/v20260601"
+	storage_v20260601s "github.com/Azure/azure-service-operator/v2/api/storage/v20260601/storage"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 )
 
@@ -17,8 +25,16 @@ type StorageAccountsTableServicesTableExtension struct {
 // GetExtendedResources Returns the KubernetesResource slice for Resource versions
 func (extension *StorageAccountsTableServicesTableExtension) GetExtendedResources() []genruntime.KubernetesResource {
 	return []genruntime.KubernetesResource{
-		&v20220901.StorageAccountsTableServicesTable{},
-		&v20220901s.StorageAccountsTableServicesTable{},
-		&v20230101.StorageAccountsTableServicesTable{},
-		&v20230101s.StorageAccountsTableServicesTable{}}
+		&storage_v1api20220901.StorageAccountsTableServicesTable{},
+		&storage_v1api20220901s.StorageAccountsTableServicesTable{},
+		&storage_v1api20230101.StorageAccountsTableServicesTable{},
+		&storage_v1api20230101s.StorageAccountsTableServicesTable{},
+		&storage_v20220901.StorageAccountsTableServicesTable{},
+		&storage_v20220901s.StorageAccountsTableServicesTable{},
+		&storage_v20230101.StorageAccountsTableServicesTable{},
+		&storage_v20230101s.StorageAccountsTableServicesTable{},
+		&storage_v20250601.StorageAccountsTableServicesTable{},
+		&storage_v20250601s.StorageAccountsTableServicesTable{},
+		&storage_v20260601.StorageAccountsTableServicesTable{},
+		&storage_v20260601s.StorageAccountsTableServicesTable{}}
 }

@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/sebdah/goldie/v2"
-
 	. "github.com/onsi/gomega"
+
+	"github.com/sebdah/goldie/v2"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astmodel"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/config"
@@ -34,7 +34,7 @@ func TestConversionGraph_WithTwoUnrelatedReferences_HasExpectedTransitions(t *te
 	account2020s := astmodel.MakeInternalTypeName(test.Pkg2020s, "Account")
 
 	omc := config.NewObjectModelConfiguration()
-	builder := NewConversionGraphBuilder(omc, "v")
+	builder := NewConversionGraphBuilder(omc)
 	builder.Add(person2020, person2020s)
 	builder.Add(account2020, account2020s)
 	graph, err := builder.Build()
@@ -87,7 +87,7 @@ func TestConversionGraph_GivenTypeName_ReturnsExpectedHubTypeName(t *testing.T) 
 
 	// Create a builder, and use it to configure a graph to test
 	omc := config.NewObjectModelConfiguration()
-	builder := NewConversionGraphBuilder(omc, "v")
+	builder := NewConversionGraphBuilder(omc)
 	builder.Add(person2020.Name(), person2020s.Name(), person2021.Name(), person2021s.Name(), person2022.Name(), person2022s.Name())
 	builder.Add(address2020.Name(), address2020s.Name(), address2021.Name(), address2021s.Name())
 	builder.Add(student2020.Name(), student2020s.Name(), student2022.Name(), student2022s.Name())
@@ -160,11 +160,13 @@ func Test_ConversionGraph_WhenRenameConfigured_FindsRenamedType(t *testing.T) {
 			func(tc *config.TypeConfiguration) error {
 				tc.NameInNextVersion.Set(party2021.Name().Name())
 				return nil
-			})).
+			},
+		),
+	).
 		To(Succeed())
 
 	// Create a builder use it to configure a graph to test
-	builder := NewConversionGraphBuilder(omc, "v")
+	builder := NewConversionGraphBuilder(omc)
 	builder.Add(person2020.Name(), person2020s.Name())
 	builder.Add(party2021.Name(), party2021s.Name())
 
@@ -174,6 +176,146 @@ func Test_ConversionGraph_WhenRenameConfigured_FindsRenamedType(t *testing.T) {
 	name, err := graph.FindNextType(person2020s.Name(), defs)
 	g.Expect(err).To(Succeed())
 	g.Expect(name).To(Equal(party2021s.Name()))
+}
+
+func Test_ConversionGraph_WhenPreviewRenamesTypeBeforeCompatPackage_FindsRenamedType(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	oldPackage := test.MakeLocalPackageReference(test.Group, "v20250801").WithVersionPrefix("v1api")
+	compatPackage := astmodel.MakeCompatPackageReference(astmodel.MakeStoragePackageReference(oldPackage))
+	previewPackage := test.MakeLocalPackageReference(test.Group, "v20251002preview").WithVersionPrefix("v")
+	newPackage := test.MakeLocalPackageReference(test.Group, "v20260301").WithVersionPrefix("v")
+
+	oldType := test.CreateSimpleResource(oldPackage, "OldName")
+	oldTypeStorage := test.CreateSimpleResource(astmodel.MakeStoragePackageReference(oldPackage), "OldName")
+	previewType := test.CreateSimpleResource(previewPackage, "NewName")
+	previewTypeStorage := test.CreateSimpleResource(astmodel.MakeStoragePackageReference(previewPackage), "NewName")
+	newType := test.CreateSimpleResource(newPackage, "NewName")
+	newTypeStorage := test.CreateSimpleResource(astmodel.MakeStoragePackageReference(newPackage), "NewName")
+	compatType := test.CreateSimpleResource(compatPackage, "CompatibilityType")
+
+	definitions := make(astmodel.TypeDefinitionSet)
+	definitions.AddAll(oldType, oldTypeStorage, previewType, previewTypeStorage, newType, newTypeStorage, compatType)
+
+	configuration := config.NewObjectModelConfiguration()
+	g.Expect(
+		configuration.ModifyType(
+			previewType.Name(),
+			func(typeConfiguration *config.TypeConfiguration) error {
+				typeConfiguration.NameInNextVersion.Set(oldType.Name().Name())
+				return nil
+			},
+		),
+	).To(Succeed())
+
+	builder := NewConversionGraphBuilder(configuration)
+	builder.Add(
+		oldType.Name(),
+		oldTypeStorage.Name(),
+		previewType.Name(),
+		previewTypeStorage.Name(),
+		newType.Name(),
+		newTypeStorage.Name(),
+		compatType.Name(),
+	)
+	graph, err := builder.Build()
+	g.Expect(err).To(Succeed())
+
+	nextType, err := graph.FindNextType(previewTypeStorage.Name(), definitions)
+	g.Expect(err).To(Succeed())
+	g.Expect(nextType).To(Equal(oldTypeStorage.Name()))
+}
+
+func Test_ConversionGraph_WhenHybridPreviewTypeRenamedInNextVersion_FindsRenamedType(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	legacyPreviewPackage := test.MakeLocalPackageReference(test.Group, "v20210101preview").WithVersionPrefix("v1api")
+	previewPackage := legacyPreviewPackage.WithVersionPrefix("v")
+	legacyNextPackage := test.MakeLocalPackageReference(test.Group, "v20211101").WithVersionPrefix("v1api")
+	nextPackage := legacyNextPackage.WithVersionPrefix("v")
+
+	legacyOldType := test.CreateSimpleResource(legacyPreviewPackage, "DictionaryValue_STATUS")
+	legacyOldTypeStorage := test.CreateSimpleResource(astmodel.MakeStoragePackageReference(legacyPreviewPackage), "DictionaryValue_STATUS")
+	oldType := test.CreateSimpleResource(previewPackage, "DictionaryValue_STATUS")
+	oldTypeStorage := test.CreateSimpleResource(astmodel.MakeStoragePackageReference(previewPackage), "DictionaryValue_STATUS")
+	legacyNewType := test.CreateSimpleResource(legacyNextPackage, "UserAssignedIdentity_STATUS")
+	legacyNewTypeStorage := test.CreateSimpleResource(astmodel.MakeStoragePackageReference(legacyNextPackage), "UserAssignedIdentity_STATUS")
+	newType := test.CreateSimpleResource(nextPackage, "UserAssignedIdentity_STATUS")
+	newTypeStorage := test.CreateSimpleResource(astmodel.MakeStoragePackageReference(nextPackage), "UserAssignedIdentity_STATUS")
+
+	definitions := make(astmodel.TypeDefinitionSet)
+	definitions.AddAll(
+		legacyOldType,
+		legacyOldTypeStorage,
+		oldType,
+		oldTypeStorage,
+		legacyNewType,
+		legacyNewTypeStorage,
+		newType,
+		newTypeStorage,
+	)
+
+	configuration := config.NewObjectModelConfiguration()
+	g.Expect(
+		configuration.ModifyType(
+			oldType.Name(),
+			func(typeConfiguration *config.TypeConfiguration) error {
+				typeConfiguration.NameInNextVersion.Set(newType.Name().Name())
+				return nil
+			},
+		),
+	).To(Succeed())
+
+	builder := NewConversionGraphBuilder(configuration)
+	builder.Add(
+		legacyOldType.Name(),
+		legacyOldTypeStorage.Name(),
+		oldType.Name(),
+		oldTypeStorage.Name(),
+		legacyNewType.Name(),
+		legacyNewTypeStorage.Name(),
+		newType.Name(),
+		newTypeStorage.Name(),
+	)
+	graph, err := builder.Build()
+	g.Expect(err).To(Succeed())
+	g.Expect(
+		graph.subGraphs[test.Group].links[legacyOldTypeStorage.Name().InternalPackageReference()],
+	).To(Equal(oldTypeStorage.Name().InternalPackageReference()))
+	g.Expect(
+		graph.subGraphs[test.Group].links[oldTypeStorage.Name().InternalPackageReference()],
+	).To(Equal(newTypeStorage.Name().InternalPackageReference()))
+
+	nextType, err := graph.FindNextType(oldTypeStorage.Name(), definitions)
+	g.Expect(err).To(Succeed())
+	g.Expect(nextType).To(Equal(newTypeStorage.Name()))
+}
+
+func Test_ConversionGraph_WhenPreviewAndCompatTypePresent_PreservesCompatTransitions(t *testing.T) {
+	t.Parallel()
+	g := NewGomegaWithT(t)
+
+	oldPackage := test.MakeLocalPackageReference(test.Group, "v20240901").WithVersionPrefix("v1api")
+	missingPackage := test.MakeLocalPackageReference(test.Group, "v20250801").WithVersionPrefix("v1api")
+	compatPackage := astmodel.MakeCompatPackageReference(astmodel.MakeStoragePackageReference(missingPackage))
+	previewPackage := test.MakeLocalPackageReference(test.Group, "v20251002preview").WithVersionPrefix("v")
+	newPackage := test.MakeLocalPackageReference(test.Group, "v20260301").WithVersionPrefix("v")
+
+	oldType := astmodel.MakeInternalTypeName(astmodel.MakeStoragePackageReference(oldPackage), "SharedName")
+	compatType := astmodel.MakeInternalTypeName(compatPackage, "SharedName")
+	previewType := astmodel.MakeInternalTypeName(astmodel.MakeStoragePackageReference(previewPackage), "SharedName")
+	newType := astmodel.MakeInternalTypeName(astmodel.MakeStoragePackageReference(newPackage), "SharedName")
+
+	builder := NewConversionGraphBuilder(config.NewObjectModelConfiguration())
+	builder.Add(oldType, compatType, previewType, newType)
+	graph, err := builder.Build()
+	g.Expect(err).To(Succeed())
+
+	g.Expect(graph.LookupTransition(oldType)).To(Equal(compatType))
+	g.Expect(graph.LookupTransition(previewType)).To(Equal(compatType))
+	g.Expect(graph.LookupTransition(compatType)).To(Equal(newType))
 }
 
 func Test_ConversionGraph_WhenRenameSpecifiesMissingType_ReturnsError(t *testing.T) {
@@ -201,11 +343,13 @@ func Test_ConversionGraph_WhenRenameSpecifiesMissingType_ReturnsError(t *testing
 			func(tc *config.TypeConfiguration) error {
 				tc.NameInNextVersion.Set("Phantom")
 				return nil
-			})).
+			},
+		),
+	).
 		To(Succeed())
 
 	// Create a builder use it to configure a graph to test
-	builder := NewConversionGraphBuilder(omc, "v")
+	builder := NewConversionGraphBuilder(omc)
 	builder.Add(person2020.Name(), person2020s.Name())
 	builder.Add(party2021.Name(), party2021s.Name())
 
@@ -245,11 +389,13 @@ func Test_ConversionGraph_WhenRenameSpecifiesConflictingType_ReturnsError(t *tes
 			func(tc *config.TypeConfiguration) error {
 				tc.NameInNextVersion.Set(party2021.Name().Name())
 				return nil
-			})).
+			},
+		),
+	).
 		To(Succeed())
 
 	// Create a builder use it to configure a graph to test
-	builder := NewConversionGraphBuilder(omc, "v")
+	builder := NewConversionGraphBuilder(omc)
 	builder.Add(person2020.Name(), person2020s.Name())
 	builder.Add(person2021.Name(), person2021s.Name())
 	builder.Add(party2021.Name(), party2021s.Name())
@@ -291,7 +437,7 @@ func TestConversionGraph_WithAResourceOnlyInPreviewVersions_HasExpectedTransitio
 	address2021ps := astmodel.MakeInternalTypeName(pkg2021ps, "Address")
 
 	omc := config.NewObjectModelConfiguration()
-	builder := NewConversionGraphBuilder(omc, "v")
+	builder := NewConversionGraphBuilder(omc)
 	builder.Add(person2020, person2020s)
 	builder.Add(person2021, person2021s)
 	builder.Add(address2020p, address2020ps)
@@ -325,7 +471,8 @@ func TestConversionGraph_WithAResourceOnlyInPreviewVersions_HasExpectedTransitio
 				t.Parallel()
 				gg := NewGomegaWithT(t)
 				gg.Expect(graph.LookupTransition(c.from)).To(Equal(c.to))
-			})
+			},
+		)
 	}
 }
 
@@ -367,7 +514,7 @@ func TestGolden_ConversionGraph_WhenCompatPackagePresent_HasExpectedTransitions(
 	// Act - Create the graph
 
 	omc := config.NewObjectModelConfiguration()
-	builder := NewConversionGraphBuilder(omc, "v")
+	builder := NewConversionGraphBuilder(omc)
 	builder.Add(address2020, address2020s)
 	builder.Add(address2021sc)
 	builder.Add(address2022, address2022s)
@@ -406,7 +553,7 @@ func Test_ConversionGraph_FindInPath_ReturnsExpectedResult(t *testing.T) {
 
 	// Create a builder, and use it to configure a graph to test
 	omc := config.NewObjectModelConfiguration()
-	builder := NewConversionGraphBuilder(omc, "v")
+	builder := NewConversionGraphBuilder(omc)
 	builder.Add(person2020.Name(), person2020s.Name(), person2021.Name(), person2021s.Name(), person2022.Name(), person2022s.Name())
 
 	graph, err := builder.Build()
@@ -441,9 +588,11 @@ func Test_ConversionGraph_FindInPath_ReturnsExpectedResult(t *testing.T) {
 					func(t astmodel.InternalTypeName) bool {
 						count++
 						return t == c.end
-					})
+					},
+				)
 				gg.Expect(found).To(BeTrue())
 				gg.Expect(count).To(Equal(c.expectedTypes))
-			})
+			},
+		)
 	}
 }

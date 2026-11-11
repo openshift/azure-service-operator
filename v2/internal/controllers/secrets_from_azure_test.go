@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -40,6 +41,11 @@ func Test_WhenObjectDeleted_SecretIsDeleted(t *testing.T) {
 	tc.GetResource(secretName, &secret)
 	tc.Expect(secret.OwnerReferences).To(HaveLen(1))
 	tc.Expect(secret.OwnerReferences[0].UID).To(Equal(acct.GetUID()))
+
+	// Ensure that the secret has the expected annotations and labels
+	tc.Expect(secret.Annotations).To(HaveKeyWithValue("custom-annotation", "custom-value"))
+	tc.Expect(secret.Labels).To(HaveKeyWithValue("app", "myapp"))
+	tc.Expect(secret.Labels).To(HaveKeyWithValue("env", "test"))
 
 	// Delete the resource
 	tc.DeleteResourceAndWait(acct)
@@ -82,7 +88,8 @@ func Test_WhenObjectPullSecretsAndSecretAlreadyExists_WarningConditionIsSet(t *t
 	exists, _, err := tc.AzureClient.CheckExistenceWithGetByID(
 		tc.Ctx,
 		armId,
-		string(storage.APIVersion_Value))
+		string(storage.APIVersion_Value),
+	)
 	tc.Expect(err).ToNot(HaveOccurred())
 	tc.Expect(exists).To(BeFalse())
 }
@@ -146,6 +153,13 @@ func makeSimpleStorageAccountWithOperatorSpecSecrets(tc *testcommon.KubePerTestC
 					Key1: &genruntime.SecretDestination{
 						Name: secretName,
 						Key:  secretKey,
+						Annotations: map[string]string{
+							"custom-annotation": "custom-value",
+						},
+						Labels: map[string]string{
+							"app": "myapp",
+							"env": "test",
+						},
 					},
 				},
 			},

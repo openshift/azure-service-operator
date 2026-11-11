@@ -5,7 +5,8 @@ package v1api20200930
 
 import (
 	"encoding/json"
-	storage "github.com/Azure/azure-service-operator/v2/api/compute/v1api20200930/storage"
+	v20200930s "github.com/Azure/azure-service-operator/v2/api/compute/v1api20200930/storage"
+	v20240302s "github.com/Azure/azure-service-operator/v2/api/compute/v20240302/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/kr/pretty"
@@ -20,6 +21,11 @@ import (
 
 func Test_Snapshot_WhenConvertedToHub_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	parameters.MinSuccessfulTests = 10
@@ -36,7 +42,7 @@ func RunResourceConversionTestForSnapshot(subject Snapshot) string {
 	copied := subject.DeepCopy()
 
 	// Convert to our hub version
-	var hub storage.Snapshot
+	var hub v20240302s.Snapshot
 	err := copied.ConvertTo(&hub)
 	if err != nil {
 		return err.Error()
@@ -63,6 +69,11 @@ func RunResourceConversionTestForSnapshot(subject Snapshot) string {
 
 func Test_Snapshot_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -78,7 +89,7 @@ func RunPropertyAssignmentTestForSnapshot(subject Snapshot) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Snapshot
+	var other v20200930s.Snapshot
 	err := copied.AssignProperties_To_Snapshot(&other)
 	if err != nil {
 		return err.Error()
@@ -105,6 +116,11 @@ func RunPropertyAssignmentTestForSnapshot(subject Snapshot) string {
 
 func Test_Snapshot_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	parameters.MaxSize = 3
@@ -164,8 +180,120 @@ func AddRelatedPropertyGeneratorsForSnapshot(gens map[string]gopter.Gen) {
 	gens["Status"] = Snapshot_STATUSGenerator()
 }
 
+func Test_SnapshotOperatorSpec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MaxSize = 10
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip from SnapshotOperatorSpec to SnapshotOperatorSpec via AssignProperties_To_SnapshotOperatorSpec & AssignProperties_From_SnapshotOperatorSpec returns original",
+		prop.ForAll(RunPropertyAssignmentTestForSnapshotOperatorSpec, SnapshotOperatorSpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 240, os.Stdout))
+}
+
+// RunPropertyAssignmentTestForSnapshotOperatorSpec tests if a specific instance of SnapshotOperatorSpec can be assigned to storage and back losslessly
+func RunPropertyAssignmentTestForSnapshotOperatorSpec(subject SnapshotOperatorSpec) string {
+	// Copy subject to make sure assignment doesn't modify it
+	copied := subject.DeepCopy()
+
+	// Use AssignPropertiesTo() for the first stage of conversion
+	var other v20200930s.SnapshotOperatorSpec
+	err := copied.AssignProperties_To_SnapshotOperatorSpec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Use AssignPropertiesFrom() to convert back to our original type
+	var actual SnapshotOperatorSpec
+	err = actual.AssignProperties_From_SnapshotOperatorSpec(&other)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for a match
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+func Test_SnapshotOperatorSpec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	parameters.MaxSize = 3
+	properties := gopter.NewProperties(parameters)
+	properties.Property(
+		"Round trip of SnapshotOperatorSpec via JSON returns original",
+		prop.ForAll(RunJSONSerializationTestForSnapshotOperatorSpec, SnapshotOperatorSpecGenerator()))
+	properties.TestingRun(t, gopter.NewFormatedReporter(true, 240, os.Stdout))
+}
+
+// RunJSONSerializationTestForSnapshotOperatorSpec runs a test to see if a specific instance of SnapshotOperatorSpec round trips to JSON and back losslessly
+func RunJSONSerializationTestForSnapshotOperatorSpec(subject SnapshotOperatorSpec) string {
+	// Serialize to JSON
+	bin, err := json.Marshal(subject)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Deserialize back into memory
+	var actual SnapshotOperatorSpec
+	err = json.Unmarshal(bin, &actual)
+	if err != nil {
+		return err.Error()
+	}
+
+	// Check for outcome
+	match := cmp.Equal(subject, actual, cmpopts.EquateEmpty())
+	if !match {
+		actualFmt := pretty.Sprint(actual)
+		subjectFmt := pretty.Sprint(subject)
+		result := diff.Diff(subjectFmt, actualFmt)
+		return result
+	}
+
+	return ""
+}
+
+// Generator of SnapshotOperatorSpec instances for property testing - lazily instantiated by
+// SnapshotOperatorSpecGenerator()
+var snapshotOperatorSpecGenerator gopter.Gen
+
+// SnapshotOperatorSpecGenerator returns a generator of SnapshotOperatorSpec instances for property testing.
+func SnapshotOperatorSpecGenerator() gopter.Gen {
+	if snapshotOperatorSpecGenerator != nil {
+		return snapshotOperatorSpecGenerator
+	}
+
+	generators := make(map[string]gopter.Gen)
+	snapshotOperatorSpecGenerator = gen.Struct(reflect.TypeOf(SnapshotOperatorSpec{}), generators)
+
+	return snapshotOperatorSpecGenerator
+}
+
 func Test_SnapshotSku_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -181,7 +309,7 @@ func RunPropertyAssignmentTestForSnapshotSku(subject SnapshotSku) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.SnapshotSku
+	var other v20200930s.SnapshotSku
 	err := copied.AssignProperties_To_SnapshotSku(&other)
 	if err != nil {
 		return err.Error()
@@ -208,6 +336,11 @@ func RunPropertyAssignmentTestForSnapshotSku(subject SnapshotSku) string {
 
 func Test_SnapshotSku_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 3
@@ -268,6 +401,11 @@ func AddIndependentPropertyGeneratorsForSnapshotSku(gens map[string]gopter.Gen) 
 
 func Test_SnapshotSku_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -283,7 +421,7 @@ func RunPropertyAssignmentTestForSnapshotSku_STATUS(subject SnapshotSku_STATUS) 
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.SnapshotSku_STATUS
+	var other v20200930s.SnapshotSku_STATUS
 	err := copied.AssignProperties_To_SnapshotSku_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -310,6 +448,11 @@ func RunPropertyAssignmentTestForSnapshotSku_STATUS(subject SnapshotSku_STATUS) 
 
 func Test_SnapshotSku_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -371,6 +514,11 @@ func AddIndependentPropertyGeneratorsForSnapshotSku_STATUS(gens map[string]gopte
 
 func Test_Snapshot_STATUS_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -386,7 +534,7 @@ func RunPropertyAssignmentTestForSnapshot_STATUS(subject Snapshot_STATUS) string
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Snapshot_STATUS
+	var other v20200930s.Snapshot_STATUS
 	err := copied.AssignProperties_To_Snapshot_STATUS(&other)
 	if err != nil {
 		return err.Error()
@@ -413,6 +561,11 @@ func RunPropertyAssignmentTestForSnapshot_STATUS(subject Snapshot_STATUS) string
 
 func Test_Snapshot_STATUS_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -516,6 +669,11 @@ func AddRelatedPropertyGeneratorsForSnapshot_STATUS(gens map[string]gopter.Gen) 
 
 func Test_Snapshot_Spec_WhenPropertiesConverted_RoundTripsWithoutLoss(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MaxSize = 10
 	properties := gopter.NewProperties(parameters)
@@ -531,7 +689,7 @@ func RunPropertyAssignmentTestForSnapshot_Spec(subject Snapshot_Spec) string {
 	copied := subject.DeepCopy()
 
 	// Use AssignPropertiesTo() for the first stage of conversion
-	var other storage.Snapshot_Spec
+	var other v20200930s.Snapshot_Spec
 	err := copied.AssignProperties_To_Snapshot_Spec(&other)
 	if err != nil {
 		return err.Error()
@@ -558,6 +716,11 @@ func RunPropertyAssignmentTestForSnapshot_Spec(subject Snapshot_Spec) string {
 
 func Test_Snapshot_Spec_WhenSerializedToJson_DeserializesAsEqual(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() {
+		return
+	}
+
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 80
 	parameters.MaxSize = 3
@@ -624,13 +787,6 @@ func Snapshot_SpecGenerator() gopter.Gen {
 func AddIndependentPropertyGeneratorsForSnapshot_Spec(gens map[string]gopter.Gen) {
 	gens["AzureName"] = gen.AlphaString()
 	gens["DiskSizeGB"] = gen.PtrOf(gen.Int())
-	gens["DiskState"] = gen.PtrOf(gen.OneConstOf(
-		DiskState_ActiveSAS,
-		DiskState_ActiveUpload,
-		DiskState_Attached,
-		DiskState_ReadyToUpload,
-		DiskState_Reserved,
-		DiskState_Unattached))
 	gens["HyperVGeneration"] = gen.PtrOf(gen.OneConstOf(SnapshotProperties_HyperVGeneration_V1, SnapshotProperties_HyperVGeneration_V2))
 	gens["Incremental"] = gen.PtrOf(gen.Bool())
 	gens["Location"] = gen.PtrOf(gen.AlphaString())
@@ -647,6 +803,7 @@ func AddRelatedPropertyGeneratorsForSnapshot_Spec(gens map[string]gopter.Gen) {
 	gens["Encryption"] = gen.PtrOf(EncryptionGenerator())
 	gens["EncryptionSettingsCollection"] = gen.PtrOf(EncryptionSettingsCollectionGenerator())
 	gens["ExtendedLocation"] = gen.PtrOf(ExtendedLocationGenerator())
+	gens["OperatorSpec"] = gen.PtrOf(SnapshotOperatorSpecGenerator())
 	gens["PurchasePlan"] = gen.PtrOf(PurchasePlanGenerator())
 	gens["Sku"] = gen.PtrOf(SnapshotSkuGenerator())
 }

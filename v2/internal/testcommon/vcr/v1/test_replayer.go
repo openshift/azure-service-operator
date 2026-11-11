@@ -15,11 +15,12 @@ import (
 	"github.com/dnaeon/go-vcr/cassette"
 	"github.com/dnaeon/go-vcr/recorder"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 
 	"github.com/Azure/azure-service-operator/v2/internal/config"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon/creds"
 	"github.com/Azure/azure-service-operator/v2/internal/testcommon/vcr"
+	asocloud "github.com/Azure/azure-service-operator/v2/pkg/common/cloud"
 )
 
 // player is an implementation of testRecorder using go-vcr v1 that can only play back
@@ -30,6 +31,7 @@ type player struct {
 	ids          creds.AzureIDs
 	recorder     *recorder.Recorder
 	cfg          config.Values
+	redactor     *vcr.Redactor
 }
 
 // Verify we implement testRecorder
@@ -44,15 +46,15 @@ func NewTestPlayer(
 ) (vcr.Interface, error) {
 	cassetteExists, err := vcr.CassetteFileExists(cassetteName)
 	if err != nil {
-		return nil, errors.Wrapf(err, "checking for cassette file")
+		return nil, eris.Wrapf(err, "checking for cassette file")
 	}
 	if !cassetteExists {
-		return nil, errors.Errorf("cassette %s does not exist", cassetteName)
+		return nil, eris.Errorf("cassette %s does not exist", cassetteName)
 	}
 
 	r, err := recorder.NewAsMode(cassetteName, recorder.ModeReplaying, nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating player")
+		return nil, eris.Wrapf(err, "creating player")
 	}
 
 	var credentials azcore.TokenCredential
@@ -63,12 +65,14 @@ func NewTestPlayer(
 	credentials = creds.MockTokenCredential{}
 	azureIDs.TenantID = uuid.Nil.String()
 	azureIDs.SubscriptionID = uuid.Nil.String()
-	azureIDs.BillingInvoiceID = creds.DummyBillingId
+	azureIDs.BillingInvoiceID = creds.DummyBillingID
 
 	// Force these values to be the default
-	cfg.ResourceManagerEndpoint = config.DefaultEndpoint
-	cfg.ResourceManagerAudience = config.DefaultAudience
-	cfg.AzureAuthorityHost = config.DefaultAADAuthorityHost
+	cfg.ResourceManagerEndpoint = asocloud.DefaultEndpoint
+	cfg.ResourceManagerAudience = asocloud.DefaultAudience
+	cfg.AzureAuthorityHost = asocloud.DefaultAADAuthorityHost
+
+	redactor := vcr.NewRedactor(azureIDs)
 
 	// check body as well as URL/Method (copied from go-vcr documentation)
 	r.SetMatcher(func(r *http.Request, i cassette.Request) bool {
@@ -77,7 +81,7 @@ func NewTestPlayer(
 		}
 
 		// verify custom request count header (see counting_roundtripper.go)
-		if r.Header.Get(COUNT_HEADER) != i.Headers.Get(COUNT_HEADER) {
+		if r.Header.Get(CountHeader) != i.Headers.Get(CountHeader) {
 			return false
 		}
 
@@ -91,7 +95,7 @@ func NewTestPlayer(
 		}
 
 		r.Body = io.NopCloser(&b)
-		return b.String() == "" || vcr.HideRecordingData(creds.DummyAzureIDs(), b.String()) == i.Body
+		return b.String() == "" || redactor.HideRecordingData(b.String()) == i.Body
 	})
 
 	return &player{
@@ -100,6 +104,7 @@ func NewTestPlayer(
 		ids:          azureIDs,
 		recorder:     r,
 		cfg:          cfg,
+		redactor:     redactor,
 	}, nil
 }
 
@@ -118,6 +123,16 @@ func (r *player) IDs() creds.AzureIDs {
 	return r.ids
 }
 
+// AddLiteralRedaction adds literal redaction value to redactor
+func (r *player) AddLiteralRedaction(redactionValue string, replacementValue string) {
+	r.redactor.AddLiteralRedaction(redactionValue, replacementValue)
+}
+
+// AddRegexpRedaction adds regular expression redaction value to redactor
+func (r *player) AddRegexpRedaction(pattern string, replacementValue string) {
+	r.redactor.AddRegexRedaction(pattern, replacementValue)
+}
+
 // Stop recording
 func (r *player) Stop() error {
 	return r.recorder.Stop()
@@ -132,7 +147,7 @@ func (r *player) IsReplaying() bool {
 // t is a reference to the test currently executing.
 // TODO: Remove the reference to t to reduce coupling
 func (r *player) CreateClient(t *testing.T) *http.Client {
-	withErrorTranslation := translateErrors(r.recorder, r.cassetteName, t)
+	withErrorTranslation := translateErrors(r.recorder, r.cassetteName, r.redactor, t)
 	withCountHeader := AddCountHeader(withErrorTranslation)
 
 	return &http.Client{

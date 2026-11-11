@@ -10,11 +10,10 @@ import (
 	"sort"
 	"strings"
 
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
-
 	"github.com/dave/dst"
-	"github.com/pkg/errors"
+	"github.com/rotisserie/eris"
 	"golang.org/x/exp/slices"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/astbuilder"
 	"github.com/Azure/azure-service-operator/v2/tools/generator/internal/readonly"
@@ -34,7 +33,7 @@ type ObjectType struct {
 // for want of a better place for this to live…
 var (
 	AdditionalPropertiesPropertyName = PropertyName("AdditionalProperties")
-	AdditionalPropertiesJsonName     = "additionalProperties"
+	AdditionalPropertiesJSONName     = "additionalProperties"
 )
 
 // EmptyObjectType is an empty object
@@ -70,7 +69,7 @@ func (objectType *ObjectType) AsDeclarations(
 ) ([]dst.Decl, error) {
 	objectTypeExpr, err := objectType.AsTypeExpr(codeGenerationContext)
 	if err != nil {
-		return nil, errors.Wrapf(err, "creating object type expression for %s", declContext.Name)
+		return nil, eris.Wrapf(err, "creating object type expression for %s", declContext.Name)
 	}
 
 	declaration := &dst.GenDecl{
@@ -94,18 +93,19 @@ func (objectType *ObjectType) AsDeclarations(
 
 	interfaceDeclarations, err := objectType.InterfaceImplementer.AsDeclarations(codeGenerationContext, declContext.Name, nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "generating interface declarations for %s", declContext.Name)
+		return nil, eris.Wrapf(err, "generating interface declarations for %s", declContext.Name)
 	}
 
 	methodDeclarations, err := objectType.generateMethodDecls(codeGenerationContext, declContext.Name)
 	if err != nil {
-		return nil, errors.Wrapf(err, "generating method declarations for %s", declContext.Name)
+		return nil, eris.Wrapf(err, "generating method declarations for %s", declContext.Name)
 	}
 
 	result := astbuilder.Declarations(
 		declaration,
 		interfaceDeclarations,
-		methodDeclarations)
+		methodDeclarations,
+	)
 
 	return result, nil
 }
@@ -253,7 +253,7 @@ func (objectType *ObjectType) AsTypeExpr(codeGenerationContext *CodeGenerationCo
 	for _, f := range embedded {
 		field, err := f.AsField(codeGenerationContext)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "creating field for embedded property %s", f.PropertyName()))
+			errs = append(errs, eris.Wrapf(err, "creating field for embedded property %s", f.PropertyName()))
 			continue
 		}
 
@@ -263,7 +263,7 @@ func (objectType *ObjectType) AsTypeExpr(codeGenerationContext *CodeGenerationCo
 	for _, f := range objectType.properties.AsSlice() {
 		field, err := f.AsField(codeGenerationContext)
 		if err != nil {
-			errs = append(errs, errors.Wrapf(err, "creating field for property %s", f.PropertyName()))
+			errs = append(errs, eris.Wrapf(err, "creating field for property %s", f.PropertyName()))
 			continue
 		}
 
@@ -271,7 +271,7 @@ func (objectType *ObjectType) AsTypeExpr(codeGenerationContext *CodeGenerationCo
 	}
 
 	if len(errs) > 0 {
-		return nil, errors.Wrapf(kerrors.NewAggregate(errs), "creating fields for object type")
+		return nil, eris.Wrapf(kerrors.NewAggregate(errs), "creating fields for object type")
 	}
 
 	if len(fields) > 0 {
@@ -511,7 +511,7 @@ func (objectType *ObjectType) checkEmbeddedProperty(property *PropertyDefinition
 	// There are certain expectations about the shape of the provided property -- namely
 	// it must not have a name and its Type must be TypeName or Optional[TypeName]
 	if property.PropertyName() != "" {
-		return errors.Errorf("embedded property name must be empty, was: %s", property.PropertyName())
+		return eris.Errorf("embedded property name must be empty, was: %s", property.PropertyName())
 	}
 
 	return nil
@@ -564,7 +564,7 @@ func (objectType *ObjectType) WithInterface(iface *InterfaceImplementation) *Obj
 
 // WithoutInterface removes the specified interface
 func (objectType *ObjectType) WithoutInterface(name TypeName) *ObjectType {
-	if _, found := objectType.InterfaceImplementer.FindInterface(name); !found {
+	if _, found := objectType.FindInterface(name); !found {
 		return objectType
 	}
 
@@ -632,7 +632,7 @@ func extractEmbeddedTypeName(t Type) (TypeName, error) {
 		return typeName, nil
 	}
 
-	return nil, errors.Errorf("embedded property type must be TypeName, was: %T", t)
+	return nil, eris.Errorf("embedded property type must be TypeName, was: %T", t)
 }
 
 // WriteDebugDescription adds a description of the current type to the passed builder.

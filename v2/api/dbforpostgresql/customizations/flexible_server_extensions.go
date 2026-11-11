@@ -10,37 +10,39 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/conversion"
-
-	postgresql "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v1api20221201/storage"
 	. "github.com/Azure/azure-service-operator/v2/internal/logging"
 
+	"github.com/go-logr/logr"
+	"github.com/rotisserie/eris"
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
+
+	postgresql "github.com/Azure/azure-service-operator/v2/api/dbforpostgresql/v20250801/storage"
 	"github.com/Azure/azure-service-operator/v2/internal/genericarmclient"
+	"github.com/Azure/azure-service-operator/v2/internal/reflecthelpers"
 	"github.com/Azure/azure-service-operator/v2/internal/resolver"
 	"github.com/Azure/azure-service-operator/v2/internal/set"
+	"github.com/Azure/azure-service-operator/v2/internal/util/kubeclient"
 	"github.com/Azure/azure-service-operator/v2/internal/util/to"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/extensions"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime/secrets"
 )
 
-var _ genruntime.KubernetesExporter = &FlexibleServerExtension{}
+var _ genruntime.KubernetesSecretExporter = &FlexibleServerExtension{}
 
-func (ext *FlexibleServerExtension) ExportKubernetesResources(
-	_ context.Context,
+func (ext *FlexibleServerExtension) ExportKubernetesSecrets(
+	ctx context.Context,
 	obj genruntime.MetaObject,
-	_ *genericarmclient.GenericClient,
+	additionalSecrets set.Set[string],
+	armClient *genericarmclient.GenericClient,
 	log logr.Logger,
-) ([]client.Object, error) {
+) (*genruntime.KubernetesSecretExportResult, error) {
 	// This has to be the current hub storage version. It will need to be updated
 	// if the hub storage version changes.
 	typedObj, ok := obj.(*postgresql.FlexibleServer)
 	if !ok {
-		return nil, errors.Errorf("cannot run on unknown resource type %T, expected *postgresql.FlexibleServer", obj)
+		return nil, eris.Errorf("cannot run on unknown resource type %T, expected *postgresql.FlexibleServer", obj)
 	}
 
 	// Type assert that we are the hub type. This will fail to compile if
@@ -58,7 +60,10 @@ func (ext *FlexibleServerExtension) ExportKubernetesResources(
 		return nil, err
 	}
 
-	return secrets.SliceToClientObjectSlice(secretSlice), nil
+	return &genruntime.KubernetesSecretExportResult{
+		Objs:       secrets.SliceToClientObjectSlice(secretSlice),
+		RawSecrets: nil, // No RawSecrets as all secret values are coming from status (not real secrets)
+	}, nil
 }
 
 func secretsSpecified(obj *postgresql.FlexibleServer) bool {
@@ -67,18 +72,15 @@ func secretsSpecified(obj *postgresql.FlexibleServer) bool {
 	}
 
 	operatorSecrets := obj.Spec.OperatorSpec.Secrets
-	if operatorSecrets.FullyQualifiedDomainName != nil {
-		return true
-	}
-
-	return false
+	return operatorSecrets.FullyQualifiedDomainName != nil
 }
 
 func secretsToWrite(obj *postgresql.FlexibleServer) ([]*v1.Secret, error) {
-	operatorSpecSecrets := obj.Spec.OperatorSpec.Secrets
-	if operatorSpecSecrets == nil {
-		return nil, errors.Errorf("unexpected nil operatorspec")
+	if obj.Spec.OperatorSpec == nil || obj.Spec.OperatorSpec.Secrets == nil {
+		return nil, nil
 	}
+
+	operatorSpecSecrets := obj.Spec.OperatorSpec.Secrets
 
 	collector := secrets.NewCollector(obj.Namespace)
 	collector.AddValue(operatorSpecSecrets.FullyQualifiedDomainName, to.Value(obj.Status.FullyQualifiedDomainName))
@@ -100,20 +102,19 @@ var nonBlockingFlexibleServerStates = set.Make(
 )
 
 func (ext *FlexibleServerExtension) PreReconcileCheck(
-	_ context.Context,
+	ctx context.Context,
 	obj genruntime.MetaObject,
-	_ genruntime.MetaObject,
-	_ *resolver.Resolver,
-	_ *genericarmclient.GenericClient,
-	_ logr.Logger,
-	_ extensions.PreReconcileCheckFunc,
+	resourceResolver *resolver.Resolver,
+	armClient *genericarmclient.GenericClient,
+	log logr.Logger,
+	next extensions.PreReconcileCheckFunc,
 ) (extensions.PreReconcileCheckResult, error) {
 	// This has to be the current hub storage version. It will need to be updated
 	// if the hub storage version changes.
 	server, ok := obj.(*postgresql.FlexibleServer)
 	if !ok {
 		return extensions.PreReconcileCheckResult{},
-			errors.Errorf("cannot run on unknown resource type %T, expected *postgresql.FlexibleServer", obj)
+			eris.Errorf("cannot run on unknown resource type %T, expected *postgresql.FlexibleServer", obj)
 	}
 
 	// Type assert that we are the hub type. This will fail to compile if
@@ -124,13 +125,68 @@ func (ext *FlexibleServerExtension) PreReconcileCheck(
 	if state != nil && flexibleServerStateBlocksReconciliation(*state) {
 		return extensions.BlockReconcile(
 			fmt.Sprintf(
-				"Flexible Server is in provisioning state %q",
-				*state)), nil
+				"Flexible Server is in state %q",
+				*state,
+			),
+		), nil
 	}
 
-	return extensions.ProceedWithReconcile(), nil
+	return next(ctx, obj, resourceResolver, armClient, log)
 }
 
 func flexibleServerStateBlocksReconciliation(state string) bool {
 	return !nonBlockingFlexibleServerStates.Contains(strings.ToLower(state))
+}
+
+var _ extensions.ARMResourceModifier = &FlexibleServerExtension{}
+
+const (
+	createModeReplica = "Replica"
+	createModeUpdate  = "Update"
+)
+
+// ModifyARMResource sends createMode Update in place of Replica once the replica exists, as the PostgreSQL
+// resource provider rejects any further Replica PUT with ReadReplicaAlreadyExistWithGivenName.
+// See https://github.com/Azure/azure-service-operator/issues/5086.
+func (ext *FlexibleServerExtension) ModifyARMResource(
+	ctx context.Context,
+	armClient *genericarmclient.GenericClient,
+	armObj genruntime.ARMResource,
+	obj genruntime.ARMMetaObject,
+	kubeClient kubeclient.Client,
+	resolver *resolver.Resolver,
+	log logr.Logger,
+) (genruntime.ARMResource, error) {
+	// This has to be the current hub storage version. It will need to be updated
+	// if the hub storage version changes.
+	server, ok := obj.(*postgresql.FlexibleServer)
+	if !ok {
+		return nil, eris.Errorf("cannot run on unknown resource type %T, expected *postgresql.FlexibleServer", obj)
+	}
+
+	// Type assert that we are the hub type. This will fail to compile if
+	// the hub type has been changed but this extension has not been updated to match
+	var _ conversion.Hub = server
+
+	if to.Value(server.Spec.CreateMode) != createModeReplica {
+		return armObj, nil
+	}
+
+	exists, _, err := armClient.CheckExistenceWithGetByID(ctx, armObj.GetID(), armObj.Spec().GetAPIVersion())
+	if err != nil {
+		return nil, eris.Wrapf(err, "checking whether replica %s exists", armObj.GetID())
+	}
+
+	if !exists {
+		return armObj, nil
+	}
+
+	log.V(Verbose).Info("Replica already exists, sending createMode Update", "resourceID", armObj.GetID())
+
+	err = reflecthelpers.SetProperty(armObj.Spec(), "Properties.CreateMode", to.Ptr(createModeUpdate))
+	if err != nil {
+		return nil, eris.Wrapf(err, "setting CreateMode to %s", createModeUpdate)
+	}
+
+	return armObj, nil
 }
