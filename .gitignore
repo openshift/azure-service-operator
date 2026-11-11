@@ -14,6 +14,8 @@ default.etcd
 reports/
 # Allow perf reports
 !v2/test/perf/reports/
+# Allow vendored reports packages
+!v2/vendor/**/reports/
 
 bin/
 coverage.txt
