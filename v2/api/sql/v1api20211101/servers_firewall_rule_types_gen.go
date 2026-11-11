@@ -69,7 +69,6 @@ func (rule *ServersFirewallRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversfirewallrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversfirewallrules,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversfirewallrules.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersFirewallRule{}
 
 // Default applies defaults to the ServersFirewallRule resource
 func (rule *ServersFirewallRule) Default() {
@@ -174,7 +173,6 @@ func (rule *ServersFirewallRule) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversfirewallrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversfirewallrules,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversfirewallrules.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersFirewallRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *ServersFirewallRule) ValidateCreate() (admission.Warnings, error) {

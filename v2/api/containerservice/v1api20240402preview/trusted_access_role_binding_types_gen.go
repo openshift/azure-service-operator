@@ -83,7 +83,6 @@ func (binding *TrustedAccessRoleBinding) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-containerservice-azure-com-v1api20240402preview-trustedaccessrolebinding,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerservice.azure.com,resources=trustedaccessrolebindings,verbs=create;update,versions=v1api20240402preview,name=default.v1api20240402preview.trustedaccessrolebindings.containerservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &TrustedAccessRoleBinding{}
 
 // Default applies defaults to the TrustedAccessRoleBinding resource
 func (binding *TrustedAccessRoleBinding) Default() {
@@ -177,7 +176,6 @@ func (binding *TrustedAccessRoleBinding) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-containerservice-azure-com-v1api20240402preview-trustedaccessrolebinding,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerservice.azure.com,resources=trustedaccessrolebindings,verbs=create;update,versions=v1api20240402preview,name=validate.v1api20240402preview.trustedaccessrolebindings.containerservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &TrustedAccessRoleBinding{}
 
 // ValidateCreate validates the creation of the resource
 func (binding *TrustedAccessRoleBinding) ValidateCreate() (admission.Warnings, error) {

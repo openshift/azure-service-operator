@@ -69,7 +69,6 @@ func (prefix *PublicIPPrefix) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-publicipprefix,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=publicipprefixes,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.publicipprefixes.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PublicIPPrefix{}
 
 // Default applies defaults to the PublicIPPrefix resource
 func (prefix *PublicIPPrefix) Default() {
@@ -174,7 +173,6 @@ func (prefix *PublicIPPrefix) SetStatus(status genruntime.ConvertibleStatus) err
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-publicipprefix,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=publicipprefixes,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.publicipprefixes.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PublicIPPrefix{}
 
 // ValidateCreate validates the creation of the resource
 func (prefix *PublicIPPrefix) ValidateCreate() (admission.Warnings, error) {

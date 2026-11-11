@@ -69,7 +69,6 @@ func (policy *SecurityPolicy) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-securitypolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=securitypolicies,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.securitypolicies.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SecurityPolicy{}
 
 // Default applies defaults to the SecurityPolicy resource
 func (policy *SecurityPolicy) Default() {
@@ -174,7 +173,6 @@ func (policy *SecurityPolicy) SetStatus(status genruntime.ConvertibleStatus) err
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-securitypolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=securitypolicies,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.securitypolicies.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SecurityPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *SecurityPolicy) ValidateCreate() (admission.Warnings, error) {

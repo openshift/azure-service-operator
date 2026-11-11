@@ -69,7 +69,6 @@ func (group *PrometheusRuleGroup) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-alertsmanagement-azure-com-v1api20230301-prometheusrulegroup,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=alertsmanagement.azure.com,resources=prometheusrulegroups,verbs=create;update,versions=v1api20230301,name=default.v1api20230301.prometheusrulegroups.alertsmanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PrometheusRuleGroup{}
 
 // Default applies defaults to the PrometheusRuleGroup resource
 func (group *PrometheusRuleGroup) Default() {
@@ -174,7 +173,6 @@ func (group *PrometheusRuleGroup) SetStatus(status genruntime.ConvertibleStatus)
 
 // +kubebuilder:webhook:path=/validate-alertsmanagement-azure-com-v1api20230301-prometheusrulegroup,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=alertsmanagement.azure.com,resources=prometheusrulegroups,verbs=create;update,versions=v1api20230301,name=validate.v1api20230301.prometheusrulegroups.alertsmanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PrometheusRuleGroup{}
 
 // ValidateCreate validates the creation of the resource
 func (group *PrometheusRuleGroup) ValidateCreate() (admission.Warnings, error) {

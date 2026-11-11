@@ -69,7 +69,6 @@ func (database *MongodbDatabase) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20231115-mongodbdatabase,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=mongodbdatabases,verbs=create;update,versions=v1api20231115,name=default.v1api20231115.mongodbdatabases.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &MongodbDatabase{}
 
 // Default applies defaults to the MongodbDatabase resource
 func (database *MongodbDatabase) Default() {
@@ -174,7 +173,6 @@ func (database *MongodbDatabase) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20231115-mongodbdatabase,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=mongodbdatabases,verbs=create;update,versions=v1api20231115,name=validate.v1api20231115.mongodbdatabases.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &MongodbDatabase{}
 
 // ValidateCreate validates the creation of the resource
 func (database *MongodbDatabase) ValidateCreate() (admission.Warnings, error) {

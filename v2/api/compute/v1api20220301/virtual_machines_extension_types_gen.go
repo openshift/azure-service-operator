@@ -70,7 +70,6 @@ func (extension *VirtualMachinesExtension) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-compute-azure-com-v1api20220301-virtualmachinesextension,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=virtualmachinesextensions,verbs=create;update,versions=v1api20220301,name=default.v1api20220301.virtualmachinesextensions.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &VirtualMachinesExtension{}
 
 // Default applies defaults to the VirtualMachinesExtension resource
 func (extension *VirtualMachinesExtension) Default() {
@@ -175,7 +174,6 @@ func (extension *VirtualMachinesExtension) SetStatus(status genruntime.Convertib
 
 // +kubebuilder:webhook:path=/validate-compute-azure-com-v1api20220301-virtualmachinesextension,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=virtualmachinesextensions,verbs=create;update,versions=v1api20220301,name=validate.v1api20220301.virtualmachinesextensions.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &VirtualMachinesExtension{}
 
 // ValidateCreate validates the creation of the resource
 func (extension *VirtualMachinesExtension) ValidateCreate() (admission.Warnings, error) {

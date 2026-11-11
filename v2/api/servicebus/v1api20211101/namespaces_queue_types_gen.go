@@ -69,7 +69,6 @@ func (queue *NamespacesQueue) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-servicebus-azure-com-v1api20211101-namespacesqueue,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespacesqueues,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.namespacesqueues.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NamespacesQueue{}
 
 // Default applies defaults to the NamespacesQueue resource
 func (queue *NamespacesQueue) Default() {
@@ -174,7 +173,6 @@ func (queue *NamespacesQueue) SetStatus(status genruntime.ConvertibleStatus) err
 
 // +kubebuilder:webhook:path=/validate-servicebus-azure-com-v1api20211101-namespacesqueue,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespacesqueues,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.namespacesqueues.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NamespacesQueue{}
 
 // ValidateCreate validates the creation of the resource
 func (queue *NamespacesQueue) ValidateCreate() (admission.Warnings, error) {

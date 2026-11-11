@@ -69,7 +69,6 @@ func (route *Route) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-route,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=routes,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.routes.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Route{}
 
 // Default applies defaults to the Route resource
 func (route *Route) Default() {
@@ -174,7 +173,6 @@ func (route *Route) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-route,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=routes,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.routes.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Route{}
 
 // ValidateCreate validates the creation of the resource
 func (route *Route) ValidateCreate() (admission.Warnings, error) {

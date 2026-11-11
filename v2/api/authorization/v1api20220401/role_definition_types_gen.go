@@ -69,7 +69,6 @@ func (definition *RoleDefinition) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-authorization-azure-com-v1api20220401-roledefinition,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=authorization.azure.com,resources=roledefinitions,verbs=create;update,versions=v1api20220401,name=default.v1api20220401.roledefinitions.authorization.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &RoleDefinition{}
 
 // Default applies defaults to the RoleDefinition resource
 func (definition *RoleDefinition) Default() {
@@ -166,7 +165,6 @@ func (definition *RoleDefinition) SetStatus(status genruntime.ConvertibleStatus)
 
 // +kubebuilder:webhook:path=/validate-authorization-azure-com-v1api20220401-roledefinition,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=authorization.azure.com,resources=roledefinitions,verbs=create;update,versions=v1api20220401,name=validate.v1api20220401.roledefinitions.authorization.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &RoleDefinition{}
 
 // ValidateCreate validates the creation of the resource
 func (definition *RoleDefinition) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (eventhub *NamespacesEventhub) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-eventhub-azure-com-v1api20211101-namespaceseventhub,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=eventhub.azure.com,resources=namespaceseventhubs,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.namespaceseventhubs.eventhub.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NamespacesEventhub{}
 
 // Default applies defaults to the NamespacesEventhub resource
 func (eventhub *NamespacesEventhub) Default() {
@@ -174,7 +173,6 @@ func (eventhub *NamespacesEventhub) SetStatus(status genruntime.ConvertibleStatu
 
 // +kubebuilder:webhook:path=/validate-eventhub-azure-com-v1api20211101-namespaceseventhub,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=eventhub.azure.com,resources=namespaceseventhubs,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.namespaceseventhubs.eventhub.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NamespacesEventhub{}
 
 // ValidateCreate validates the creation of the resource
 func (eventhub *NamespacesEventhub) ValidateCreate() (admission.Warnings, error) {

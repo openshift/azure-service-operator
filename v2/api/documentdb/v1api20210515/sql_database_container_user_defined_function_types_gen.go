@@ -83,7 +83,6 @@ func (function *SqlDatabaseContainerUserDefinedFunction) ConvertTo(hub conversio
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20210515-sqldatabasecontaineruserdefinedfunction,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabasecontaineruserdefinedfunctions,verbs=create;update,versions=v1api20210515,name=default.v1api20210515.sqldatabasecontaineruserdefinedfunctions.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SqlDatabaseContainerUserDefinedFunction{}
 
 // Default applies defaults to the SqlDatabaseContainerUserDefinedFunction resource
 func (function *SqlDatabaseContainerUserDefinedFunction) Default() {
@@ -177,7 +176,6 @@ func (function *SqlDatabaseContainerUserDefinedFunction) SetStatus(status genrun
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20210515-sqldatabasecontaineruserdefinedfunction,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabasecontaineruserdefinedfunctions,verbs=create;update,versions=v1api20210515,name=validate.v1api20210515.sqldatabasecontaineruserdefinedfunctions.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SqlDatabaseContainerUserDefinedFunction{}
 
 // ValidateCreate validates the creation of the resource
 func (function *SqlDatabaseContainerUserDefinedFunction) ValidateCreate() (admission.Warnings, error) {

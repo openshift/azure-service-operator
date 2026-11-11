@@ -69,7 +69,6 @@ func (alias *Alias) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-subscription-azure-com-v1api20211001-alias,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=subscription.azure.com,resources=aliases,verbs=create;update,versions=v1api20211001,name=default.v1api20211001.aliases.subscription.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Alias{}
 
 // Default applies defaults to the Alias resource
 func (alias *Alias) Default() {
@@ -173,7 +172,6 @@ func (alias *Alias) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-subscription-azure-com-v1api20211001-alias,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=subscription.azure.com,resources=aliases,verbs=create;update,versions=v1api20211001,name=validate.v1api20211001.aliases.subscription.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Alias{}
 
 // ValidateCreate validates the creation of the resource
 func (alias *Alias) ValidateCreate() (admission.Warnings, error) {

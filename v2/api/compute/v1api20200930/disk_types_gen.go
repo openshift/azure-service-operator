@@ -69,7 +69,6 @@ func (disk *Disk) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-compute-azure-com-v1api20200930-disk,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=disks,verbs=create;update,versions=v1api20200930,name=default.v1api20200930.disks.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Disk{}
 
 // Default applies defaults to the Disk resource
 func (disk *Disk) Default() {
@@ -174,7 +173,6 @@ func (disk *Disk) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-compute-azure-com-v1api20200930-disk,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=disks,verbs=create;update,versions=v1api20200930,name=validate.v1api20200930.disks.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Disk{}
 
 // ValidateCreate validates the creation of the resource
 func (disk *Disk) ValidateCreate() (admission.Warnings, error) {

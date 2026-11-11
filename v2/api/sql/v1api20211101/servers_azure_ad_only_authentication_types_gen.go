@@ -69,7 +69,6 @@ func (authentication *ServersAzureADOnlyAuthentication) ConvertTo(hub conversion
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversazureadonlyauthentication,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversazureadonlyauthentications,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversazureadonlyauthentications.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersAzureADOnlyAuthentication{}
 
 // Default applies defaults to the ServersAzureADOnlyAuthentication resource
 func (authentication *ServersAzureADOnlyAuthentication) Default() {
@@ -167,7 +166,6 @@ func (authentication *ServersAzureADOnlyAuthentication) SetStatus(status genrunt
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversazureadonlyauthentication,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversazureadonlyauthentications,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversazureadonlyauthentications.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersAzureADOnlyAuthentication{}
 
 // ValidateCreate validates the creation of the resource
 func (authentication *ServersAzureADOnlyAuthentication) ValidateCreate() (admission.Warnings, error) {

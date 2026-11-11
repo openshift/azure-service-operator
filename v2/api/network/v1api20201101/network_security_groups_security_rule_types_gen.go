@@ -69,7 +69,6 @@ func (rule *NetworkSecurityGroupsSecurityRule) ConvertTo(hub conversion.Hub) err
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-networksecuritygroupssecurityrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=networksecuritygroupssecurityrules,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.networksecuritygroupssecurityrules.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NetworkSecurityGroupsSecurityRule{}
 
 // Default applies defaults to the NetworkSecurityGroupsSecurityRule resource
 func (rule *NetworkSecurityGroupsSecurityRule) Default() {
@@ -174,7 +173,6 @@ func (rule *NetworkSecurityGroupsSecurityRule) SetStatus(status genruntime.Conve
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-networksecuritygroupssecurityrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=networksecuritygroupssecurityrules,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.networksecuritygroupssecurityrules.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NetworkSecurityGroupsSecurityRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *NetworkSecurityGroupsSecurityRule) ValidateCreate() (admission.Warnings, error) {

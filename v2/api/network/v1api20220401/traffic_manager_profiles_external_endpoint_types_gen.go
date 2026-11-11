@@ -69,7 +69,6 @@ func (endpoint *TrafficManagerProfilesExternalEndpoint) ConvertTo(hub conversion
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220401-trafficmanagerprofilesexternalendpoint,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=trafficmanagerprofilesexternalendpoints,verbs=create;update,versions=v1api20220401,name=default.v1api20220401.trafficmanagerprofilesexternalendpoints.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &TrafficManagerProfilesExternalEndpoint{}
 
 // Default applies defaults to the TrafficManagerProfilesExternalEndpoint resource
 func (endpoint *TrafficManagerProfilesExternalEndpoint) Default() {
@@ -174,7 +173,6 @@ func (endpoint *TrafficManagerProfilesExternalEndpoint) SetStatus(status genrunt
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220401-trafficmanagerprofilesexternalendpoint,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=trafficmanagerprofilesexternalendpoints,verbs=create;update,versions=v1api20220401,name=validate.v1api20220401.trafficmanagerprofilesexternalendpoints.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &TrafficManagerProfilesExternalEndpoint{}
 
 // ValidateCreate validates the creation of the resource
 func (endpoint *TrafficManagerProfilesExternalEndpoint) ValidateCreate() (admission.Warnings, error) {

@@ -75,7 +75,6 @@ func (extension *Extension) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-kubernetesconfiguration-azure-com-v1api20230501-extension,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=kubernetesconfiguration.azure.com,resources=extensions,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.extensions.kubernetesconfiguration.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Extension{}
 
 // Default applies defaults to the Extension resource
 func (extension *Extension) Default() {
@@ -198,7 +197,6 @@ func (extension *Extension) SetStatus(status genruntime.ConvertibleStatus) error
 
 // +kubebuilder:webhook:path=/validate-kubernetesconfiguration-azure-com-v1api20230501-extension,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=kubernetesconfiguration.azure.com,resources=extensions,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.extensions.kubernetesconfiguration.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Extension{}
 
 // ValidateCreate validates the creation of the resource
 func (extension *Extension) ValidateCreate() (admission.Warnings, error) {

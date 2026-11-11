@@ -69,7 +69,6 @@ func (endpoint *PrivateEndpoint) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-privateendpoint,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privateendpoints,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.privateendpoints.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PrivateEndpoint{}
 
 // Default applies defaults to the PrivateEndpoint resource
 func (endpoint *PrivateEndpoint) Default() {
@@ -174,7 +173,6 @@ func (endpoint *PrivateEndpoint) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-privateendpoint,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privateendpoints,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.privateendpoints.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PrivateEndpoint{}
 
 // ValidateCreate validates the creation of the resource
 func (endpoint *PrivateEndpoint) ValidateCreate() (admission.Warnings, error) {

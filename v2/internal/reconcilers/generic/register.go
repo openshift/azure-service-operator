@@ -56,7 +56,7 @@ func registerWebhook(mgr ctrl.Manager, obj client.Object) error {
 		return errors.Wrap(err, "obj was expected to be ptr but was not")
 	}
 
-	return ctrl.NewWebhookManagedBy(mgr).For(obj).Complete()
+	return ctrl.NewWebhookManagedBy(mgr, obj).Complete()
 }
 
 func RegisterAll(

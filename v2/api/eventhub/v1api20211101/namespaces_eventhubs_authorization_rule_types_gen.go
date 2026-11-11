@@ -69,7 +69,6 @@ func (rule *NamespacesEventhubsAuthorizationRule) ConvertTo(hub conversion.Hub) 
 
 // +kubebuilder:webhook:path=/mutate-eventhub-azure-com-v1api20211101-namespaceseventhubsauthorizationrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=eventhub.azure.com,resources=namespaceseventhubsauthorizationrules,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.namespaceseventhubsauthorizationrules.eventhub.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NamespacesEventhubsAuthorizationRule{}
 
 // Default applies defaults to the NamespacesEventhubsAuthorizationRule resource
 func (rule *NamespacesEventhubsAuthorizationRule) Default() {
@@ -174,7 +173,6 @@ func (rule *NamespacesEventhubsAuthorizationRule) SetStatus(status genruntime.Co
 
 // +kubebuilder:webhook:path=/validate-eventhub-azure-com-v1api20211101-namespaceseventhubsauthorizationrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=eventhub.azure.com,resources=namespaceseventhubsauthorizationrules,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.namespaceseventhubsauthorizationrules.eventhub.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NamespacesEventhubsAuthorizationRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *NamespacesEventhubsAuthorizationRule) ValidateCreate() (admission.Warnings, error) {

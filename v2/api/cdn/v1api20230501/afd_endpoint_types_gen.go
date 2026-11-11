@@ -69,7 +69,6 @@ func (endpoint *AfdEndpoint) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-afdendpoint,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=afdendpoints,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.afdendpoints.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &AfdEndpoint{}
 
 // Default applies defaults to the AfdEndpoint resource
 func (endpoint *AfdEndpoint) Default() {
@@ -174,7 +173,6 @@ func (endpoint *AfdEndpoint) SetStatus(status genruntime.ConvertibleStatus) erro
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-afdendpoint,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=afdendpoints,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.afdendpoints.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &AfdEndpoint{}
 
 // ValidateCreate validates the creation of the resource
 func (endpoint *AfdEndpoint) ValidateCreate() (admission.Warnings, error) {

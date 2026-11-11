@@ -69,7 +69,6 @@ func (administrator *ServersAdministrator) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversadministrator,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversadministrators,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversadministrators.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersAdministrator{}
 
 // Default applies defaults to the ServersAdministrator resource
 func (administrator *ServersAdministrator) Default() {
@@ -167,7 +166,6 @@ func (administrator *ServersAdministrator) SetStatus(status genruntime.Convertib
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversadministrator,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversadministrators,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversadministrators.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersAdministrator{}
 
 // ValidateCreate validates the creation of the resource
 func (administrator *ServersAdministrator) ValidateCreate() (admission.Warnings, error) {

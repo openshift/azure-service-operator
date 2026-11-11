@@ -69,7 +69,6 @@ func (endpoint *ProfilesEndpoint) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20210601-profilesendpoint,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=profilesendpoints,verbs=create;update,versions=v1api20210601,name=default.v1api20210601.profilesendpoints.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ProfilesEndpoint{}
 
 // Default applies defaults to the ProfilesEndpoint resource
 func (endpoint *ProfilesEndpoint) Default() {
@@ -174,7 +173,6 @@ func (endpoint *ProfilesEndpoint) SetStatus(status genruntime.ConvertibleStatus)
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20210601-profilesendpoint,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=profilesendpoints,verbs=create;update,versions=v1api20210601,name=validate.v1api20210601.profilesendpoints.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ProfilesEndpoint{}
 
 // ValidateCreate validates the creation of the resource
 func (endpoint *ProfilesEndpoint) ValidateCreate() (admission.Warnings, error) {

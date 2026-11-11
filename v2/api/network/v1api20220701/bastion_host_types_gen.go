@@ -69,7 +69,6 @@ func (host *BastionHost) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-bastionhost,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=bastionhosts,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.bastionhosts.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &BastionHost{}
 
 // Default applies defaults to the BastionHost resource
 func (host *BastionHost) Default() {
@@ -174,7 +173,6 @@ func (host *BastionHost) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-bastionhost,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=bastionhosts,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.bastionhosts.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &BastionHost{}
 
 // ValidateCreate validates the creation of the resource
 func (host *BastionHost) ValidateCreate() (admission.Warnings, error) {

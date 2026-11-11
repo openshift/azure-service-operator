@@ -83,7 +83,6 @@ func (fragment *PolicyFragment) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-policyfragment,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=policyfragments,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.policyfragments.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PolicyFragment{}
 
 // Default applies defaults to the PolicyFragment resource
 func (fragment *PolicyFragment) Default() {
@@ -178,7 +177,6 @@ func (fragment *PolicyFragment) SetStatus(status genruntime.ConvertibleStatus) e
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-policyfragment,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=policyfragments,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.policyfragments.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PolicyFragment{}
 
 // ValidateCreate validates the creation of the resource
 func (fragment *PolicyFragment) ValidateCreate() (admission.Warnings, error) {

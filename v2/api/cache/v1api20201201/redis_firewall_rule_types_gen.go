@@ -83,7 +83,6 @@ func (rule *RedisFirewallRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cache-azure-com-v1api20201201-redisfirewallrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cache.azure.com,resources=redisfirewallrules,verbs=create;update,versions=v1api20201201,name=default.v1api20201201.redisfirewallrules.cache.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &RedisFirewallRule{}
 
 // Default applies defaults to the RedisFirewallRule resource
 func (rule *RedisFirewallRule) Default() {
@@ -177,7 +176,6 @@ func (rule *RedisFirewallRule) SetStatus(status genruntime.ConvertibleStatus) er
 
 // +kubebuilder:webhook:path=/validate-cache-azure-com-v1api20201201-redisfirewallrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cache.azure.com,resources=redisfirewallrules,verbs=create;update,versions=v1api20201201,name=validate.v1api20201201.redisfirewallrules.cache.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &RedisFirewallRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *RedisFirewallRule) ValidateCreate() (admission.Warnings, error) {

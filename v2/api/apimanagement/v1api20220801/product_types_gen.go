@@ -69,7 +69,6 @@ func (product *Product) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20220801-product,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=products,verbs=create;update,versions=v1api20220801,name=default.v1api20220801.products.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Product{}
 
 // Default applies defaults to the Product resource
 func (product *Product) Default() {
@@ -175,7 +174,6 @@ func (product *Product) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20220801-product,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=products,verbs=create;update,versions=v1api20220801,name=validate.v1api20220801.products.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Product{}
 
 // ValidateCreate validates the creation of the resource
 func (product *Product) ValidateCreate() (admission.Warnings, error) {

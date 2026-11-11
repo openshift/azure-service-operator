@@ -69,7 +69,6 @@ func (policy *ServersSecurityAlertPolicy) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serverssecurityalertpolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serverssecurityalertpolicies,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serverssecurityalertpolicies.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersSecurityAlertPolicy{}
 
 // Default applies defaults to the ServersSecurityAlertPolicy resource
 func (policy *ServersSecurityAlertPolicy) Default() {
@@ -166,7 +165,6 @@ func (policy *ServersSecurityAlertPolicy) SetStatus(status genruntime.Convertibl
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serverssecurityalertpolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serverssecurityalertpolicies,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serverssecurityalertpolicies.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersSecurityAlertPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *ServersSecurityAlertPolicy) ValidateCreate() (admission.Warnings, error) {

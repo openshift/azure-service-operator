@@ -83,7 +83,6 @@ func (procedure *SqlDatabaseContainerStoredProcedure) ConvertTo(hub conversion.H
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20210515-sqldatabasecontainerstoredprocedure,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabasecontainerstoredprocedures,verbs=create;update,versions=v1api20210515,name=default.v1api20210515.sqldatabasecontainerstoredprocedures.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SqlDatabaseContainerStoredProcedure{}
 
 // Default applies defaults to the SqlDatabaseContainerStoredProcedure resource
 func (procedure *SqlDatabaseContainerStoredProcedure) Default() {
@@ -177,7 +176,6 @@ func (procedure *SqlDatabaseContainerStoredProcedure) SetStatus(status genruntim
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20210515-sqldatabasecontainerstoredprocedure,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabasecontainerstoredprocedures,verbs=create;update,versions=v1api20210515,name=validate.v1api20210515.sqldatabasecontainerstoredprocedures.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SqlDatabaseContainerStoredProcedure{}
 
 // ValidateCreate validates the creation of the resource
 func (procedure *SqlDatabaseContainerStoredProcedure) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (subnet *VirtualNetworksSubnet) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-virtualnetworkssubnet,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=virtualnetworkssubnets,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.virtualnetworkssubnets.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &VirtualNetworksSubnet{}
 
 // Default applies defaults to the VirtualNetworksSubnet resource
 func (subnet *VirtualNetworksSubnet) Default() {
@@ -174,7 +173,6 @@ func (subnet *VirtualNetworksSubnet) SetStatus(status genruntime.ConvertibleStat
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-virtualnetworkssubnet,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=virtualnetworkssubnets,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.virtualnetworkssubnets.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &VirtualNetworksSubnet{}
 
 // ValidateCreate validates the creation of the resource
 func (subnet *VirtualNetworksSubnet) ValidateCreate() (admission.Warnings, error) {

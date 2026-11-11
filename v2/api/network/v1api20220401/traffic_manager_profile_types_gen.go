@@ -74,7 +74,6 @@ func (profile *TrafficManagerProfile) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220401-trafficmanagerprofile,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=trafficmanagerprofiles,verbs=create;update,versions=v1api20220401,name=default.v1api20220401.trafficmanagerprofiles.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &TrafficManagerProfile{}
 
 // Default applies defaults to the TrafficManagerProfile resource
 func (profile *TrafficManagerProfile) Default() {
@@ -198,7 +197,6 @@ func (profile *TrafficManagerProfile) SetStatus(status genruntime.ConvertibleSta
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220401-trafficmanagerprofile,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=trafficmanagerprofiles,verbs=create;update,versions=v1api20220401,name=validate.v1api20220401.trafficmanagerprofiles.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &TrafficManagerProfile{}
 
 // ValidateCreate validates the creation of the resource
 func (profile *TrafficManagerProfile) ValidateCreate() (admission.Warnings, error) {

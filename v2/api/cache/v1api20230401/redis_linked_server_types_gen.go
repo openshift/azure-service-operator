@@ -69,7 +69,6 @@ func (server *RedisLinkedServer) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cache-azure-com-v1api20230401-redislinkedserver,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cache.azure.com,resources=redislinkedservers,verbs=create;update,versions=v1api20230401,name=default.v1api20230401.redislinkedservers.cache.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &RedisLinkedServer{}
 
 // Default applies defaults to the RedisLinkedServer resource
 func (server *RedisLinkedServer) Default() {
@@ -174,7 +173,6 @@ func (server *RedisLinkedServer) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-cache-azure-com-v1api20230401-redislinkedserver,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cache.azure.com,resources=redislinkedservers,verbs=create;update,versions=v1api20230401,name=validate.v1api20230401.redislinkedservers.cache.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &RedisLinkedServer{}
 
 // ValidateCreate validates the creation of the resource
 func (server *RedisLinkedServer) ValidateCreate() (admission.Warnings, error) {

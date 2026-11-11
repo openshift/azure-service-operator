@@ -70,7 +70,6 @@ func (machine *VirtualMachine) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-compute-azure-com-v1api20220301-virtualmachine,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=virtualmachines,verbs=create;update,versions=v1api20220301,name=default.v1api20220301.virtualmachines.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &VirtualMachine{}
 
 // Default applies defaults to the VirtualMachine resource
 func (machine *VirtualMachine) Default() {
@@ -175,7 +174,6 @@ func (machine *VirtualMachine) SetStatus(status genruntime.ConvertibleStatus) er
 
 // +kubebuilder:webhook:path=/validate-compute-azure-com-v1api20220301-virtualmachine,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=virtualmachines,verbs=create;update,versions=v1api20220301,name=validate.v1api20220301.virtualmachines.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &VirtualMachine{}
 
 // ValidateCreate validates the creation of the resource
 func (machine *VirtualMachine) ValidateCreate() (admission.Warnings, error) {

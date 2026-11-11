@@ -69,7 +69,6 @@ func (registry *Registry) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-containerregistry-azure-com-v1api20210901-registry,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerregistry.azure.com,resources=registries,verbs=create;update,versions=v1api20210901,name=default.v1api20210901.registries.containerregistry.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Registry{}
 
 // Default applies defaults to the Registry resource
 func (registry *Registry) Default() {
@@ -174,7 +173,6 @@ func (registry *Registry) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-containerregistry-azure-com-v1api20210901-registry,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerregistry.azure.com,resources=registries,verbs=create;update,versions=v1api20210901,name=validate.v1api20210901.registries.containerregistry.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Registry{}
 
 // ValidateCreate validates the creation of the resource
 func (registry *Registry) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (table *StorageAccountsTableServicesTable) ConvertTo(hub conversion.Hub) er
 
 // +kubebuilder:webhook:path=/mutate-storage-azure-com-v1api20230101-storageaccountstableservicestable,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountstableservicestables,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.storageaccountstableservicestables.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &StorageAccountsTableServicesTable{}
 
 // Default applies defaults to the StorageAccountsTableServicesTable resource
 func (table *StorageAccountsTableServicesTable) Default() {
@@ -174,7 +173,6 @@ func (table *StorageAccountsTableServicesTable) SetStatus(status genruntime.Conv
 
 // +kubebuilder:webhook:path=/validate-storage-azure-com-v1api20230101-storageaccountstableservicestable,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountstableservicestables,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.storageaccountstableservicestables.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &StorageAccountsTableServicesTable{}
 
 // ValidateCreate validates the creation of the resource
 func (table *StorageAccountsTableServicesTable) ValidateCreate() (admission.Warnings, error) {

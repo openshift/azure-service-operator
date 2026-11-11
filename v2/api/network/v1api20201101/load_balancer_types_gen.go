@@ -69,7 +69,6 @@ func (balancer *LoadBalancer) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-loadbalancer,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=loadbalancers,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.loadbalancers.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &LoadBalancer{}
 
 // Default applies defaults to the LoadBalancer resource
 func (balancer *LoadBalancer) Default() {
@@ -174,7 +173,6 @@ func (balancer *LoadBalancer) SetStatus(status genruntime.ConvertibleStatus) err
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-loadbalancer,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=loadbalancers,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.loadbalancers.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &LoadBalancer{}
 
 // ValidateCreate validates the creation of the resource
 func (balancer *LoadBalancer) ValidateCreate() (admission.Warnings, error) {

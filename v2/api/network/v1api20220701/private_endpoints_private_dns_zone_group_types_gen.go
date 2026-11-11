@@ -69,7 +69,6 @@ func (group *PrivateEndpointsPrivateDnsZoneGroup) ConvertTo(hub conversion.Hub) 
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-privateendpointsprivatednszonegroup,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privateendpointsprivatednszonegroups,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.privateendpointsprivatednszonegroups.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PrivateEndpointsPrivateDnsZoneGroup{}
 
 // Default applies defaults to the PrivateEndpointsPrivateDnsZoneGroup resource
 func (group *PrivateEndpointsPrivateDnsZoneGroup) Default() {
@@ -174,7 +173,6 @@ func (group *PrivateEndpointsPrivateDnsZoneGroup) SetStatus(status genruntime.Co
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-privateendpointsprivatednszonegroup,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privateendpointsprivatednszonegroups,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.privateendpointsprivatednszonegroups.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PrivateEndpointsPrivateDnsZoneGroup{}
 
 // ValidateCreate validates the creation of the resource
 func (group *PrivateEndpointsPrivateDnsZoneGroup) ValidateCreate() (admission.Warnings, error) {

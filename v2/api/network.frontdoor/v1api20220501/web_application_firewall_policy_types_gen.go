@@ -69,7 +69,6 @@ func (policy *WebApplicationFirewallPolicy) ConvertTo(hub conversion.Hub) error 
 
 // +kubebuilder:webhook:path=/mutate-network-frontdoor-azure-com-v1api20220501-webapplicationfirewallpolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.frontdoor.azure.com,resources=webapplicationfirewallpolicies,verbs=create;update,versions=v1api20220501,name=default.v1api20220501.webapplicationfirewallpolicies.network.frontdoor.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &WebApplicationFirewallPolicy{}
 
 // Default applies defaults to the WebApplicationFirewallPolicy resource
 func (policy *WebApplicationFirewallPolicy) Default() {
@@ -174,7 +173,6 @@ func (policy *WebApplicationFirewallPolicy) SetStatus(status genruntime.Converti
 
 // +kubebuilder:webhook:path=/validate-network-frontdoor-azure-com-v1api20220501-webapplicationfirewallpolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.frontdoor.azure.com,resources=webapplicationfirewallpolicies,verbs=create;update,versions=v1api20220501,name=validate.v1api20220501.webapplicationfirewallpolicies.network.frontdoor.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &WebApplicationFirewallPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *WebApplicationFirewallPolicy) ValidateCreate() (admission.Warnings, error) {

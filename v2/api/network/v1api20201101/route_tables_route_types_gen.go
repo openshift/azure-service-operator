@@ -69,7 +69,6 @@ func (route *RouteTablesRoute) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-routetablesroute,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=routetablesroutes,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.routetablesroutes.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &RouteTablesRoute{}
 
 // Default applies defaults to the RouteTablesRoute resource
 func (route *RouteTablesRoute) Default() {
@@ -174,7 +173,6 @@ func (route *RouteTablesRoute) SetStatus(status genruntime.ConvertibleStatus) er
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-routetablesroute,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=routetablesroutes,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.routetablesroutes.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &RouteTablesRoute{}
 
 // ValidateCreate validates the creation of the resource
 func (route *RouteTablesRoute) ValidateCreate() (admission.Warnings, error) {

@@ -83,7 +83,6 @@ func (policy *ProductPolicy) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-productpolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=productpolicies,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.productpolicies.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ProductPolicy{}
 
 // Default applies defaults to the ProductPolicy resource
 func (policy *ProductPolicy) Default() {
@@ -171,7 +170,6 @@ func (policy *ProductPolicy) SetStatus(status genruntime.ConvertibleStatus) erro
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-productpolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=productpolicies,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.productpolicies.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ProductPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *ProductPolicy) ValidateCreate() (admission.Warnings, error) {

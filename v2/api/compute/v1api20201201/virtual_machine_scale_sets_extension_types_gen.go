@@ -84,7 +84,6 @@ func (extension *VirtualMachineScaleSetsExtension) ConvertTo(hub conversion.Hub)
 
 // +kubebuilder:webhook:path=/mutate-compute-azure-com-v1api20201201-virtualmachinescalesetsextension,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=virtualmachinescalesetsextensions,verbs=create;update,versions=v1api20201201,name=default.v1api20201201.virtualmachinescalesetsextensions.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &VirtualMachineScaleSetsExtension{}
 
 // Default applies defaults to the VirtualMachineScaleSetsExtension resource
 func (extension *VirtualMachineScaleSetsExtension) Default() {
@@ -178,7 +177,6 @@ func (extension *VirtualMachineScaleSetsExtension) SetStatus(status genruntime.C
 
 // +kubebuilder:webhook:path=/validate-compute-azure-com-v1api20201201-virtualmachinescalesetsextension,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=virtualmachinescalesetsextensions,verbs=create;update,versions=v1api20201201,name=validate.v1api20201201.virtualmachinescalesetsextensions.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &VirtualMachineScaleSetsExtension{}
 
 // ValidateCreate validates the creation of the resource
 func (extension *VirtualMachineScaleSetsExtension) ValidateCreate() (admission.Warnings, error) {

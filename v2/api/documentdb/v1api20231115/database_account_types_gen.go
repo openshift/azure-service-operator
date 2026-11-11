@@ -69,7 +69,6 @@ func (account *DatabaseAccount) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20231115-databaseaccount,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=databaseaccounts,verbs=create;update,versions=v1api20231115,name=default.v1api20231115.databaseaccounts.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &DatabaseAccount{}
 
 // Default applies defaults to the DatabaseAccount resource
 func (account *DatabaseAccount) Default() {
@@ -174,7 +173,6 @@ func (account *DatabaseAccount) SetStatus(status genruntime.ConvertibleStatus) e
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20231115-databaseaccount,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=databaseaccounts,verbs=create;update,versions=v1api20231115,name=validate.v1api20231115.databaseaccounts.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &DatabaseAccount{}
 
 // ValidateCreate validates the creation of the resource
 func (account *DatabaseAccount) ValidateCreate() (admission.Warnings, error) {

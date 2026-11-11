@@ -83,7 +83,6 @@ func (webtest *Webtest) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-insights-azure-com-v1api20180501preview-webtest,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=webtests,verbs=create;update,versions=v1api20180501preview,name=default.v1api20180501preview.webtests.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Webtest{}
 
 // Default applies defaults to the Webtest resource
 func (webtest *Webtest) Default() {
@@ -177,7 +176,6 @@ func (webtest *Webtest) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-insights-azure-com-v1api20180501preview-webtest,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=webtests,verbs=create;update,versions=v1api20180501preview,name=validate.v1api20180501preview.webtests.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Webtest{}
 
 // ValidateCreate validates the creation of the resource
 func (webtest *Webtest) ValidateCreate() (admission.Warnings, error) {

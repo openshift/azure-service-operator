@@ -74,7 +74,6 @@ func (account *StorageAccount) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-storage-azure-com-v1api20230101-storageaccount,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccounts,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.storageaccounts.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &StorageAccount{}
 
 // Default applies defaults to the StorageAccount resource
 func (account *StorageAccount) Default() {
@@ -233,7 +232,6 @@ func (account *StorageAccount) SetStatus(status genruntime.ConvertibleStatus) er
 
 // +kubebuilder:webhook:path=/validate-storage-azure-com-v1api20230101-storageaccount,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccounts,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.storageaccounts.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &StorageAccount{}
 
 // ValidateCreate validates the creation of the resource
 func (account *StorageAccount) ValidateCreate() (admission.Warnings, error) {

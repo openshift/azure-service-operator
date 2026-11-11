@@ -88,7 +88,6 @@ func (cluster *ManagedCluster) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-containerservice-azure-com-v1api20240402preview-managedcluster,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerservice.azure.com,resources=managedclusters,verbs=create;update,versions=v1api20240402preview,name=default.v1api20240402preview.managedclusters.containerservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ManagedCluster{}
 
 // Default applies defaults to the ManagedCluster resource
 func (cluster *ManagedCluster) Default() {
@@ -201,7 +200,6 @@ func (cluster *ManagedCluster) SetStatus(status genruntime.ConvertibleStatus) er
 
 // +kubebuilder:webhook:path=/validate-containerservice-azure-com-v1api20240402preview-managedcluster,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerservice.azure.com,resources=managedclusters,verbs=create;update,versions=v1api20240402preview,name=validate.v1api20240402preview.managedclusters.containerservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ManagedCluster{}
 
 // ValidateCreate validates the creation of the resource
 func (cluster *ManagedCluster) ValidateCreate() (admission.Warnings, error) {

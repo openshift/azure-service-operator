@@ -69,7 +69,6 @@ func (server *Server) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-dbformariadb-azure-com-v1api20180601-server,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformariadb.azure.com,resources=servers,verbs=create;update,versions=v1api20180601,name=default.v1api20180601.servers.dbformariadb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Server{}
 
 // Default applies defaults to the Server resource
 func (server *Server) Default() {
@@ -174,7 +173,6 @@ func (server *Server) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-dbformariadb-azure-com-v1api20180601-server,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformariadb.azure.com,resources=servers,verbs=create;update,versions=v1api20180601,name=validate.v1api20180601.servers.dbformariadb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Server{}
 
 // ValidateCreate validates the creation of the resource
 func (server *Server) ValidateCreate() (admission.Warnings, error) {

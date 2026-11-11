@@ -69,7 +69,6 @@ func (policy *ServersDatabasesBackupLongTermRetentionPolicy) ConvertTo(hub conve
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversdatabasesbackuplongtermretentionpolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversdatabasesbackuplongtermretentionpolicies,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversdatabasesbackuplongtermretentionpolicies.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersDatabasesBackupLongTermRetentionPolicy{}
 
 // Default applies defaults to the ServersDatabasesBackupLongTermRetentionPolicy resource
 func (policy *ServersDatabasesBackupLongTermRetentionPolicy) Default() {
@@ -166,7 +165,6 @@ func (policy *ServersDatabasesBackupLongTermRetentionPolicy) SetStatus(status ge
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversdatabasesbackuplongtermretentionpolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversdatabasesbackuplongtermretentionpolicies,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversdatabasesbackuplongtermretentionpolicies.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersDatabasesBackupLongTermRetentionPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *ServersDatabasesBackupLongTermRetentionPolicy) ValidateCreate() (admission.Warnings, error) {

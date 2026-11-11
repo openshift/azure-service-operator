@@ -83,7 +83,6 @@ func (subscription *Subscription) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-subscription,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=subscriptions,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.subscriptions.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Subscription{}
 
 // Default applies defaults to the Subscription resource
 func (subscription *Subscription) Default() {
@@ -178,7 +177,6 @@ func (subscription *Subscription) SetStatus(status genruntime.ConvertibleStatus)
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-subscription,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=subscriptions,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.subscriptions.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Subscription{}
 
 // ValidateCreate validates the creation of the resource
 func (subscription *Subscription) ValidateCreate() (admission.Warnings, error) {

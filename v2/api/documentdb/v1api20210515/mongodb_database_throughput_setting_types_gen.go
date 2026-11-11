@@ -83,7 +83,6 @@ func (setting *MongodbDatabaseThroughputSetting) ConvertTo(hub conversion.Hub) e
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20210515-mongodbdatabasethroughputsetting,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=mongodbdatabasethroughputsettings,verbs=create;update,versions=v1api20210515,name=default.v1api20210515.mongodbdatabasethroughputsettings.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &MongodbDatabaseThroughputSetting{}
 
 // Default applies defaults to the MongodbDatabaseThroughputSetting resource
 func (setting *MongodbDatabaseThroughputSetting) Default() {
@@ -169,7 +168,6 @@ func (setting *MongodbDatabaseThroughputSetting) SetStatus(status genruntime.Con
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20210515-mongodbdatabasethroughputsetting,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=mongodbdatabasethroughputsettings,verbs=create;update,versions=v1api20210515,name=validate.v1api20210515.mongodbdatabasethroughputsettings.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &MongodbDatabaseThroughputSetting{}
 
 // ValidateCreate validates the creation of the resource
 func (setting *MongodbDatabaseThroughputSetting) ValidateCreate() (admission.Warnings, error) {

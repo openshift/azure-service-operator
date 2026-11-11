@@ -83,7 +83,6 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) ConvertTo(hub co
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-authorizationprovidersauthorizationsaccesspolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=authorizationprovidersauthorizationsaccesspolicies,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.authorizationprovidersauthorizationsaccesspolicies.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &AuthorizationProvidersAuthorizationsAccessPolicy{}
 
 // Default applies defaults to the AuthorizationProvidersAuthorizationsAccessPolicy resource
 func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) Default() {
@@ -179,7 +178,6 @@ func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) SetStatus(status
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-authorizationprovidersauthorizationsaccesspolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=authorizationprovidersauthorizationsaccesspolicies,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.authorizationprovidersauthorizationsaccesspolicies.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &AuthorizationProvidersAuthorizationsAccessPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *AuthorizationProvidersAuthorizationsAccessPolicy) ValidateCreate() (admission.Warnings, error) {

@@ -34,6 +34,10 @@ func NewTestClient(config *rest.Config, options client.Options) (client.Client, 
 	}, nil
 }
 
+func (d *directClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	return d.inner.Apply(ctx, obj, opts...)
+}
+
 func (d *directClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	gvk, err := apiutil.GVKForObject(obj, d.inner.Scheme())
 	if err != nil {

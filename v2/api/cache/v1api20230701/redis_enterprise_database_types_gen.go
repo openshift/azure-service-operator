@@ -69,7 +69,6 @@ func (database *RedisEnterpriseDatabase) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cache-azure-com-v1api20230701-redisenterprisedatabase,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cache.azure.com,resources=redisenterprisedatabases,verbs=create;update,versions=v1api20230701,name=default.v1api20230701.redisenterprisedatabases.cache.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &RedisEnterpriseDatabase{}
 
 // Default applies defaults to the RedisEnterpriseDatabase resource
 func (database *RedisEnterpriseDatabase) Default() {
@@ -174,7 +173,6 @@ func (database *RedisEnterpriseDatabase) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-cache-azure-com-v1api20230701-redisenterprisedatabase,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cache.azure.com,resources=redisenterprisedatabases,verbs=create;update,versions=v1api20230701,name=validate.v1api20230701.redisenterprisedatabases.cache.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &RedisEnterpriseDatabase{}
 
 // ValidateCreate validates the creation of the resource
 func (database *RedisEnterpriseDatabase) ValidateCreate() (admission.Warnings, error) {

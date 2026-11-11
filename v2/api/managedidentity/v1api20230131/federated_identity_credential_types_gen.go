@@ -69,7 +69,6 @@ func (credential *FederatedIdentityCredential) ConvertTo(hub conversion.Hub) err
 
 // +kubebuilder:webhook:path=/mutate-managedidentity-azure-com-v1api20230131-federatedidentitycredential,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=managedidentity.azure.com,resources=federatedidentitycredentials,verbs=create;update,versions=v1api20230131,name=default.v1api20230131.federatedidentitycredentials.managedidentity.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &FederatedIdentityCredential{}
 
 // Default applies defaults to the FederatedIdentityCredential resource
 func (credential *FederatedIdentityCredential) Default() {
@@ -174,7 +173,6 @@ func (credential *FederatedIdentityCredential) SetStatus(status genruntime.Conve
 
 // +kubebuilder:webhook:path=/validate-managedidentity-azure-com-v1api20230131-federatedidentitycredential,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=managedidentity.azure.com,resources=federatedidentitycredentials,verbs=create;update,versions=v1api20230131,name=validate.v1api20230131.federatedidentitycredentials.managedidentity.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &FederatedIdentityCredential{}
 
 // ValidateCreate validates the creation of the resource
 func (credential *FederatedIdentityCredential) ValidateCreate() (admission.Warnings, error) {

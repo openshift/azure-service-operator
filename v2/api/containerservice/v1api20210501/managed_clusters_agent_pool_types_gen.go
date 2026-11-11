@@ -83,7 +83,6 @@ func (pool *ManagedClustersAgentPool) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-containerservice-azure-com-v1api20210501-managedclustersagentpool,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerservice.azure.com,resources=managedclustersagentpools,verbs=create;update,versions=v1api20210501,name=default.v1api20210501.managedclustersagentpools.containerservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ManagedClustersAgentPool{}
 
 // Default applies defaults to the ManagedClustersAgentPool resource
 func (pool *ManagedClustersAgentPool) Default() {
@@ -177,7 +176,6 @@ func (pool *ManagedClustersAgentPool) SetStatus(status genruntime.ConvertibleSta
 
 // +kubebuilder:webhook:path=/validate-containerservice-azure-com-v1api20210501-managedclustersagentpool,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerservice.azure.com,resources=managedclustersagentpools,verbs=create;update,versions=v1api20210501,name=validate.v1api20210501.managedclustersagentpools.containerservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ManagedClustersAgentPool{}
 
 // ValidateCreate validates the creation of the resource
 func (pool *ManagedClustersAgentPool) ValidateCreate() (admission.Warnings, error) {

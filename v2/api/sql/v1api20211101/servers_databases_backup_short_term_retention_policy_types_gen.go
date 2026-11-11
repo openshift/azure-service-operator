@@ -69,7 +69,6 @@ func (policy *ServersDatabasesBackupShortTermRetentionPolicy) ConvertTo(hub conv
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversdatabasesbackupshorttermretentionpolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversdatabasesbackupshorttermretentionpolicies,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversdatabasesbackupshorttermretentionpolicies.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersDatabasesBackupShortTermRetentionPolicy{}
 
 // Default applies defaults to the ServersDatabasesBackupShortTermRetentionPolicy resource
 func (policy *ServersDatabasesBackupShortTermRetentionPolicy) Default() {
@@ -166,7 +165,6 @@ func (policy *ServersDatabasesBackupShortTermRetentionPolicy) SetStatus(status g
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversdatabasesbackupshorttermretentionpolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversdatabasesbackupshorttermretentionpolicies,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversdatabasesbackupshorttermretentionpolicies.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersDatabasesBackupShortTermRetentionPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *ServersDatabasesBackupShortTermRetentionPolicy) ValidateCreate() (admission.Warnings, error) {

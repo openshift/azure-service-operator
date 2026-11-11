@@ -83,7 +83,6 @@ func (schedule *RedisPatchSchedule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cache-azure-com-v1api20201201-redispatchschedule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cache.azure.com,resources=redispatchschedules,verbs=create;update,versions=v1api20201201,name=default.v1api20201201.redispatchschedules.cache.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &RedisPatchSchedule{}
 
 // Default applies defaults to the RedisPatchSchedule resource
 func (schedule *RedisPatchSchedule) Default() {
@@ -170,7 +169,6 @@ func (schedule *RedisPatchSchedule) SetStatus(status genruntime.ConvertibleStatu
 
 // +kubebuilder:webhook:path=/validate-cache-azure-com-v1api20201201-redispatchschedule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cache.azure.com,resources=redispatchschedules,verbs=create;update,versions=v1api20201201,name=validate.v1api20201201.redispatchschedules.cache.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &RedisPatchSchedule{}
 
 // ValidateCreate validates the creation of the resource
 func (schedule *RedisPatchSchedule) ValidateCreate() (admission.Warnings, error) {

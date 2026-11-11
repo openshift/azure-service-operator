@@ -70,7 +70,6 @@ func (compute *WorkspacesCompute) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-machinelearningservices-azure-com-v1api20210701-workspacescompute,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=machinelearningservices.azure.com,resources=workspacescomputes,verbs=create;update,versions=v1api20210701,name=default.v1api20210701.workspacescomputes.machinelearningservices.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &WorkspacesCompute{}
 
 // Default applies defaults to the WorkspacesCompute resource
 func (compute *WorkspacesCompute) Default() {
@@ -175,7 +174,6 @@ func (compute *WorkspacesCompute) SetStatus(status genruntime.ConvertibleStatus)
 
 // +kubebuilder:webhook:path=/validate-machinelearningservices-azure-com-v1api20210701-workspacescompute,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=machinelearningservices.azure.com,resources=workspacescomputes,verbs=create;update,versions=v1api20210701,name=validate.v1api20210701.workspacescomputes.machinelearningservices.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &WorkspacesCompute{}
 
 // ValidateCreate validates the creation of the resource
 func (compute *WorkspacesCompute) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (database *Database) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-dbformariadb-azure-com-v1api20180601-database,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformariadb.azure.com,resources=databases,verbs=create;update,versions=v1api20180601,name=default.v1api20180601.databases.dbformariadb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Database{}
 
 // Default applies defaults to the Database resource
 func (database *Database) Default() {
@@ -174,7 +173,6 @@ func (database *Database) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-dbformariadb-azure-com-v1api20180601-database,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformariadb.azure.com,resources=databases,verbs=create;update,versions=v1api20180601,name=validate.v1api20180601.databases.dbformariadb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Database{}
 
 // ValidateCreate validates the creation of the resource
 func (database *Database) ValidateCreate() (admission.Warnings, error) {

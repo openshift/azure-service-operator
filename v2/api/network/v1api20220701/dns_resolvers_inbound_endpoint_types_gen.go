@@ -69,7 +69,6 @@ func (endpoint *DnsResolversInboundEndpoint) ConvertTo(hub conversion.Hub) error
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-dnsresolversinboundendpoint,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnsresolversinboundendpoints,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.dnsresolversinboundendpoints.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &DnsResolversInboundEndpoint{}
 
 // Default applies defaults to the DnsResolversInboundEndpoint resource
 func (endpoint *DnsResolversInboundEndpoint) Default() {
@@ -174,7 +173,6 @@ func (endpoint *DnsResolversInboundEndpoint) SetStatus(status genruntime.Convert
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-dnsresolversinboundendpoint,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnsresolversinboundendpoints,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.dnsresolversinboundendpoints.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &DnsResolversInboundEndpoint{}
 
 // ValidateCreate validates the creation of the resource
 func (endpoint *DnsResolversInboundEndpoint) ValidateCreate() (admission.Warnings, error) {

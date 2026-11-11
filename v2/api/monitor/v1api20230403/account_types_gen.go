@@ -69,7 +69,6 @@ func (account *Account) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-monitor-azure-com-v1api20230403-account,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=monitor.azure.com,resources=accounts,verbs=create;update,versions=v1api20230403,name=default.v1api20230403.accounts.monitor.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Account{}
 
 // Default applies defaults to the Account resource
 func (account *Account) Default() {
@@ -174,7 +173,6 @@ func (account *Account) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-monitor-azure-com-v1api20230403-account,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=monitor.azure.com,resources=accounts,verbs=create;update,versions=v1api20230403,name=validate.v1api20230403.accounts.monitor.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Account{}
 
 // ValidateCreate validates the creation of the resource
 func (account *Account) ValidateCreate() (admission.Warnings, error) {

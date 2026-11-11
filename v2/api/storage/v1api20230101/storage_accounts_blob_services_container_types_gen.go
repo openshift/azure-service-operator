@@ -69,7 +69,6 @@ func (container *StorageAccountsBlobServicesContainer) ConvertTo(hub conversion.
 
 // +kubebuilder:webhook:path=/mutate-storage-azure-com-v1api20230101-storageaccountsblobservicescontainer,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsblobservicescontainers,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.storageaccountsblobservicescontainers.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &StorageAccountsBlobServicesContainer{}
 
 // Default applies defaults to the StorageAccountsBlobServicesContainer resource
 func (container *StorageAccountsBlobServicesContainer) Default() {
@@ -174,7 +173,6 @@ func (container *StorageAccountsBlobServicesContainer) SetStatus(status genrunti
 
 // +kubebuilder:webhook:path=/validate-storage-azure-com-v1api20230101-storageaccountsblobservicescontainer,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsblobservicescontainers,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.storageaccountsblobservicescontainers.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &StorageAccountsBlobServicesContainer{}
 
 // ValidateCreate validates the creation of the resource
 func (container *StorageAccountsBlobServicesContainer) ValidateCreate() (admission.Warnings, error) {

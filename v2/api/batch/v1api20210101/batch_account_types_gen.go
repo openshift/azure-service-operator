@@ -69,7 +69,6 @@ func (account *BatchAccount) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-batch-azure-com-v1api20210101-batchaccount,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=batch.azure.com,resources=batchaccounts,verbs=create;update,versions=v1api20210101,name=default.v1api20210101.batchaccounts.batch.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &BatchAccount{}
 
 // Default applies defaults to the BatchAccount resource
 func (account *BatchAccount) Default() {
@@ -174,7 +173,6 @@ func (account *BatchAccount) SetStatus(status genruntime.ConvertibleStatus) erro
 
 // +kubebuilder:webhook:path=/validate-batch-azure-com-v1api20210101-batchaccount,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=batch.azure.com,resources=batchaccounts,verbs=create;update,versions=v1api20210101,name=validate.v1api20210101.batchaccounts.batch.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &BatchAccount{}
 
 // ValidateCreate validates the creation of the resource
 func (account *BatchAccount) ValidateCreate() (admission.Warnings, error) {

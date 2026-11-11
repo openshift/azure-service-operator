@@ -83,7 +83,6 @@ func (database *FlexibleServersDatabase) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-dbformysql-azure-com-v1api20210501-flexibleserversdatabase,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformysql.azure.com,resources=flexibleserversdatabases,verbs=create;update,versions=v1api20210501,name=default.v1api20210501.flexibleserversdatabases.dbformysql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &FlexibleServersDatabase{}
 
 // Default applies defaults to the FlexibleServersDatabase resource
 func (database *FlexibleServersDatabase) Default() {
@@ -177,7 +176,6 @@ func (database *FlexibleServersDatabase) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-dbformysql-azure-com-v1api20210501-flexibleserversdatabase,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformysql.azure.com,resources=flexibleserversdatabases,verbs=create;update,versions=v1api20210501,name=validate.v1api20210501.flexibleserversdatabases.dbformysql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &FlexibleServersDatabase{}
 
 // ValidateCreate validates the creation of the resource
 func (database *FlexibleServersDatabase) ValidateCreate() (admission.Warnings, error) {

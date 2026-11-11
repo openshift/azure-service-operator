@@ -69,7 +69,6 @@ func (rule *ServersOutboundFirewallRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversoutboundfirewallrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversoutboundfirewallrules,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversoutboundfirewallrules.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersOutboundFirewallRule{}
 
 // Default applies defaults to the ServersOutboundFirewallRule resource
 func (rule *ServersOutboundFirewallRule) Default() {
@@ -174,7 +173,6 @@ func (rule *ServersOutboundFirewallRule) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversoutboundfirewallrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversoutboundfirewallrules,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversoutboundfirewallrules.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersOutboundFirewallRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *ServersOutboundFirewallRule) ValidateCreate() (admission.Warnings, error) {

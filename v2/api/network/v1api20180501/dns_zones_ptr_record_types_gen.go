@@ -69,7 +69,6 @@ func (record *DnsZonesPTRRecord) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20180501-dnszonesptrrecord,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnszonesptrrecords,verbs=create;update,versions=v1api20180501,name=default.v1api20180501.dnszonesptrrecords.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &DnsZonesPTRRecord{}
 
 // Default applies defaults to the DnsZonesPTRRecord resource
 func (record *DnsZonesPTRRecord) Default() {
@@ -174,7 +173,6 @@ func (record *DnsZonesPTRRecord) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20180501-dnszonesptrrecord,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnszonesptrrecords,verbs=create;update,versions=v1api20180501,name=validate.v1api20180501.dnszonesptrrecords.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &DnsZonesPTRRecord{}
 
 // ValidateCreate validates the creation of the resource
 func (record *DnsZonesPTRRecord) ValidateCreate() (admission.Warnings, error) {

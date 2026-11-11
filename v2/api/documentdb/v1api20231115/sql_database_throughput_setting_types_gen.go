@@ -69,7 +69,6 @@ func (setting *SqlDatabaseThroughputSetting) ConvertTo(hub conversion.Hub) error
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20231115-sqldatabasethroughputsetting,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabasethroughputsettings,verbs=create;update,versions=v1api20231115,name=default.v1api20231115.sqldatabasethroughputsettings.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SqlDatabaseThroughputSetting{}
 
 // Default applies defaults to the SqlDatabaseThroughputSetting resource
 func (setting *SqlDatabaseThroughputSetting) Default() {
@@ -166,7 +165,6 @@ func (setting *SqlDatabaseThroughputSetting) SetStatus(status genruntime.Convert
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20231115-sqldatabasethroughputsetting,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabasethroughputsettings,verbs=create;update,versions=v1api20231115,name=validate.v1api20231115.sqldatabasethroughputsettings.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SqlDatabaseThroughputSetting{}
 
 // ValidateCreate validates the creation of the resource
 func (setting *SqlDatabaseThroughputSetting) ValidateCreate() (admission.Warnings, error) {

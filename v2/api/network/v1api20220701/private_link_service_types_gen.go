@@ -74,7 +74,6 @@ func (service *PrivateLinkService) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-privatelinkservice,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privatelinkservices,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.privatelinkservices.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PrivateLinkService{}
 
 // Default applies defaults to the PrivateLinkService resource
 func (service *PrivateLinkService) Default() {
@@ -196,7 +195,6 @@ func (service *PrivateLinkService) SetStatus(status genruntime.ConvertibleStatus
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-privatelinkservice,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privatelinkservices,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.privatelinkservices.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PrivateLinkService{}
 
 // ValidateCreate validates the creation of the resource
 func (service *PrivateLinkService) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (setting *ServersAuditingSetting) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversauditingsetting,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversauditingsettings,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversauditingsettings.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersAuditingSetting{}
 
 // Default applies defaults to the ServersAuditingSetting resource
 func (setting *ServersAuditingSetting) Default() {
@@ -166,7 +165,6 @@ func (setting *ServersAuditingSetting) SetStatus(status genruntime.ConvertibleSt
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversauditingsetting,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversauditingsettings,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversauditingsettings.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersAuditingSetting{}
 
 // ValidateCreate validates the creation of the resource
 func (setting *ServersAuditingSetting) ValidateCreate() (admission.Warnings, error) {

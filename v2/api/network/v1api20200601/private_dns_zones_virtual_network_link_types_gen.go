@@ -69,7 +69,6 @@ func (link *PrivateDnsZonesVirtualNetworkLink) ConvertTo(hub conversion.Hub) err
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20200601-privatednszonesvirtualnetworklink,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privatednszonesvirtualnetworklinks,verbs=create;update,versions=v1api20200601,name=default.v1api20200601.privatednszonesvirtualnetworklinks.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PrivateDnsZonesVirtualNetworkLink{}
 
 // Default applies defaults to the PrivateDnsZonesVirtualNetworkLink resource
 func (link *PrivateDnsZonesVirtualNetworkLink) Default() {
@@ -174,7 +173,6 @@ func (link *PrivateDnsZonesVirtualNetworkLink) SetStatus(status genruntime.Conve
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20200601-privatednszonesvirtualnetworklink,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privatednszonesvirtualnetworklinks,verbs=create;update,versions=v1api20200601,name=validate.v1api20200601.privatednszonesvirtualnetworklinks.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PrivateDnsZonesVirtualNetworkLink{}
 
 // ValidateCreate validates the creation of the resource
 func (link *PrivateDnsZonesVirtualNetworkLink) ValidateCreate() (admission.Warnings, error) {

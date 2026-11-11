@@ -69,7 +69,6 @@ func (rule *Rule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-rule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=rules,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.rules.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Rule{}
 
 // Default applies defaults to the Rule resource
 func (rule *Rule) Default() {
@@ -174,7 +173,6 @@ func (rule *Rule) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-rule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=rules,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.rules.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Rule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *Rule) ValidateCreate() (admission.Warnings, error) {

@@ -83,7 +83,6 @@ func (database *SqlDatabase) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20210515-sqldatabase,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabases,verbs=create;update,versions=v1api20210515,name=default.v1api20210515.sqldatabases.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SqlDatabase{}
 
 // Default applies defaults to the SqlDatabase resource
 func (database *SqlDatabase) Default() {
@@ -177,7 +176,6 @@ func (database *SqlDatabase) SetStatus(status genruntime.ConvertibleStatus) erro
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20210515-sqldatabase,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabases,verbs=create;update,versions=v1api20210515,name=validate.v1api20210515.sqldatabases.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SqlDatabase{}
 
 // ValidateCreate validates the creation of the resource
 func (database *SqlDatabase) ValidateCreate() (admission.Warnings, error) {

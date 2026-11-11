@@ -70,7 +70,6 @@ func (alert *MetricAlert) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-insights-azure-com-v1api20180301-metricalert,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=metricalerts,verbs=create;update,versions=v1api20180301,name=default.v1api20180301.metricalerts.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &MetricAlert{}
 
 // Default applies defaults to the MetricAlert resource
 func (alert *MetricAlert) Default() {
@@ -175,7 +174,6 @@ func (alert *MetricAlert) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-insights-azure-com-v1api20180301-metricalert,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=metricalerts,verbs=create;update,versions=v1api20180301,name=validate.v1api20180301.metricalerts.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &MetricAlert{}
 
 // ValidateCreate validates the creation of the resource
 func (alert *MetricAlert) ValidateCreate() (admission.Warnings, error) {

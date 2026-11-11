@@ -83,7 +83,6 @@ func (service *Service) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-service,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=services,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.services.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Service{}
 
 // Default applies defaults to the Service resource
 func (service *Service) Default() {
@@ -177,7 +176,6 @@ func (service *Service) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-service,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=services,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.services.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Service{}
 
 // ValidateCreate validates the creation of the resource
 func (service *Service) ValidateCreate() (admission.Warnings, error) {

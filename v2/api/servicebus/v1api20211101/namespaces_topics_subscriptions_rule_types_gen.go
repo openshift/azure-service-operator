@@ -69,7 +69,6 @@ func (rule *NamespacesTopicsSubscriptionsRule) ConvertTo(hub conversion.Hub) err
 
 // +kubebuilder:webhook:path=/mutate-servicebus-azure-com-v1api20211101-namespacestopicssubscriptionsrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespacestopicssubscriptionsrules,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.namespacestopicssubscriptionsrules.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NamespacesTopicsSubscriptionsRule{}
 
 // Default applies defaults to the NamespacesTopicsSubscriptionsRule resource
 func (rule *NamespacesTopicsSubscriptionsRule) Default() {
@@ -174,7 +173,6 @@ func (rule *NamespacesTopicsSubscriptionsRule) SetStatus(status genruntime.Conve
 
 // +kubebuilder:webhook:path=/validate-servicebus-azure-com-v1api20211101-namespacestopicssubscriptionsrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespacestopicssubscriptionsrules,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.namespacestopicssubscriptionsrules.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NamespacesTopicsSubscriptionsRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *NamespacesTopicsSubscriptionsRule) ValidateCreate() (admission.Warnings, error) {

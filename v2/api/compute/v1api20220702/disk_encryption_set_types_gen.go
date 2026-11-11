@@ -69,7 +69,6 @@ func (encryptionSet *DiskEncryptionSet) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-compute-azure-com-v1api20220702-diskencryptionset,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=diskencryptionsets,verbs=create;update,versions=v1api20220702,name=default.v1api20220702.diskencryptionsets.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &DiskEncryptionSet{}
 
 // Default applies defaults to the DiskEncryptionSet resource
 func (encryptionSet *DiskEncryptionSet) Default() {
@@ -174,7 +173,6 @@ func (encryptionSet *DiskEncryptionSet) SetStatus(status genruntime.ConvertibleS
 
 // +kubebuilder:webhook:path=/validate-compute-azure-com-v1api20220702-diskencryptionset,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=diskencryptionsets,verbs=create;update,versions=v1api20220702,name=validate.v1api20220702.diskencryptionsets.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &DiskEncryptionSet{}
 
 // ValidateCreate validates the creation of the resource
 func (encryptionSet *DiskEncryptionSet) ValidateCreate() (admission.Warnings, error) {

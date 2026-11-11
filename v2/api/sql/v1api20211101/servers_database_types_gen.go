@@ -69,7 +69,6 @@ func (database *ServersDatabase) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversdatabase,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversdatabases,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversdatabases.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersDatabase{}
 
 // Default applies defaults to the ServersDatabase resource
 func (database *ServersDatabase) Default() {
@@ -174,7 +173,6 @@ func (database *ServersDatabase) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversdatabase,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversdatabases,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversdatabases.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersDatabase{}
 
 // ValidateCreate validates the creation of the resource
 func (database *ServersDatabase) ValidateCreate() (admission.Warnings, error) {

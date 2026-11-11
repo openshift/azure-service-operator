@@ -69,7 +69,6 @@ func (record *PrivateDnsZonesAAAARecord) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20200601-privatednszonesaaaarecord,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privatednszonesaaaarecords,verbs=create;update,versions=v1api20200601,name=default.v1api20200601.privatednszonesaaaarecords.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PrivateDnsZonesAAAARecord{}
 
 // Default applies defaults to the PrivateDnsZonesAAAARecord resource
 func (record *PrivateDnsZonesAAAARecord) Default() {
@@ -174,7 +173,6 @@ func (record *PrivateDnsZonesAAAARecord) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20200601-privatednszonesaaaarecord,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=privatednszonesaaaarecords,verbs=create;update,versions=v1api20200601,name=validate.v1api20200601.privatednszonesaaaarecords.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PrivateDnsZonesAAAARecord{}
 
 // ValidateCreate validates the creation of the resource
 func (record *PrivateDnsZonesAAAARecord) ValidateCreate() (admission.Warnings, error) {

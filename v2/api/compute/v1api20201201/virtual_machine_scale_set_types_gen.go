@@ -84,7 +84,6 @@ func (scaleSet *VirtualMachineScaleSet) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-compute-azure-com-v1api20201201-virtualmachinescaleset,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=virtualmachinescalesets,verbs=create;update,versions=v1api20201201,name=default.v1api20201201.virtualmachinescalesets.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &VirtualMachineScaleSet{}
 
 // Default applies defaults to the VirtualMachineScaleSet resource
 func (scaleSet *VirtualMachineScaleSet) Default() {
@@ -178,7 +177,6 @@ func (scaleSet *VirtualMachineScaleSet) SetStatus(status genruntime.ConvertibleS
 
 // +kubebuilder:webhook:path=/validate-compute-azure-com-v1api20201201-virtualmachinescaleset,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=virtualmachinescalesets,verbs=create;update,versions=v1api20201201,name=validate.v1api20201201.virtualmachinescalesets.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &VirtualMachineScaleSet{}
 
 // ValidateCreate validates the creation of the resource
 func (scaleSet *VirtualMachineScaleSet) ValidateCreate() (admission.Warnings, error) {

@@ -83,7 +83,6 @@ func (topic *NamespacesTopic) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-servicebus-azure-com-v1api20221001preview-namespacestopic,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespacestopics,verbs=create;update,versions=v1api20221001preview,name=default.v1api20221001preview.namespacestopics.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NamespacesTopic{}
 
 // Default applies defaults to the NamespacesTopic resource
 func (topic *NamespacesTopic) Default() {
@@ -177,7 +176,6 @@ func (topic *NamespacesTopic) SetStatus(status genruntime.ConvertibleStatus) err
 
 // +kubebuilder:webhook:path=/validate-servicebus-azure-com-v1api20221001preview-namespacestopic,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespacestopics,verbs=create;update,versions=v1api20221001preview,name=validate.v1api20221001preview.namespacestopics.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NamespacesTopic{}
 
 // ValidateCreate validates the creation of the resource
 func (topic *NamespacesTopic) ValidateCreate() (admission.Warnings, error) {

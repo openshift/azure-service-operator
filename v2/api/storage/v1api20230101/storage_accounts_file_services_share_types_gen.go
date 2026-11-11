@@ -69,7 +69,6 @@ func (share *StorageAccountsFileServicesShare) ConvertTo(hub conversion.Hub) err
 
 // +kubebuilder:webhook:path=/mutate-storage-azure-com-v1api20230101-storageaccountsfileservicesshare,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsfileservicesshares,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.storageaccountsfileservicesshares.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &StorageAccountsFileServicesShare{}
 
 // Default applies defaults to the StorageAccountsFileServicesShare resource
 func (share *StorageAccountsFileServicesShare) Default() {
@@ -174,7 +173,6 @@ func (share *StorageAccountsFileServicesShare) SetStatus(status genruntime.Conve
 
 // +kubebuilder:webhook:path=/validate-storage-azure-com-v1api20230101-storageaccountsfileservicesshare,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsfileservicesshares,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.storageaccountsfileservicesshares.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &StorageAccountsFileServicesShare{}
 
 // ValidateCreate validates the creation of the resource
 func (share *StorageAccountsFileServicesShare) ValidateCreate() (admission.Warnings, error) {

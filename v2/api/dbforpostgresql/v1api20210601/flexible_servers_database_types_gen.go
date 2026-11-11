@@ -83,7 +83,6 @@ func (database *FlexibleServersDatabase) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-dbforpostgresql-azure-com-v1api20210601-flexibleserversdatabase,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbforpostgresql.azure.com,resources=flexibleserversdatabases,verbs=create;update,versions=v1api20210601,name=default.v1api20210601.flexibleserversdatabases.dbforpostgresql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &FlexibleServersDatabase{}
 
 // Default applies defaults to the FlexibleServersDatabase resource
 func (database *FlexibleServersDatabase) Default() {
@@ -177,7 +176,6 @@ func (database *FlexibleServersDatabase) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-dbforpostgresql-azure-com-v1api20210601-flexibleserversdatabase,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbforpostgresql.azure.com,resources=flexibleserversdatabases,verbs=create;update,versions=v1api20210601,name=validate.v1api20210601.flexibleserversdatabases.dbforpostgresql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &FlexibleServersDatabase{}
 
 // ValidateCreate validates the creation of the resource
 func (database *FlexibleServersDatabase) ValidateCreate() (admission.Warnings, error) {

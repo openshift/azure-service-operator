@@ -69,7 +69,6 @@ func (assignment *SqlRoleAssignment) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20231115-sqlroleassignment,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqlroleassignments,verbs=create;update,versions=v1api20231115,name=default.v1api20231115.sqlroleassignments.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SqlRoleAssignment{}
 
 // Default applies defaults to the SqlRoleAssignment resource
 func (assignment *SqlRoleAssignment) Default() {
@@ -167,7 +166,6 @@ func (assignment *SqlRoleAssignment) SetStatus(status genruntime.ConvertibleStat
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20231115-sqlroleassignment,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqlroleassignments,verbs=create;update,versions=v1api20231115,name=validate.v1api20231115.sqlroleassignments.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SqlRoleAssignment{}
 
 // ValidateCreate validates the creation of the resource
 func (assignment *SqlRoleAssignment) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (pool *ServersElasticPool) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serverselasticpool,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serverselasticpools,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serverselasticpools.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersElasticPool{}
 
 // Default applies defaults to the ServersElasticPool resource
 func (pool *ServersElasticPool) Default() {
@@ -174,7 +173,6 @@ func (pool *ServersElasticPool) SetStatus(status genruntime.ConvertibleStatus) e
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serverselasticpool,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serverselasticpools,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serverselasticpools.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersElasticPool{}
 
 // ValidateCreate validates the creation of the resource
 func (pool *ServersElasticPool) ValidateCreate() (admission.Warnings, error) {

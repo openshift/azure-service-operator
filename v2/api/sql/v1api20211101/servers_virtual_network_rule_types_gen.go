@@ -69,7 +69,6 @@ func (rule *ServersVirtualNetworkRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversvirtualnetworkrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversvirtualnetworkrules,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversvirtualnetworkrules.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersVirtualNetworkRule{}
 
 // Default applies defaults to the ServersVirtualNetworkRule resource
 func (rule *ServersVirtualNetworkRule) Default() {
@@ -174,7 +173,6 @@ func (rule *ServersVirtualNetworkRule) SetStatus(status genruntime.ConvertibleSt
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversvirtualnetworkrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversvirtualnetworkrules,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversvirtualnetworkrules.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersVirtualNetworkRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *ServersVirtualNetworkRule) ValidateCreate() (admission.Warnings, error) {

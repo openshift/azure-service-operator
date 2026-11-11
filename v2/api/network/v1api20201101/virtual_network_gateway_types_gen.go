@@ -69,7 +69,6 @@ func (gateway *VirtualNetworkGateway) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-virtualnetworkgateway,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=virtualnetworkgateways,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.virtualnetworkgateways.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &VirtualNetworkGateway{}
 
 // Default applies defaults to the VirtualNetworkGateway resource
 func (gateway *VirtualNetworkGateway) Default() {
@@ -174,7 +173,6 @@ func (gateway *VirtualNetworkGateway) SetStatus(status genruntime.ConvertibleSta
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-virtualnetworkgateway,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=virtualnetworkgateways,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.virtualnetworkgateways.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &VirtualNetworkGateway{}
 
 // ValidateCreate validates the creation of the resource
 func (gateway *VirtualNetworkGateway) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (pool *WorkspacesBigDataPool) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-synapse-azure-com-v1api20210601-workspacesbigdatapool,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=synapse.azure.com,resources=workspacesbigdatapools,verbs=create;update,versions=v1api20210601,name=default.v1api20210601.workspacesbigdatapools.synapse.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &WorkspacesBigDataPool{}
 
 // Default applies defaults to the WorkspacesBigDataPool resource
 func (pool *WorkspacesBigDataPool) Default() {
@@ -174,7 +173,6 @@ func (pool *WorkspacesBigDataPool) SetStatus(status genruntime.ConvertibleStatus
 
 // +kubebuilder:webhook:path=/validate-synapse-azure-com-v1api20210601-workspacesbigdatapool,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=synapse.azure.com,resources=workspacesbigdatapools,verbs=create;update,versions=v1api20210601,name=validate.v1api20210601.workspacesbigdatapools.synapse.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &WorkspacesBigDataPool{}
 
 // ValidateCreate validates the creation of the resource
 func (pool *WorkspacesBigDataPool) ValidateCreate() (admission.Warnings, error) {

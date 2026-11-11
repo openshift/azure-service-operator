@@ -69,7 +69,6 @@ func (site *Site) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-web-azure-com-v1api20220301-site,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=web.azure.com,resources=sites,verbs=create;update,versions=v1api20220301,name=default.v1api20220301.sites.web.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Site{}
 
 // Default applies defaults to the Site resource
 func (site *Site) Default() {
@@ -174,7 +173,6 @@ func (site *Site) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-web-azure-com-v1api20220301-site,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=web.azure.com,resources=sites,verbs=create;update,versions=v1api20220301,name=validate.v1api20220301.sites.web.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Site{}
 
 // ValidateCreate validates the creation of the resource
 func (site *Site) ValidateCreate() (admission.Warnings, error) {

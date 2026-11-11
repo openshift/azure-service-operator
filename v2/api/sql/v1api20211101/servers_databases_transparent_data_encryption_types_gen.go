@@ -69,7 +69,6 @@ func (encryption *ServersDatabasesTransparentDataEncryption) ConvertTo(hub conve
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversdatabasestransparentdataencryption,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversdatabasestransparentdataencryptions,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversdatabasestransparentdataencryptions.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersDatabasesTransparentDataEncryption{}
 
 // Default applies defaults to the ServersDatabasesTransparentDataEncryption resource
 func (encryption *ServersDatabasesTransparentDataEncryption) Default() {
@@ -166,7 +165,6 @@ func (encryption *ServersDatabasesTransparentDataEncryption) SetStatus(status ge
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversdatabasestransparentdataencryption,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversdatabasestransparentdataencryptions,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversdatabasestransparentdataencryptions.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersDatabasesTransparentDataEncryption{}
 
 // ValidateCreate validates the creation of the resource
 func (encryption *ServersDatabasesTransparentDataEncryption) ValidateCreate() (admission.Warnings, error) {

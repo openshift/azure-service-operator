@@ -83,7 +83,6 @@ func (authorization *AuthorizationProvidersAuthorization) ConvertTo(hub conversi
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-authorizationprovidersauthorization,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=authorizationprovidersauthorizations,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.authorizationprovidersauthorizations.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &AuthorizationProvidersAuthorization{}
 
 // Default applies defaults to the AuthorizationProvidersAuthorization resource
 func (authorization *AuthorizationProvidersAuthorization) Default() {
@@ -179,7 +178,6 @@ func (authorization *AuthorizationProvidersAuthorization) SetStatus(status genru
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-authorizationprovidersauthorization,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=authorizationprovidersauthorizations,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.authorizationprovidersauthorizations.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &AuthorizationProvidersAuthorization{}
 
 // ValidateCreate validates the creation of the resource
 func (authorization *AuthorizationProvidersAuthorization) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (group *ResourceGroup) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-resources-azure-com-v1api20200601-resourcegroup,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=resources.azure.com,resources=resourcegroups,verbs=create;update,versions=v1api20200601,name=default.v1api20200601.resourcegroups.resources.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ResourceGroup{}
 
 // Default applies defaults to the ResourceGroup resource
 func (group *ResourceGroup) Default() {
@@ -184,7 +183,6 @@ func (group *ResourceGroup) Location() string {
 
 // +kubebuilder:webhook:path=/validate-resources-azure-com-v1api20200601-resourcegroup,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=resources.azure.com,resources=resourcegroups,verbs=create;update,versions=v1api20200601,name=validate.v1api20200601.resourcegroups.resources.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ResourceGroup{}
 
 // ValidateCreate validates the creation of the resource
 func (group *ResourceGroup) ValidateCreate() (admission.Warnings, error) {

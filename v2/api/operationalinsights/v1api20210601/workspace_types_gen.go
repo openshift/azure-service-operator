@@ -69,7 +69,6 @@ func (workspace *Workspace) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-operationalinsights-azure-com-v1api20210601-workspace,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=operationalinsights.azure.com,resources=workspaces,verbs=create;update,versions=v1api20210601,name=default.v1api20210601.workspaces.operationalinsights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Workspace{}
 
 // Default applies defaults to the Workspace resource
 func (workspace *Workspace) Default() {
@@ -174,7 +173,6 @@ func (workspace *Workspace) SetStatus(status genruntime.ConvertibleStatus) error
 
 // +kubebuilder:webhook:path=/validate-operationalinsights-azure-com-v1api20210601-workspace,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=operationalinsights.azure.com,resources=workspaces,verbs=create;update,versions=v1api20210601,name=validate.v1api20210601.workspaces.operationalinsights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Workspace{}
 
 // ValidateCreate validates the creation of the resource
 func (workspace *Workspace) ValidateCreate() (admission.Warnings, error) {

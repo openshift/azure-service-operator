@@ -69,7 +69,6 @@ func (gateway *ApplicationGateway) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-applicationgateway,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=applicationgateways,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.applicationgateways.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ApplicationGateway{}
 
 // Default applies defaults to the ApplicationGateway resource
 func (gateway *ApplicationGateway) Default() {
@@ -174,7 +173,6 @@ func (gateway *ApplicationGateway) SetStatus(status genruntime.ConvertibleStatus
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-applicationgateway,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=applicationgateways,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.applicationgateways.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ApplicationGateway{}
 
 // ValidateCreate validates the creation of the resource
 func (gateway *ApplicationGateway) ValidateCreate() (admission.Warnings, error) {

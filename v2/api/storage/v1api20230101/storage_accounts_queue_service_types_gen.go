@@ -69,7 +69,6 @@ func (service *StorageAccountsQueueService) ConvertTo(hub conversion.Hub) error 
 
 // +kubebuilder:webhook:path=/mutate-storage-azure-com-v1api20230101-storageaccountsqueueservice,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsqueueservices,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.storageaccountsqueueservices.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &StorageAccountsQueueService{}
 
 // Default applies defaults to the StorageAccountsQueueService resource
 func (service *StorageAccountsQueueService) Default() {
@@ -166,7 +165,6 @@ func (service *StorageAccountsQueueService) SetStatus(status genruntime.Converti
 
 // +kubebuilder:webhook:path=/validate-storage-azure-com-v1api20230101-storageaccountsqueueservice,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsqueueservices,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.storageaccountsqueueservices.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &StorageAccountsQueueService{}
 
 // ValidateCreate validates the creation of the resource
 func (service *StorageAccountsQueueService) ValidateCreate() (admission.Warnings, error) {

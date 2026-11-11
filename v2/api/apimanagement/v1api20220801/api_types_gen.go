@@ -67,7 +67,6 @@ func (api *Api) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20220801-api,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=apis,verbs=create;update,versions=v1api20220801,name=default.v1api20220801.apis.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Api{}
 
 // Default applies defaults to the Api resource
 func (api *Api) Default() {
@@ -173,7 +172,6 @@ func (api *Api) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20220801-api,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=apis,verbs=create;update,versions=v1api20220801,name=validate.v1api20220801.apis.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Api{}
 
 // ValidateCreate validates the creation of the resource
 func (api *Api) ValidateCreate() (admission.Warnings, error) {

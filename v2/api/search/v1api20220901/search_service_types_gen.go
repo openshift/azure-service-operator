@@ -70,7 +70,6 @@ func (service *SearchService) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-search-azure-com-v1api20220901-searchservice,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=search.azure.com,resources=searchservices,verbs=create;update,versions=v1api20220901,name=default.v1api20220901.searchservices.search.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SearchService{}
 
 // Default applies defaults to the SearchService resource
 func (service *SearchService) Default() {
@@ -175,7 +174,6 @@ func (service *SearchService) SetStatus(status genruntime.ConvertibleStatus) err
 
 // +kubebuilder:webhook:path=/validate-search-azure-com-v1api20220901-searchservice,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=search.azure.com,resources=searchservices,verbs=create;update,versions=v1api20220901,name=validate.v1api20220901.searchservices.search.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SearchService{}
 
 // ValidateCreate validates the creation of the resource
 func (service *SearchService) ValidateCreate() (admission.Warnings, error) {

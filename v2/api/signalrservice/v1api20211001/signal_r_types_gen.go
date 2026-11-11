@@ -69,7 +69,6 @@ func (signalR *SignalR) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-signalrservice-azure-com-v1api20211001-signalr,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=signalrservice.azure.com,resources=signalrs,verbs=create;update,versions=v1api20211001,name=default.v1api20211001.signalrs.signalrservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SignalR{}
 
 // Default applies defaults to the SignalR resource
 func (signalR *SignalR) Default() {
@@ -174,7 +173,6 @@ func (signalR *SignalR) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-signalrservice-azure-com-v1api20211001-signalr,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=signalrservice.azure.com,resources=signalrs,verbs=create;update,versions=v1api20211001,name=validate.v1api20211001.signalrs.signalrservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SignalR{}
 
 // ValidateCreate validates the creation of the resource
 func (signalR *SignalR) ValidateCreate() (admission.Warnings, error) {

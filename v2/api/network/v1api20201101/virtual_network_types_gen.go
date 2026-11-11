@@ -69,7 +69,6 @@ func (network *VirtualNetwork) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-virtualnetwork,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=virtualnetworks,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.virtualnetworks.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &VirtualNetwork{}
 
 // Default applies defaults to the VirtualNetwork resource
 func (network *VirtualNetwork) Default() {
@@ -174,7 +173,6 @@ func (network *VirtualNetwork) SetStatus(status genruntime.ConvertibleStatus) er
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-virtualnetwork,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=virtualnetworks,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.virtualnetworks.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &VirtualNetwork{}
 
 // ValidateCreate validates the creation of the resource
 func (network *VirtualNetwork) ValidateCreate() (admission.Warnings, error) {

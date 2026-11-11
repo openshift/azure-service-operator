@@ -70,7 +70,6 @@ func (factory *Factory) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-datafactory-azure-com-v1api20180601-factory,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=datafactory.azure.com,resources=factories,verbs=create;update,versions=v1api20180601,name=default.v1api20180601.factories.datafactory.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Factory{}
 
 // Default applies defaults to the Factory resource
 func (factory *Factory) Default() {
@@ -175,7 +174,6 @@ func (factory *Factory) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-datafactory-azure-com-v1api20180601-factory,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=datafactory.azure.com,resources=factories,verbs=create;update,versions=v1api20180601,name=validate.v1api20180601.factories.datafactory.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Factory{}
 
 // ValidateCreate validates the creation of the resource
 func (factory *Factory) ValidateCreate() (admission.Warnings, error) {

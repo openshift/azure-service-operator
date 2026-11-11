@@ -74,7 +74,6 @@ func (component *Component) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-insights-azure-com-v1api20200202-component,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=components,verbs=create;update,versions=v1api20200202,name=default.v1api20200202.components.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Component{}
 
 // Default applies defaults to the Component resource
 func (component *Component) Default() {
@@ -201,7 +200,6 @@ func (component *Component) SetStatus(status genruntime.ConvertibleStatus) error
 
 // +kubebuilder:webhook:path=/validate-insights-azure-com-v1api20200202-component,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=components,verbs=create;update,versions=v1api20200202,name=validate.v1api20200202.components.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Component{}
 
 // ValidateCreate validates the creation of the resource
 func (component *Component) ValidateCreate() (admission.Warnings, error) {

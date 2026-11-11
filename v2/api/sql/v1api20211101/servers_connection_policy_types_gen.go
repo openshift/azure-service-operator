@@ -69,7 +69,6 @@ func (policy *ServersConnectionPolicy) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversconnectionpolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversconnectionpolicies,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversconnectionpolicies.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersConnectionPolicy{}
 
 // Default applies defaults to the ServersConnectionPolicy resource
 func (policy *ServersConnectionPolicy) Default() {
@@ -166,7 +165,6 @@ func (policy *ServersConnectionPolicy) SetStatus(status genruntime.ConvertibleSt
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversconnectionpolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversconnectionpolicies,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversconnectionpolicies.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersConnectionPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *ServersConnectionPolicy) ValidateCreate() (admission.Warnings, error) {

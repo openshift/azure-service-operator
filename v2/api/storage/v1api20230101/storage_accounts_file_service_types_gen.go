@@ -69,7 +69,6 @@ func (service *StorageAccountsFileService) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-storage-azure-com-v1api20230101-storageaccountsfileservice,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsfileservices,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.storageaccountsfileservices.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &StorageAccountsFileService{}
 
 // Default applies defaults to the StorageAccountsFileService resource
 func (service *StorageAccountsFileService) Default() {
@@ -166,7 +165,6 @@ func (service *StorageAccountsFileService) SetStatus(status genruntime.Convertib
 
 // +kubebuilder:webhook:path=/validate-storage-azure-com-v1api20230101-storageaccountsfileservice,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsfileservices,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.storageaccountsfileservices.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &StorageAccountsFileService{}
 
 // ValidateCreate validates the creation of the resource
 func (service *StorageAccountsFileService) ValidateCreate() (admission.Warnings, error) {

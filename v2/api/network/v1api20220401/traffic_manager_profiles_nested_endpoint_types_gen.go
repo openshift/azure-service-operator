@@ -69,7 +69,6 @@ func (endpoint *TrafficManagerProfilesNestedEndpoint) ConvertTo(hub conversion.H
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220401-trafficmanagerprofilesnestedendpoint,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=trafficmanagerprofilesnestedendpoints,verbs=create;update,versions=v1api20220401,name=default.v1api20220401.trafficmanagerprofilesnestedendpoints.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &TrafficManagerProfilesNestedEndpoint{}
 
 // Default applies defaults to the TrafficManagerProfilesNestedEndpoint resource
 func (endpoint *TrafficManagerProfilesNestedEndpoint) Default() {
@@ -174,7 +173,6 @@ func (endpoint *TrafficManagerProfilesNestedEndpoint) SetStatus(status genruntim
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220401-trafficmanagerprofilesnestedendpoint,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=trafficmanagerprofilesnestedendpoints,verbs=create;update,versions=v1api20220401,name=validate.v1api20220401.trafficmanagerprofilesnestedendpoints.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &TrafficManagerProfilesNestedEndpoint{}
 
 // ValidateCreate validates the creation of the resource
 func (endpoint *TrafficManagerProfilesNestedEndpoint) ValidateCreate() (admission.Warnings, error) {

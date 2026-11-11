@@ -69,7 +69,6 @@ func (group *ServersFailoverGroup) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversfailovergroup,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversfailovergroups,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversfailovergroups.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersFailoverGroup{}
 
 // Default applies defaults to the ServersFailoverGroup resource
 func (group *ServersFailoverGroup) Default() {
@@ -174,7 +173,6 @@ func (group *ServersFailoverGroup) SetStatus(status genruntime.ConvertibleStatus
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversfailovergroup,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversfailovergroups,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversfailovergroups.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersFailoverGroup{}
 
 // ValidateCreate validates the creation of the resource
 func (group *ServersFailoverGroup) ValidateCreate() (admission.Warnings, error) {

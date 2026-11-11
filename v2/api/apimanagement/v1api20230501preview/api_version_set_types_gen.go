@@ -83,7 +83,6 @@ func (versionSet *ApiVersionSet) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-apiversionset,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=apiversionsets,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.apiversionsets.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ApiVersionSet{}
 
 // Default applies defaults to the ApiVersionSet resource
 func (versionSet *ApiVersionSet) Default() {
@@ -178,7 +177,6 @@ func (versionSet *ApiVersionSet) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-apiversionset,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=apiversionsets,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.apiversionsets.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ApiVersionSet{}
 
 // ValidateCreate validates the creation of the resource
 func (versionSet *ApiVersionSet) ValidateCreate() (admission.Warnings, error) {

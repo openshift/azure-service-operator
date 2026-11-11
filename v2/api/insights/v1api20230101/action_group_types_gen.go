@@ -69,7 +69,6 @@ func (group *ActionGroup) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-insights-azure-com-v1api20230101-actiongroup,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=actiongroups,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.actiongroups.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ActionGroup{}
 
 // Default applies defaults to the ActionGroup resource
 func (group *ActionGroup) Default() {
@@ -174,7 +173,6 @@ func (group *ActionGroup) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-insights-azure-com-v1api20230101-actiongroup,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=actiongroups,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.actiongroups.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ActionGroup{}
 
 // ValidateCreate validates the creation of the resource
 func (group *ActionGroup) ValidateCreate() (admission.Warnings, error) {

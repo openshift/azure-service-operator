@@ -69,7 +69,6 @@ func (configuration *Configuration) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-dbformariadb-azure-com-v1api20180601-configuration,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformariadb.azure.com,resources=configurations,verbs=create;update,versions=v1api20180601,name=default.v1api20180601.configurations.dbformariadb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Configuration{}
 
 // Default applies defaults to the Configuration resource
 func (configuration *Configuration) Default() {
@@ -173,7 +172,6 @@ func (configuration *Configuration) SetStatus(status genruntime.ConvertibleStatu
 
 // +kubebuilder:webhook:path=/validate-dbformariadb-azure-com-v1api20180601-configuration,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformariadb.azure.com,resources=configurations,verbs=create;update,versions=v1api20180601,name=validate.v1api20180601.configurations.dbformariadb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Configuration{}
 
 // ValidateCreate validates the creation of the resource
 func (configuration *Configuration) ValidateCreate() (admission.Warnings, error) {

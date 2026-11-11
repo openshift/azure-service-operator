@@ -69,7 +69,6 @@ func (rule *LoadBalancersInboundNatRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-loadbalancersinboundnatrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=loadbalancersinboundnatrules,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.loadbalancersinboundnatrules.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &LoadBalancersInboundNatRule{}
 
 // Default applies defaults to the LoadBalancersInboundNatRule resource
 func (rule *LoadBalancersInboundNatRule) Default() {
@@ -174,7 +173,6 @@ func (rule *LoadBalancersInboundNatRule) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-loadbalancersinboundnatrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=loadbalancersinboundnatrules,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.loadbalancersinboundnatrules.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &LoadBalancersInboundNatRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *LoadBalancersInboundNatRule) ValidateCreate() (admission.Warnings, error) {

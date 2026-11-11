@@ -69,7 +69,6 @@ func (ruleset *DnsForwardingRuleset) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-dnsforwardingruleset,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnsforwardingrulesets,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.dnsforwardingrulesets.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &DnsForwardingRuleset{}
 
 // Default applies defaults to the DnsForwardingRuleset resource
 func (ruleset *DnsForwardingRuleset) Default() {
@@ -174,7 +173,6 @@ func (ruleset *DnsForwardingRuleset) SetStatus(status genruntime.ConvertibleStat
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-dnsforwardingruleset,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnsforwardingrulesets,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.dnsforwardingrulesets.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &DnsForwardingRuleset{}
 
 // ValidateCreate validates the creation of the resource
 func (ruleset *DnsForwardingRuleset) ValidateCreate() (admission.Warnings, error) {

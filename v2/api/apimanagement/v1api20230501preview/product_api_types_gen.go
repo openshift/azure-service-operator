@@ -83,7 +83,6 @@ func (productApi *ProductApi) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-productapi,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=productapis,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.productapis.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ProductApi{}
 
 // Default applies defaults to the ProductApi resource
 func (productApi *ProductApi) Default() {
@@ -177,7 +176,6 @@ func (productApi *ProductApi) SetStatus(status genruntime.ConvertibleStatus) err
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-productapi,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=productapis,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.productapis.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ProductApi{}
 
 // ValidateCreate validates the creation of the resource
 func (productApi *ProductApi) ValidateCreate() (admission.Warnings, error) {

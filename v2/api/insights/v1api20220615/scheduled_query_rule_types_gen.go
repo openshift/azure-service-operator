@@ -69,7 +69,6 @@ func (rule *ScheduledQueryRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-insights-azure-com-v1api20220615-scheduledqueryrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=scheduledqueryrules,verbs=create;update,versions=v1api20220615,name=default.v1api20220615.scheduledqueryrules.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ScheduledQueryRule{}
 
 // Default applies defaults to the ScheduledQueryRule resource
 func (rule *ScheduledQueryRule) Default() {
@@ -174,7 +173,6 @@ func (rule *ScheduledQueryRule) SetStatus(status genruntime.ConvertibleStatus) e
 
 // +kubebuilder:webhook:path=/validate-insights-azure-com-v1api20220615-scheduledqueryrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=scheduledqueryrules,verbs=create;update,versions=v1api20220615,name=validate.v1api20220615.scheduledqueryrules.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ScheduledQueryRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *ScheduledQueryRule) ValidateCreate() (admission.Warnings, error) {

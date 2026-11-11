@@ -69,7 +69,6 @@ func (domain *AfdCustomDomain) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-afdcustomdomain,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=afdcustomdomains,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.afdcustomdomains.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &AfdCustomDomain{}
 
 // Default applies defaults to the AfdCustomDomain resource
 func (domain *AfdCustomDomain) Default() {
@@ -174,7 +173,6 @@ func (domain *AfdCustomDomain) SetStatus(status genruntime.ConvertibleStatus) er
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-afdcustomdomain,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=afdcustomdomains,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.afdcustomdomains.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &AfdCustomDomain{}
 
 // ValidateCreate validates the creation of the resource
 func (domain *AfdCustomDomain) ValidateCreate() (admission.Warnings, error) {

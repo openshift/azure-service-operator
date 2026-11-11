@@ -88,7 +88,6 @@ func (identity *UserAssignedIdentity) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-managedidentity-azure-com-v1api20181130-userassignedidentity,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=managedidentity.azure.com,resources=userassignedidentities,verbs=create;update,versions=v1api20181130,name=default.v1api20181130.userassignedidentities.managedidentity.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &UserAssignedIdentity{}
 
 // Default applies defaults to the UserAssignedIdentity resource
 func (identity *UserAssignedIdentity) Default() {
@@ -209,7 +208,6 @@ func (identity *UserAssignedIdentity) SetStatus(status genruntime.ConvertibleSta
 
 // +kubebuilder:webhook:path=/validate-managedidentity-azure-com-v1api20181130-userassignedidentity,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=managedidentity.azure.com,resources=userassignedidentities,verbs=create;update,versions=v1api20181130,name=validate.v1api20181130.userassignedidentities.managedidentity.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &UserAssignedIdentity{}
 
 // ValidateCreate validates the creation of the resource
 func (identity *UserAssignedIdentity) ValidateCreate() (admission.Warnings, error) {

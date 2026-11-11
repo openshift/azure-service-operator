@@ -83,7 +83,6 @@ func (image *Image) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-compute-azure-com-v1api20210701-image,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=images,verbs=create;update,versions=v1api20210701,name=default.v1api20210701.images.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Image{}
 
 // Default applies defaults to the Image resource
 func (image *Image) Default() {
@@ -177,7 +176,6 @@ func (image *Image) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-compute-azure-com-v1api20210701-image,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=compute.azure.com,resources=images,verbs=create;update,versions=v1api20210701,name=validate.v1api20210701.images.compute.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Image{}
 
 // ValidateCreate validates the creation of the resource
 func (image *Image) ValidateCreate() (admission.Warnings, error) {

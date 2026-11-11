@@ -69,7 +69,6 @@ func (rule *NamespacesAuthorizationRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-servicebus-azure-com-v1api20211101-namespacesauthorizationrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespacesauthorizationrules,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.namespacesauthorizationrules.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NamespacesAuthorizationRule{}
 
 // Default applies defaults to the NamespacesAuthorizationRule resource
 func (rule *NamespacesAuthorizationRule) Default() {
@@ -174,7 +173,6 @@ func (rule *NamespacesAuthorizationRule) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-servicebus-azure-com-v1api20211101-namespacesauthorizationrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespacesauthorizationrules,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.namespacesauthorizationrules.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NamespacesAuthorizationRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *NamespacesAuthorizationRule) ValidateCreate() (admission.Warnings, error) {

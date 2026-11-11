@@ -69,7 +69,6 @@ func (networkInterface *NetworkInterface) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-networkinterface,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=networkinterfaces,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.networkinterfaces.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NetworkInterface{}
 
 // Default applies defaults to the NetworkInterface resource
 func (networkInterface *NetworkInterface) Default() {
@@ -174,7 +173,6 @@ func (networkInterface *NetworkInterface) SetStatus(status genruntime.Convertibl
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-networkinterface,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=networkinterfaces,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.networkinterfaces.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NetworkInterface{}
 
 // ValidateCreate validates the creation of the resource
 func (networkInterface *NetworkInterface) ValidateCreate() (admission.Warnings, error) {

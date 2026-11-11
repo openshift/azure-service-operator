@@ -69,7 +69,6 @@ func (rule *FlexibleServersFirewallRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-dbforpostgresql-azure-com-v1api20221201-flexibleserversfirewallrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbforpostgresql.azure.com,resources=flexibleserversfirewallrules,verbs=create;update,versions=v1api20221201,name=default.v1api20221201.flexibleserversfirewallrules.dbforpostgresql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &FlexibleServersFirewallRule{}
 
 // Default applies defaults to the FlexibleServersFirewallRule resource
 func (rule *FlexibleServersFirewallRule) Default() {
@@ -174,7 +173,6 @@ func (rule *FlexibleServersFirewallRule) SetStatus(status genruntime.Convertible
 
 // +kubebuilder:webhook:path=/validate-dbforpostgresql-azure-com-v1api20221201-flexibleserversfirewallrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbforpostgresql.azure.com,resources=flexibleserversfirewallrules,verbs=create;update,versions=v1api20221201,name=validate.v1api20221201.flexibleserversfirewallrules.dbforpostgresql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &FlexibleServersFirewallRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *FlexibleServersFirewallRule) ValidateCreate() (admission.Warnings, error) {

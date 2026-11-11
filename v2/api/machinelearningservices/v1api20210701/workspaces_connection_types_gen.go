@@ -69,7 +69,6 @@ func (connection *WorkspacesConnection) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-machinelearningservices-azure-com-v1api20210701-workspacesconnection,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=machinelearningservices.azure.com,resources=workspacesconnections,verbs=create;update,versions=v1api20210701,name=default.v1api20210701.workspacesconnections.machinelearningservices.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &WorkspacesConnection{}
 
 // Default applies defaults to the WorkspacesConnection resource
 func (connection *WorkspacesConnection) Default() {
@@ -174,7 +173,6 @@ func (connection *WorkspacesConnection) SetStatus(status genruntime.ConvertibleS
 
 // +kubebuilder:webhook:path=/validate-machinelearningservices-azure-com-v1api20210701-workspacesconnection,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=machinelearningservices.azure.com,resources=workspacesconnections,verbs=create;update,versions=v1api20210701,name=validate.v1api20210701.workspacesconnections.machinelearningservices.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &WorkspacesConnection{}
 
 // ValidateCreate validates the creation of the resource
 func (connection *WorkspacesConnection) ValidateCreate() (admission.Warnings, error) {

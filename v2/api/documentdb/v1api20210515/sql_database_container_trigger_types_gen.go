@@ -83,7 +83,6 @@ func (trigger *SqlDatabaseContainerTrigger) ConvertTo(hub conversion.Hub) error 
 
 // +kubebuilder:webhook:path=/mutate-documentdb-azure-com-v1api20210515-sqldatabasecontainertrigger,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabasecontainertriggers,verbs=create;update,versions=v1api20210515,name=default.v1api20210515.sqldatabasecontainertriggers.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &SqlDatabaseContainerTrigger{}
 
 // Default applies defaults to the SqlDatabaseContainerTrigger resource
 func (trigger *SqlDatabaseContainerTrigger) Default() {
@@ -177,7 +176,6 @@ func (trigger *SqlDatabaseContainerTrigger) SetStatus(status genruntime.Converti
 
 // +kubebuilder:webhook:path=/validate-documentdb-azure-com-v1api20210515-sqldatabasecontainertrigger,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=documentdb.azure.com,resources=sqldatabasecontainertriggers,verbs=create;update,versions=v1api20210515,name=validate.v1api20210515.sqldatabasecontainertriggers.documentdb.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &SqlDatabaseContainerTrigger{}
 
 // ValidateCreate validates the creation of the resource
 func (trigger *SqlDatabaseContainerTrigger) ValidateCreate() (admission.Warnings, error) {

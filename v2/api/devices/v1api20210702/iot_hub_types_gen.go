@@ -69,7 +69,6 @@ func (iotHub *IotHub) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-devices-azure-com-v1api20210702-iothub,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=devices.azure.com,resources=iothubs,verbs=create;update,versions=v1api20210702,name=default.v1api20210702.iothubs.devices.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &IotHub{}
 
 // Default applies defaults to the IotHub resource
 func (iotHub *IotHub) Default() {
@@ -174,7 +173,6 @@ func (iotHub *IotHub) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-devices-azure-com-v1api20210702-iothub,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=devices.azure.com,resources=iothubs,verbs=create;update,versions=v1api20210702,name=validate.v1api20210702.iothubs.devices.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &IotHub{}
 
 // ValidateCreate validates the creation of the resource
 func (iotHub *IotHub) ValidateCreate() (admission.Warnings, error) {

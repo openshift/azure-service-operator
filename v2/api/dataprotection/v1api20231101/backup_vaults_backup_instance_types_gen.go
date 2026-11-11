@@ -69,7 +69,6 @@ func (instance *BackupVaultsBackupInstance) ConvertTo(hub conversion.Hub) error 
 
 // +kubebuilder:webhook:path=/mutate-dataprotection-azure-com-v1api20231101-backupvaultsbackupinstance,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dataprotection.azure.com,resources=backupvaultsbackupinstances,verbs=create;update,versions=v1api20231101,name=default.v1api20231101.backupvaultsbackupinstances.dataprotection.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &BackupVaultsBackupInstance{}
 
 // Default applies defaults to the BackupVaultsBackupInstance resource
 func (instance *BackupVaultsBackupInstance) Default() {
@@ -174,7 +173,6 @@ func (instance *BackupVaultsBackupInstance) SetStatus(status genruntime.Converti
 
 // +kubebuilder:webhook:path=/validate-dataprotection-azure-com-v1api20231101-backupvaultsbackupinstance,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dataprotection.azure.com,resources=backupvaultsbackupinstances,verbs=create;update,versions=v1api20231101,name=validate.v1api20231101.backupvaultsbackupinstances.dataprotection.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &BackupVaultsBackupInstance{}
 
 // ValidateCreate validates the creation of the resource
 func (instance *BackupVaultsBackupInstance) ValidateCreate() (admission.Warnings, error) {

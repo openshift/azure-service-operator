@@ -69,7 +69,6 @@ func (store *ConfigurationStore) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-appconfiguration-azure-com-v1api20220501-configurationstore,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=appconfiguration.azure.com,resources=configurationstores,verbs=create;update,versions=v1api20220501,name=default.v1api20220501.configurationstores.appconfiguration.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ConfigurationStore{}
 
 // Default applies defaults to the ConfigurationStore resource
 func (store *ConfigurationStore) Default() {
@@ -174,7 +173,6 @@ func (store *ConfigurationStore) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-appconfiguration-azure-com-v1api20220501-configurationstore,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=appconfiguration.azure.com,resources=configurationstores,verbs=create;update,versions=v1api20220501,name=validate.v1api20220501.configurationstores.appconfiguration.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ConfigurationStore{}
 
 // ValidateCreate validates the creation of the resource
 func (store *ConfigurationStore) ValidateCreate() (admission.Warnings, error) {

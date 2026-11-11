@@ -69,7 +69,6 @@ func (rule *ServersIPV6FirewallRule) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversipv6firewallrule,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversipv6firewallrules,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversipv6firewallrules.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersIPV6FirewallRule{}
 
 // Default applies defaults to the ServersIPV6FirewallRule resource
 func (rule *ServersIPV6FirewallRule) Default() {
@@ -174,7 +173,6 @@ func (rule *ServersIPV6FirewallRule) SetStatus(status genruntime.ConvertibleStat
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversipv6firewallrule,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversipv6firewallrules,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversipv6firewallrules.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersIPV6FirewallRule{}
 
 // ValidateCreate validates the creation of the resource
 func (rule *ServersIPV6FirewallRule) ValidateCreate() (admission.Warnings, error) {

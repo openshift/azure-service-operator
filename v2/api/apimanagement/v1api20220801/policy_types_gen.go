@@ -69,7 +69,6 @@ func (policy *Policy) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20220801-policy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=policies,verbs=create;update,versions=v1api20220801,name=default.v1api20220801.policies.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Policy{}
 
 // Default applies defaults to the Policy resource
 func (policy *Policy) Default() {
@@ -168,7 +167,6 @@ func (policy *Policy) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20220801-policy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=policies,verbs=create;update,versions=v1api20220801,name=validate.v1api20220801.policies.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Policy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *Policy) ValidateCreate() (admission.Warnings, error) {

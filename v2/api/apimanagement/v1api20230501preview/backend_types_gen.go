@@ -83,7 +83,6 @@ func (backend *Backend) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-backend,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=backends,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.backends.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Backend{}
 
 // Default applies defaults to the Backend resource
 func (backend *Backend) Default() {
@@ -178,7 +177,6 @@ func (backend *Backend) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-backend,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=backends,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.backends.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Backend{}
 
 // ValidateCreate validates the creation of the resource
 func (backend *Backend) ValidateCreate() (admission.Warnings, error) {

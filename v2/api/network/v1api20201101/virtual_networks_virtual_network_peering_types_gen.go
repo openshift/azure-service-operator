@@ -69,7 +69,6 @@ func (peering *VirtualNetworksVirtualNetworkPeering) ConvertTo(hub conversion.Hu
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-virtualnetworksvirtualnetworkpeering,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=virtualnetworksvirtualnetworkpeerings,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.virtualnetworksvirtualnetworkpeerings.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &VirtualNetworksVirtualNetworkPeering{}
 
 // Default applies defaults to the VirtualNetworksVirtualNetworkPeering resource
 func (peering *VirtualNetworksVirtualNetworkPeering) Default() {
@@ -174,7 +173,6 @@ func (peering *VirtualNetworksVirtualNetworkPeering) SetStatus(status genruntime
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-virtualnetworksvirtualnetworkpeering,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=virtualnetworksvirtualnetworkpeerings,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.virtualnetworksvirtualnetworkpeerings.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &VirtualNetworksVirtualNetworkPeering{}
 
 // ValidateCreate validates the creation of the resource
 func (peering *VirtualNetworksVirtualNetworkPeering) ValidateCreate() (admission.Warnings, error) {

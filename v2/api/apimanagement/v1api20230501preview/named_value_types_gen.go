@@ -83,7 +83,6 @@ func (value *NamedValue) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-apimanagement-azure-com-v1api20230501preview-namedvalue,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=namedvalues,verbs=create;update,versions=v1api20230501preview,name=default.v1api20230501preview.namedvalues.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NamedValue{}
 
 // Default applies defaults to the NamedValue resource
 func (value *NamedValue) Default() {
@@ -178,7 +177,6 @@ func (value *NamedValue) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-apimanagement-azure-com-v1api20230501preview-namedvalue,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=apimanagement.azure.com,resources=namedvalues,verbs=create;update,versions=v1api20230501preview,name=validate.v1api20230501preview.namedvalues.apimanagement.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NamedValue{}
 
 // ValidateCreate validates the creation of the resource
 func (value *NamedValue) ValidateCreate() (admission.Warnings, error) {

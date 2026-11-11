@@ -69,7 +69,6 @@ func (profile *Profile) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-profile,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=profiles,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.profiles.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Profile{}
 
 // Default applies defaults to the Profile resource
 func (profile *Profile) Default() {
@@ -174,7 +173,6 @@ func (profile *Profile) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-profile,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=profiles,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.profiles.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Profile{}
 
 // ValidateCreate validates the creation of the resource
 func (profile *Profile) ValidateCreate() (admission.Warnings, error) {

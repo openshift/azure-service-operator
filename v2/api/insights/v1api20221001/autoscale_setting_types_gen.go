@@ -69,7 +69,6 @@ func (setting *AutoscaleSetting) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-insights-azure-com-v1api20221001-autoscalesetting,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=autoscalesettings,verbs=create;update,versions=v1api20221001,name=default.v1api20221001.autoscalesettings.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &AutoscaleSetting{}
 
 // Default applies defaults to the AutoscaleSetting resource
 func (setting *AutoscaleSetting) Default() {
@@ -174,7 +173,6 @@ func (setting *AutoscaleSetting) SetStatus(status genruntime.ConvertibleStatus) 
 
 // +kubebuilder:webhook:path=/validate-insights-azure-com-v1api20221001-autoscalesetting,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=insights.azure.com,resources=autoscalesettings,verbs=create;update,versions=v1api20221001,name=validate.v1api20221001.autoscalesettings.insights.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &AutoscaleSetting{}
 
 // ValidateCreate validates the creation of the resource
 func (setting *AutoscaleSetting) ValidateCreate() (admission.Warnings, error) {

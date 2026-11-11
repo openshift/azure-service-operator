@@ -69,7 +69,6 @@ func (farm *ServerFarm) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-web-azure-com-v1api20220301-serverfarm,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=web.azure.com,resources=serverfarms,verbs=create;update,versions=v1api20220301,name=default.v1api20220301.serverfarms.web.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServerFarm{}
 
 // Default applies defaults to the ServerFarm resource
 func (farm *ServerFarm) Default() {
@@ -174,7 +173,6 @@ func (farm *ServerFarm) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-web-azure-com-v1api20220301-serverfarm,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=web.azure.com,resources=serverfarms,verbs=create;update,versions=v1api20220301,name=validate.v1api20220301.serverfarms.web.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServerFarm{}
 
 // ValidateCreate validates the creation of the resource
 func (farm *ServerFarm) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (policy *StorageAccountsManagementPolicy) ConvertTo(hub conversion.Hub) err
 
 // +kubebuilder:webhook:path=/mutate-storage-azure-com-v1api20230101-storageaccountsmanagementpolicy,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsmanagementpolicies,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.storageaccountsmanagementpolicies.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &StorageAccountsManagementPolicy{}
 
 // Default applies defaults to the StorageAccountsManagementPolicy resource
 func (policy *StorageAccountsManagementPolicy) Default() {
@@ -167,7 +166,6 @@ func (policy *StorageAccountsManagementPolicy) SetStatus(status genruntime.Conve
 
 // +kubebuilder:webhook:path=/validate-storage-azure-com-v1api20230101-storageaccountsmanagementpolicy,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=storage.azure.com,resources=storageaccountsmanagementpolicies,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.storageaccountsmanagementpolicies.storage.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &StorageAccountsManagementPolicy{}
 
 // ValidateCreate validates the creation of the resource
 func (policy *StorageAccountsManagementPolicy) ValidateCreate() (admission.Warnings, error) {

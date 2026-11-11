@@ -69,7 +69,6 @@ func (origin *AfdOrigin) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-afdorigin,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=afdorigins,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.afdorigins.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &AfdOrigin{}
 
 // Default applies defaults to the AfdOrigin resource
 func (origin *AfdOrigin) Default() {
@@ -174,7 +173,6 @@ func (origin *AfdOrigin) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-afdorigin,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=afdorigins,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.afdorigins.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &AfdOrigin{}
 
 // ValidateCreate validates the creation of the resource
 func (origin *AfdOrigin) ValidateCreate() (admission.Warnings, error) {

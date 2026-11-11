@@ -83,7 +83,6 @@ func (server *FlexibleServer) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-dbforpostgresql-azure-com-v1api20210601-flexibleserver,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbforpostgresql.azure.com,resources=flexibleservers,verbs=create;update,versions=v1api20210601,name=default.v1api20210601.flexibleservers.dbforpostgresql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &FlexibleServer{}
 
 // Default applies defaults to the FlexibleServer resource
 func (server *FlexibleServer) Default() {
@@ -177,7 +176,6 @@ func (server *FlexibleServer) SetStatus(status genruntime.ConvertibleStatus) err
 
 // +kubebuilder:webhook:path=/validate-dbforpostgresql-azure-com-v1api20210601-flexibleserver,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbforpostgresql.azure.com,resources=flexibleservers,verbs=create;update,versions=v1api20210601,name=validate.v1api20210601.flexibleservers.dbforpostgresql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &FlexibleServer{}
 
 // ValidateCreate validates the creation of the resource
 func (server *FlexibleServer) ValidateCreate() (admission.Warnings, error) {

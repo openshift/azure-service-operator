@@ -69,7 +69,6 @@ func (resolver *DnsResolver) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20220701-dnsresolver,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnsresolvers,verbs=create;update,versions=v1api20220701,name=default.v1api20220701.dnsresolvers.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &DnsResolver{}
 
 // Default applies defaults to the DnsResolver resource
 func (resolver *DnsResolver) Default() {
@@ -174,7 +173,6 @@ func (resolver *DnsResolver) SetStatus(status genruntime.ConvertibleStatus) erro
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20220701-dnsresolver,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=dnsresolvers,verbs=create;update,versions=v1api20220701,name=validate.v1api20220701.dnsresolvers.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &DnsResolver{}
 
 // ValidateCreate validates the creation of the resource
 func (resolver *DnsResolver) ValidateCreate() (admission.Warnings, error) {

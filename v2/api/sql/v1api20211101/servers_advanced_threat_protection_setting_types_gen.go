@@ -69,7 +69,6 @@ func (setting *ServersAdvancedThreatProtectionSetting) ConvertTo(hub conversion.
 
 // +kubebuilder:webhook:path=/mutate-sql-azure-com-v1api20211101-serversadvancedthreatprotectionsetting,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversadvancedthreatprotectionsettings,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.serversadvancedthreatprotectionsettings.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &ServersAdvancedThreatProtectionSetting{}
 
 // Default applies defaults to the ServersAdvancedThreatProtectionSetting resource
 func (setting *ServersAdvancedThreatProtectionSetting) Default() {
@@ -166,7 +165,6 @@ func (setting *ServersAdvancedThreatProtectionSetting) SetStatus(status genrunti
 
 // +kubebuilder:webhook:path=/validate-sql-azure-com-v1api20211101-serversadvancedthreatprotectionsetting,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=sql.azure.com,resources=serversadvancedthreatprotectionsettings,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.serversadvancedthreatprotectionsettings.sql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &ServersAdvancedThreatProtectionSetting{}
 
 // ValidateCreate validates the creation of the resource
 func (setting *ServersAdvancedThreatProtectionSetting) ValidateCreate() (admission.Warnings, error) {

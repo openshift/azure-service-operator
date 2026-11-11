@@ -69,7 +69,6 @@ func (fleet *Fleet) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-containerservice-azure-com-v1api20230315preview-fleet,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerservice.azure.com,resources=fleets,verbs=create;update,versions=v1api20230315preview,name=default.v1api20230315preview.fleets.containerservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Fleet{}
 
 // Default applies defaults to the Fleet resource
 func (fleet *Fleet) Default() {
@@ -174,7 +173,6 @@ func (fleet *Fleet) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-containerservice-azure-com-v1api20230315preview-fleet,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=containerservice.azure.com,resources=fleets,verbs=create;update,versions=v1api20230315preview,name=validate.v1api20230315preview.fleets.containerservice.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Fleet{}
 
 // ValidateCreate validates the creation of the resource
 func (fleet *Fleet) ValidateCreate() (admission.Warnings, error) {

@@ -69,7 +69,6 @@ func (subscription *EventSubscription) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-eventgrid-azure-com-v1api20200601-eventsubscription,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=eventgrid.azure.com,resources=eventsubscriptions,verbs=create;update,versions=v1api20200601,name=default.v1api20200601.eventsubscriptions.eventgrid.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &EventSubscription{}
 
 // Default applies defaults to the EventSubscription resource
 func (subscription *EventSubscription) Default() {
@@ -173,7 +172,6 @@ func (subscription *EventSubscription) SetStatus(status genruntime.ConvertibleSt
 
 // +kubebuilder:webhook:path=/validate-eventgrid-azure-com-v1api20200601-eventsubscription,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=eventgrid.azure.com,resources=eventsubscriptions,verbs=create;update,versions=v1api20200601,name=validate.v1api20200601.eventsubscriptions.eventgrid.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &EventSubscription{}
 
 // ValidateCreate validates the creation of the resource
 func (subscription *EventSubscription) ValidateCreate() (admission.Warnings, error) {

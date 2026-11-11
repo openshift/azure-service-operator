@@ -83,7 +83,6 @@ func (administrator *FlexibleServersAdministrator) ConvertTo(hub conversion.Hub)
 
 // +kubebuilder:webhook:path=/mutate-dbformysql-azure-com-v1api20220101-flexibleserversadministrator,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformysql.azure.com,resources=flexibleserversadministrators,verbs=create;update,versions=v1api20220101,name=default.v1api20220101.flexibleserversadministrators.dbformysql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &FlexibleServersAdministrator{}
 
 // Default applies defaults to the FlexibleServersAdministrator resource
 func (administrator *FlexibleServersAdministrator) Default() {
@@ -170,7 +169,6 @@ func (administrator *FlexibleServersAdministrator) SetStatus(status genruntime.C
 
 // +kubebuilder:webhook:path=/validate-dbformysql-azure-com-v1api20220101-flexibleserversadministrator,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dbformysql.azure.com,resources=flexibleserversadministrators,verbs=create;update,versions=v1api20220101,name=validate.v1api20220101.flexibleserversadministrators.dbformysql.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &FlexibleServersAdministrator{}
 
 // ValidateCreate validates the creation of the resource
 func (administrator *FlexibleServersAdministrator) ValidateCreate() (admission.Warnings, error) {

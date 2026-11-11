@@ -83,7 +83,6 @@ func (namespace *Namespace) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-servicebus-azure-com-v1api20210101preview-namespace,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespaces,verbs=create;update,versions=v1api20210101preview,name=default.v1api20210101preview.namespaces.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Namespace{}
 
 // Default applies defaults to the Namespace resource
 func (namespace *Namespace) Default() {
@@ -177,7 +176,6 @@ func (namespace *Namespace) SetStatus(status genruntime.ConvertibleStatus) error
 
 // +kubebuilder:webhook:path=/validate-servicebus-azure-com-v1api20210101preview-namespace,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=servicebus.azure.com,resources=namespaces,verbs=create;update,versions=v1api20210101preview,name=validate.v1api20210101preview.namespaces.servicebus.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Namespace{}
 
 // ValidateCreate validates the creation of the resource
 func (namespace *Namespace) ValidateCreate() (admission.Warnings, error) {

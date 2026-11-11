@@ -88,7 +88,6 @@ func (vault *BackupVault) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-dataprotection-azure-com-v1api20230101-backupvault,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dataprotection.azure.com,resources=backupvaults,verbs=create;update,versions=v1api20230101,name=default.v1api20230101.backupvaults.dataprotection.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &BackupVault{}
 
 // Default applies defaults to the BackupVault resource
 func (vault *BackupVault) Default() {
@@ -201,7 +200,6 @@ func (vault *BackupVault) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-dataprotection-azure-com-v1api20230101-backupvault,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=dataprotection.azure.com,resources=backupvaults,verbs=create;update,versions=v1api20230101,name=validate.v1api20230101.backupvaults.dataprotection.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &BackupVault{}
 
 // ValidateCreate validates the creation of the resource
 func (vault *BackupVault) ValidateCreate() (admission.Warnings, error) {

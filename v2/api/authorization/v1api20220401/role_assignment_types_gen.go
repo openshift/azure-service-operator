@@ -69,7 +69,6 @@ func (assignment *RoleAssignment) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-authorization-azure-com-v1api20220401-roleassignment,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=authorization.azure.com,resources=roleassignments,verbs=create;update,versions=v1api20220401,name=default.v1api20220401.roleassignments.authorization.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &RoleAssignment{}
 
 // Default applies defaults to the RoleAssignment resource
 func (assignment *RoleAssignment) Default() {
@@ -166,7 +165,6 @@ func (assignment *RoleAssignment) SetStatus(status genruntime.ConvertibleStatus)
 
 // +kubebuilder:webhook:path=/validate-authorization-azure-com-v1api20220401-roleassignment,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=authorization.azure.com,resources=roleassignments,verbs=create;update,versions=v1api20220401,name=validate.v1api20220401.roleassignments.authorization.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &RoleAssignment{}
 
 // ValidateCreate validates the creation of the resource
 func (assignment *RoleAssignment) ValidateCreate() (admission.Warnings, error) {

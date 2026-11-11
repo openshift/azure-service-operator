@@ -69,7 +69,6 @@ func (address *PublicIPAddress) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-network-azure-com-v1api20201101-publicipaddress,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=publicipaddresses,verbs=create;update,versions=v1api20201101,name=default.v1api20201101.publicipaddresses.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &PublicIPAddress{}
 
 // Default applies defaults to the PublicIPAddress resource
 func (address *PublicIPAddress) Default() {
@@ -174,7 +173,6 @@ func (address *PublicIPAddress) SetStatus(status genruntime.ConvertibleStatus) e
 
 // +kubebuilder:webhook:path=/validate-network-azure-com-v1api20201101-publicipaddress,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=network.azure.com,resources=publicipaddresses,verbs=create;update,versions=v1api20201101,name=validate.v1api20201101.publicipaddresses.network.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &PublicIPAddress{}
 
 // ValidateCreate validates the creation of the resource
 func (address *PublicIPAddress) ValidateCreate() (admission.Warnings, error) {

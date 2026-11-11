@@ -69,7 +69,6 @@ func (secret *Secret) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-cdn-azure-com-v1api20230501-secret,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=secrets,verbs=create;update,versions=v1api20230501,name=default.v1api20230501.secrets.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Secret{}
 
 // Default applies defaults to the Secret resource
 func (secret *Secret) Default() {
@@ -174,7 +173,6 @@ func (secret *Secret) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-cdn-azure-com-v1api20230501-secret,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=cdn.azure.com,resources=secrets,verbs=create;update,versions=v1api20230501,name=validate.v1api20230501.secrets.cdn.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Secret{}
 
 // ValidateCreate validates the creation of the resource
 func (secret *Secret) ValidateCreate() (admission.Warnings, error) {

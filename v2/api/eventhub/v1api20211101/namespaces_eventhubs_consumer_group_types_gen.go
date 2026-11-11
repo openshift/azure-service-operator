@@ -69,7 +69,6 @@ func (group *NamespacesEventhubsConsumerGroup) ConvertTo(hub conversion.Hub) err
 
 // +kubebuilder:webhook:path=/mutate-eventhub-azure-com-v1api20211101-namespaceseventhubsconsumergroup,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=eventhub.azure.com,resources=namespaceseventhubsconsumergroups,verbs=create;update,versions=v1api20211101,name=default.v1api20211101.namespaceseventhubsconsumergroups.eventhub.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &NamespacesEventhubsConsumerGroup{}
 
 // Default applies defaults to the NamespacesEventhubsConsumerGroup resource
 func (group *NamespacesEventhubsConsumerGroup) Default() {
@@ -174,7 +173,6 @@ func (group *NamespacesEventhubsConsumerGroup) SetStatus(status genruntime.Conve
 
 // +kubebuilder:webhook:path=/validate-eventhub-azure-com-v1api20211101-namespaceseventhubsconsumergroup,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=eventhub.azure.com,resources=namespaceseventhubsconsumergroups,verbs=create;update,versions=v1api20211101,name=validate.v1api20211101.namespaceseventhubsconsumergroups.eventhub.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &NamespacesEventhubsConsumerGroup{}
 
 // ValidateCreate validates the creation of the resource
 func (group *NamespacesEventhubsConsumerGroup) ValidateCreate() (admission.Warnings, error) {

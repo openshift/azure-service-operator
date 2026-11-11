@@ -69,7 +69,6 @@ func (vault *Vault) ConvertTo(hub conversion.Hub) error {
 
 // +kubebuilder:webhook:path=/mutate-keyvault-azure-com-v1api20230701-vault,mutating=true,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=keyvault.azure.com,resources=vaults,verbs=create;update,versions=v1api20230701,name=default.v1api20230701.vaults.keyvault.azure.com,admissionReviewVersions=v1
 
-var _ admission.Defaulter = &Vault{}
 
 // Default applies defaults to the Vault resource
 func (vault *Vault) Default() {
@@ -174,7 +173,6 @@ func (vault *Vault) SetStatus(status genruntime.ConvertibleStatus) error {
 
 // +kubebuilder:webhook:path=/validate-keyvault-azure-com-v1api20230701-vault,mutating=false,sideEffects=None,matchPolicy=Exact,failurePolicy=fail,groups=keyvault.azure.com,resources=vaults,verbs=create;update,versions=v1api20230701,name=validate.v1api20230701.vaults.keyvault.azure.com,admissionReviewVersions=v1
 
-var _ admission.Validator = &Vault{}
 
 // ValidateCreate validates the creation of the resource
 func (vault *Vault) ValidateCreate() (admission.Warnings, error) {
